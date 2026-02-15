@@ -1,0 +1,2157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Procedural Planet Generator</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+        #canvas { display: block; }
+        #ui {
+            position: absolute; top: 16px; left: 16px;
+            background: rgba(8,8,28,0.88); backdrop-filter: blur(12px);
+            padding: 20px; border-radius: 12px;
+            border: 1px solid rgba(255,255,255,0.08);
+            min-width: 270px; user-select: none;
+        }
+        #ui h2 { margin-bottom: 4px; font-size: 18px; font-weight: 600; }
+        #ui .sub { font-size: 11px; color: #667; margin-bottom: 16px; }
+        .cg { margin-bottom: 10px; }
+        .cg label { display: block; font-size: 12px; color: #99a; margin-bottom: 3px; }
+        .cg .v { float: right; color: #6af; font-variant-numeric: tabular-nums; }
+        input[type="range"] { width: 100%; accent-color: #48f; cursor: pointer; }
+        button#generate {
+            width: 100%; padding: 10px; margin-top: 10px;
+            background: linear-gradient(135deg, #2255cc, #3366ee);
+            color: white; border: none; border-radius: 8px;
+            font-size: 14px; font-weight: 500; cursor: pointer;
+        }
+        button#generate:hover { filter: brightness(1.15); }
+        .tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+        .tg label { font-size: 11px; color: #88a; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+        #stats { position: absolute; top: 16px; right: 16px; font-size: 11px; color: #556; text-align: right; line-height: 1.6; }
+        #info { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #445; }
+        #hoverInfo {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            font-size: 12px; color: #cde; background: rgba(8,8,28,0.85);
+            backdrop-filter: blur(8px); padding: 6px 14px; border-radius: 8px;
+            border: 1px solid rgba(255,255,255,0.08); white-space: nowrap;
+            pointer-events: none; display: none; line-height: 1.5;
+        }
+        #editPanel { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+        #editPanel .mode-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+        #editPanel .mode-btns button {
+            flex: 1; padding: 6px; font-size: 11px; border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 5px; background: transparent; color: #88a; cursor: pointer;
+        }
+        #editPanel .mode-btns button.active { background: rgba(68,136,255,0.25); color: #adf; border-color: #48f; }
+        #editPanel .mode-btns button:hover:not(.active) { background: rgba(255,255,255,0.05); }
+        #editHelp { font-size: 11px; color: #667; line-height: 1.4; }
+        #editInfo { font-size: 12px; color: #cde; margin-top: 8px; min-height: 18px; }
+        .edit-active { cursor: crosshair !important; }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <h2>Planet Generator</h2>
+        <div class="sub">Fibonacci sphere &middot; Voronoi cells &middot; plate tectonics</div>
+        <div class="cg">
+            <label>Regions <span class="v" id="vN">10000</span></label>
+            <input type="range" id="sN" min="2000" max="640000" value="10000" step="1000">
+        </div>
+        <div class="cg">
+            <label>Plates <span class="v" id="vP">20</span></label>
+            <input type="range" id="sP" min="4" max="120" value="20" step="1">
+        </div>
+        <div class="cg">
+            <label>Continents <span class="v" id="vCn">4</span></label>
+            <input type="range" id="sCn" min="1" max="10" value="4" step="1">
+        </div>
+        <div class="cg">
+            <label>Jitter <span class="v" id="vJ">0.75</span></label>
+            <input type="range" id="sJ" min="0" max="1" value="0.75" step="0.05">
+        </div>
+        <div class="cg">
+            <label>Noise <span class="v" id="vNs">0.10</span></label>
+            <input type="range" id="sNs" min="0" max="0.4" value="0.10" step="0.01">
+        </div>
+        <div class="cg">
+            <label>Collision Spread <span class="v" id="vSp">4</span></label>
+            <input type="range" id="sSp" min="0" max="10" value="4" step="1">
+        </div>
+        <div class="cg">
+            <label>Water Level <span class="v" id="vWL">0.00</span></label>
+            <input type="range" id="sWL" min="-0.5" max="0.5" value="0.0" step="0.01">
+        </div>
+        <button id="generate">Generate New Planet</button>
+        <div class="tg">
+            <label><input type="checkbox" id="chkWire"> Borders</label>
+            <label><input type="checkbox" id="chkPlates"> Plates</label>
+            <label><input type="checkbox" id="chkStress"> Boundaries</label>
+        </div>
+        <div class="tg">
+            <label><input type="checkbox" id="chkRotate"> Rotate</label>
+            <label><input type="checkbox" id="chkEdit"> Edit Mode</label>
+            <label><input type="checkbox" id="chkMap"> Map</label>
+        </div>
+        <div id="editPanel">
+            <div class="mode-btns">
+                <button id="btnToggle" class="active">Land / Sea</button>
+                <button id="btnDrift">Set Drift</button>
+                <button id="btnDensity">Density</button>
+            </div>
+            <div id="editHelp">Click a plate to toggle land/sea</div>
+            <div id="editInfo"></div>
+        </div>
+    </div>
+    <div id="stats"></div>
+    <div id="hoverInfo"></div>
+    <div id="info">Drag to rotate &middot; Scroll to zoom</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "delaunator": "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm"
+        }
+    }
+    </script>
+
+    <script type="module">
+    import * as THREE from 'three';
+    import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+    import Delaunator from 'delaunator';
+
+    // ================================================================
+    //  SEEDED RNG
+    // ================================================================
+    function makeRng(seed) {
+        let s = (Math.abs(Math.floor(seed * 9301 + 49297)) % 2147483646) + 1;
+        return () => { s = (s * 16807) % 2147483647; return (s - 1) / 2147483646; };
+    }
+    function makeRandInt(seed) {
+        const r = makeRng(seed);
+        return (n) => Math.floor(r() * n);
+    }
+
+    // ================================================================
+    //  SIMPLEX NOISE 3D
+    // ================================================================
+    class SimplexNoise {
+        constructor(seed = 0) {
+            this.G = [[1,1,0],[-1,1,0],[1,-1,0],[-1,-1,0],[1,0,1],[-1,0,1],[1,0,-1],[-1,0,-1],[0,1,1],[0,-1,1],[0,1,-1],[0,-1,-1]];
+            const rng = makeRng(seed);
+            const p = new Uint8Array(256);
+            for (let i = 0; i < 256; i++) p[i] = i;
+            for (let i = 255; i > 0; i--) { const j = Math.floor(rng()*(i+1)); [p[i],p[j]]=[p[j],p[i]]; }
+            this.perm = new Uint8Array(512);
+            this.pm12 = new Uint8Array(512);
+            for (let i = 0; i < 512; i++) { this.perm[i] = p[i&255]; this.pm12[i] = this.perm[i]%12; }
+        }
+        noise3D(x,y,z) {
+            const F=1/3,H=1/6,s=(x+y+z)*F;
+            const i=Math.floor(x+s),j=Math.floor(y+s),k=Math.floor(z+s);
+            const t=(i+j+k)*H,x0=x-i+t,y0=y-j+t,z0=z-k+t;
+            let i1,j1,k1,i2,j2,k2;
+            if(x0>=y0){if(y0>=z0){i1=1;j1=0;k1=0;i2=1;j2=1;k2=0;}else if(x0>=z0){i1=1;j1=0;k1=0;i2=1;j2=0;k2=1;}else{i1=0;j1=0;k1=1;i2=1;j2=0;k2=1;}}
+            else{if(y0<z0){i1=0;j1=0;k1=1;i2=0;j2=1;k2=1;}else if(x0<z0){i1=0;j1=1;k1=0;i2=0;j2=1;k2=1;}else{i1=0;j1=1;k1=0;i2=1;j2=1;k2=0;}}
+            const x1=x0-i1+H,y1=y0-j1+H,z1=z0-k1+H,x2=x0-i2+2*H,y2=y0-j2+2*H,z2=z0-k2+2*H,x3=x0-1+3*H,y3=y0-1+3*H,z3=z0-1+3*H;
+            const ii=i&255,jj=j&255,kk=k&255,{perm:P,pm12:M,G:g}=this;
+            let n0=0,n1=0,n2=0,n3=0;
+            let a=0.6-x0*x0-y0*y0-z0*z0;if(a>0){a*=a;const v=g[M[ii+P[jj+P[kk]]]];n0=a*a*(v[0]*x0+v[1]*y0+v[2]*z0);}
+            let b=0.6-x1*x1-y1*y1-z1*z1;if(b>0){b*=b;const v=g[M[ii+i1+P[jj+j1+P[kk+k1]]]];n1=b*b*(v[0]*x1+v[1]*y1+v[2]*z1);}
+            let c=0.6-x2*x2-y2*y2-z2*z2;if(c>0){c*=c;const v=g[M[ii+i2+P[jj+j2+P[kk+k2]]]];n2=c*c*(v[0]*x2+v[1]*y2+v[2]*z2);}
+            let d=0.6-x3*x3-y3*y3-z3*z3;if(d>0){d*=d;const v=g[M[ii+1+P[jj+1+P[kk+1]]]];n3=d*d*(v[0]*x3+v[1]*y3+v[2]*z3);}
+            return 32*(n0+n1+n2+n3);
+        }
+        fbm(x,y,z,octaves=5,persistence=2/3) {
+            let sum=0,max=0,amp=1;
+            for(let o=0;o<octaves;o++){const f=1<<o;sum+=amp*this.noise3D(x*f,y*f,z*f);max+=amp;amp*=persistence;}
+            return sum/max;
+        }
+        ridgedFbm(x, y, z, octaves = 6, lacunarity = 2.0, gain = 0.5, offset = 1.0) {
+            let sum = 0, freq = 1, amp = 1, prev = 1, maxVal = 0;
+            for (let o = 0; o < octaves; o++) {
+                let n = this.noise3D(x * freq, y * freq, z * freq);
+                n = offset - Math.abs(n);
+                n = n * n;
+                sum += n * amp * prev;
+                maxVal += amp;
+                prev = Math.min(n, 1);
+                freq *= lacunarity;
+                amp *= gain;
+            }
+            return sum / maxVal;
+        }
+    }
+
+    // ================================================================
+    //  VEC3 HELPERS
+    // ================================================================
+    function v3dist(a,ai,b,bi){const dx=a[ai]-b[bi],dy=a[ai+1]-b[bi+1],dz=a[ai+2]-b[bi+2];return Math.sqrt(dx*dx+dy*dy+dz*dz);}
+
+    // ================================================================
+    //  FIBONACCI SPHERE with jitter
+    //  Evenly-distributed points on a sphere using the Fibonacci spiral.
+    //  Jitter randomises positions for more organic Voronoi cells.
+    //  (Red Blob Games, sphere-mesh.js)
+    // ================================================================
+    function generateFibonacciSphere(N, jitter, rng) {
+        const r_xyz = new Float32Array(3 * N);
+        const s = 3.6 / Math.sqrt(N);
+        const dlong = Math.PI * (3 - Math.sqrt(5));
+        const dz = 2.0 / N;
+
+        for (let k = 0, lng = 0, z = 1 - dz / 2; k < N; k++, z -= dz) {
+            const r = Math.sqrt(1 - z * z);
+            let latDeg = Math.asin(z) * 180 / Math.PI;
+            let lonDeg = lng * 180 / Math.PI;
+
+            // Jitter: shift lat/lon by a random fraction of the spacing
+            if (jitter > 0) {
+                const jLat = (rng() - rng());   // triangular distribution [-1,1]
+                const jLon = (rng() - rng());
+                const nextZ = Math.max(-1, z - dz * 2 * Math.PI * r / s);
+                latDeg += jitter * jLat * (latDeg - Math.asin(nextZ) * 180 / Math.PI);
+                lonDeg += jitter * jLon * (s / r * 180 / Math.PI);
+            }
+
+            const latR = latDeg * Math.PI / 180;
+            const lonR = lonDeg * Math.PI / 180;
+            r_xyz[3*k]   = Math.cos(latR) * Math.cos(lonR);
+            r_xyz[3*k+1] = Math.cos(latR) * Math.sin(lonR);
+            r_xyz[3*k+2] = Math.sin(latR);
+
+            lng += dlong;
+        }
+        return r_xyz;
+    }
+
+    // ================================================================
+    //  STEREOGRAPHIC PROJECTION  (for Delaunay on a sphere)
+    //  Projects every point from the "north pole" (0,0,1) onto a plane.
+    //  The pole itself maps to infinity, so it is excluded from
+    //  triangulation and added back afterwards.
+    // ================================================================
+    function stereographicProjection(r_xyz, N) {
+        const flat = new Float64Array(2 * N);
+        for (let i = 0; i < N; i++) {
+            const z = r_xyz[3*i+2];
+            const denom = 1 - z;            // singularity at z=1 (the pole)
+            flat[2*i]   = r_xyz[3*i]   / denom;
+            flat[2*i+1] = r_xyz[3*i+1] / denom;
+        }
+        return flat;
+    }
+
+    // ================================================================
+    //  ADD POLE BACK INTO MESH
+    //  After Delaunay on the projected points, the convex hull edges
+    //  have no twins.  We close the mesh by connecting them all to the
+    //  pole point, creating new triangles.
+    //  (Adapted from Red Blob Games, sphere-mesh.js)
+    // ================================================================
+    function addPoleToMesh(poleId, triangles, halfedges) {
+        const numSides = triangles.length;
+        const next = s => (s % 3 === 2) ? s - 2 : s + 1;
+
+        // Find all unpaired (hull) half-edges
+        let numUnpaired = 0, firstUnpaired = -1;
+        const pointToSide = [];
+        for (let s = 0; s < numSides; s++) {
+            if (halfedges[s] === -1) {
+                numUnpaired++;
+                pointToSide[triangles[s]] = s;
+                firstUnpaired = s;
+            }
+        }
+
+        const nt = new Int32Array(numSides + 3 * numUnpaired);
+        const nh = new Int32Array(numSides + 3 * numUnpaired);
+        nt.set(triangles);
+        nh.set(halfedges);
+
+        for (let i = 0, s = firstUnpaired;
+             i < numUnpaired;
+             i++, s = pointToSide[nt[next(s)]]) {
+            const ns = numSides + 3 * i;
+            nh[s] = ns;
+            nh[ns] = s;
+            nt[ns]     = nt[next(s)];
+            nt[ns + 1] = nt[s];
+            nt[ns + 2] = poleId;
+            const k = numSides + (3 * i + 4) % (3 * numUnpaired);
+            nh[ns + 2] = k;
+            nh[k]      = ns + 2;
+        }
+
+        return { triangles: nt, halfedges: nh };
+    }
+
+    // ================================================================
+    //  SPHERE MESH  –  lightweight dual-mesh helper
+    //  Wraps Delaunator output with convenient traversal methods.
+    //  Regions = Voronoi cells = the points we generated.
+    //  Triangles = Delaunay triangles (their centroids are Voronoi verts).
+    //  Sides = half-edges of the triangulation.
+    // ================================================================
+    class SphereMesh {
+        constructor(triangles, halfedges, numRegions) {
+            this.triangles = triangles;
+            this.halfedges = halfedges;
+            this.numRegions = numRegions;
+            this.numSides = triangles.length;
+            this.numTriangles = (triangles.length / 3) | 0;
+
+            // Map each region to one of its outgoing sides
+            this._r_s = new Int32Array(numRegions).fill(-1);
+            for (let s = 0; s < this.numSides; s++) {
+                const r = triangles[s];
+                if (this._r_s[r] === -1) this._r_s[r] = s;
+            }
+        }
+        _next(s)    { return (s % 3 === 2) ? s - 2 : s + 1; }
+        s_begin_r(s){ return this.triangles[s]; }
+        s_end_r(s)  { return this.triangles[this._next(s)]; }
+        s_inner_t(s){ return (s / 3) | 0; }
+        s_outer_t(s){ return (this.halfedges[s] / 3) | 0; }
+
+        /** Walk around region r, collecting neighbour regions */
+        r_circulate_r(out, r) {
+            out.length = 0;
+            const s0 = this._r_s[r];
+            if (s0 === -1) return out;
+            let s = s0;
+            do {
+                out.push(this.s_end_r(s));
+                s = this._next(this.halfedges[s]);
+            } while (s !== s0);
+            return out;
+        }
+
+        /** Walk around region r, collecting surrounding triangles */
+        r_circulate_t(out, r) {
+            out.length = 0;
+            const s0 = this._r_s[r];
+            if (s0 === -1) return out;
+            let s = s0;
+            do {
+                out.push(this.s_inner_t(s));
+                s = this._next(this.halfedges[s]);
+            } while (s !== s0);
+            return out;
+        }
+    }
+
+    // ================================================================
+    //  BUILD SPHERE  –  Fibonacci points → Delaunay → close pole
+    // ================================================================
+    function buildSphere(N, jitter, rng) {
+        const r_xyz = generateFibonacciSphere(N, jitter, rng);
+
+        // Stereographic projection (excluding the pole point we'll add)
+        const flat = stereographicProjection(r_xyz, N);
+
+        // Delaunay triangulation in projected 2D space
+        const delaunay = new Delaunator(flat);
+
+        // Add pole at (0,0,1) — closes the mesh so every edge has a twin
+        const poleXYZ = new Float32Array(3 * (N + 1));
+        poleXYZ.set(r_xyz);
+        poleXYZ[3*N] = 0;  poleXYZ[3*N+1] = 0;  poleXYZ[3*N+2] = 1;
+
+        const closed = addPoleToMesh(N, delaunay.triangles, delaunay.halfedges);
+        const mesh = new SphereMesh(closed.triangles, closed.halfedges, N + 1);
+        return { mesh, r_xyz: poleXYZ };
+    }
+
+    // ================================================================
+    //  TRIANGLE CENTRES  (= Voronoi vertices on the sphere)
+    // ================================================================
+    function generateTriangleCenters(mesh, r_xyz) {
+        const { numTriangles } = mesh;
+        const t_xyz = new Float32Array(3 * numTriangles);
+        for (let t = 0; t < numTriangles; t++) {
+            const s0 = 3 * t;
+            const a = mesh.s_begin_r(s0),
+                  b = mesh.s_begin_r(s0 + 1),
+                  c = mesh.s_begin_r(s0 + 2);
+            t_xyz[3*t]   = (r_xyz[3*a] + r_xyz[3*b] + r_xyz[3*c]) / 3;
+            t_xyz[3*t+1] = (r_xyz[3*a+1]+r_xyz[3*b+1]+r_xyz[3*c+1]) / 3;
+            t_xyz[3*t+2] = (r_xyz[3*a+2]+r_xyz[3*b+2]+r_xyz[3*c+2]) / 3;
+        }
+        return t_xyz;
+    }
+
+    // ================================================================
+    //  PLATE GENERATION  –  round-robin weighted fill with directional bias
+    //  Each plate gets a random growth rate and preferred direction.
+    //  Round-robin guarantees every plate expands each turn, preventing
+    //  fast plates from completely surrounding slow ones.
+    // ================================================================
+    function generatePlates(mesh, r_xyz, numPlates, seed) {
+        const { numRegions } = mesh;
+        const r_plate = new Int32Array(numRegions).fill(-1);
+        const rng = makeRng(seed + 0.5);
+        const randInt = makeRandInt(seed);
+
+        // Pick random seed regions as plate centres
+        const plateSeeds = new Set();
+        while (plateSeeds.size < numPlates && plateSeeds.size < numRegions)
+            plateSeeds.add(randInt(numRegions));
+
+        // Per-plate growth properties
+        const plateGrowthRate = {};
+        const plateGrowthDir = {};
+        const plateDirStrength = {};
+
+        for (const center of plateSeeds) {
+            // Growth rate: skewed → a few large plates, many small
+            plateGrowthRate[center] = 0.5 + rng() * rng() * 3.5;
+
+            // Growth direction: random tangent vector at seed point
+            const px = r_xyz[3*center], py = r_xyz[3*center+1], pz = r_xyz[3*center+2];
+            const pLen = Math.sqrt(px*px + py*py + pz*pz) || 1;
+            const nx = px/pLen, ny = py/pLen, nz = pz/pLen;
+            const rx = rng()-0.5, ry = rng()-0.5, rz = rng()-0.5;
+            const d = rx*nx + ry*ny + rz*nz;
+            let tx = rx - d*nx, ty = ry - d*ny, tz = rz - d*nz;
+            const tLen = Math.sqrt(tx*tx + ty*ty + tz*tz) || 1;
+            plateGrowthDir[center] = [tx/tLen, ty/tLen, tz/tLen];
+
+            // Directionality: 0 = circular, high = very elongated
+            plateDirStrength[center] = rng() * 0.7;
+        }
+
+        // Per-plate frontiers — round-robin ensures every plate advances
+        const plateIds = Array.from(plateSeeds);
+        const frontiers = new Map();
+        for (const pid of plateIds) {
+            r_plate[pid] = pid;
+            frontiers.set(pid, [pid]);
+        }
+
+        const out_r = [];
+        let remaining = numRegions - plateIds.length;
+
+        while (remaining > 0) {
+            let anyProgress = false;
+            for (const pid of plateIds) {
+                const frontier = frontiers.get(pid);
+                if (frontier.length === 0) continue;
+
+                const rate = plateGrowthRate[pid];
+                const dir = plateGrowthDir[pid];
+                const dirStr = plateDirStrength[pid];
+                // Steps per round: proportional to growth rate, with some jitter
+                const steps = Math.max(1, Math.ceil(rate * (0.5 + rng())));
+
+                for (let s = 0; s < steps && frontier.length > 0; s++) {
+                    // Pick from frontier with directional bias:
+                    // sample a few candidates, pick the best-aligned one
+                    let bestIdx = 0, bestScore = -Infinity;
+                    const samples = Math.min(frontier.length, 3 + Math.floor(dirStr * 5));
+                    for (let i = 0; i < samples; i++) {
+                        const idx = randInt(frontier.length);
+                        const cell = frontier[idx];
+                        const dx = r_xyz[3*cell] - r_xyz[3*pid];
+                        const dy = r_xyz[3*cell+1] - r_xyz[3*pid+1];
+                        const dz = r_xyz[3*cell+2] - r_xyz[3*pid+2];
+                        const dLen = Math.sqrt(dx*dx + dy*dy + dz*dz) || 1;
+                        const alignment = (dx*dir[0] + dy*dir[1] + dz*dir[2]) / dLen;
+                        const score = alignment * dirStr + rng() * (1 - dirStr * 0.5);
+                        if (score > bestScore) { bestScore = score; bestIdx = idx; }
+                    }
+
+                    const current = frontier[bestIdx];
+                    frontier[bestIdx] = frontier[frontier.length - 1];
+                    frontier.pop();
+
+                    mesh.r_circulate_r(out_r, current);
+                    for (const nb of out_r) {
+                        if (r_plate[nb] === -1) {
+                            r_plate[nb] = pid;
+                            frontier.push(nb);
+                            remaining--;
+                            anyProgress = true;
+                        }
+                    }
+                }
+            }
+            if (!anyProgress) break;
+        }
+
+        // Cleanup: assign any orphaned regions to nearest claimed neighbor
+        let orphans = true;
+        while (orphans) {
+            orphans = false;
+            for (let r = 0; r < numRegions; r++) {
+                if (r_plate[r] === -1) {
+                    mesh.r_circulate_r(out_r, r);
+                    for (const nb of out_r) {
+                        if (r_plate[nb] !== -1) {
+                            r_plate[r] = r_plate[nb];
+                            orphans = true;
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+
+        // Smooth boundaries: majority-vote removes thin tendrils.
+        // Each boundary region is reassigned to whichever plate the
+        // majority of its neighbors belong to.
+        const counts = new Map();
+        for (let pass = 0; pass < 4; pass++) {
+            for (let r = 0; r < numRegions; r++) {
+                mesh.r_circulate_r(out_r, r);
+                counts.clear();
+                for (const nb of out_r) {
+                    const p = r_plate[nb];
+                    counts.set(p, (counts.get(p) || 0) + 1);
+                }
+                let bestPlate = r_plate[r], bestCount = 0;
+                for (const [p, c] of counts) {
+                    if (c > bestCount) { bestCount = c; bestPlate = p; }
+                }
+                if (bestCount > out_r.length / 2 && !plateSeeds.has(r)) {
+                    r_plate[r] = bestPlate;
+                }
+            }
+        }
+
+        // Reconnect: smoothing may sever narrow isthmuses, creating
+        // disconnected fragments.  Single-pass: BFS from each seed through
+        // same-plate regions, then flood-fill any unvisited fragment outward
+        // from the visited boundary.  O(N) guaranteed.
+        {
+            const visited = new Uint8Array(numRegions);
+            for (const pid of plateIds) {
+                const bfs = [pid];
+                visited[pid] = 1;
+                for (let qi = 0; qi < bfs.length; qi++) {
+                    mesh.r_circulate_r(out_r, bfs[qi]);
+                    for (let ni = 0; ni < out_r.length; ni++) {
+                        const nb = out_r[ni];
+                        if (!visited[nb] && r_plate[nb] === pid) {
+                            visited[nb] = 1;
+                            bfs.push(nb);
+                        }
+                    }
+                }
+            }
+            // Flood-fill disconnected fragments from visited boundary
+            const queue = [];
+            for (let r = 0; r < numRegions; r++) {
+                if (!visited[r]) {
+                    mesh.r_circulate_r(out_r, r);
+                    for (let ni = 0; ni < out_r.length; ni++) {
+                        if (visited[out_r[ni]]) {
+                            r_plate[r] = r_plate[out_r[ni]];
+                            visited[r] = 1;
+                            queue.push(r);
+                            break;
+                        }
+                    }
+                }
+            }
+            for (let qi = 0; qi < queue.length; qi++) {
+                const r = queue[qi];
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    const nb = out_r[ni];
+                    if (!visited[nb]) {
+                        r_plate[nb] = r_plate[r];
+                        visited[nb] = 1;
+                        queue.push(nb);
+                    }
+                }
+            }
+        }
+
+        // Assign a random movement vector per plate
+        const plateVec = {};
+        for (const center of plateSeeds) {
+            const nbs = mesh.r_circulate_r([], center);
+            const nb = nbs[randInt(nbs.length)];
+            const dx = r_xyz[3*nb]-r_xyz[3*center],
+                  dy = r_xyz[3*nb+1]-r_xyz[3*center+1],
+                  dz = r_xyz[3*nb+2]-r_xyz[3*center+2];
+            const len = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
+            plateVec[center] = [dx/len, dy/len, dz/len];
+        }
+
+        return { r_plate, plateSeeds, plateVec };
+    }
+
+    // ================================================================
+    //  OCEAN / LAND ASSIGNMENT
+    //  Targets ~30% land by surface area.  The numContinents parameter
+    //  controls how many separate landmasses to create (1 = supercontinent).
+    //  Each continent is a connected group of land plates.  No two
+    //  continents are adjacent — at least one ocean plate separates them.
+    //  Small trapped interior seas are absorbed; the main ocean never is.
+    // ================================================================
+    function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents) {
+        const rng = makeRng(seed + 42);
+        const numRegions = mesh.numRegions;
+        const plateIds = Array.from(plateSeeds);
+        const numPlates = plateIds.length;
+        const out_r = [];
+
+        // 1. Plate areas and centroids
+        const plateArea = {};
+        const plateCentroid = {};
+        for (const pid of plateIds) {
+            plateArea[pid] = 0;
+            plateCentroid[pid] = [0, 0, 0];
+        }
+        for (let r = 0; r < numRegions; r++) {
+            const p = r_plate[r];
+            plateArea[p]++;
+            plateCentroid[p][0] += r_xyz[3*r];
+            plateCentroid[p][1] += r_xyz[3*r+1];
+            plateCentroid[p][2] += r_xyz[3*r+2];
+        }
+        for (const pid of plateIds) {
+            const a = plateArea[pid] || 1;
+            plateCentroid[pid][0] /= a;
+            plateCentroid[pid][1] /= a;
+            plateCentroid[pid][2] /= a;
+        }
+
+        // 2. Plate adjacency graph + perimeter (boundary region count)
+        const plateAdj = {};
+        const platePerim = {};
+        for (const pid of plateIds) { plateAdj[pid] = new Set(); platePerim[pid] = 0; }
+        for (let r = 0; r < numRegions; r++) {
+            const myPlate = r_plate[r];
+            mesh.r_circulate_r(out_r, r);
+            let isBoundary = false;
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nbPlate = r_plate[out_r[ni]];
+                if (myPlate !== nbPlate) {
+                    plateAdj[myPlate].add(nbPlate);
+                    isBoundary = true;
+                }
+            }
+            if (isBoundary) platePerim[myPlate]++;
+        }
+
+        // Plate compactness: sqrt(area) / perimeter.  Higher = rounder.
+        // Normalized to 0–1 range so it blends cleanly with other scores.
+        const plateCompact = {};
+        let maxCompact = 0;
+        for (const pid of plateIds) {
+            const c = Math.sqrt(plateArea[pid] || 1) / (platePerim[pid] || 1);
+            plateCompact[pid] = c;
+            if (c > maxCompact) maxCompact = c;
+        }
+        if (maxCompact > 0) {
+            for (const pid of plateIds) plateCompact[pid] /= maxCompact;
+        }
+
+        const targetLandArea = 0.3 * numRegions;
+
+        // 3. Pick continent seeds via farthest-point sampling.
+        //    Prefer smaller plates as seeds so many continents don't
+        //    overshoot the area budget.  Score = distance / sqrt(area).
+        const effectiveNum = Math.min(numContinents, numPlates);
+        const continentSeeds = [];
+        const chosen = new Set();
+
+        // First seed: random plate
+        const first = plateIds[Math.floor(rng() * numPlates)];
+        continentSeeds.push(first);
+        chosen.add(first);
+
+        for (let s = 1; s < effectiveNum; s++) {
+            const candidates = [];
+            for (const pid of plateIds) {
+                if (chosen.has(pid)) continue;
+                const cx = plateCentroid[pid];
+                let minDist = Infinity;
+                for (const existing of continentSeeds) {
+                    const ex = plateCentroid[existing];
+                    const dx = cx[0]-ex[0], dy = cx[1]-ex[1], dz = cx[2]-ex[2];
+                    const d = dx*dx + dy*dy + dz*dz;
+                    if (d < minDist) minDist = d;
+                }
+                // Prefer far-away, small, AND compact (round) plates as seeds
+                const areaFactor = Math.sqrt(numRegions / numPlates) / Math.sqrt(plateArea[pid] || 1);
+                const compact = 0.3 + 0.7 * plateCompact[pid]; // floor at 0.3 so tendrilly plates aren't completely excluded
+                candidates.push({ pid, score: minDist * areaFactor * compact });
+            }
+            if (candidates.length === 0) break;
+            candidates.sort((a, b) => b.score - a.score);
+            const topK = Math.min(candidates.length, 3);
+            const pick = candidates[Math.floor(rng() * topK)];
+            continentSeeds.push(pick.pid);
+            chosen.add(pick.pid);
+        }
+
+        // If seeds alone exceed the land budget, trim the largest seeds
+        let seedArea = 0;
+        for (const pid of continentSeeds) seedArea += plateArea[pid];
+        while (continentSeeds.length > 1 && seedArea > targetLandArea) {
+            let maxIdx = 0;
+            for (let i = 1; i < continentSeeds.length; i++) {
+                if (plateArea[continentSeeds[i]] > plateArea[continentSeeds[maxIdx]]) maxIdx = i;
+            }
+            seedArea -= plateArea[continentSeeds[maxIdx]];
+            chosen.delete(continentSeeds[maxIdx]);
+            continentSeeds.splice(maxIdx, 1);
+        }
+
+        // 4. Initialize continent assignment
+        //    plateContinent[pid] = continent index (0..N-1), or undefined = ocean
+        const plateContinent = {};
+        for (let c = 0; c < continentSeeds.length; c++) {
+            plateContinent[continentSeeds[c]] = c;
+        }
+        let landArea = seedArea;
+
+        // 5. Round-robin growth: each continent takes turns adding one plate.
+        //    A plate can join continent C only if:
+        //      (a) it is adjacent to a plate already in C  (contiguous)
+        //      (b) it is NOT adjacent to any plate in a different continent  (separation)
+        //    Plates are scored by compactness (# same-continent neighbors) to
+        //    produce round blobs rather than tendrils.
+        //    Growth target is slightly below 30% to leave room for trapped-sea
+        //    absorption that will push us closer to the true target.
+        const growTarget = targetLandArea * 0.9;
+
+        let progress = true;
+        while (progress && landArea < growTarget) {
+            progress = false;
+            for (let c = 0; c < continentSeeds.length && landArea < growTarget; c++) {
+                const candidates = [];
+                for (const pid of plateIds) {
+                    if (plateContinent[pid] !== undefined) continue;
+                    let touchesSelf = false, touchesOther = false;
+                    let sameCount = 0;
+                    for (const adj of plateAdj[pid]) {
+                        const ac = plateContinent[adj];
+                        if (ac === c) { touchesSelf = true; sameCount++; }
+                        else if (ac !== undefined) { touchesOther = true; break; }
+                    }
+                    if (touchesSelf && !touchesOther) {
+                        // Score: adjacency count + shape compactness + randomness
+                        // Compact plates are strongly preferred over tendrilly ones
+                        candidates.push({ pid, score: sameCount + plateCompact[pid] * 3 + rng() * 0.5 });
+                    }
+                }
+                if (candidates.length === 0) continue;
+
+                candidates.sort((a, b) => b.score - a.score);
+                const topK = Math.min(candidates.length, 3);
+                const pick = candidates[Math.floor(rng() * topK)];
+
+                plateContinent[pick.pid] = c;
+                landArea += plateArea[pick.pid];
+                progress = true;
+            }
+        }
+
+        // 6. Absorb trapped interior seas.
+        //    Find connected components of ocean plates.  The LARGEST
+        //    component is always the main ocean and is never absorbed.
+        //    Smaller components that border only one continent are trapped
+        //    seas — absorb them if the total land stays under 35%.
+        const oceanComponents = [];
+        const visited = new Set();
+        for (const pid of plateIds) {
+            if (plateContinent[pid] !== undefined || visited.has(pid)) continue;
+            const component = [pid];
+            visited.add(pid);
+            for (let qi = 0; qi < component.length; qi++) {
+                for (const adj of plateAdj[component[qi]]) {
+                    if (plateContinent[adj] === undefined && !visited.has(adj)) {
+                        visited.add(adj);
+                        component.push(adj);
+                    }
+                }
+            }
+            oceanComponents.push(component);
+        }
+
+        // Identify the largest ocean component (main ocean — never absorb)
+        let mainIdx = 0;
+        for (let i = 1; i < oceanComponents.length; i++) {
+            let areaI = 0, areaM = 0;
+            for (const p of oceanComponents[i]) areaI += plateArea[p];
+            for (const p of oceanComponents[mainIdx]) areaM += plateArea[p];
+            if (areaI > areaM) mainIdx = i;
+        }
+
+        const absorbCap = targetLandArea * 1.1; // don't let absorption push past 33%
+        for (let i = 0; i < oceanComponents.length; i++) {
+            if (i === mainIdx) continue; // skip main ocean
+            const component = oceanComponents[i];
+
+            // Check which continents this component borders
+            const bordering = new Set();
+            for (const op of component) {
+                for (const adj of plateAdj[op]) {
+                    if (plateContinent[adj] !== undefined) bordering.add(plateContinent[adj]);
+                }
+                if (bordering.size > 1) break;
+            }
+
+            // Absorb if it borders only one continent and within budget
+            if (bordering.size === 1) {
+                let compArea = 0;
+                for (const op of component) compArea += plateArea[op];
+                if (landArea + compArea <= absorbCap) {
+                    const c = bordering.values().next().value;
+                    for (const op of component) plateContinent[op] = c;
+                    landArea += compArea;
+                }
+            }
+        }
+
+        // 7. Build plateIsOcean set
+        const plateIsOcean = new Set();
+        for (const pid of plateIds) {
+            if (plateContinent[pid] === undefined) plateIsOcean.add(pid);
+        }
+        return plateIsOcean;
+    }
+
+    // ================================================================
+    //  COLLISION DETECTION
+    //  Simulate a tiny movement step; regions whose plates push
+    //  them closer together are "colliding".
+    //  Classify every boundary region as mountain / coastline / ocean.
+    //  (Red Blob Games, planet-generation.js)
+    // ================================================================
+    const COLLISION_THRESHOLD = 0.75;
+
+    function findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise) {
+        // Scale dt so the simulated movement is always small relative to
+        // inter-region spacing (~1/sqrt(N)).  At high resolution, a fixed dt
+        // overshoots the gap between neighbors, making converging plates
+        // appear to diverge and killing collision detection.
+        const dt = 1e-2 / Math.max(1, Math.sqrt(mesh.numRegions / 10000));
+        const { numRegions } = mesh;
+        const mountain_r  = new Set();
+        const coastline_r = new Set();
+        const ocean_r     = new Set();
+        const r_stress    = new Float32Array(numRegions);
+        const r_subductFactor = new Float32Array(numRegions).fill(0.5); // 0=overriding/uplift, 1=subducting/depression
+        const r_boundaryType = new Int8Array(numRegions); // 0=none,1=convergent,2=divergent,3=transform
+        const r_bothOcean = new Uint8Array(numRegions);
+        const r_hasOcean  = new Uint8Array(numRegions);
+        const out_r = [];
+
+        // Pre-compute per-plate ocean flag for fast lookup
+        const plateOcean = {};
+        for (const pid of plateIsOcean) plateOcean[pid] = 1;
+
+        // Reduce undulation noise octaves at very high region counts
+        const undulOctaves = numRegions > 200000 ? 2 : 3;
+
+        for (let r = 0; r < numRegions; r++) {
+            const myPlate = r_plate[r];
+            let bestComp = -Infinity;
+            let best = -1;
+            let bestNormalComp = 0;
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nb = out_r[ni];
+                if (myPlate !== r_plate[nb]) {
+                    const ri3 = 3*r, ni3 = 3*nb;
+                    const dx = r_xyz[ri3]-r_xyz[ni3], dy = r_xyz[ri3+1]-r_xyz[ni3+1], dz = r_xyz[ri3+2]-r_xyz[ni3+2];
+                    const dBefore = Math.sqrt(dx*dx+dy*dy+dz*dz);
+                    const v1 = plateVec[myPlate], v2 = plateVec[r_plate[nb]];
+                    const ax = r_xyz[ri3]  +v1[0]*dt, ay = r_xyz[ri3+1]  +v1[1]*dt, az = r_xyz[ri3+2]  +v1[2]*dt;
+                    const bx = r_xyz[ni3] +v2[0]*dt, by = r_xyz[ni3+1] +v2[1]*dt, bz = r_xyz[ni3+2] +v2[2]*dt;
+                    const adx = ax-bx, ady = ay-by, adz = az-bz;
+                    const dAfter = Math.sqrt(adx*adx+ady*ady+adz*adz);
+                    const comp = dBefore - dAfter;
+                    if (comp > bestComp) {
+                        bestComp = comp; best = nb;
+                        // Boundary type classification: decompose relative velocity
+                        const rvx = v1[0]-v2[0], rvy = v1[1]-v2[1], rvz = v1[2]-v2[2];
+                        const bnLen = dBefore || 1;
+                        bestNormalComp = -(rvx*dx + rvy*dy + rvz*dz) / bnLen;
+                    }
+                }
+            }
+            if (best !== -1) {
+                const collided = bestComp > COLLISION_THRESHOLD * dt;
+                const rOcean = plateOcean[myPlate] || 0;
+                const nOcean = plateOcean[r_plate[best]] || 0;
+                r_bothOcean[r] = (rOcean && nOcean) ? 1 : 0;
+                r_hasOcean[r] = (rOcean || nOcean) ? 1 : 0;
+
+                // Classify boundary type
+                const thresh = 0.3 * dt;
+                if (bestNormalComp > thresh) r_boundaryType[r] = 1; // convergent
+                else if (bestNormalComp < -thresh) r_boundaryType[r] = 2; // divergent
+                else r_boundaryType[r] = 3; // transform
+
+                // Store stress magnitude for convergent boundaries
+                if (collided) {
+                    r_stress[r] = bestComp / dt;
+                }
+
+                // Subduction factor: based on density difference + undulation noise
+                // densityDiff > 0 means MY plate is denser → I subduct
+                const myDensity = plateDensity[myPlate];
+                const nbDensity = plateDensity[r_plate[best]];
+                const densityDiff = myDensity - nbDensity;
+
+                // Smooth mapping: tanh squashes large differences to ±1
+                const baseFactor = 0.5 + 0.5 * Math.tanh(densityDiff * 8);
+
+                // Undulation: when densities are similar, noise shifts which side
+                // uplifts more, creating irregular ridges. When densities differ
+                // greatly (ocean vs continent), undulation is suppressed.
+                const densityContrast = Math.abs(densityDiff);
+                const undulationStrength = Math.exp(-densityContrast * 12);
+                const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+                const undulation = noise.fbm(x * 6, y * 6, z * 6, undulOctaves) * 0.4 * undulationStrength;
+
+                r_subductFactor[r] = Math.max(0, Math.min(1, baseFactor + undulation));
+
+                if (rOcean && nOcean) {
+                    (collided ? coastline_r : ocean_r).add(r);
+                } else if (!rOcean && !nOcean) {
+                    if (collided) {
+                        // Overriding side → mountain seed; subducting side → coastline
+                        // barrier so the mountain distance field doesn't leak across
+                        if (r_subductFactor[r] < 0.55) mountain_r.add(r);
+                        else coastline_r.add(r);
+                    }
+                } else {
+                    (collided ? mountain_r : coastline_r).add(r);
+                }
+            }
+        }
+        return { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean };
+    }
+
+    // ================================================================
+    //  STRESS PROPAGATION  –  frontier-based BFS diffusion inward
+    //  Only processes regions on the active frontier each pass instead
+    //  of scanning the entire mesh.  Gives the same physical result but
+    //  runs orders of magnitude faster at high region counts.
+    // ================================================================
+    function propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses) {
+        const out_r = [];
+
+        // Pre-compute per-plate ocean flag for fast lookup
+        const plateOcean = {};
+        for (const pid of plateIsOcean) plateOcean[pid] = 1;
+
+        // Seed the frontier with boundary regions that have stress
+        let frontier = [];
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (r_stress[r] > 0.01) frontier.push(r);
+        }
+
+        for (let pass = 0; pass < numPasses && frontier.length > 0; pass++) {
+            const nextFrontier = [];
+            for (let fi = 0; fi < frontier.length; fi++) {
+                const r = frontier[fi];
+                const plate = r_plate[r];
+                if (plateOcean[plate]) continue;
+                const sf = r_subductFactor[r];
+                const effDecay = sf > 0.5 ? subductDecayFactor : decayFactor;
+                const propagated = r_stress[r] * effDecay;
+                if (propagated < 0.005) continue;
+
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    const nb = out_r[ni];
+                    if (r_plate[nb] === plate && propagated > r_stress[nb]) {
+                        r_stress[nb] = propagated;
+                        r_subductFactor[nb] = sf;
+                        nextFrontier.push(nb);
+                    }
+                }
+            }
+            frontier = nextFrontier;
+        }
+    }
+
+    // ================================================================
+    //  DISTANCE FIELD  –  random-fill outward from seeds, stopping
+    //  at barriers.  Used to smoothly interpolate elevation.
+    // ================================================================
+    function assignDistanceField(mesh, seeds, stops, seed) {
+        const randInt = makeRandInt(seed);
+        const { numRegions } = mesh;
+        const r_dist = new Float32Array(numRegions).fill(Infinity);
+
+        // Convert stops Set to Uint8Array for O(1) array lookup in hot loop
+        const isStop = new Uint8Array(numRegions);
+        for (const r of stops) isStop[r] = 1;
+
+        const queue = [];
+        for (const r of seeds) { queue.push(r); r_dist[r] = 0; }
+
+        const out_r = [];
+        for (let qi = 0; qi < queue.length; qi++) {
+            const pos = qi + randInt(queue.length - qi);
+            const cur = queue[pos];
+            queue[pos] = queue[qi];
+            mesh.r_circulate_r(out_r, cur);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nb = out_r[ni];
+                if (r_dist[nb] === Infinity && !isStop[nb]) {
+                    r_dist[nb] = r_dist[cur] + 1;
+                    queue.push(nb);
+                }
+            }
+        }
+        return r_dist;
+    }
+
+    // ================================================================
+    //  ELEVATION ASSIGNMENT
+    //  Three distance fields (mountains, ocean, coastline) combined
+    //  via a harmonic-mean-like formula, plus fractal noise.
+    //  (Red Blob Games approach)
+    // ================================================================
+    // BFS-expand a set of regions outward by `steps` rings
+    function expandRegions(mesh, regions, steps) {
+        if (steps <= 0) return regions;
+        const expanded = new Set(regions);
+        let frontier = [...regions];
+        const out_r = [];
+        for (let i = 0; i < steps; i++) {
+            const next = [];
+            for (const r of frontier) {
+                mesh.r_circulate_r(out_r, r);
+                for (const nb of out_r) {
+                    if (!expanded.has(nb)) {
+                        expanded.add(nb);
+                        next.push(nb);
+                    }
+                }
+            }
+            frontier = next;
+        }
+        return expanded;
+    }
+
+    function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity) {
+        const { numRegions } = mesh;
+        const r_elevation = new Float32Array(numRegions);
+
+        // Classify boundaries with stress, boundary types, and subduction factor
+        const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
+            findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
+
+        // Propagate stress + subduction factor inward through continental plates
+        // Scale passes and decay with resolution: at higher region counts each
+        // neighbor ring is physically narrower, so we need more rings with gentler
+        // per-ring decay to cover the same physical distance.
+        // Frontier-based propagation advances exactly 1 ring per pass, so we use
+        // a higher pass multiplier (×3) than the old full-sweep approach (×2).
+        const scaleFactor = Math.sqrt(numRegions / 10000);
+        const baseDecay = 0.5 + spread * 0.04; // range ~0.5 to 0.9
+        const decayFactor = Math.pow(baseDecay, 1 / scaleFactor);
+        // Subducting side: same resolution scaling but shorter physical reach (~40%)
+        const subductBaseDecay = baseDecay * 0.45;
+        const subductDecayFactor = Math.pow(subductBaseDecay, 1 / scaleFactor);
+        const numPasses = Math.max(1, Math.round(spread * 3 * scaleFactor));
+        propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
+
+        // Plate centres are also seeds
+        for (const r of plateSeeds) {
+            (plateIsOcean.has(r) ? ocean_r : coastline_r).add(r);
+        }
+
+        // Mountain seeds = only the actual convergent boundary regions on the
+        // overriding side.  Do NOT add interior stressed regions — that creates a
+        // flat plateau.  The distance field provides the gradient from boundary
+        // inward; the stress field then boosts elevation on top of that.
+        const stress_mountain_r = new Set();
+        for (const r of mountain_r) {
+            if (r_subductFactor[r] < 0.55) stress_mountain_r.add(r);
+        }
+
+        // Combined stop set
+        const stop_r = new Set([...stress_mountain_r, ...coastline_r, ...ocean_r]);
+
+        // Three distance fields
+        const dist_mountain  = assignDistanceField(mesh, stress_mountain_r, ocean_r,     seed + 1);
+        const dist_ocean     = assignDistanceField(mesh, ocean_r,           coastline_r, seed + 2);
+        const dist_coastline = assignDistanceField(mesh, coastline_r,       stop_r,      seed + 3);
+
+        // Coast distance for ocean floor features
+        // Pre-compute per-region ocean flag for fast lookup in loops
+        const r_isOcean = new Uint8Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            if (plateIsOcean.has(r_plate[r])) r_isOcean[r] = 1;
+        }
+
+        const coastSeeds = new Set();
+        const out_r = [];
+        for (let r = 0; r < numRegions; r++) {
+            if (!r_isOcean[r]) {
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    if (r_isOcean[out_r[ni]]) { coastSeeds.add(out_r[ni]); break; }
+                }
+            }
+        }
+        const dist_coast = assignDistanceField(mesh, coastSeeds, new Set(), seed + 4);
+
+        // Find max stress for normalization
+        let maxStress = 0;
+        for (let r = 0; r < numRegions; r++) {
+            if (r_stress[r] > maxStress) maxStress = r_stress[r];
+        }
+        if (maxStress < 0.01) maxStress = 1;
+
+        const eps = 1e-3;
+        const warpScale = 0.4;
+        // Reduce noise octaves at very high region counts — each cell is smaller
+        // so high-frequency detail is invisible, saving significant computation
+        const warpOctaves = numRegions > 200000 ? 2 : 3;
+
+        for (let r = 0; r < numRegions; r++) {
+            const isOceanPlate = r_isOcean[r];
+
+            // Base elevation from distance fields
+            const a = dist_mountain[r]  + eps;
+            const b = dist_ocean[r]     + eps;
+            const c = dist_coastline[r] + eps;
+            if (a === Infinity && b === Infinity) {
+                r_elevation[r] = 0.1;
+            } else {
+                r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c);
+            }
+
+            const stressNorm = r_stress[r] / maxStress;
+            const btype = r_boundaryType[r];
+
+            // Domain warping (Improvement 4) — compute warped coords for noise
+            const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+            const wx = x + warpScale * noise.fbm(x + 5.3, y + 1.7, z + 3.1, warpOctaves);
+            const wy = y + warpScale * noise.fbm(x + 8.1, y + 2.9, z + 7.3, warpOctaves);
+            const wz = z + warpScale * noise.fbm(x + 1.4, y + 6.2, z + 4.8, warpOctaves);
+
+            if (!isOceanPlate) {
+                // === CONTINENTAL PLATE ===
+                const sf = r_subductFactor[r];
+
+                // Suppress base elevation on the subducting side.
+                // The distance field leaks positive elevation across the boundary;
+                // on the subducting side we dampen the uplift gently.
+                if (sf > 0.5 && r_elevation[r] > 0) {
+                    const suppression = (sf - 0.5) * 2;    // 0 at sf=0.5, 1 at sf=1
+                    r_elevation[r] *= 1 - suppression * 0.35; // at most 35% reduction
+                }
+
+                // Asymmetric stress: subduction factor determines uplift vs depression
+                // sf=0 → overriding plate (full uplift), sf=1 → subducting (mild dip)
+                // sf≈0.5 → similar density, both uplift but with undulation
+                if (stressNorm > 0.01) {
+                    const stressMag = stressNorm * stressNorm * 0.35;
+                    const uplift  = stressMag * (1 - sf);           // full at sf=0, zero at sf=1
+                    const depress = stressMag * 0.4 * sf;           // zero at sf=0, moderate dip at sf=1
+                    r_elevation[r] += uplift - depress;
+                }
+
+                // Foreland basin: slight depression just beyond stress field
+                if (stressNorm < 0.05 && stressNorm > 0) {
+                    r_elevation[r] -= 0.03;
+                }
+
+                // Continental rift valley at divergent continental boundaries
+                if (btype === 2 && !r_hasOcean[r]) {
+                    r_elevation[r] -= 0.12;
+                }
+
+                // Blend smooth fBm and ridged noise based on stress (Improvement 3)
+                const blend = Math.min(1, stressNorm * 3);
+                const smoothNoise = noise.fbm(wx, wy, wz) * noiseMag;
+                const ridgedNoise = noise.ridgedFbm(wx, wy, wz) * noiseMag * 1.5;
+                r_elevation[r] += smoothNoise * (1 - blend) + ridgedNoise * blend;
+
+            } else {
+                // === OCEANIC PLATE ===
+
+                // Ocean floor base: use distance from coast for shelf/slope/abyss
+                const dc = dist_coast[r];
+                let oceanBase;
+                if (dc < 5) {
+                    // Continental shelf — gentle slope
+                    oceanBase = -0.02 - 0.06 * (dc / 5);
+                } else if (dc < 12) {
+                    // Continental slope
+                    oceanBase = -0.08 - 0.25 * ((dc - 5) / 7);
+                } else {
+                    // Abyssal plain
+                    oceanBase = -0.35 + noise.fbm(x * 2, y * 2, z * 2, 3) * 0.03;
+                }
+
+                // Use the lower of distance-field elevation or ocean profile
+                r_elevation[r] = Math.min(r_elevation[r], oceanBase);
+
+                // Mid-ocean ridge at divergent ocean-ocean boundaries
+                // Stays submarine: raises from ~-0.35 toward ~-0.12
+                if (btype === 2 && r_bothOcean[r]) {
+                    r_elevation[r] += 0.12 * noise.ridgedFbm(x * 3, y * 3, z * 3, 4) + 0.06;
+                }
+
+                // Trench at convergent boundaries involving ocean
+                if (btype === 1) {
+                    r_elevation[r] -= 0.15 + 0.15 * stressNorm;
+                }
+
+                // Subtle ocean floor noise only (no ridged mountains)
+                r_elevation[r] += noise.fbm(wx, wy, wz) * noiseMag * 0.3;
+            }
+        }
+
+        // =============================================================
+        //  COASTAL ROUGHENING — three-layer approach for craggy
+        //  coastlines, offshore islands, and irregular shorelines
+        // =============================================================
+        {
+            // --- Shared: find land-ocean plate boundary & distance field ---
+            const coastBdry = [];
+            for (let r = 0; r < numRegions; r++) {
+                const rOc = r_isOcean[r];
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    if (r_isOcean[out_r[ni]] !== rOc) {
+                        coastBdry.push(r);
+                        break;
+                    }
+                }
+            }
+
+            const maxCD = Math.max(8, Math.round(8 * scaleFactor));
+            const dBdry = new Float32Array(numRegions);
+            dBdry.fill(maxCD + 1);
+            // Propagate coast properties outward via BFS so offshore
+            // regions inherit the stress & subduction character of
+            // the nearest coast boundary
+            const coastStressMax = new Float32Array(numRegions);
+            const coastSubductMax = new Float32Array(numRegions);
+            const coastConvergent = new Uint8Array(numRegions);
+            for (let i = 0; i < coastBdry.length; i++) {
+                const r = coastBdry[i];
+                dBdry[r] = 0;
+                coastStressMax[r] = r_stress[r] / maxStress;
+                coastSubductMax[r] = r_subductFactor[r];
+                coastConvergent[r] = r_boundaryType[r] === 1 ? 1 : 0;
+            }
+            let qi = 0;
+            while (qi < coastBdry.length) {
+                const r = coastBdry[qi++];
+                const nd = dBdry[r] + 1;
+                if (nd > maxCD) continue;
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    const nr = out_r[ni];
+                    if (nd < dBdry[nr]) {
+                        dBdry[nr] = nd;
+                        coastStressMax[nr] = coastStressMax[r];
+                        coastSubductMax[nr] = coastSubductMax[r];
+                        coastConvergent[nr] = coastConvergent[r];
+                        coastBdry.push(nr);
+                    } else if (nd === dBdry[nr] && coastStressMax[r] > coastStressMax[nr]) {
+                        coastStressMax[nr] = coastStressMax[r];
+                        coastSubductMax[nr] = coastSubductMax[r];
+                        coastConvergent[nr] = coastConvergent[r];
+                    }
+                }
+            }
+
+            const cNoise  = new SimplexNoise(seed + 77);
+            const cNoise2 = new SimplexNoise(seed + 133);
+            const cNoise3 = new SimplexNoise(seed + 211);
+
+            for (let r = 0; r < numRegions; r++) {
+                if (dBdry[r] > maxCD) continue;
+                const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+                const t = dBdry[r] / maxCD;
+
+                // Stress: use the propagated coast stress (so offshore
+                // regions near a mountainous coast get the effect too)
+                const sn = Math.max(coastStressMax[r], r_stress[r] / maxStress);
+
+                // Subduction suppression: on the ocean side near a
+                // convergent boundary, the plate is being dragged down —
+                // suppress any positive elevation changes (no islands in
+                // subduction trenches). sf→1 = fully subducting.
+                const isSubductingOcean = r_isOcean[r]
+                    && coastConvergent[r]
+                    && coastSubductMax[r] > 0.45;
+                // 0 at sf=0.45, 1 at sf=1 — smooth ramp
+                const subSup = isSubductingOcean
+                    ? Math.min(1, (coastSubductMax[r] - 0.45) / 0.55)
+                    : 0;
+
+                // ---- Layer 1: Coastal fractal noise (scaled up) ----
+                // Quadratic falloff, amplified heavily near mountains
+                const falloff1 = (1 - t) * (1 - t);
+                const stressAmp1 = 1 + sn * 5;
+                let n1 = cNoise.fbm(x * 18 + 3.7, y * 18 + 7.1, z * 18 + 2.3, 5, 0.55);
+                let coastNoise1 = n1 * 0.12 * falloff1 * stressAmp1;
+                // On subducting ocean: clamp so noise can only pull DOWN, not push up
+                if (subSup > 0 && coastNoise1 > 0) {
+                    coastNoise1 *= (1 - subSup);
+                }
+                r_elevation[r] += coastNoise1;
+
+                // ---- Layer 3: Coastline-aware domain warping ----
+                // Extra warp that only activates near the coast, shifting
+                // the elevation field laterally to create bays & headlands
+                const falloffW = Math.max(0, 1 - t * 1.5); // fades faster than noise
+                if (falloffW > 0) {
+                    const warpAmt = 0.35 * falloffW * (1 + sn * 2);
+                    const dwx = cNoise3.fbm(x * 6 + 11.3, y * 6 + 4.7, z * 6 + 8.2, 3, 0.6) * warpAmt;
+                    const dwy = cNoise3.fbm(x * 6 + 2.9,  y * 6 + 9.4, z * 6 + 1.6, 3, 0.6) * warpAmt;
+                    const dwz = cNoise3.fbm(x * 6 + 7.5,  y * 6 + 0.3, z * 6 + 5.9, 3, 0.6) * warpAmt;
+                    // Sample terrain noise at warped position, blend difference
+                    // into elevation to shift coastline without affecting interiors
+                    const origN = noise.fbm(x, y, z) * noiseMag;
+                    const warpN = noise.fbm(x + dwx, y + dwy, z + dwz) * noiseMag;
+                    let warpDelta = (warpN - origN) * falloffW;
+                    // Suppress upward warp on subducting ocean side
+                    if (subSup > 0 && warpDelta > 0) {
+                        warpDelta *= (1 - subSup);
+                    }
+                    r_elevation[r] += warpDelta;
+                }
+
+                // ---- Layer 2: Island scattering ----
+                // Only on the ocean side of the boundary, on the shelf.
+                // Skip entirely on subducting ocean — plate is dragged
+                // down, no islands form in/behind subduction trenches.
+                if (r_isOcean[r] && dBdry[r] > 0
+                    && dBdry[r] <= Math.max(4, Math.round(4 * scaleFactor))
+                    && subSup < 0.3) {
+                    // Noise threshold creates discrete island bumps
+                    const islandN = cNoise2.fbm(x * 35 + 5.1, y * 35 + 9.3, z * 35 + 2.7, 4, 0.5);
+                    // Higher threshold = fewer islands; stress lowers threshold = more islands near mountains
+                    const threshold = 0.25 - sn * 0.2;
+                    if (islandN > threshold) {
+                        // Bump magnitude: stronger closer to coast, shaped by how far above threshold
+                        const excess = (islandN - threshold) / (1 - threshold);
+                        const distFade = 1 - (dBdry[r] / Math.max(4, Math.round(4 * scaleFactor)));
+                        let bump = excess * excess * 0.18 * (1 + sn * 2) * distFade;
+                        // Fade out remaining islands as subduction approaches
+                        bump *= (1 - subSup / 0.3);
+                        r_elevation[r] += bump;
+                    }
+                }
+            }
+        }
+
+        return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress };
+    }
+
+    // ================================================================
+    //  COLOUR MAPPING
+    // ================================================================
+    function elevationToColor(e) {
+        if (e < -0.50) return [0.04, 0.06, 0.30];
+        if (e < -0.10) { const t=(e+0.50)/0.40; return [0.04+t*0.07,0.06+t*0.14,0.30+t*0.18]; }
+        if (e <  0.00) { const t=(e+0.10)/0.10; return [0.11+t*0.19,0.20+t*0.22,0.48+t*0.12]; }
+        if (e <  0.03) { const t=e/0.03;         return [0.72+t*0.08,0.68-t*0.02,0.46-t*0.10]; }
+        if (e <  0.25) { const t=(e-0.03)/0.22;  return [0.20-t*0.06,0.54-t*0.12,0.12+t*0.08]; }
+        if (e <  0.50) { const t=(e-0.25)/0.25;  return [0.14+t*0.30,0.42-t*0.14,0.20-t*0.06]; }
+        if (e <  0.75) { const t=(e-0.50)/0.25;  return [0.44+t*0.16,0.28+t*0.12,0.14+t*0.18]; }
+        { const t=Math.min(1,(e-0.75)/0.20);      return [0.60+t*0.35,0.40+t*0.50,0.32+t*0.60]; }
+    }
+
+    // ================================================================
+    //  THREE.JS SCENE
+    // ================================================================
+    const canvas   = document.getElementById('canvas');
+    const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setSize(innerWidth, innerHeight);
+    renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+
+    const scene  = new THREE.Scene();
+    scene.background = new THREE.Color(0x030308);
+
+    const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
+    camera.position.set(0, 0.4, 2.8);
+
+    const ctrl = new OrbitControls(camera, canvas);
+    ctrl.enableDamping = true; ctrl.dampingFactor = 0.06;
+    ctrl.minDistance = 1.4; ctrl.maxDistance = 8;
+
+    scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
+    const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
+    sun.position.set(5, 3, 4);
+    scene.add(sun);
+
+    // Stars
+    let starsMesh;
+    { const g=new THREE.BufferGeometry(),p=[];
+      for(let i=0;i<3000;i++){const th=Math.random()*Math.PI*2,ph=Math.acos(2*Math.random()-1),r=40+Math.random()*30;
+        p.push(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th),r*Math.cos(ph));}
+      g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
+      starsMesh = new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.08}));
+      scene.add(starsMesh); }
+
+    // Atmosphere
+    const atmosMat = new THREE.ShaderMaterial({
+        uniforms:{c:{value:new THREE.Color(0.35,0.6,1.0)}},
+        vertexShader:`varying vec3 vN,vP;void main(){vN=normalize(normalMatrix*normal);vP=(modelViewMatrix*vec4(position,1)).xyz;gl_Position=projectionMatrix*vec4(vP,1);}`,
+        fragmentShader:`uniform vec3 c;varying vec3 vN,vP;void main(){float r=1.0-max(0.0,dot(normalize(-vP),vN));gl_FragColor=vec4(c,pow(r,3.5)*0.55);}`,
+        transparent:true,side:THREE.FrontSide,depthWrite:false
+    });
+    const atmosMesh = new THREE.Mesh(new THREE.SphereGeometry(1.12,64,64), atmosMat);
+    scene.add(atmosMesh);
+
+    // Water sphere
+    const waterMat = new THREE.MeshPhongMaterial({
+        color:0x0c3a6e, transparent:true, opacity:0.55,
+        shininess:120, specular:0x4488bb, depthWrite:false
+    });
+    const waterMesh = new THREE.Mesh(new THREE.SphereGeometry(1.0,80,80), waterMat);
+    scene.add(waterMesh);
+
+    let planetMesh = null, wireMesh = null, arrowGroup = null, curData = null;
+    let plateColors = {};
+    let baseColors = null;
+    let hoveredPlate = -1;
+
+    // Equirectangular map view
+    let mapMesh = null;
+    let mapMode = false;
+    const mapCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+    mapCamera.position.set(0, 0, 5);
+    mapCamera.lookAt(0, 0, 0);
+    function updateMapCameraFrustum() {
+        const aspect = innerWidth / innerHeight;
+        const mapAspect = 2; // equirectangular is 2:1
+        let halfW, halfH;
+        if (aspect > mapAspect) {
+            halfH = 1.15;
+            halfW = halfH * aspect;
+        } else {
+            halfW = 2.3;
+            halfH = halfW / aspect;
+        }
+        mapCamera.left = -halfW; mapCamera.right = halfW;
+        mapCamera.top = halfH; mapCamera.bottom = -halfH;
+        mapCamera.updateProjectionMatrix();
+    }
+    updateMapCameraFrustum();
+    const mapCtrl = new OrbitControls(mapCamera, canvas);
+    mapCtrl.enableRotate = false;
+    mapCtrl.enableDamping = true;
+    mapCtrl.dampingFactor = 0.06;
+    mapCtrl.screenSpacePanning = true;
+    mapCtrl.minZoom = 0.5;
+    mapCtrl.maxZoom = 20;
+    mapCtrl.enabled = false;
+
+    // ================================================================
+    //  PLATE COLOURS  –  green shades for land, blue for ocean
+    // ================================================================
+    function computePlateColors(plateSeeds, plateIsOcean) {
+        plateColors = {};
+        for (const r of plateSeeds) {
+            const rng = makeRng(r);
+            if (plateIsOcean.has(r)) {
+                const h = 0.55 + rng() * 0.10;
+                const s = 0.40 + rng() * 0.30;
+                const l = 0.35 + rng() * 0.20;
+                plateColors[r] = new THREE.Color().setHSL(h, s, l);
+            } else {
+                const h = 0.25 + rng() * 0.15;
+                const s = 0.30 + rng() * 0.30;
+                const l = 0.30 + rng() * 0.20;
+                plateColors[r] = new THREE.Color().setHSL(h, s, l);
+            }
+        }
+    }
+
+    // ================================================================
+    //  GENERATE PLANET
+    // ================================================================
+    function generate() {
+        const t0 = performance.now();
+        const seed = Math.random() * 99999;
+        const rng  = makeRng(seed);
+
+        const N     = +document.getElementById('sN').value;
+        const P     = +document.getElementById('sP').value;
+        const jitter= +document.getElementById('sJ').value;
+        const nMag  = +document.getElementById('sNs').value;
+        const spread= +document.getElementById('sSp').value;
+
+        // 1. Build sphere mesh (Fibonacci + Delaunay + close pole)
+        const t1 = performance.now();
+        const { mesh, r_xyz } = buildSphere(N, jitter, rng);
+        const tMesh = performance.now() - t1;
+
+        // 2. Triangle centres (Voronoi vertices)
+        const t_xyz = generateTriangleCenters(mesh, r_xyz);
+
+        // 3. Plates (random fill)
+        const t2 = performance.now();
+        const { r_plate, plateSeeds, plateVec } = generatePlates(mesh, r_xyz, P, seed);
+        const tPlates = performance.now() - t2;
+
+        // 4. Assign ocean / land — targets ~30% land, controlled by continents slider
+        const numContinents = +document.getElementById('sCn').value;
+        const plateIsOcean = assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents);
+
+        // Plate colours: green for land, blue for ocean
+        computePlateColors(plateSeeds, plateIsOcean);
+
+        // 4b. Plate densities: ocean crust is denser (basalt) than continental (granite)
+        // Wide ranges within each type so continent–continent collisions show clear asymmetry
+        const plateDensity = {};
+        for (const r of plateSeeds) {
+            const drng = makeRng(r + 777);
+            if (plateIsOcean.has(r)) {
+                plateDensity[r] = 3.0 + drng() * 0.5;   // 3.0–3.5
+            } else {
+                plateDensity[r] = 2.4 + drng() * 0.5;   // 2.4–2.9
+            }
+        }
+
+        // 5. Noise generator
+        const noise = new SimplexNoise(seed);
+
+        // 6. Elevation (distance fields + noise)
+        const t3 = performance.now();
+        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress } =
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
+        const tElev = performance.now() - t3;
+
+        // 7. Triangle elevations (average of 3 regions)
+        const t_elevation = new Float32Array(mesh.numTriangles);
+        for (let t = 0; t < mesh.numTriangles; t++) {
+            const s0 = 3 * t;
+            const a = mesh.s_begin_r(s0), b = mesh.s_begin_r(s0+1), c = mesh.s_begin_r(s0+2);
+            t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
+        }
+
+        curData = { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
+                    plateDensity, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r,
+                    r_stress, noise, seed };
+
+        const t4 = performance.now();
+        buildMesh();
+        const tBuild = performance.now() - t4;
+
+        const ms = (performance.now() - t0).toFixed(0);
+        document.getElementById('stats').innerHTML =
+            `Regions: ${mesh.numRegions.toLocaleString()}<br>` +
+            `Triangles: ${mesh.numTriangles.toLocaleString()}<br>` +
+            `Plates: ${P}<br>Generated in ${ms} ms<br>` +
+            `<span style="color:#445;font-size:10px">mesh ${tMesh.toFixed(0)} · plates ${tPlates.toFixed(0)} · elev ${tElev.toFixed(0)} · render ${tBuild.toFixed(0)}</span>`;
+    }
+
+    // ================================================================
+    //  BUILD EQUIRECTANGULAR MAP MESH
+    // ================================================================
+    function buildMapMesh() {
+        if (mapMesh) { scene.remove(mapMesh); mapMesh.geometry.dispose(); mapMesh.material.dispose(); mapMesh = null; }
+        if (!curData || !mapMode) return;
+
+        const { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
+                r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress } = curData;
+        const showPlates = document.getElementById('chkPlates').checked;
+        const showStress = document.getElementById('chkStress').checked;
+        const waterLevel = +document.getElementById('sWL').value;
+        const { numSides } = mesh;
+        const PI = Math.PI;
+
+        // Pre-allocate for worst case (each tri might duplicate for antimeridian)
+        const posArr = new Float32Array(numSides * 18); // 2x for wrapping duplicates
+        const colArr = new Float32Array(numSides * 18);
+        let triCount = 0;
+
+        for (let s = 0; s < numSides; s++) {
+            const it = mesh.s_inner_t(s);
+            const ot = mesh.s_outer_t(s);
+            const br = mesh.s_begin_r(s);
+
+            // Compute color (same logic as buildMesh)
+            const re = r_elevation[br] - waterLevel;
+            let cr, cg, cb;
+            if (showPlates) {
+                const pc = plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
+                cr = pc.r; cg = pc.g; cb = pc.b;
+            } else if (showStress) {
+                const sv = r_stress ? r_stress[br] : 0;
+                if (sv > 0.5)                     { cr=0.9; cg=0.1+sv*0.3; cb=0.1; }
+                else if (sv > 0.1)                { cr=0.9; cg=0.5+sv*0.5; cb=0.2; }
+                else if (mountain_r.has(br))      { cr=0.8; cg=0.4; cb=0.1; }
+                else if (coastline_r.has(br))     { cr=0.9; cg=0.9; cb=0.2; }
+                else if (ocean_r.has(br))         { cr=0.1; cg=0.2; cb=0.7; }
+                else                              { cr=0.15; cg=0.15; cb=0.18; }
+            } else {
+                [cr, cg, cb] = elevationToColor(re);
+            }
+
+            // Convert 3D positions to lon/lat
+            // v0 = inner_t, v1 = outer_t, v2 = begin_r
+            const x0 = t_xyz[3*it], y0 = t_xyz[3*it+1], z0 = t_xyz[3*it+2];
+            const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
+            const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
+
+            let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
+            let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
+            let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
+
+            // Scale: lon [-π,π] → x [-2,2], lat [-π/2,π/2] → y [-1,1]
+            const sx = 2 / PI;
+
+            // Check antimeridian wrapping
+            const maxLon = Math.max(lon0, lon1, lon2);
+            const minLon = Math.min(lon0, lon1, lon2);
+            const wraps = (maxLon - minLon) > PI;
+
+            if (wraps) {
+                // Shift negative longitudes to the right side
+                if (lon0 < 0) lon0 += 2 * PI;
+                if (lon1 < 0) lon1 += 2 * PI;
+                if (lon2 < 0) lon2 += 2 * PI;
+
+                // Right-side copy
+                let off = triCount * 9;
+                posArr[off]   = lon0*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
+                posArr[off+3] = lon1*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
+                posArr[off+6] = lon2*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+                colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+                colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+                colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+                triCount++;
+
+                // Left-side copy (shifted by -2π)
+                off = triCount * 9;
+                posArr[off]   = (lon0-2*PI)*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
+                posArr[off+3] = (lon1-2*PI)*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
+                posArr[off+6] = (lon2-2*PI)*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+                colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+                colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+                colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+                triCount++;
+            } else {
+                const off = triCount * 9;
+                posArr[off]   = lon0*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
+                posArr[off+3] = lon1*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
+                posArr[off+6] = lon2*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+                colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+                colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+                colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+                triCount++;
+            }
+        }
+
+        // Trim arrays to actual size
+        const finalPos = posArr.subarray(0, triCount * 9);
+        const finalCol = colArr.subarray(0, triCount * 9);
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPos), 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalCol), 3));
+
+        mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+        mapMesh.visible = mapMode;
+        scene.add(mapMesh);
+    }
+
+    // ================================================================
+    //  BUILD VORONOI MESH
+    //  Each half-edge s produces one triangle:
+    //      t_xyz[inner_t]  →  t_xyz[outer_t]  →  r_xyz[begin_r]
+    //  All triangles touching the same region share its colour,
+    //  forming a flat-coloured Voronoi cell.
+    //  (Red Blob Games generateVoronoiGeometry)
+    // ================================================================
+    function buildMesh() {
+        if (!curData) return;
+        const { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
+                r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress } = curData;
+        const showPlates = document.getElementById('chkPlates').checked;
+        const showStress = document.getElementById('chkStress').checked;
+        const waterLevel = +document.getElementById('sWL').value;
+
+        // Dispose old
+        if (planetMesh) { scene.remove(planetMesh); planetMesh.geometry.dispose(); planetMesh.material.dispose(); }
+        if (wireMesh)   { scene.remove(wireMesh);   wireMesh.geometry.dispose();   wireMesh.material.dispose(); }
+
+        const { numSides } = mesh;
+        const V = 0.06;   // terrain displacement factor
+        const pos = new Float32Array(numSides * 9);
+        const col = new Float32Array(numSides * 9);
+
+        const nrm = new Float32Array(numSides * 9);
+
+        for (let s = 0; s < numSides; s++) {
+            const it = mesh.s_inner_t(s);
+            const ot = mesh.s_outer_t(s);
+            const br = mesh.s_begin_r(s);
+
+            // Elevation shifted by water level (positive waterLevel = more ocean)
+            const re  = r_elevation[br]  - waterLevel;
+            const ite = t_elevation[it]  - waterLevel;
+            const ote = t_elevation[ot]  - waterLevel;
+
+            const rDisp  = 1.0 + (re  > 0 ? re  * V : re  * V * 0.3);
+            const itDisp = 1.0 + (ite > 0 ? ite * V : ite * V * 0.3);
+            const otDisp = 1.0 + (ote > 0 ? ote * V : ote * V * 0.3);
+
+            const off = s * 9;
+            // v0 = inner_t centroid
+            let v0x = t_xyz[3*it]   * itDisp,
+                v0y = t_xyz[3*it+1] * itDisp,
+                v0z = t_xyz[3*it+2] * itDisp;
+            // v1 = outer_t centroid
+            let v1x = t_xyz[3*ot]   * otDisp,
+                v1y = t_xyz[3*ot+1] * otDisp,
+                v1z = t_xyz[3*ot+2] * otDisp;
+            // v2 = begin_r point
+            let v2x = r_xyz[3*br]   * rDisp,
+                v2y = r_xyz[3*br+1] * rDisp,
+                v2z = r_xyz[3*br+2] * rDisp;
+
+            // Fix winding order: ensure face normal points outward.
+            // Cross product of edges (v1-v0) × (v2-v0) gives face normal.
+            // If it points inward (dot with centroid < 0), swap v1 and v2.
+            const e1x = v1x-v0x, e1y = v1y-v0y, e1z = v1z-v0z;
+            const e2x = v2x-v0x, e2y = v2y-v0y, e2z = v2z-v0z;
+            const nx = e1y*e2z - e1z*e2y;
+            const ny = e1z*e2x - e1x*e2z;
+            const nz = e1x*e2y - e1y*e2x;
+            const cx = (v0x+v1x+v2x)/3, cy = (v0y+v1y+v2y)/3, cz = (v0z+v1z+v2z)/3;
+            if (nx*cx + ny*cy + nz*cz < 0) {
+                // Swap v1 and v2 to flip winding
+                let tx, ty, tz;
+                tx=v1x; ty=v1y; tz=v1z;
+                v1x=v2x; v1y=v2y; v1z=v2z;
+                v2x=tx; v2y=ty; v2z=tz;
+            }
+
+            pos[off]   = v0x; pos[off+1] = v0y; pos[off+2] = v0z;
+            pos[off+3] = v1x; pos[off+4] = v1y; pos[off+5] = v1z;
+            pos[off+6] = v2x; pos[off+7] = v2y; pos[off+8] = v2z;
+
+            // Normals: use outward sphere direction (≈ normalised position)
+            // for each vertex — more reliable than computeVertexNormals for a sphere
+            for (let j = 0; j < 3; j++) {
+                const px = pos[off+j*3], py = pos[off+j*3+1], pz = pos[off+j*3+2];
+                const len = Math.sqrt(px*px+py*py+pz*pz) || 1;
+                nrm[off+j*3]   = px/len;
+                nrm[off+j*3+1] = py/len;
+                nrm[off+j*3+2] = pz/len;
+            }
+
+            // Colour
+            let cr, cg, cb;
+            if (showPlates) {
+                const pc = plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
+                cr = pc.r; cg = pc.g; cb = pc.b;
+            } else if (showStress) {
+                const sv = r_stress ? r_stress[br] : 0;
+                if (sv > 0.5)                     { cr=0.9; cg=0.1+sv*0.3; cb=0.1; }
+                else if (sv > 0.1)                { cr=0.9; cg=0.5+sv*0.5; cb=0.2; }
+                else if (mountain_r.has(br))      { cr=0.8; cg=0.4; cb=0.1; }
+                else if (coastline_r.has(br))     { cr=0.9; cg=0.9; cb=0.2; }
+                else if (ocean_r.has(br))         { cr=0.1; cg=0.2; cb=0.7; }
+                else                              { cr=0.15; cg=0.15; cb=0.18; }
+            } else {
+                [cr, cg, cb] = elevationToColor(re);
+            }
+            for (let j = 0; j < 3; j++) {
+                col[off+j*3]   = cr;
+                col[off+j*3+1] = cg;
+                col[off+j*3+2] = cb;
+            }
+        }
+
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        geo.setAttribute('color',    new THREE.BufferAttribute(col, 3));
+        geo.setAttribute('normal',   new THREE.BufferAttribute(nrm, 3));
+
+        baseColors = new Float32Array(col);
+
+        planetMesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+        scene.add(planetMesh);
+
+        waterMesh.visible = !mapMode && !showPlates && !showStress;
+
+        // Voronoi-edge wireframe (lines between triangle centroids across each edge)
+        if (document.getElementById('chkWire').checked) {
+            const lp = [];
+            for (let s = 0; s < numSides; s++) {
+                // Only draw once per edge pair
+                if (s < mesh.halfedges[s]) {
+                    const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s);
+                    const ite = t_elevation[it], ote = t_elevation[ot];
+                    const d1 = 1.001 + (ite > 0 ? ite*V : ite*V*0.3);
+                    const d2 = 1.001 + (ote > 0 ? ote*V : ote*V*0.3);
+                    lp.push(
+                        t_xyz[3*it]*d1, t_xyz[3*it+1]*d1, t_xyz[3*it+2]*d1,
+                        t_xyz[3*ot]*d2, t_xyz[3*ot+1]*d2, t_xyz[3*ot+2]*d2
+                    );
+                }
+            }
+            const lg = new THREE.BufferGeometry();
+            lg.setAttribute('position', new THREE.Float32BufferAttribute(lp, 3));
+            wireMesh = new THREE.LineSegments(lg,
+                new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 }));
+            scene.add(wireMesh);
+        }
+
+        buildDriftArrows();
+        updateHoverHighlight();
+
+        // Build/rebuild map mesh and manage visibility
+        buildMapMesh();
+        if (mapMode) {
+            planetMesh.visible = false;
+            waterMesh.visible = false;
+            atmosMesh.visible = false;
+            starsMesh.visible = false;
+            if (wireMesh) wireMesh.visible = false;
+            if (arrowGroup) arrowGroup.visible = false;
+        } else {
+            planetMesh.visible = true;
+            atmosMesh.visible = true;
+            starsMesh.visible = true;
+            if (wireMesh) wireMesh.visible = true;
+            if (arrowGroup) arrowGroup.visible = true;
+        }
+    }
+
+    // ================================================================
+    //  HOVER HIGHLIGHT  –  brighten hovered plate's cells
+    // ================================================================
+    function updateHoverHighlight() {
+        if (!planetMesh || !curData || !baseColors) return;
+        const colorAttr = planetMesh.geometry.getAttribute('color');
+        const colors = colorAttr.array;
+        colors.set(baseColors);
+
+        if (hoveredPlate >= 0) {
+            const { mesh, r_plate } = curData;
+            for (let s = 0; s < mesh.numSides; s++) {
+                const br = mesh.s_begin_r(s);
+                if (r_plate[br] === hoveredPlate) {
+                    const off = s * 9;
+                    for (let j = 0; j < 3; j++) {
+                        colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
+                        colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
+                        colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
+                    }
+                }
+            }
+        }
+        colorAttr.needsUpdate = true;
+    }
+
+    // ================================================================
+    //  DRIFT ARROWS  –  show plate movement directions
+    // ================================================================
+    function buildDriftArrows() {
+        if (arrowGroup) {
+            arrowGroup.traverse(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
+            scene.remove(arrowGroup);
+            arrowGroup = null;
+        }
+        if (!curData || !editMode) return;
+
+        arrowGroup = new THREE.Group();
+        const { r_xyz, plateSeeds, plateVec, plateIsOcean } = curData;
+
+        for (const seed of plateSeeds) {
+            const px = r_xyz[3*seed], py = r_xyz[3*seed+1], pz = r_xyz[3*seed+2];
+            const pos = new THREE.Vector3(px, py, pz).normalize();
+            const drift = new THREE.Vector3(...plateVec[seed]);
+
+            // Project drift onto the tangent plane at this point on the sphere
+            const radial = drift.dot(pos);
+            const tangent = drift.clone().sub(pos.clone().multiplyScalar(radial));
+            if (tangent.length() < 0.001) continue;
+            tangent.normalize();
+
+            const origin = pos.clone().multiplyScalar(1.07);
+            const length = 0.18;
+            const color = plateIsOcean.has(seed) ? 0x66ccff : 0xffcc44;
+
+            const arrow = new THREE.ArrowHelper(tangent, origin, length, color, 0.055, 0.03);
+            arrowGroup.add(arrow);
+        }
+
+        scene.add(arrowGroup);
+    }
+
+    // ================================================================
+    //  EDIT MODE  –  toggle plates land/sea, set drift direction
+    // ================================================================
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    let editMode = false;
+    let editSubMode = 'toggle';   // 'toggle' | 'drift'
+    let dragStart = null;
+
+    /** Recompute elevation from the (possibly edited) plate data */
+    function recomputeElevation() {
+        const { mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, plateDensity, noise, seed } = curData;
+        const nMag   = +document.getElementById('sNs').value;
+        const spread = +document.getElementById('sSp').value;
+
+        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress } =
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
+
+        const t_elevation = new Float32Array(mesh.numTriangles);
+        for (let t = 0; t < mesh.numTriangles; t++) {
+            const s0 = 3 * t;
+            const a = mesh.s_begin_r(s0), b = mesh.s_begin_r(s0+1), c = mesh.s_begin_r(s0+2);
+            t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
+        }
+
+        Object.assign(curData, { r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress });
+        computePlateColors(plateSeeds, plateIsOcean);
+        buildMesh();
+    }
+
+    /** Raycast to find which plate the mouse is over */
+    function getHitInfo(event) {
+        if (!planetMesh || !curData) return null;
+        const rect = canvas.getBoundingClientRect();
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObject(planetMesh);
+        if (hits.length === 0) return null;
+        const s = hits[0].faceIndex;
+        const region = curData.mesh.s_begin_r(s);
+        const plate = curData.r_plate[region];
+        // Convert hit point to model-local space (undo planet rotation)
+        const localPt = hits[0].point.clone().applyMatrix4(
+            new THREE.Matrix4().copy(planetMesh.matrixWorld).invert()
+        );
+        return { region, plate, point: localPt };
+    }
+
+    canvas.addEventListener('pointerdown', (e) => {
+        if (!editMode || !curData || e.button !== 0) return;
+        const hit = getHitInfo(e);
+        if (!hit) return;
+        dragStart = { x: e.clientX, y: e.clientY, plate: hit.plate, point: hit.point };
+        if (editSubMode === 'drift') e.preventDefault();
+    });
+
+    canvas.addEventListener('pointerup', (e) => {
+        if (!editMode || !dragStart || !curData || e.button !== 0) { dragStart = null; return; }
+
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        const dist2 = dx * dx + dy * dy;
+
+        if (editSubMode === 'toggle' && dist2 < 36) {
+            // Click (< 6px movement) → toggle plate land/sea
+            const pid = dragStart.plate;
+            if (curData.plateIsOcean.has(pid)) curData.plateIsOcean.delete(pid);
+            else curData.plateIsOcean.add(pid);
+            recomputeElevation();
+        } else if (editSubMode === 'drift' && dist2 >= 36) {
+            // Drag → set drift direction from start to end in model space
+            const hit = getHitInfo(e);
+            if (hit) {
+                const sp = dragStart.point, ep = hit.point;
+                const ddx = ep.x - sp.x, ddy = ep.y - sp.y, ddz = ep.z - sp.z;
+                const len = Math.sqrt(ddx*ddx + ddy*ddy + ddz*ddz) || 1;
+                curData.plateVec[dragStart.plate] = [ddx/len, ddy/len, ddz/len];
+                recomputeElevation();
+            }
+        } else if (editSubMode === 'density' && dist2 < 36) {
+            // Click = +0.1 density, Shift+click = -0.1
+            const pid = dragStart.plate;
+            const step = e.shiftKey ? -0.1 : 0.1;
+            curData.plateDensity[pid] = Math.max(1.0, Math.min(5.0, curData.plateDensity[pid] + step));
+            recomputeElevation();
+            // Force hover info refresh
+            hoveredPlate = -1;
+        }
+        dragStart = null;
+    });
+
+    canvas.addEventListener('pointermove', (e) => {
+        if (!curData || !planetMesh) {
+            if (hoveredPlate >= 0) {
+                hoveredPlate = -1;
+                document.getElementById('hoverInfo').style.display = 'none';
+            }
+            return;
+        }
+        const hit = getHitInfo(e);
+        const newPlate = hit ? hit.plate : -1;
+        if (newPlate !== hoveredPlate) {
+            hoveredPlate = newPlate;
+            updateHoverHighlight();
+            const hoverEl = document.getElementById('hoverInfo');
+            if (hoveredPlate >= 0) {
+                const isOcean = curData.plateIsOcean.has(hoveredPlate);
+                const density = curData.plateDensity[hoveredPlate];
+                const vec = curData.plateVec[hoveredPlate];
+
+                // Convert drift vector to a compass-like description on the sphere
+                // Use the plate seed position to get a local tangent frame
+                const seedR = hoveredPlate;
+                const px = curData.r_xyz[3*seedR], py = curData.r_xyz[3*seedR+1], pz = curData.r_xyz[3*seedR+2];
+                const pLen = Math.sqrt(px*px+py*py+pz*pz) || 1;
+                const nx = px/pLen, ny = py/pLen, nz = pz/pLen;
+                // Project drift onto tangent plane
+                const dot = vec[0]*nx + vec[1]*ny + vec[2]*nz;
+                const tx = vec[0] - dot*nx, ty = vec[1] - dot*ny, tz = vec[2] - dot*nz;
+                const tLen = Math.sqrt(tx*tx+ty*ty+tz*tz);
+
+                let dirLabel = 'stationary';
+                if (tLen > 0.01) {
+                    // Local "north" = toward +z projected onto tangent plane
+                    const upDot = 0*nx + 0*ny + 1*nz;
+                    let enx = 0 - upDot*nx, eny = 0 - upDot*ny, enz = 1 - upDot*nz;
+                    const enLen = Math.sqrt(enx*enx+eny*eny+enz*enz) || 1;
+                    enx /= enLen; eny /= enLen; enz /= enLen;
+                    // Local "east" = north × radial
+                    const eex = eny*nz - enz*ny, eey = enz*nx - enx*nz, eez = enx*ny - eny*nx;
+                    const northComp = (tx*enx + ty*eny + tz*enz) / tLen;
+                    const eastComp  = (tx*eex + ty*eey + tz*eez) / tLen;
+                    const angle = Math.atan2(eastComp, northComp) * 180 / Math.PI;
+                    const dirs = ['N','NE','E','SE','S','SW','W','NW'];
+                    const idx = Math.round(((angle % 360) + 360) % 360 / 45) % 8;
+                    dirLabel = dirs[idx];
+                }
+
+                const dot2 = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
+                const typeStr = isOcean ? 'Ocean' : 'Land';
+                hoverEl.innerHTML = `${dot2} <b>${typeStr}</b> &nbsp; Density: ${density.toFixed(2)} &nbsp; Drift: ${dirLabel}`;
+                hoverEl.style.display = 'block';
+            } else {
+                hoverEl.style.display = 'none';
+            }
+        }
+    });
+
+    // Edit mode UI wiring
+    document.getElementById('chkEdit').addEventListener('change', () => {
+        editMode = document.getElementById('chkEdit').checked;
+        document.getElementById('editPanel').style.display = editMode ? 'block' : 'none';
+        ctrl.enabled = !(editMode && editSubMode === 'drift');
+        canvas.classList.toggle('edit-active', editMode);
+        if (editMode) {
+            document.getElementById('chkPlates').checked = true;
+        }
+        buildMesh();
+    });
+    function setEditSubMode(mode) {
+        editSubMode = mode;
+        document.getElementById('btnToggle').classList.toggle('active', mode === 'toggle');
+        document.getElementById('btnDrift').classList.toggle('active', mode === 'drift');
+        document.getElementById('btnDensity').classList.toggle('active', mode === 'density');
+        ctrl.enabled = mode !== 'drift';
+        const helpText = {
+            toggle: 'Click a plate to toggle land/sea',
+            drift: 'Click and drag on a plate to set drift direction',
+            density: 'Click to increase density (+0.1), Shift+click to decrease (-0.1)'
+        };
+        document.getElementById('editHelp').textContent = helpText[mode];
+    }
+    document.getElementById('btnToggle').addEventListener('click', () => setEditSubMode('toggle'));
+    document.getElementById('btnDrift').addEventListener('click', () => setEditSubMode('drift'));
+    document.getElementById('btnDensity').addEventListener('click', () => setEditSubMode('density'));
+
+    // ================================================================
+    //  UI
+    // ================================================================
+    document.getElementById('generate').addEventListener('click', generate);
+    for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sSp','vSp'],['sWL','vWL']]) {
+        document.getElementById(s).addEventListener('input', e => {
+            document.getElementById(v).textContent = e.target.value;
+        });
+    }
+    for (const id of ['chkWire','chkPlates','chkStress'])
+        document.getElementById(id).addEventListener('change', buildMesh);
+    document.getElementById('sWL').addEventListener('input', buildMesh);
+
+    // Map view toggle
+    document.getElementById('chkMap').addEventListener('change', () => {
+        mapMode = document.getElementById('chkMap').checked;
+        if (mapMode) {
+            // Hide globe objects
+            if (planetMesh) planetMesh.visible = false;
+            waterMesh.visible = false;
+            atmosMesh.visible = false;
+            starsMesh.visible = false;
+            if (wireMesh) wireMesh.visible = false;
+            if (arrowGroup) arrowGroup.visible = false;
+            // Build map mesh if needed (lazy build)
+            if (!mapMesh) buildMapMesh();
+            if (mapMesh) mapMesh.visible = true;
+            scene.background = new THREE.Color(0x1a1a2e);
+            // Switch controls
+            ctrl.enabled = false;
+            mapCtrl.enabled = true;
+            // Reset map camera position
+            mapCamera.position.set(0, 0, 5);
+            mapCamera.lookAt(0, 0, 0);
+            updateMapCameraFrustum();
+            mapCtrl.target.set(0, 0, 0);
+            mapCtrl.update();
+        } else {
+            // Show globe objects
+            if (planetMesh) planetMesh.visible = true;
+            atmosMesh.visible = true;
+            starsMesh.visible = true;
+            if (wireMesh) wireMesh.visible = true;
+            if (arrowGroup) arrowGroup.visible = true;
+            if (mapMesh) mapMesh.visible = false;
+            const showPlates = document.getElementById('chkPlates').checked;
+            const showStress = document.getElementById('chkStress').checked;
+            waterMesh.visible = !showPlates && !showStress;
+            scene.background = new THREE.Color(0x030308);
+            // Switch controls
+            mapCtrl.enabled = false;
+            ctrl.enabled = !(editMode && editSubMode === 'drift');
+        }
+    });
+
+    // ================================================================
+    //  ANIMATION
+    // ================================================================
+    function animate() {
+        requestAnimationFrame(animate);
+        if (mapMode) { mapCtrl.update(); } else { ctrl.update(); }
+        if (!mapMode && planetMesh && document.getElementById('chkRotate').checked) {
+            planetMesh.rotation.y += 0.0008;
+            waterMesh.rotation.y = planetMesh.rotation.y;
+            if (wireMesh) wireMesh.rotation.y = planetMesh.rotation.y;
+            if (arrowGroup) arrowGroup.rotation.y = planetMesh.rotation.y;
+        }
+        renderer.render(scene, mapMode ? mapCamera : camera);
+    }
+    window.addEventListener('resize', () => {
+        camera.aspect = innerWidth/innerHeight;
+        camera.updateProjectionMatrix();
+        updateMapCameraFrustum();
+        renderer.setSize(innerWidth, innerHeight);
+    });
+
+    generate();
+    animate();
+
+    </script>
+</body>
+</html>
