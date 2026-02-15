@@ -852,6 +852,20 @@
         const plateOcean = {};
         for (const pid of plateIsOcean) plateOcean[pid] = 1;
 
+        // Per-plate-pair orogeny intensity (0.5–1.5)
+        // Deterministic from plate IDs so each boundary segment has its own strength
+        const pairIntensityCache = new Map();
+        function getPairIntensity(a, b) {
+            const lo = Math.min(a, b), hi = Math.max(a, b);
+            const key = lo * 1000003 + hi;
+            if (pairIntensityCache.has(key)) return pairIntensityCache.get(key);
+            let h = ((lo * 16807) ^ (hi * 48271)) >>> 0;
+            h = (((h >> 16) ^ h) * 0x45d9f3b) >>> 0;
+            const val = 0.5 + (h % 10001) / 10000;
+            pairIntensityCache.set(key, val);
+            return val;
+        }
+
         // Reduce undulation noise octaves at very high region counts
         const undulOctaves = numRegions > 200000 ? 2 : 3;
 
@@ -896,8 +910,9 @@
                 else r_boundaryType[r] = 3; // transform
 
                 // Store stress magnitude for convergent boundaries
+                // Modulated by per-plate-pair orogeny intensity
                 if (collided) {
-                    r_stress[r] = bestComp / dt;
+                    r_stress[r] = (bestComp / dt) * getPairIntensity(myPlate, r_plate[best]);
                 }
 
                 // Subduction factor: based on density difference + undulation noise
@@ -1159,7 +1174,9 @@
                     const stressMag = stressNorm * stressNorm * 0.35;
                     const uplift  = stressMag * (1 - sf);           // full at sf=0, zero at sf=1
                     const depress = stressMag * 0.4 * sf;           // zero at sf=0, moderate dip at sf=1
-                    r_elevation[r] += uplift - depress;
+                    // Per-cell height variation within mountain ranges
+                    const heightVar = 0.75 + 0.5 * noise.fbm(x * 8 + 13.7, y * 8 + 9.2, z * 8 + 4.5, 3);
+                    r_elevation[r] += (uplift - depress) * heightVar;
                 }
 
                 // Foreland basin: slight depression just beyond stress field
@@ -1348,6 +1365,73 @@
                         bump *= (1 - subSup / 0.3);
                         r_elevation[r] += bump;
                     }
+                }
+            }
+        }
+
+        // =============================================================
+        //  ISLAND ARCS — ocean-ocean convergent boundary uplift
+        //  Real island arcs form a few cells BEHIND the trench on the
+        //  overriding plate.  BFS from ocean-ocean convergent boundary
+        //  regions into the overriding plate, then apply sparse ridged
+        //  noise uplift with a bell-shaped distance profile.
+        // =============================================================
+        {
+            const arcNoise = new SimplexNoise(seed + 307);
+            const maxArcDist = Math.max(5, Math.round(5 * scaleFactor));
+
+            // Seed: ocean-ocean convergent boundary regions on the overriding side
+            const arcSeeds = [];
+            const arcDist = new Float32Array(numRegions);
+            arcDist.fill(maxArcDist + 1);
+            const arcStress = new Float32Array(numRegions);
+
+            for (let r = 0; r < numRegions; r++) {
+                if (r_boundaryType[r] === 1 && r_bothOcean[r] && r_subductFactor[r] < 0.45) {
+                    arcSeeds.push(r);
+                    arcDist[r] = 0;
+                    arcStress[r] = r_stress[r] / maxStress;
+                }
+            }
+
+            // BFS outward through the same ocean plate
+            let aq = 0;
+            while (aq < arcSeeds.length) {
+                const r = arcSeeds[aq++];
+                const nd = arcDist[r] + 1;
+                if (nd > maxArcDist) continue;
+                const plate = r_plate[r];
+                mesh.r_circulate_r(out_r, r);
+                for (let ni = 0; ni < out_r.length; ni++) {
+                    const nr = out_r[ni];
+                    if (nd < arcDist[nr] && r_plate[nr] === plate && r_isOcean[nr]) {
+                        arcDist[nr] = nd;
+                        arcStress[nr] = arcStress[r];
+                        arcSeeds.push(nr);
+                    }
+                }
+            }
+
+            // Apply island arc uplift with bell-shaped distance profile
+            // Peak at distance ~3 cells (behind the trench, not on it)
+            for (let r = 0; r < numRegions; r++) {
+                const d = arcDist[r];
+                if (d < 1 || d > maxArcDist) continue;
+
+                const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+
+                // Bell curve: peaks ~1.5 cells behind the trench, tight falloff
+                const peakDist = Math.max(1.5, 1.5 * scaleFactor);
+                const sigma = Math.max(1.5, 1.5 * scaleFactor);
+                const distWeight = Math.exp(-0.5 * ((d - peakDist) / sigma) ** 2);
+
+                // Ridged noise at low frequency for larger, connected arc chains
+                const n = arcNoise.ridgedFbm(x * 4, y * 4, z * 4, 4, 2.0, 0.5, 1.0);
+                const threshold = 0.30;
+                if (n > threshold) {
+                    const excess = (n - threshold) / (1 - threshold);
+                    const uplift = excess * excess * 0.55 * distWeight * (0.5 + arcStress[r]);
+                    r_elevation[r] += uplift;
                 }
             }
         }
