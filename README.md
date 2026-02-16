@@ -1,6 +1,6 @@
 # Procedural Planet Generator
 
-A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Built as a single HTML file with no build step required.
+A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Uses native ES modules with no build step required.
 
 ![Planet Generator](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
 
@@ -19,12 +19,17 @@ A browser-based procedural planet generator that creates realistic terrestrial p
 
 ## Quick Start
 
-Open `index.html` in any modern browser. No server, no dependencies to install, no build step.
+Serve the project with any local HTTP server (required for ES modules):
 
-```
-# Or serve locally if you prefer
+```bash
+# Python
+python3 -m http.server 8000
+
+# Or Node.js
 npx serve .
 ```
+
+Then open **http://localhost:8000** in your browser. No dependencies to install, no build step.
 
 Click **Generate New Planet** to create a new random planet.
 
@@ -87,6 +92,27 @@ When Edit Mode is enabled, three sub-modes are available:
 - **Harmonic-mean distance blending** — `(1/a - 1/b) / (1/a + 1/b + 1/c)` for smooth elevation transitions
 - **Domain warping** — noise-driven coordinate offsets for organic coastlines
 - **Density-based subduction** — tanh mapping of density differences with undulation noise
+
+## Project Structure
+
+```
+index.html              HTML markup + import map
+styles.css              All CSS
+js/
+  main.js               Entry point — UI wiring, animation loop
+  state.js              Shared mutable application state
+  generate.js           Orchestrates the full geology pipeline
+  rng.js                Seeded PRNG (Park-Miller LCG)
+  simplex-noise.js      3D Simplex noise with fBm and ridged fBm
+  color-map.js          Elevation → RGB colour mapping
+  sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
+  plates.js             Tectonic plate generation (round-robin flood fill)
+  ocean-land.js         Ocean/land assignment with continent seeding
+  elevation.js          Collisions, stress propagation, distance fields, elevation
+  scene.js              Three.js scene, cameras, controls, lights
+  planet-mesh.js        Voronoi mesh, map projection, hover highlight, drift arrows
+  edit-mode.js          Edit mode interaction + pointer event handling
+```
 
 ## Dependencies
 

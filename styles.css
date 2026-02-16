@@ -1,0 +1,45 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
+#canvas { display: block; }
+#ui {
+    position: absolute; top: 16px; left: 16px;
+    background: rgba(8,8,28,0.88); backdrop-filter: blur(12px);
+    padding: 20px; border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.08);
+    min-width: 270px; user-select: none;
+}
+#ui h2 { margin-bottom: 4px; font-size: 18px; font-weight: 600; }
+#ui .sub { font-size: 11px; color: #667; margin-bottom: 16px; }
+.cg { margin-bottom: 10px; }
+.cg label { display: block; font-size: 12px; color: #99a; margin-bottom: 3px; }
+.cg .v { float: right; color: #6af; font-variant-numeric: tabular-nums; }
+input[type="range"] { width: 100%; accent-color: #48f; cursor: pointer; }
+button#generate {
+    width: 100%; padding: 10px; margin-top: 10px;
+    background: linear-gradient(135deg, #2255cc, #3366ee);
+    color: white; border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 500; cursor: pointer;
+}
+button#generate:hover { filter: brightness(1.15); }
+.tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
+.tg label { font-size: 11px; color: #88a; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#stats { position: absolute; top: 16px; right: 16px; font-size: 11px; color: #556; text-align: right; line-height: 1.6; }
+#info { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #445; }
+#hoverInfo {
+    position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+    font-size: 12px; color: #cde; background: rgba(8,8,28,0.85);
+    backdrop-filter: blur(8px); padding: 6px 14px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08); white-space: nowrap;
+    pointer-events: none; display: none; line-height: 1.5;
+}
+#editPanel { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
+#editPanel .mode-btns { display: flex; gap: 6px; margin-bottom: 8px; }
+#editPanel .mode-btns button {
+    flex: 1; padding: 6px; font-size: 11px; border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px; background: transparent; color: #88a; cursor: pointer;
+}
+#editPanel .mode-btns button.active { background: rgba(68,136,255,0.25); color: #adf; border-color: #48f; }
+#editPanel .mode-btns button:hover:not(.active) { background: rgba(255,255,255,0.05); }
+#editHelp { font-size: 11px; color: #667; line-height: 1.4; }
+#editInfo { font-size: 12px; color: #cde; margin-top: 8px; min-height: 18px; }
+.edit-active { cursor: crosshair !important; }
