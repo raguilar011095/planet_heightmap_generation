@@ -2,7 +2,8 @@
 
 import * as THREE from 'three';
 import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
-         mapCamera, updateMapCameraFrustum, mapCtrl, canvas } from './scene.js';
+         mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
+         tickZoom, tickMapZoom } from './scene.js';
 import { state } from './state.js';
 import { generate } from './generate.js';
 import { buildMesh, buildMapMesh } from './planet-mesh.js';
@@ -65,7 +66,7 @@ setupEditMode();
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
-    if (state.mapMode) { mapCtrl.update(); } else { ctrl.update(); }
+    if (state.mapMode) { tickMapZoom(); mapCtrl.update(); } else { tickZoom(); ctrl.update(); }
     if (!state.mapMode && state.planetMesh && document.getElementById('chkRotate').checked) {
         state.planetMesh.rotation.y += 0.0008;
         waterMesh.rotation.y = state.planetMesh.rotation.y;

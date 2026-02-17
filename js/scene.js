@@ -17,6 +17,29 @@ camera.position.set(0, 0.4, 2.8);
 export const ctrl = new OrbitControls(camera, canvas);
 ctrl.enableDamping = true; ctrl.dampingFactor = 0.06;
 ctrl.minDistance = 1.4; ctrl.maxDistance = 8;
+ctrl.enableZoom = false; // disable built-in zoom; custom handler below
+
+// Smooth zoom: wheel sets a target distance, each frame lerps toward it
+let _zoomTarget = camera.position.distanceTo(ctrl.target);
+const ZOOM_STEP   = 0.92;   // multiplier per tick (lower = faster zoom)
+const ZOOM_SMOOTH = 0.12;   // lerp speed per frame (higher = snappier)
+
+canvas.addEventListener('wheel', (e) => {
+    if (!ctrl.enabled) return;
+    e.preventDefault();
+    const dir = Math.sign(e.deltaY);
+    _zoomTarget *= dir > 0 ? 1 / ZOOM_STEP : ZOOM_STEP;
+    _zoomTarget = THREE.MathUtils.clamp(_zoomTarget, ctrl.minDistance, ctrl.maxDistance);
+}, { passive: false });
+
+export function tickZoom() {
+    const v = new THREE.Vector3().subVectors(camera.position, ctrl.target);
+    const cur = v.length();
+    const next = THREE.MathUtils.lerp(cur, _zoomTarget, ZOOM_SMOOTH);
+    if (Math.abs(next - cur) < 0.0001) return;
+    v.setLength(next);
+    camera.position.copy(ctrl.target).add(v);
+}
 
 scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
 export const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
@@ -79,4 +102,26 @@ mapCtrl.dampingFactor = 0.06;
 mapCtrl.screenSpacePanning = true;
 mapCtrl.minZoom = 0.5;
 mapCtrl.maxZoom = 20;
+mapCtrl.enableZoom = false; // custom handler below
 mapCtrl.enabled = false;
+
+// Smooth zoom for map view (orthographic)
+let _mapZoomTarget = mapCamera.zoom;
+const MAP_ZOOM_STEP   = 0.92;
+const MAP_ZOOM_SMOOTH = 0.12;
+
+canvas.addEventListener('wheel', (e) => {
+    if (!mapCtrl.enabled) return;
+    e.preventDefault();
+    const dir = Math.sign(e.deltaY);
+    _mapZoomTarget *= dir < 0 ? 1 / MAP_ZOOM_STEP : MAP_ZOOM_STEP;
+    _mapZoomTarget = THREE.MathUtils.clamp(_mapZoomTarget, mapCtrl.minZoom, mapCtrl.maxZoom);
+}, { passive: false });
+
+export function tickMapZoom() {
+    const cur = mapCamera.zoom;
+    const next = THREE.MathUtils.lerp(cur, _mapZoomTarget, MAP_ZOOM_SMOOTH);
+    if (Math.abs(next - cur) < 0.0001) return;
+    mapCamera.zoom = next;
+    mapCamera.updateProjectionMatrix();
+}
