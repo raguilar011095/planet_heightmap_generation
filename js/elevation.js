@@ -1,7 +1,7 @@
 // Elevation pipeline: collision detection, stress propagation,
 // distance fields, and final elevation assignment.
 
-import { makeRandInt } from './rng.js';
+import { makeRandInt, makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';
 
 // ----------------------------------------------------------------
@@ -211,6 +211,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_interior = new Float32Array(numRegions);
     const dl_coastal  = new Float32Array(numRegions);
     const dl_ocean    = new Float32Array(numRegions);
+    const dl_hotspot  = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -296,10 +297,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         const a = dist_mountain[r]  + eps;
         const b = dist_ocean[r]     + eps;
         const c = dist_coastline[r] + eps;
+        const BASE_SCALE = 0.6;
         if (a === Infinity && b === Infinity) {
-            r_elevation[r] = 0.1;
+            r_elevation[r] = 0.1 * BASE_SCALE;
         } else {
-            r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c);
+            r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c) * BASE_SCALE;
         }
         dl_base[r] = r_elevation[r];
 
@@ -321,7 +323,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
 
             if (stressNorm > 0.01) {
-                const stressMag = stressNorm * stressNorm * 0.35;
+                const stressMag = stressNorm * stressNorm * 0.55;
                 const uplift  = stressMag * (1 - sf);
                 const depress = stressMag * 0.4 * sf;
                 const heightVar = 0.75 + 0.5 * noise.fbm(x * 8 + 13.7, y * 8 + 9.2, z * 8 + 4.5, 3);
@@ -566,6 +568,101 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean };
+    // Hotspot volcanism — mantle plumes with drift chains
+    {
+        const NUM_HOTSPOTS = 5;
+        const CHAIN_LENGTH = 6;        // base, varies ±2
+        const CHAIN_DECAY  = 0.75;     // base, varies ±0.08
+        const CHAIN_SPACING = 0.06;    // base radians, varies ±30%
+        const DOME_SIGMA   = 0.01;     // base dome radius, varies ±30%
+        const DOME_STRENGTH = 0.50;    // base, varies ±20%
+
+        const hsRng = makeRng(seed + 999);
+        const hsNoise = new SimplexNoise(seed + 501);
+
+        // Build list of all dome sources: active hotspots + ghost chain points
+        const domes = []; // { x, y, z, strength, sigma }
+
+        const hsRandInt = makeRandInt(seed + 1001);
+        for (let h = 0; h < NUM_HOTSPOTS; h++) {
+            // Per-hotspot variation
+            const hStrength = DOME_STRENGTH * (0.8 + hsRng() * 0.4);
+            const hSigma    = DOME_SIGMA * (0.7 + hsRng() * 0.6);
+            const hDecay    = CHAIN_DECAY + (hsRng() - 0.5) * 0.16;
+            const hLength   = CHAIN_LENGTH + Math.round((hsRng() - 0.5) * 4);
+
+            // Pick a random region as hotspot center
+            const centerR = hsRandInt(numRegions);
+            const hx = r_xyz[3*centerR], hy = r_xyz[3*centerR+1], hz = r_xyz[3*centerR+2];
+            const plate = r_plate[centerR];
+            const drift = plateVec[plate];
+
+            // Active hotspot dome
+            domes.push({ x: hx, y: hy, z: hz, strength: hStrength, sigma: hSigma });
+
+            // Chain: trail in direction opposite to plate drift (great-circle steps)
+            // Compute a perpendicular vector for trajectory wobble
+            const pdot = drift[1] * hx - drift[0] * hy;
+            let perpX = drift[1] * hz - drift[2] * hy;
+            let perpY = drift[2] * hx - drift[0] * hz;
+            let perpZ = drift[0] * hy - drift[1] * hx;
+            const perpLen = Math.sqrt(perpX*perpX + perpY*perpY + perpZ*perpZ) || 1;
+            perpX /= perpLen; perpY /= perpLen; perpZ /= perpLen;
+
+            let cx = hx, cy = hy, cz = hz;
+            let str = hStrength;
+            for (let c = 0; c < hLength; c++) {
+                str *= hDecay;
+                // Per-step variation
+                const stepSpacing = CHAIN_SPACING * (0.7 + hsRng() * 0.6);
+                const stepSigma   = hSigma * (0.8 + hsRng() * 0.4);
+                // Wobble: deflect direction by a random angle off the main drift
+                const wobble = (hsRng() - 0.5) * 0.4; // ±0.2 radians off-axis
+                const dx = -drift[0] + perpX * wobble;
+                const dy = -drift[1] + perpY * wobble;
+                const dz = -drift[2] + perpZ * wobble;
+                // Project onto tangent plane at current point
+                const dot = dx * cx + dy * cy + dz * cz;
+                let tx = dx - dot * cx, ty = dy - dot * cy, tz = dz - dot * cz;
+                const tLen = Math.sqrt(tx*tx + ty*ty + tz*tz);
+                if (tLen < 1e-6) break;
+                tx /= tLen; ty /= tLen; tz /= tLen;
+                // Rotate point along great circle
+                const cosA = Math.cos(stepSpacing);
+                const sinA = Math.sin(stepSpacing);
+                cx = cx * cosA + tx * sinA;
+                cy = cy * cosA + ty * sinA;
+                cz = cz * cosA + tz * sinA;
+                const nLen = Math.sqrt(cx*cx + cy*cy + cz*cz);
+                cx /= nLen; cy /= nLen; cz /= nLen;
+                domes.push({ x: cx, y: cy, z: cz, strength: str, sigma: stepSigma });
+            }
+        }
+
+        // Apply dome uplift to all cells
+        for (let r = 0; r < numRegions; r++) {
+            const rx = r_xyz[3*r], ry = r_xyz[3*r+1], rz = r_xyz[3*r+2];
+            let totalUplift = 0;
+            for (let d = 0; d < domes.length; d++) {
+                const dm = domes[d];
+                const dot = dm.x * rx + dm.y * ry + dm.z * rz;
+                const angle = Math.acos(Math.min(1, Math.max(-1, dot)));
+                if (angle > dm.sigma * 4) continue; // skip distant domes
+                const invS2 = -0.5 / (dm.sigma * dm.sigma);
+                const gauss = Math.exp(angle * angle * invS2);
+                totalUplift += dm.strength * gauss;
+            }
+            if (totalUplift > 0.001) {
+                // Modulate with ridged noise for volcanic texture
+                const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+                const volc = 0.6 + 0.4 * hsNoise.ridgedFbm(x * 6, y * 6, z * 6, 3);
+                const uplift = totalUplift * volc;
+                r_elevation[r] += uplift;
+                dl_hotspot[r] = uplift;
+            }
+        }
+    }
+
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
 }
