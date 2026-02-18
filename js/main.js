@@ -60,6 +60,15 @@ document.getElementById('chkMap').addEventListener('change', () => {
     }
 });
 
+// Debug layer dropdown
+const debugLayerEl = document.getElementById('debugLayer');
+if (debugLayerEl) {
+    debugLayerEl.addEventListener('change', (e) => {
+        state.debugLayer = e.target.value;
+        buildMesh();
+    });
+}
+
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();
 

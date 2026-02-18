@@ -55,7 +55,7 @@ export function generate() {
 
     // 6. Elevation
     const t3 = performance.now();
-    const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress } =
+    const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } =
         assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
     const tElev = performance.now() - t3;
 
@@ -69,7 +69,7 @@ export function generate() {
 
     state.curData = { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
                       plateDensity, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r,
-                      r_stress, noise, seed };
+                      r_stress, noise, seed, debugLayers };
 
     const t4 = performance.now();
     buildMesh();

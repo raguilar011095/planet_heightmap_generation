@@ -108,8 +108,9 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
     }
 
     // Smooth boundaries: majority-vote removes thin tendrils
+    const SMOOTH_PASSES = 2;
     const counts = new Map();
-    for (let pass = 0; pass < 4; pass++) {
+    for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
         for (let r = 0; r < numRegions; r++) {
             mesh.r_circulate_r(out_r, r);
             counts.clear();

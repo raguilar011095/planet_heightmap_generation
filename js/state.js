@@ -13,4 +13,5 @@ export const state = {
     editMode: false,
     editSubMode: 'toggle',
     dragStart: null,
+    debugLayer: '',
 };

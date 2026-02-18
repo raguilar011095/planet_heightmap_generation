@@ -6,6 +6,19 @@ import { state } from './state.js';
 import { elevationToColor } from './color-map.js';
 import { makeRng } from './rng.js';
 
+// Diverging color map: blue (negative) → white (zero) → red (positive)
+function debugValueToColor(v, minV, maxV) {
+    const range = Math.max(Math.abs(minV), Math.abs(maxV)) || 1;
+    const t = Math.max(-1, Math.min(1, v / range)); // normalise to [-1, 1]
+    if (t < 0) {
+        const s = -t; // 0→1
+        return [1 - s * 0.7, 1 - s * 0.7, 1];           // white → blue
+    } else {
+        const s = t;  // 0→1
+        return [1, 1 - s * 0.75, 1 - s * 0.75];          // white → red
+    }
+}
+
 // Plate colours — green shades for land, blue for ocean.
 export function computePlateColors(plateSeeds, plateIsOcean) {
     state.plateColors = {};
@@ -30,10 +43,21 @@ export function buildMapMesh() {
     if (state.mapMesh) { scene.remove(state.mapMesh); state.mapMesh.geometry.dispose(); state.mapMesh.material.dispose(); state.mapMesh = null; }
     if (!state.curData || !state.mapMode) return;
 
-    const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress } = state.curData;
+    const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
     const showStress = document.getElementById('chkStress').checked;
     const waterLevel = +document.getElementById('sWL').value;
+    const debugLayer = state.debugLayer || '';
+
+    let dbgArr = null, dbgMin = 0, dbgMax = 0;
+    if (debugLayer && debugLayers && debugLayers[debugLayer]) {
+        dbgArr = debugLayers[debugLayer];
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
+            if (dbgArr[r] > dbgMax) dbgMax = dbgArr[r];
+        }
+    }
+
     const { numSides } = mesh;
     const PI = Math.PI;
 
@@ -48,7 +72,9 @@ export function buildMapMesh() {
 
         const re = r_elevation[br] - waterLevel;
         let cr, cg, cb;
-        if (showPlates) {
+        if (dbgArr) {
+            [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
+        } else if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
             cr = pc.r; cg = pc.g; cb = pc.b;
         } else if (showStress) {
@@ -125,10 +151,21 @@ export function buildMapMesh() {
 // Build Voronoi mesh — each half-edge produces one triangle.
 export function buildMesh() {
     if (!state.curData) return;
-    const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress } = state.curData;
+    const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
     const showStress = document.getElementById('chkStress').checked;
     const waterLevel = +document.getElementById('sWL').value;
+    const debugLayer = state.debugLayer || '';
+
+    // Precompute debug layer min/max if active
+    let dbgArr = null, dbgMin = 0, dbgMax = 0;
+    if (debugLayer && debugLayers && debugLayers[debugLayer]) {
+        dbgArr = debugLayers[debugLayer];
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
+            if (dbgArr[r] > dbgMax) dbgMax = dbgArr[r];
+        }
+    }
 
     if (state.planetMesh) { scene.remove(state.planetMesh); state.planetMesh.geometry.dispose(); state.planetMesh.material.dispose(); }
     if (state.wireMesh)   { scene.remove(state.wireMesh);   state.wireMesh.geometry.dispose();   state.wireMesh.material.dispose(); }
@@ -190,7 +227,9 @@ export function buildMesh() {
         }
 
         let cr, cg, cb;
-        if (showPlates) {
+        if (dbgArr) {
+            [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
+        } else if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
             cr = pc.r; cg = pc.g; cb = pc.b;
         } else if (showStress) {

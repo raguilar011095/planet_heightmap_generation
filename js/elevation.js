@@ -204,6 +204,14 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const { numRegions } = mesh;
     const r_elevation = new Float32Array(numRegions);
 
+    // Debug layers — track each component's contribution
+    const dl_base     = new Float32Array(numRegions);
+    const dl_tectonic = new Float32Array(numRegions);
+    const dl_noise    = new Float32Array(numRegions);
+    const dl_interior = new Float32Array(numRegions);
+    const dl_coastal  = new Float32Array(numRegions);
+    const dl_ocean    = new Float32Array(numRegions);
+
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
 
@@ -251,6 +259,27 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     }
     const dist_coast = assignDistanceField(mesh, coastSeeds, new Set(), seed + 4);
 
+    // Land-only coast distance: seeds are land cells adjacent to ocean,
+    // propagates only through land (ocean cells are barriers).
+    const landCoastSeeds = new Set();
+    for (let r = 0; r < numRegions; r++) {
+        if (r_isOcean[r]) continue;
+        mesh.r_circulate_r(out_r, r);
+        for (let ni = 0; ni < out_r.length; ni++) {
+            if (r_isOcean[out_r[ni]]) { landCoastSeeds.add(r); break; }
+        }
+    }
+    const oceanBarriers = new Set();
+    for (let r = 0; r < numRegions; r++) {
+        if (r_isOcean[r]) oceanBarriers.add(r);
+    }
+    const dist_coast_land = assignDistanceField(mesh, landCoastSeeds, oceanBarriers, seed + 5);
+
+    // Fixed band width for interior uplift (in BFS cells), scaled by resolution.
+    // Tune INTERIOR_BAND_BASE to control how many cells deep the transition is.
+    const INTERIOR_BAND_BASE = 16;
+    const interiorBand = Math.max(4, Math.round(INTERIOR_BAND_BASE * scaleFactor));
+
     let maxStress = 0;
     for (let r = 0; r < numRegions; r++) {
         if (r_stress[r] > maxStress) maxStress = r_stress[r];
@@ -272,6 +301,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         } else {
             r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c);
         }
+        dl_base[r] = r_elevation[r];
 
         const stressNorm = r_stress[r] / maxStress;
         const btype = r_boundaryType[r];
@@ -283,6 +313,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
         if (!isOceanPlate) {
             const sf = r_subductFactor[r];
+            const elevBefore = r_elevation[r];
 
             if (sf > 0.5 && r_elevation[r] > 0) {
                 const suppression = (sf - 0.5) * 2;
@@ -305,10 +336,35 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 r_elevation[r] -= 0.12;
             }
 
+            dl_tectonic[r] = r_elevation[r] - elevBefore;
+
             const blend = Math.min(1, stressNorm * 3);
             const smoothNoise = noise.fbm(wx, wy, wz) * noiseMag;
             const ridgedNoise = noise.ridgedFbm(wx, wy, wz) * noiseMag * 1.5;
-            r_elevation[r] += smoothNoise * (1 - blend) + ridgedNoise * blend;
+            const noiseVal = smoothNoise * (1 - blend) + ridgedNoise * blend;
+            // Higher-freq detail layer: zero-mean, half strength
+            const detailNoise = noise.fbm(wx * 4 + 22.1, wy * 4 + 6.8, wz * 4 + 15.4, 4, 0.5) * noiseMag * 0.5;
+            const totalNoise = noiseVal + detailNoise;
+            r_elevation[r] += totalNoise;
+            dl_noise[r] = totalNoise;
+
+            // Continental interior uplift: fixed-width coastal depression band
+            // Depression side uses full band, uplift side plateaus at 40% of band
+            const lcd = dist_coast_land[r];
+            if (lcd < Infinity) {
+                // Depression: smoothstep over full band (0 → -0.08 at coast)
+                const tDown = Math.min(lcd / interiorBand, 1);
+                const sDown = tDown * tDown * (3 - 2 * tDown);
+                // Uplift: reaches plateau much sooner (40% of band)
+                const tUp = Math.min(lcd / (interiorBand * 0.4), 1);
+                const sUp = tUp * tUp * (3 - 2 * tUp);
+                const baseBias = -0.08 * (1 - sDown) + 0.10 * sUp;
+                // Low-freq noise modulation: 80%–120% of bias
+                const mod = 1.0 + 0.2 * noise.fbm(x * 2 + 19.3, y * 2 + 7.6, z * 2 + 13.1, 2);
+                const bias = baseBias * mod;
+                r_elevation[r] += bias;
+                dl_interior[r] = bias;
+            }
 
         } else {
             const dc = dist_coast[r];
@@ -322,7 +378,9 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
 
             r_elevation[r] = Math.min(r_elevation[r], oceanBase);
+            dl_ocean[r] = r_elevation[r];
 
+            const elevBeforeOcTec = r_elevation[r];
             if (btype === 2 && r_bothOcean[r]) {
                 r_elevation[r] += 0.12 * noise.ridgedFbm(x * 3, y * 3, z * 3, 4) + 0.06;
             }
@@ -330,8 +388,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             if (btype === 1) {
                 r_elevation[r] -= 0.15 + 0.15 * stressNorm;
             }
+            dl_tectonic[r] = r_elevation[r] - elevBeforeOcTec;
 
-            r_elevation[r] += noise.fbm(wx, wy, wz) * noiseMag * 0.3;
+            const oceanNoise = noise.fbm(wx, wy, wz) * noiseMag * 0.3;
+            r_elevation[r] += oceanNoise;
+            dl_noise[r] = oceanNoise;
         }
     }
 
@@ -402,6 +463,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 ? Math.min(1, (coastSubductMax[r] - 0.45) / 0.55)
                 : 0;
 
+            const elevBeforeCoast = r_elevation[r];
+
             // Layer 1: Coastal fractal noise
             const falloff1 = (1 - t) * (1 - t);
             const stressAmp1 = 1 + sn * 5;
@@ -442,6 +505,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                     r_elevation[r] += bump;
                 }
             }
+
+            dl_coastal[r] += r_elevation[r] - elevBeforeCoast;
         }
     }
 
@@ -496,9 +561,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 const excess = (n - threshold) / (1 - threshold);
                 const uplift = excess * excess * 0.55 * distWeight * (0.5 + arcStress[r]);
                 r_elevation[r] += uplift;
+                dl_coastal[r] += uplift;
             }
         }
     }
 
-    return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean };
+    return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
 }
