@@ -360,7 +360,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 // Uplift: reaches plateau much sooner (40% of band)
                 const tUp = Math.min(lcd / (interiorBand * 0.4), 1);
                 const sUp = tUp * tUp * (3 - 2 * tUp);
-                const baseBias = -0.08 * (1 - sDown) + 0.10 * sUp;
+                const baseBias = -0.08 * (1 - sDown) + 0.14 * sUp;
                 // Low-freq noise modulation: 80%–120% of bias
                 const mod = 1.0 + 0.2 * noise.fbm(x * 2 + 19.3, y * 2 + 7.6, z * 2 + 13.1, 2);
                 const bias = baseBias * mod;
@@ -585,11 +585,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
         const hsRandInt = makeRandInt(seed + 1001);
         for (let h = 0; h < NUM_HOTSPOTS; h++) {
-            // Per-hotspot variation
-            const hStrength = DOME_STRENGTH * (0.8 + hsRng() * 0.4);
-            const hSigma    = DOME_SIGMA * (0.7 + hsRng() * 0.6);
-            const hDecay    = CHAIN_DECAY + (hsRng() - 0.5) * 0.16;
-            const hLength   = CHAIN_LENGTH + Math.round((hsRng() - 0.5) * 4);
+            // Per-hotspot variation (wide ranges)
+            const hStrength = DOME_STRENGTH * (0.4 + hsRng() * 1.2);
+            const hSigma    = DOME_SIGMA * (0.4 + hsRng() * 1.2);
+            const hDecay    = CHAIN_DECAY + (hsRng() - 0.5) * 0.35;
+            const hLength   = Math.max(2, CHAIN_LENGTH + Math.round((hsRng() - 0.5) * 10));
 
             // Pick a random region as hotspot center
             const centerR = hsRandInt(numRegions);
@@ -597,8 +597,12 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const plate = r_plate[centerR];
             const drift = plateVec[plate];
 
+            // Ocean hotspots are stronger so they punch through the ocean floor
+            const isOceanHotspot = plateIsOcean.has(plate);
+            const oceanBoost = isOceanHotspot ? 1.8 : 1.0;
+
             // Active hotspot dome
-            domes.push({ x: hx, y: hy, z: hz, strength: hStrength, sigma: hSigma });
+            domes.push({ x: hx, y: hy, z: hz, strength: hStrength * oceanBoost, sigma: hSigma });
 
             // Chain: trail in direction opposite to plate drift (great-circle steps)
             // Compute a perpendicular vector for trajectory wobble
@@ -610,14 +614,15 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             perpX /= perpLen; perpY /= perpLen; perpZ /= perpLen;
 
             let cx = hx, cy = hy, cz = hz;
-            let str = hStrength;
+            let str = hStrength * oceanBoost;
             for (let c = 0; c < hLength; c++) {
                 str *= hDecay;
-                // Per-step variation
-                const stepSpacing = CHAIN_SPACING * (0.7 + hsRng() * 0.6);
-                const stepSigma   = hSigma * (0.8 + hsRng() * 0.4);
+                // Per-step variation (wide ranges)
+                str *= (0.7 + hsRng() * 0.6);  // extra per-step strength jitter
+                const stepSpacing = CHAIN_SPACING * (0.3 + hsRng() * 1.4);
+                const stepSigma   = hSigma * (0.5 + hsRng() * 1.0);
                 // Wobble: deflect direction by a random angle off the main drift
-                const wobble = (hsRng() - 0.5) * 0.4; // ±0.2 radians off-axis
+                const wobble = (hsRng() - 0.5) * 0.8; // ±0.4 radians off-axis
                 const dx = -drift[0] + perpX * wobble;
                 const dy = -drift[1] + perpY * wobble;
                 const dz = -drift[2] + perpZ * wobble;
@@ -642,14 +647,17 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         // Apply dome uplift to all cells
         for (let r = 0; r < numRegions; r++) {
             const rx = r_xyz[3*r], ry = r_xyz[3*r+1], rz = r_xyz[3*r+2];
+            // Shape warp: distort dome radius so edges aren't perfect circles
+            const shapeWarp = 1.0 + 0.3 * hsNoise.fbm(rx * 25 + 3.2, ry * 25 + 7.8, rz * 25 + 1.5, 2);
             let totalUplift = 0;
             for (let d = 0; d < domes.length; d++) {
                 const dm = domes[d];
                 const dot = dm.x * rx + dm.y * ry + dm.z * rz;
                 const angle = Math.acos(Math.min(1, Math.max(-1, dot)));
-                if (angle > dm.sigma * 4) continue; // skip distant domes
+                if (angle > dm.sigma * 5) continue;
+                const warpedAngle = angle * shapeWarp;
                 const invS2 = -0.5 / (dm.sigma * dm.sigma);
-                const gauss = Math.exp(angle * angle * invS2);
+                const gauss = Math.exp(warpedAngle * warpedAngle * invS2);
                 totalUplift += dm.strength * gauss;
             }
             if (totalUplift > 0.001) {
