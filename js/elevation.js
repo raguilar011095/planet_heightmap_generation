@@ -298,10 +298,19 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const warpScale = 0.4;
     const warpOctaves = numRegions > 200000 ? 2 : 3;
 
+    // Plateau zone: overriding-side cells beyond this distance from mountain front
+    const plateauStart = Math.max(2, Math.round(3 * scaleFactor));
+
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
 
-        const a = dist_mountain[r]  + eps;
+        // Asymmetric mountain profiles: shift ridge peak toward subducting side.
+        // sf > 0.5 (subducting): inflated distance → lower base → steeper drop-off
+        // sf < 0.5 (overriding): compressed distance → higher base → gentler slope
+        // sf = 0.5 (neutral / far from boundary): no effect
+        const sfAsym = r_subductFactor[r];
+        const asymmetry = 1.0 + (sfAsym - 0.5) * 0.8;
+        const a = dist_mountain[r] * asymmetry + eps;
         const b = dist_ocean[r]     + eps;
         const c = dist_coastline[r] + eps;
         const BASE_SCALE = 0.6;
@@ -326,7 +335,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
             if (sf > 0.5 && r_elevation[r] > 0) {
                 const suppression = (sf - 0.5) * 2;
-                r_elevation[r] *= 1 - suppression * 0.35;
+                r_elevation[r] *= 1 - suppression * 0.42;
             }
 
             if (stressNorm > 0.01) {
@@ -348,21 +357,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
             dl_tectonic[r] = r_elevation[r] - elevBefore;
 
-            const blend = Math.min(1, stressNorm * 3);
-            const smoothNoise = noise.fbm(wx, wy, wz) * noiseMag;
-            const ridgedNoise = noise.ridgedFbm(wx, wy, wz) * noiseMag * 1.5;
-            const noiseVal = smoothNoise * (1 - blend) + ridgedNoise * blend;
-            // Higher-freq detail layer: zero-mean, half strength
-            const detailNoise = noise.fbm(wx * 4 + 22.1, wy * 4 + 6.8, wz * 4 + 15.4, 4, 0.5) * noiseMag * 0.5;
-            // Scale noise amplitude by tectonic activity: rough near collisions, smooth in quiet interiors
-            const noiseActivity = Math.min(1, stressNorm * 4);
-            const noiseScale = 0.25 + 0.75 * noiseActivity;
-            const totalNoise = (noiseVal + detailNoise) * noiseScale;
-            r_elevation[r] += totalNoise;
-            dl_noise[r] = totalNoise;
-
-            // Continental interior uplift: tectonic-aware.
-            // Collision-backed interiors (plateaus) get higher uplift than quiet cratons.
+            // Compute tectonic activity early — used by noise, interior, and plateau sections.
             // Uses dist_mountain: distance from mountain-building collisions only.
             // Plates with no major collisions get tectonicActivity ≈ 0 (cratons).
             const dMtn = dist_mountain[r];
@@ -372,6 +367,28 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const tectonicActivity = Math.max(stressNorm, rawProximity * rawProximity);
             dl_tecActivity[r] = tectonicActivity;
 
+            // Plateau zone: overriding side, behind collision front, with tectonic influence
+            const isPlateauZone = sf < 0.45 && dMtn !== Infinity && dMtn > plateauStart;
+
+            const blend = Math.min(1, stressNorm * 3);
+            const smoothNoise = noise.fbm(wx, wy, wz) * noiseMag;
+            const ridgedNoise = noise.ridgedFbm(wx, wy, wz) * noiseMag * 1.5;
+            const noiseVal = smoothNoise * (1 - blend) + ridgedNoise * blend;
+            // Higher-freq detail layer: zero-mean, half strength
+            const detailNoise = noise.fbm(wx * 4 + 22.1, wy * 4 + 6.8, wz * 4 + 15.4, 4, 0.5) * noiseMag * 0.5;
+            // Scale noise amplitude by tectonic activity: rough near collisions, smooth in quiet interiors
+            const noiseActivity = Math.min(1, stressNorm * 4);
+            // Plateau flatness: additionally suppress noise on overriding side behind collisions
+            const plateauSuppress = isPlateauZone
+                ? Math.max(0.30, 1 - tectonicActivity * 0.60)
+                : 1.0;
+            const noiseScale = (0.25 + 0.75 * noiseActivity) * plateauSuppress;
+            const totalNoise = (noiseVal + detailNoise) * noiseScale;
+            r_elevation[r] += totalNoise;
+            dl_noise[r] = totalNoise;
+
+            // Continental interior uplift: tectonic-aware.
+            // Collision-backed interiors (plateaus) get higher uplift than quiet cratons.
             const lcd = dist_coast_land[r];
             if (lcd < Infinity) {
                 // Depression: smoothstep over full band (0 → -0.08 at coast)
@@ -390,6 +407,13 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 const bias = baseBias * mod;
                 r_elevation[r] += bias;
                 dl_interior[r] = bias;
+            }
+
+            // Plateau uplift boost: modest extra elevation on overriding side behind collisions
+            if (isPlateauZone && tectonicActivity > 0.1) {
+                const plateauBoost = 0.025 * tectonicActivity * (1 - sf);
+                r_elevation[r] += plateauBoost;
+                dl_interior[r] += plateauBoost;
             }
 
         } else {
