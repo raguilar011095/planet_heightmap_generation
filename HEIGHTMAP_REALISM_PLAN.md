@@ -41,6 +41,15 @@ Phase 2's asymmetry and plateau effects were initially implemented at full plann
 ### Lesson 7: Plateau Detection Via sf < 0.45 Works Within Stress Range
 The `isPlateauZone` flag uses `sf < 0.45` (overriding side) AND `dMtn > plateauStart` AND `dMtn finite`. Since sf is propagated ~12 hops on the overriding side (Lesson 5), this correctly identifies plateau regions within the stress influence zone. Beyond that, sf reverts to 0.5 and the cell is no longer flagged as a plateau — it falls back to Phase 1's `tectonicActivity`-based interior uplift, which provides a smooth transition. The two systems complement each other: sf-based plateau zone for structured flat character near collisions, tectonicActivity-based interior for gradual elevation decline farther out.
 
+### Lesson 8: Ocean Floor Depth Interacts With Multiple Positive-Elevation Layers
+Phase 3 attempted to implement passive vs active continental margins by differentiating shelf/slope/abyss profiles. Passive margins were made shallower (-0.01 to -0.04 shelf) and wider (8 cells vs 3 cells). However, even after multiple rounds of deepening, false land kept appearing in the oceans.
+
+**Root cause**: The ocean floor elevation is set early in the pipeline, but multiple subsequent layers add positive elevation — coastal roughening noise, island scattering, hotspot volcanism, and coastal domain warping. The original fixed profile (-0.02 to -0.08 shelf, -0.08 to -0.33 slope) was specifically tuned to survive these additions. Making shelves shallower broke that balance everywhere at once.
+
+**Lesson**: Ocean floor changes cannot be made in isolation from the coastal roughening, island scattering, and hotspot systems. The ocean and coastal layers form a tightly coupled system. Any ocean floor rework needs to be holistic — adjusting depths, noise amplitudes, and island thresholds together as a coordinated change. This is why all ocean work has been moved to a dedicated phase.
+
+**Reverted**: Passive/active margin profiles reverted to original fixed breakpoints. The coast-boundary BFS was hoisted before the main loop (structural improvement, no behavioral change). The `coastConvergent` flag infrastructure remains available for future use.
+
 ---
 
 ## Phase 1: Tectonic-Aware Interior — COMPLETED
@@ -82,10 +91,35 @@ The `isPlateauZone` flag uses `sf < 0.45` (overriding side) AND `dMtn > plateauS
 
 ---
 
+## Phase 3: Rift Valley Structure — COMPLETED
+
+### What was implemented
+
+**Rift valleys (Rank 3, at 60% strength per Lesson 6):**
+1. **Rift BFS**: Pre-computed BFS from divergent continent-continent boundary cells (`btype === 2 && !r_hasOcean`) through same-plate land cells, max `RIFT_HALF_WIDTH_BASE=4 * scaleFactor` cells.
+2. **Structured graben profile** replacing the old flat `-0.12` depression:
+   - **Axis** (rd=0): -0.15 depression + volcanic ridged noise (amplitude 0.04)
+   - **Floor** (rd=1 to `round(1.5*sf)`): -0.12 with decreasing volcanic texture
+   - **Shoulders** (`floorEnd` to `round(2.5*sf)`): +0.03 modest uplift flanking the graben
+   - **Fadeout** (beyond shoulders): smoothstep to ambient (guarded against division by zero when `riftHalfWidth == shoulderEnd` at low resolution)
+3. **Graceful degradation**: At 2k regions (sf=0.45): axis + 1 floor cell + 1 shoulder cell, no fadeout zone. At 100k+ (sf=3.16): full 13-cell-wide structure with graben, floor, shoulders, and smooth transition.
+
+**Passive vs Active Margins (Rank 1) — ATTEMPTED, REVERTED:**
+4. **Coast-boundary BFS hoisted**: Moved from inside the coastal roughening block to before the main elevation loop. This is a structural cleanup — same logic, same data, just available earlier. Kept in place.
+5. **Margin-dependent ocean profiles**: Implemented with active (narrow shelf 3 cells, steep) vs passive (wide shelf 8 cells, gentle). Even after multiple rounds of deepening the profiles, false land kept appearing in oceans due to interaction with coastal noise, island scattering, and hotspot layers (see Lesson 8). **Reverted** to original fixed breakpoints pending holistic ocean rework.
+
+### Gap status update
+
+**Gap 1 (Passive vs Active Margins)**: DEFERRED to Phase 5 (Ocean Overhaul). The `coastConvergent` infrastructure is in place; the challenge is coordinating ocean floor depths with all the layers that add positive elevation on top.
+
+**~~Gap 4 (Rift Valleys)~~**: ADDRESSED by Phase 3. Structured graben with axis depression (-0.15), volcanic floor texture, and flanking shoulders (+0.03). With Phase 1's reduced interior uplift (+0.06 for quiet areas), the rift axis should produce actual depressions.
+
+---
+
 ## Part 2: Remaining Gaps
 
-### Gap 1: Passive vs. Active Margins Are Identical
-**Status**: Unchanged. Zero existing coverage in ocean floor code. **Next target (Phase 3).**
+### ~~Gap 1: Passive vs. Active Margins Are Identical~~
+**Status**: DEFERRED. Infrastructure in place (hoisted BFS, `coastConvergent` flag). Requires holistic ocean rework — see Phase 5.
 
 ### ~~Gap 2: Continental Interiors Are Uniformly Elevated and Rough~~
 **Status**: ADDRESSED by Phase 1.
@@ -93,8 +127,8 @@ The `isPlateauZone` flag uses `sf < 0.45` (overriding side) AND `dMtn > plateauS
 ### Gap 3: Foreland Basins Still Elevated
 **Status**: Significantly improved by Phases 1+2. Base asymmetry + foreland dip + tectonic-aware interior create a visible low zone at the stress edge on the subducting side. Not yet a deep basin but the profile is qualitatively correct: mountain → steep drop → low foreland → gradual rise to interior.
 
-### Gap 4: Rift Valleys Are Not Valleys
-**Status**: Slightly improved (lower interior uplift in quiet areas). Still needs structured graben. **Target for Phase 3.**
+### ~~Gap 4: Rift Valleys Are Not Valleys~~
+**Status**: ADDRESSED by Phase 3. Structured graben profile with axis, floor, shoulders, and fadeout.
 
 ### ~~Gap 5: Mountain Asymmetry Is Too Subtle~~
 **Status**: ADDRESSED by Phase 2. ~25-30% asymmetry, visible in base and normal views.
@@ -105,67 +139,6 @@ The `isPlateauZone` flag uses `sf < 0.45` (overriding side) AND `dMtn > plateauS
 ---
 
 ## Part 3: Remaining Implementation Plan
-
-### Rank 1: Passive vs. Active Continental Margins
-**Why**: Cleanest remaining gap — zero existing coverage, high visibility, straightforward.
-
-**Scaling**: Shelf/slope width breakpoints scale with `scaleFactor`. `dist_coast` already computed.
-
-**Approach** (modify ocean floor section):
-- Hoist the coast-type BFS (currently inside coastal roughening block) to run BEFORE the ocean floor elevation assignment. The BFS identifies whether each ocean cell's nearest coast is convergent (active) or not (passive). This avoids adding a new BFS — just reorder existing code.
-- **Lesson 1 applies**: The `coastConvergent` flag must be based on actual convergent boundary cells only, not all boundary cells, to avoid over-classification.
-- **Lesson 6 applies**: Start with moderate differentiation between active and passive profiles. The current shelf/slope/abyss breakpoints (5/12/12+ cells) should be the midpoint — active margins slightly narrower, passive margins moderately wider. Don't make passive shelves 3x wider right away; try 1.5-2x first.
-- Replace fixed `dc` breakpoints with margin-dependent values:
-  ```
-  Active:  shelf end = round(3 * sf),  slope end = round(8 * sf)
-  Passive: shelf end = round(8 * sf),  slope end = round(18 * sf)
-  ```
-- Passive shelves: `-0.01 → -0.04` (shallower). Passive slopes: `-0.04 → -0.22` (gentler).
-- Active margins keep current steep profile + trench behavior.
-
-**At low res (2k, sf=0.45)**: passive shelf=4 cells, active shelf=2. Still distinguishable.
-
----
-
-### Rank 3: Rift Valley Structure
-**Why**: Net rift elevation is ~0.10-0.16 (post Phases 1+2, depending on context) — still not a valley. Needs structured graben + shoulders.
-
-**Scaling**: Rift width scales with `scaleFactor`. At 2k (sf=0.45): width=2 cells (simple dip). At 100k+ (sf=3.16): width=13 cells (full structure).
-
-**Approach** (replace current flat -0.12 depression):
-- BFS from divergent continent-continent boundary cells through same-plate land, max `round(4 * sf)` cells
-- Structured profile: graben axis at -0.25 (must overwhelm base + interior), floor with volcanic ridged noise, shoulders at +0.05, smoothstep fadeout
-- **Lesson 6 applies**: Start at 60% of planned depression values. Graben at -0.15 instead of -0.25, shoulders at +0.03 instead of +0.05. The current -0.12 flat depression is already doing something — the structured profile needs to be notably stronger but not 2x.
-- **Post-Phase-2 context**: Base elevation at a rift depends on the asymmetry factor. Since rifts are on divergent boundaries (not convergent), sf at rift cells may not have been set by collision stress propagation. Rift cells have their own `btype === 2` and their sf is from local density differences, not from collision propagation. Test to confirm sf values at rift boundaries before assuming asymmetry applies.
-- Add debug layer for rift contribution.
-
----
-
-### Rank 6: Oceanic Fracture Zones
-**Why**: Zero existing coverage. Transform ocean boundaries produce no elevation effect.
-
-**Scaling**: Width scales with `scaleFactor`. At 2k: 2 cells (line). At high res: stepped offset pattern.
-
-**Approach** (insert in ocean elevation section):
-- **Lesson 1 applies**: Seed ONLY from `btype === 3 && r_bothOcean[r]` cells.
-- BFS outward through ocean plate, max `round(4 * sf)` cells.
-- **Lesson 6 applies**: Start with subtle depression `-0.02 * (1 - d/maxDist)` rather than -0.04.
-- Offset mid-ocean ridge where fractures cross.
-
----
-
-### Rank 7: Back-Arc Basins
-**Why**: No existing layer produces depression behind volcanic arcs.
-
-**Scaling**: Basin distance scales with `scaleFactor`.
-
-**Updated approach** (informed by Phase 2):
-- Phase 2's `isPlateauZone` already identifies overriding-side cells behind collision fronts. Back-arc basins form in a similar region but DEEPER behind the arc (farther from the collision front). Can use `dist_mountain` ranges beyond the plateau zone.
-- **Lesson 7 applies**: The sf < 0.45 check works within stress propagation range (~12 hops on overriding side). Back-arc basins starting at `round(8*sf)` may be at the edge of sf propagation at lower resolutions. Use `dMtn finite` as the primary signal, sf < 0.5 as secondary.
-- **Lesson 6 applies**: Start with gentle depression `-0.03 * stressNorm` rather than -0.06. Let it compound with Phase 1's reduced interior uplift at those distances.
-- Apply smoothstep depression modulated by noise. Cells below 0 appear as marginal seas.
-
----
 
 ### Rank 8: Hypsometric Distribution Correction
 **Why**: Light post-processing to ensure bimodal elevation histogram.
@@ -197,18 +170,20 @@ The `isPlateauZone` flag uses `sf < 0.45` (overriding side) AND `dMtn > plateauS
 - Mountain asymmetry (Rank 4) + plateau enhancement (Rank 5), toned to 60% strength.
 - Gaps addressed: #5 (asymmetry), further progress on #3 (foreland).
 
-**Phase 3** (Structural features): Ranks 1 + 3
-- Passive margins + rift valleys.
-- Independent zero-coverage gaps.
-- Rift depths should use the post-Phase-2 baseline (now asymmetric).
-- **Note**: These are the last two features that create major new geological structures. After this, the planet's macro-scale elevation profile should be geologically complete.
+**Phase 3** — COMPLETED
+- Rift valley structure (Rank 3). Passive margins attempted but reverted (Lesson 8).
+- Gaps addressed: #4 (rift valleys).
 
-**Phase 4** (Ocean + refinements): Ranks 6 + 7 + 8
-- Fracture zones + back-arc basins + hypsometric correction.
-- These add secondary detail and statistical polish.
+**Phase 4** (Land refinements): Ranks 8 + 9
+- Hypsometric correction + simplified fluvial erosion.
+- These operate on the land elevation values and don't interact with the ocean coupling problem.
 
-**Phase 5** (Advanced): Rank 9
-- Fluvial erosion. Most complex, implement last.
+**Phase 5** (Ocean overhaul): Ranks 1 + 6 + 7
+- Passive vs active margins + oceanic fracture zones + back-arc basins.
+- All ocean-related features grouped together for a coordinated rework.
+- **Per Lesson 8**: Must be implemented holistically — ocean floor profiles, coastal roughening amplitudes, island scattering thresholds, and hotspot interaction all need to be tuned as a single system.
+- The `coastConvergent` BFS infrastructure from Phase 3 is already in place and available.
+- Approach should audit all layers that contribute positive elevation to ocean cells, establish a clear "depth budget" for each zone, then implement margin differentiation within that budget.
 
 ## Verification
 
@@ -222,6 +197,6 @@ After each phase:
 - Visual checks per phase:
   - Phase 1: Flat quiet interiors, rough collision zones, elevated plateaus ✓
   - Phase 2: Asymmetric mountain profiles, visible foreland contrast, flat-topped plateaus ✓
-  - Phase 3: Wide passive shelves vs narrow active shelves, rift valleys with shoulders
-  - Phase 4: Fracture zone lines in ocean bathymetry, back-arc depressions
-  - Phase 5: Drainage valleys visible at high resolution
+  - Phase 3: Rift valleys with shoulders ✓ (passive margins deferred)
+  - Phase 4: Bimodal elevation histogram, drainage valleys at high resolution
+  - Phase 5: Wide passive shelves vs narrow active shelves, fracture zone lines, back-arc depressions

@@ -301,6 +301,88 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     // Plateau zone: overriding-side cells beyond this distance from mountain front
     const plateauStart = Math.max(2, Math.round(3 * scaleFactor));
 
+    // ---- Coast-boundary BFS (hoisted for use by ocean floor + coastal roughening) ----
+    // Identifies each cell's nearest coastline boundary and propagates boundary type info.
+    const coastBdry = [];
+    for (let r = 0; r < numRegions; r++) {
+        const rOc = r_isOcean[r];
+        mesh.r_circulate_r(out_r, r);
+        for (let ni = 0; ni < out_r.length; ni++) {
+            if (r_isOcean[out_r[ni]] !== rOc) {
+                coastBdry.push(r);
+                break;
+            }
+        }
+    }
+
+    const maxCD = Math.max(8, Math.round(8 * scaleFactor));
+    const dBdry = new Float32Array(numRegions);
+    dBdry.fill(maxCD + 1);
+    const coastStressMax = new Float32Array(numRegions);
+    const coastSubductMax = new Float32Array(numRegions);
+    const coastConvergent = new Uint8Array(numRegions);
+    for (let i = 0; i < coastBdry.length; i++) {
+        const r = coastBdry[i];
+        dBdry[r] = 0;
+        coastStressMax[r] = r_stress[r] / maxStress;
+        coastSubductMax[r] = r_subductFactor[r];
+        coastConvergent[r] = r_boundaryType[r] === 1 ? 1 : 0;
+    }
+    {
+        let qi = 0;
+        while (qi < coastBdry.length) {
+            const r = coastBdry[qi++];
+            const nd = dBdry[r] + 1;
+            if (nd > maxCD) continue;
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nr = out_r[ni];
+                if (nd < dBdry[nr]) {
+                    dBdry[nr] = nd;
+                    coastStressMax[nr] = coastStressMax[r];
+                    coastSubductMax[nr] = coastSubductMax[r];
+                    coastConvergent[nr] = coastConvergent[r];
+                    coastBdry.push(nr);
+                } else if (nd === dBdry[nr] && coastStressMax[r] > coastStressMax[nr]) {
+                    coastStressMax[nr] = coastStressMax[r];
+                    coastSubductMax[nr] = coastSubductMax[r];
+                    coastConvergent[nr] = coastConvergent[r];
+                }
+            }
+        }
+    }
+
+    // ---- Rift BFS (structured graben profile for divergent continent-continent boundaries) ----
+    const RIFT_HALF_WIDTH_BASE = 4;
+    const riftHalfWidth = Math.max(2, Math.round(RIFT_HALF_WIDTH_BASE * scaleFactor));
+    const riftDist = new Float32Array(numRegions);
+    riftDist.fill(Infinity);
+    const riftSeeds = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (r_boundaryType[r] === 2 && !r_hasOcean[r]) {
+            riftSeeds.push(r);
+            riftDist[r] = 0;
+        }
+    }
+    {
+        let qi = 0;
+        while (qi < riftSeeds.length) {
+            const r = riftSeeds[qi++];
+            const nd = riftDist[r] + 1;
+            if (nd > riftHalfWidth) continue;
+            const plate = r_plate[r];
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nr = out_r[ni];
+                if (nd < riftDist[nr] && r_plate[nr] === plate && !r_isOcean[nr]) {
+                    riftDist[nr] = nd;
+                    riftSeeds.push(nr);
+                }
+            }
+        }
+    }
+    const riftNoise = new SimplexNoise(seed + 419);
+
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
 
@@ -351,8 +433,37 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 r_elevation[r] -= 0.06 * (1 - forelandT);
             }
 
-            if (btype === 2 && !r_hasOcean[r]) {
-                r_elevation[r] -= 0.12;
+            // Rift valley: structured graben profile replaces flat depression.
+            // Uses pre-computed riftDist BFS from divergent continent-continent boundaries.
+            {
+                const rd = riftDist[r];
+                if (rd !== Infinity) {
+                    const floorEnd = Math.max(1, Math.round(1.5 * scaleFactor));
+                    const shoulderEnd = Math.max(2, Math.round(2.5 * scaleFactor));
+                    let riftEffect = 0;
+                    if (rd <= 0.5) {
+                        // Rift axis: deepest depression
+                        riftEffect = -0.15;
+                        // Volcanic ridged noise along axis
+                        riftEffect += riftNoise.ridgedFbm(x * 8, y * 8, z * 8, 3) * 0.04;
+                    } else if (rd <= floorEnd) {
+                        // Rift floor: still depressed, with volcanic texture
+                        const t = rd / floorEnd;
+                        riftEffect = -0.12 * (1 - t * 0.3);
+                        riftEffect += riftNoise.ridgedFbm(x * 8, y * 8, z * 8, 3) * 0.03 * (1 - t);
+                    } else if (rd <= shoulderEnd) {
+                        // Rift shoulders: modest uplift flanking the graben
+                        const t = (rd - floorEnd) / (shoulderEnd - floorEnd);
+                        riftEffect = 0.03 * (1 - t);
+                    } else if (riftHalfWidth > shoulderEnd) {
+                        // Smooth fadeout to ambient
+                        const t = (rd - shoulderEnd) / (riftHalfWidth - shoulderEnd);
+                        const fadeT = Math.min(1, t);
+                        const fade = fadeT * fadeT * (3 - 2 * fadeT); // smoothstep
+                        riftEffect = 0.03 * (1 - fade) * 0.2; // tiny residual shoulder
+                    }
+                    r_elevation[r] += riftEffect;
+                }
             }
 
             dl_tectonic[r] = r_elevation[r] - elevBefore;
@@ -446,63 +557,17 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    // Coastal roughening
+    // Coastal roughening (uses hoisted coastBdry BFS data: dBdry, coastStressMax, etc.)
     {
-        const coastBdry = [];
-        for (let r = 0; r < numRegions; r++) {
-            const rOc = r_isOcean[r];
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                if (r_isOcean[out_r[ni]] !== rOc) {
-                    coastBdry.push(r);
-                    break;
-                }
-            }
-        }
-
-        const maxCD = Math.max(8, Math.round(8 * scaleFactor));
-        const dBdry = new Float32Array(numRegions);
-        dBdry.fill(maxCD + 1);
-        const coastStressMax = new Float32Array(numRegions);
-        const coastSubductMax = new Float32Array(numRegions);
-        const coastConvergent = new Uint8Array(numRegions);
-        for (let i = 0; i < coastBdry.length; i++) {
-            const r = coastBdry[i];
-            dBdry[r] = 0;
-            coastStressMax[r] = r_stress[r] / maxStress;
-            coastSubductMax[r] = r_subductFactor[r];
-            coastConvergent[r] = r_boundaryType[r] === 1 ? 1 : 0;
-        }
-        let qi = 0;
-        while (qi < coastBdry.length) {
-            const r = coastBdry[qi++];
-            const nd = dBdry[r] + 1;
-            if (nd > maxCD) continue;
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
-                if (nd < dBdry[nr]) {
-                    dBdry[nr] = nd;
-                    coastStressMax[nr] = coastStressMax[r];
-                    coastSubductMax[nr] = coastSubductMax[r];
-                    coastConvergent[nr] = coastConvergent[r];
-                    coastBdry.push(nr);
-                } else if (nd === dBdry[nr] && coastStressMax[r] > coastStressMax[nr]) {
-                    coastStressMax[nr] = coastStressMax[r];
-                    coastSubductMax[nr] = coastSubductMax[r];
-                    coastConvergent[nr] = coastConvergent[r];
-                }
-            }
-        }
-
+        const coastRoughenDist = Math.max(8, Math.round(8 * scaleFactor));
         const cNoise  = new SimplexNoise(seed + 77);
         const cNoise2 = new SimplexNoise(seed + 133);
         const cNoise3 = new SimplexNoise(seed + 211);
 
         for (let r = 0; r < numRegions; r++) {
-            if (dBdry[r] > maxCD) continue;
+            if (dBdry[r] > coastRoughenDist) continue;
             const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
-            const t = dBdry[r] / maxCD;
+            const t = dBdry[r] / coastRoughenDist;
 
             const sn = Math.max(coastStressMax[r], r_stress[r] / maxStress);
 
