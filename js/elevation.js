@@ -212,6 +212,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_coastal  = new Float32Array(numRegions);
     const dl_ocean    = new Float32Array(numRegions);
     const dl_hotspot  = new Float32Array(numRegions);
+    const dl_tecActivity = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -281,6 +282,12 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const INTERIOR_BAND_BASE = 16;
     const interiorBand = Math.max(4, Math.round(INTERIOR_BAND_BASE * scaleFactor));
 
+    // How far mountain-building collisions influence interior uplift (BFS cells).
+    // Uses dist_mountain (already computed from stress_mountain_r seeds, blocked by ocean).
+    // Only major convergent boundaries drive plateau formation, not every minor boundary.
+    const TECTONIC_REACH_BASE = 20;
+    const tectonicReach = Math.max(6, Math.round(TECTONIC_REACH_BASE * scaleFactor));
+
     let maxStress = 0;
     for (let r = 0; r < numRegions; r++) {
         if (r_stress[r] > maxStress) maxStress = r_stress[r];
@@ -330,8 +337,9 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 r_elevation[r] += (uplift - depress) * heightVar;
             }
 
-            if (stressNorm < 0.05 && stressNorm > 0) {
-                r_elevation[r] -= 0.03;
+            if (stressNorm > 0 && stressNorm < 0.10) {
+                const forelandT = stressNorm / 0.10;
+                r_elevation[r] -= 0.06 * (1 - forelandT);
             }
 
             if (btype === 2 && !r_hasOcean[r]) {
@@ -346,12 +354,24 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const noiseVal = smoothNoise * (1 - blend) + ridgedNoise * blend;
             // Higher-freq detail layer: zero-mean, half strength
             const detailNoise = noise.fbm(wx * 4 + 22.1, wy * 4 + 6.8, wz * 4 + 15.4, 4, 0.5) * noiseMag * 0.5;
-            const totalNoise = noiseVal + detailNoise;
+            // Scale noise amplitude by tectonic activity: rough near collisions, smooth in quiet interiors
+            const noiseActivity = Math.min(1, stressNorm * 4);
+            const noiseScale = 0.25 + 0.75 * noiseActivity;
+            const totalNoise = (noiseVal + detailNoise) * noiseScale;
             r_elevation[r] += totalNoise;
             dl_noise[r] = totalNoise;
 
-            // Continental interior uplift: fixed-width coastal depression band
-            // Depression side uses full band, uplift side plateaus at 40% of band
+            // Continental interior uplift: tectonic-aware.
+            // Collision-backed interiors (plateaus) get higher uplift than quiet cratons.
+            // Uses dist_mountain: distance from mountain-building collisions only.
+            // Plates with no major collisions get tectonicActivity ≈ 0 (cratons).
+            const dMtn = dist_mountain[r];
+            const rawProximity = (dMtn === Infinity || dMtn >= tectonicReach)
+                ? 0
+                : (1 - dMtn / tectonicReach);
+            const tectonicActivity = Math.max(stressNorm, rawProximity * rawProximity);
+            dl_tecActivity[r] = tectonicActivity;
+
             const lcd = dist_coast_land[r];
             if (lcd < Infinity) {
                 // Depression: smoothstep over full band (0 → -0.08 at coast)
@@ -360,7 +380,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 // Uplift: reaches plateau much sooner (40% of band)
                 const tUp = Math.min(lcd / (interiorBand * 0.4), 1);
                 const sUp = tUp * tUp * (3 - 2 * tUp);
-                const baseBias = -0.08 * (1 - sDown) + 0.14 * sUp;
+                // Tectonic-modulated uplift: +0.06 (quiet craton) to +0.22 (collision plateau)
+                const INTERIOR_BASE = 0.06;
+                const INTERIOR_TECTONIC = 0.16;
+                const interiorUplift = INTERIOR_BASE + tectonicActivity * INTERIOR_TECTONIC;
+                const baseBias = -0.08 * (1 - sDown) + interiorUplift * sUp;
                 // Low-freq noise modulation: 80%–120% of bias
                 const mod = 1.0 + 0.2 * noise.fbm(x * 2 + 19.3, y * 2 + 7.6, z * 2 + 13.1, 2);
                 const bias = baseBias * mod;
@@ -671,6 +695,6 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
 }

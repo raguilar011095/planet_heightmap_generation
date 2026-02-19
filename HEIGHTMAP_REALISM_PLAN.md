@@ -8,299 +8,244 @@ All implementations must scale with region count. The codebase normalizes via `s
 
 ---
 
+## Implementation Lessons Learned
+
+### Lesson 1: BFS Seed Selectivity Is Critical
+When computing influence fields via BFS, the choice of seed cells determines everything. In Phase 1 we initially seeded from ALL land cells with any propagated stress (`r_stress > 0.01`). Because stress propagates ~12 hops from every plate boundary, this blanketed ~100% of land cells — the "tectonic activity" map was red everywhere.
+
+**Fix**: Switched to `dist_mountain` (already computed from `stress_mountain_r` — only mountain-building convergent boundary cells with sf < 0.55). This means only major collisions drive the influence field. Plates with no convergent collisions on their edges correctly get zero tectonic activity (cratons).
+
+**Rule for future features**: Always consider what fraction of the planet your seed set covers. If seeds + their propagation zone covers >50% of the target surface, the field won't differentiate anything. Use the most selective seed set that captures the geological phenomenon.
+
+### Lesson 2: Plate Size vs Feature Size at 10k Regions
+At 10k regions with 20 plates, each plate is ~500 cells with diameter ~22 cells. Features that require "deep interior far from all boundaries" only manifest clearly when plates are large enough to have such interiors. At low region counts or high plate counts, plates are too small for interior differentiation.
+
+**Implication**: Features should degrade gracefully — at small plates they simplify or disappear rather than creating artifacts. The `tectonicReach` clamp (`max(6, ...)`) handles this, but future features must consider the same constraint.
+
+### Lesson 3: dist_mountain Is a Versatile Signal
+`dist_mountain` (BFS from `stress_mountain_r`, blocked by `ocean_r`) encodes "distance from the nearest mountain-building collision through land." It's already computed, inherently scales, and is finite only on plates reachable from major convergent boundaries. It's the right signal for tectonic-modulated interior uplift and should be leveraged for future features (plateau enhancement, back-arc identification) rather than computing new BFS fields where possible.
+
+### Lesson 4: Foreland Basins Need Base Elevation Asymmetry
+Phase 1's interior uplift fix reduced the uniform +0.14 and increased the foreland dip from -0.03 to -0.06. But the harmonic-mean base elevation still contributes ~+0.16 at the foreland position, and `dist_mountain`-based tectonic activity is high there (close to mountains). The foreland dip alone cannot overcome base + tectonic-modulated interior. True foreland depressions require Rank 4's base elevation asymmetry — lowering the base on the subducting side so there's room for a basin.
+
+### Lesson 5: r_subductFactor Propagation Range Is Limited
+`r_subductFactor` is only propagated as far as stress reaches (~5 hops on subducting side due to aggressive decay, ~12 hops on overriding side). Beyond propagation range, sf = default 0.5. This means sf cannot be used to distinguish overriding vs subducting sides at distances beyond stress propagation. Features that need side-awareness at longer range must use other signals (e.g., `dist_mountain` is finite only on the overriding side of continent-continent collisions where sf < 0.55).
+
+---
+
+## Phase 1: Tectonic-Aware Interior — COMPLETED
+
+### What was implemented
+1. **Tectonic-modulated interior uplift**: Replaced uniform `+0.14` with `0.06 + tectonicActivity * 0.16`. Uses `dist_mountain` with quadratic decay over `TECTONIC_REACH_BASE=20 * scaleFactor` cells. Range: +0.06 (quiet craton) to +0.22 (collision-backed plateau).
+2. **Noise amplitude scaling**: `noiseScale = 0.25 + 0.75 * min(1, stressNorm * 4)`. Quiet interiors get 25% noise (visibly flat), collision zones get full roughness.
+3. **Foreland dip increase**: Zone widened from `stressNorm < 0.05` to `< 0.10`, max depression increased from `-0.03` to `-0.06` with linear falloff.
+4. **Debug layer**: "Tectonic Activity" added showing the `tectonicActivity` field.
+
+### Updated canonical positions (post Phase 1)
+- **Position B** (5 cells behind mountain, overriding): Interior now ~+0.20 (high tectonicActivity) vs old +0.14. Net ~0.55. Plateau-like. ✓
+- **Position E** (deep interior, no collisions): Interior now ~+0.06 (zero tectonicActivity) vs old +0.14. Net ~0.12-0.17. Low craton. Noise at 25% amplitude — visibly flat. ✓
+- **Position D** (foreland, stress edge): Dip now -0.06 (was -0.03). Interior still high due to mountain proximity. Net ~0.25. Still not a true basin — needs Phase 2's base asymmetry.
+- **Position I** (rift): Interior now ~+0.06-0.10 (depends on nearby collisions). Net ~0.14-0.18. Rift depression still absorbed. Needs Phase 3's structured graben.
+
+---
+
 ## Part 1: Combined Pipeline Behavior at Canonical Positions
 
-To understand what's truly missing, here's what the pipeline *actually produces* at key positions (at 10k regions, default settings: noiseMag=0.10, spread=4):
+*(Pre-Phase-1 snapshot for reference — see Phase 1 section above for updated values)*
 
 ### A. Mountain front (continent-continent convergence, overriding side)
 - Base: ~0.55 (small dist_mountain, large dist_ocean)
 - Tectonic: +0.10 to +0.25 (high stress, low sf → strong uplift)
-- Interior: +0.14 (deep inland)
-- Noise: ridged fbm dominated, ±0.10-0.15
-- **Net: ~0.75-1.0** — Realistic for high peaks
+- Interior: +0.14 → now +0.22 (high tectonicActivity)
+- Noise: ridged fbm dominated, ±0.10-0.15 (full amplitude)
+- **Net: ~0.85-1.0** — Realistic for high peaks
 
 ### B. 5 cells behind mountain front (overriding plate, inland)
 - Base: ~0.35
 - Tectonic: +0.01-0.02 (propagated stress, decayed)
-- Interior: +0.14
-- Noise: mostly smooth fbm, ±0.05
-- **Net: ~0.50** — Elevated, plateau-like. Already approximates a post-collision uplift region.
+- Interior: +0.14 → now ~+0.20 (high tectonicActivity near mountains)
+- Noise: smooth fbm, ±0.05 → now ±0.03 (suppressed, low stressNorm)
+- **Net: ~0.55** — Elevated plateau.
 
 ### C. 5 cells in front of mountain front (subducting plate side)
-- Base: ~0.35 (same dist_mountain symmetry)
-- Tectonic: suppressed (sf>0.5 → `*0.86`), slight net depression → base ~0.30, tectonic ~-0.01
-- Interior: +0.14
-- Noise: ±0.05
-- **Net: ~0.43** — Still elevated. The ~10% asymmetry vs Position B (0.50) is subtle but present.
+- Base: ~0.35 → sf suppression → ~0.30
+- Tectonic: slight net depression ~-0.01
+- Interior: +0.14 → now ~+0.18 (still near mountains)
+- Noise: ±0.05 → ±0.03
+- **Net: ~0.47** — Asymmetry vs B (0.55) now ~15%. Still subtle.
 
-### D. 12 cells from mountain, edge of stress propagation (overriding plate)
+### D. 12 cells from mountain, edge of stress propagation
 - Base: ~0.16
-- Tectonic: stressNorm 0.01-0.05 → triggers the `-0.03` dip (line 333-335) → -0.03
-- Interior: +0.14
-- Noise: ±0.05
-- **Net: ~0.27** — The foreland "dip" brings it from 0.30 to 0.27. This is barely perceptible against the +0.14 interior uplift that dominates.
+- Tectonic: -0.06 foreland dip (was -0.03)
+- Interior: ~+0.15 (high tectonicActivity, still close to mountains)
+- Noise: ±0.01-0.02 (heavily suppressed, stressNorm ≈ 0.02)
+- **Net: ~0.25** — Lower than before (was 0.27), noticeably flat. Not a true basin yet.
 
 ### E. Deep continental interior, no nearby collisions
-- Base: ~0.06 (dist_mountain=Infinity fallback, `0.1 * 0.6`)
-- Tectonic: zero
-- Interior: +0.14
-- Noise: smooth fbm + detail noise, ±0.05-0.08
-- **Net: ~0.20** — Moderate, uniformly rough. The same everywhere regardless of tectonic history.
-
-### F. Coastal cell on a non-boundary coast
 - Base: ~0.06
-- Interior: lcd=0 → baseBias = -0.08 (full depression)
-- Noise: ±0.05
-- **Net: ~0.03** — Near sea level, realistic.
+- Interior: +0.06 (zero tectonicActivity) — was +0.14
+- Noise: ±0.01-0.02 (25% amplitude)
+- **Net: ~0.12-0.15** — Low, flat craton. Major improvement over old 0.20.
 
-### G. Ocean cell, passive coast (no collision), 8 cells out
-- Ocean profile: -0.19 (slope zone)
-- **Net: ~-0.19** — Identical to active margin at same distance.
-
-### H. Ocean cell, active subduction coast, 8 cells out
-- Ocean profile: -0.19 (same slope zone), plus potential trench dip at convergent boundary (btype=1: -0.15 - 0.15*stressNorm)
-- **Net: ~-0.19 at distance, ~-0.45 right at boundary** — The trench only affects the immediate boundary cells, not the overall shelf/slope shape.
-
-### I. Divergent continent-continent boundary
-- Base: moderate positive (~0.20)
-- Tectonic: -0.12 flat rift depression
-- Interior: +0.14 (if deep inland)
-- **Net: ~0.22** — The rift depression barely dents it. Still elevated. Real rifts are deep valleys.
+### F-I: Unchanged from pre-Phase-1 (ocean/coast/rift positions)
 
 ---
 
-## Part 2: True Gaps (Where Combined Output Diverges from Reality)
+## Part 2: Remaining Gaps
 
 ### Gap 1: Passive vs. Active Margins Are Identical
-**Combined output**: Positions G and H show that ocean cells at the same distance from coast have identical shelf/slope/abyss profiles regardless of boundary type. The ocean floor code (lines 372-398) has zero awareness of whether the adjacent coast is a subduction zone or a quiet passive margin.
+**Status**: Unchanged. Zero existing coverage in ocean floor code.
 
-**Reality**: Active margins (Andes/Peru-Chile trench) have narrow shelves (0-20km), steep slopes, and deep trenches. Passive margins (US East Coast, Brazil) have wide shelves (100-300km), gentle slopes, and no trench. This is one of the most fundamental distinctions in marine geology and affects ~60% of all coastlines.
+### ~~Gap 2: Continental Interiors Are Uniformly Elevated and Rough~~
+**Status**: ADDRESSED by Phase 1. Interiors now range from +0.06 (craton) to +0.22 (collision plateau). Noise suppression creates visible flat/rough contrast.
 
-**What existing layers contribute**: Nothing. No layer distinguishes margin type in the ocean.
-
-### Gap 2: Continental Interiors Are Uniformly Elevated and Rough
-**Combined output**: Position E shows deep interiors always land at ~0.20 ± noise. The interior uplift (+0.14) is applied identically everywhere regardless of tectonic context. Position B (behind a collision) and Position E (passive interior) differ only by ~0.30 because stress propagation has fully decayed by deep-interior distances. Meanwhile, the detail noise (line 348: `0.5 * noiseMag` everywhere) prevents any region from being truly flat.
-
-**Reality**: Continental interiors vary enormously:
-- Behind active collision zones: High plateaus (Tibet ~+5500m, Altiplano ~+3700m)
-- Stable cratons far from boundaries: Low and very flat (Canadian Shield ~300m, West Siberian Plain ~100m, Sahara platform ~400m)
-- The roughness contrast is dramatic: collision zones are rugged, old interiors are smooth
-
-**What existing layers contribute**: The stress-adaptive noise blend (lines 343-346) does reduce ridged noise in low-stress areas. But the detail noise at 0.5x amplitude everywhere (line 348) and the uniform +0.14 interior uplift prevent the system from producing the flat-low vs. elevated-rough contrast that defines real continents.
-
-### Gap 3: Foreland Basins Drowned by Interior Uplift
-**Combined output**: Position D shows the foreland "dip" of -0.03 (line 333-335) is completely overwhelmed by the +0.14 interior uplift. The net elevation at what should be a low-lying basin is ~0.27 — higher than many continental interiors. A real Indo-Gangetic plain sits at near sea level (~0-200m) despite being adjacent to the Himalayas.
-
-**Reality**: Foreland basins are the deepest continental depressions outside of rifts. They collect all the sediment and rivers from the adjacent mountains. They're flat, low, and wide.
-
-**What existing layers contribute**: The -0.03 dip exists but is ~5x too weak to overcome the +0.14 interior uplift. The dip's position (at stress edge) is roughly correct. The issue is magnitude and noise suppression: a real foreland is flat and low, but the current output is bumpy and elevated.
+### Gap 3: Foreland Basins Still Elevated
+**Status**: Partially improved. The foreland dip is now -0.06 and interiors near mountains are slightly less elevated. But the harmonic-mean base elevation (+0.16 at foreland position) plus high `tectonicActivity` near mountains still keeps the foreland above sea level. **Requires Phase 2's base asymmetry to fully resolve.**
 
 ### Gap 4: Rift Valleys Are Not Valleys
-**Combined output**: Position I shows divergent continental boundaries net at ~0.22 despite the -0.12 rift depression. The +0.14 interior uplift and moderate base elevation absorb the depression entirely. Real rifts (East African Rift) are deep, narrow troughs with lakes, flanked by elevated shoulders.
-
-**Reality**: Rift structures have three components: (1) a narrow, deep graben floor, (2) elevated shoulders flanking the graben, and (3) volcanic peaks along the axis. The current flat -0.12 captures none of this structure.
-
-**What existing layers contribute**: The -0.12 depression is a start, but it's fighting against +0.14 interior uplift and moderate base elevation. The net depression is near zero. No shoulder uplift, no graben geometry, no volcanic features.
+**Status**: Slightly improved (lower interior uplift in quiet areas means the -0.12 depression bites deeper on plates far from collisions). Still needs structured graben geometry.
 
 ### Gap 5: Mountain Asymmetry Is Too Subtle
-**Combined output**: Positions B vs C show ~10% elevation difference between overriding and subducting sides. The subduction factor suppresses by at most 35% of (sf-0.5)*2, and the stress propagation decays faster on the subducting side. The effects are real but subtle.
+**Status**: Slightly improved (interior uplift is now asymmetric via tectonicActivity — overriding side gets more plateau uplift since dist_mountain extends farther there). Base elevation formula still symmetric. **Primary target for Phase 2.**
 
-**Reality**: The Andes drop ~6000m over ~100km on the Pacific side but only ~3000m over ~500km on the Amazon side. That's roughly 3:1 slope asymmetry, not 1.1:1. The base elevation formula (harmonic-mean of distance fields) is inherently symmetric and dominates the profile shape. The sf-based corrections are second-order adjustments on top of a first-order symmetric function.
-
-**What existing layers contribute**: The asymmetry mechanisms exist (sf suppression, differential stress decay) and point in the right direction. They just can't overcome the symmetric base elevation which contributes ~60% of the final mountain elevation.
-
-### Gap 6: Ocean Fracture Zones Are Absent
-**Combined output**: Transform ocean-ocean boundaries (`btype === 3`) are classified but produce zero elevation effect. Real fracture zones are prominent linear features in bathymetry.
-
-**What existing layers contribute**: Nothing.
-
-### Gap 7: Back-Arc Basins
-**Combined output**: Behind ocean-continent convergent arcs, the overriding continental plate gets normal elevated terrain. No mechanism creates the extension-driven depression (Sea of Japan, Mediterranean back-arc basins).
-
-**What existing layers contribute**: Nothing specific. The generic interior uplift applies uniformly.
+### Gap 6: Ocean Fracture Zones — unchanged
+### Gap 7: Back-Arc Basins — unchanged
 
 ---
 
 ## Part 3: Stack-Ranked Implementation Plan
 
-Ranked by `(net_realism_gain_given_existing_layers) / (implementation_cost)`.
-
-All features target `elevation.js` unless noted. Each uses `scaleFactor = Math.sqrt(numRegions / 10000)`.
-
----
-
 ### Rank 1: Passive vs. Active Continental Margins
-**Why #1**: This is the cleanest gap — zero existing coverage, high visibility in any bathymetry view, and straightforward to implement. Affects ~60% of all coastlines.
+**Why #1**: Cleanest gap — zero existing coverage, high visibility, straightforward.
 
-**Scaling**: Shelf/slope width breakpoints in BFS cells scale with `scaleFactor`. `dist_coast` is already computed and inherently scales. The `coastConvergent` array from the coastal roughening block already BFS-propagates boundary type info into the ocean — we can reuse it.
+**Scaling**: Shelf/slope width breakpoints scale with `scaleFactor`. `dist_coast` already computed.
 
-**Approach** (modify ocean floor section, lines 372-398):
-- Reuse the already-computed `coastConvergent[r]` flag (from the coastal roughening BFS at lines 404-448) to classify each ocean cell as active or passive margin
+**Approach** (modify ocean floor section):
+- Hoist the coast-type BFS (currently inside coastal roughening block) to run BEFORE the ocean floor elevation assignment. The BFS identifies whether each ocean cell's nearest coast is convergent (active) or not (passive). This avoids adding a new BFS — just reorder existing code.
+- **Lesson 1 applies**: The `coastConvergent` flag must be based on actual convergent boundary cells only, not all boundary cells, to avoid over-classification.
 - Replace fixed `dc` breakpoints with margin-dependent values:
   ```
   Active:  shelf end = round(3 * sf),  slope end = round(8 * sf)
   Passive: shelf end = round(10 * sf), slope end = round(22 * sf)
   ```
-- Passive shelves are shallower: `-0.01 → -0.03` (vs current `-0.02 → -0.08`)
-- Passive slopes are gentler: `-0.03 → -0.20` over wider distance (vs `-0.08 → -0.33`)
-- Active margins keep current steep profile and preserve existing trench behavior at convergent boundaries
-- **Dependency**: The `coastConvergent` BFS currently runs inside the coastal roughening block (lines 400-513) which happens AFTER the ocean floor elevation is set (lines 371-398). Need to either hoist the coast-type BFS earlier, or restructure the loop to defer ocean floor assignment. Hoisting is cleaner.
+- Passive shelves: `-0.01 → -0.03` (shallower). Passive slopes: `-0.03 → -0.20` (gentler).
+- Active margins keep current steep profile + trench behavior.
 
-**Key concern**: At low resolution (2k regions, sf=0.45), passive shelf = `round(10*0.45)` = 5 cells, which is still distinguishable from active shelf = `round(3*0.45)` = 2 cells. Degrades gracefully.
+**At low res (2k, sf=0.45)**: passive shelf=5 cells, active shelf=2. Still distinguishable.
 
 ---
 
-### Rank 2: Interior Elevation Differentiation (Tectonic-Aware Interior)
-**Why #2**: Addresses the root cause of Gaps 2 and 3 simultaneously. The uniform +0.14 interior uplift is the single biggest structural issue — it flattens the distinction between collision-backed plateaus and quiet cratons, and overwhelms foreland depressions. Fixing this one mechanism fixes two gaps.
-
-**Scaling**: Uses existing `r_stress` (already resolution-scaled via stress propagation), `dist_coast_land` (already resolution-scaled via BFS), and `scaleFactor` for any new BFS distances.
-
-**Approach** (modify interior uplift section, lines 353-369):
-- Replace the uniform +0.14 plateau with a tectonic-modulated interior elevation:
-
-  **Plateau component** (replaces the flat +0.14):
-  - Compute `tectonicActivity = max(r_stress[r] / maxStress, smoothed_nearby_stress)` where `smoothed_nearby_stress` is the maximum stress within ~`round(5 * sf)` cells (cheaply approximated: during stress propagation, track the *maximum* stress each cell has been exposed to, not just current propagated value)
-  - Plateau uplift = `0.06 + tectonicActivity * 0.16` (ranges from +0.06 quiet interior to +0.22 collision-backed plateau)
-  - This makes Tibet-analogues (+0.22) significantly higher than Canadian-Shield-analogues (+0.06)
-
-  **Depression component** (unchanged): The coastal depression (-0.08 at coast) stays as is.
-
-  **Noise suppression** (new): Multiply the detail noise amplitude (line 348) by `(0.15 + 0.85 * tectonicActivity)` so quiet interiors become flat while collision zones stay rough. This is a one-line change that produces the erosion contrast from the old Rank 2.
-
-  **Foreland basin effect** (emerges naturally): With lower baseline interior uplift (+0.06 instead of +0.14), the existing -0.03 stress-edge dip (line 333-335) now actually creates a perceptible depression. If +0.06 base interior - 0.03 stress dip = +0.03, that's near sea level — a foreland basin. Previously +0.14 - 0.03 = +0.11, which was still elevated. No separate foreland system needed if the interior uplift is tuned correctly.
-
-**Key concern**: Need to avoid making ALL quiet interiors too low. The +0.06 base should keep them above sea level. The `base elevation` formula still contributes positive elevation for land cells, so cells in the middle of a continent will have base ~0.06 + interior ~0.06 + noise ≈ 0.12-0.18, which is reasonable lowland.
+### Rank 2: ~~Interior Elevation Differentiation~~ — COMPLETED (Phase 1)
 
 ---
 
 ### Rank 3: Rift Valley Structure
-**Why #3**: The current -0.12 flat depression doesn't produce a valley (net elevation is still positive at ~0.22). With the Rank 2 fix reducing interior uplift in non-collision areas, rifts will already be somewhat deeper (net ~0.14 instead of 0.22), but still not a valley. Need the structured graben + shoulders to match reality.
+**Why**: Net rift elevation is ~0.14-0.18 (post Phase 1) — still not a valley. Needs structured graben + shoulders.
 
-**Scaling**: Rift width in BFS cells scales with `scaleFactor`. At 2k regions (sf=0.45), rift width = ~2 cells — degrades to a simple dip, which is acceptable. At 100k+ (sf=3.16), width = ~13 cells — enough for full graben/shoulder structure.
+**Scaling**: Rift width scales with `scaleFactor`. At 2k (sf=0.45): width=2 cells (simple dip). At 100k+ (sf=3.16): width=13 cells (full structure).
 
-**Approach** (replace lines 337-339):
-- Identify divergent continent-continent boundary cells (`btype === 2 && !r_hasOcean[r]`)
-- BFS from these cells through same-plate land cells, max distance `RIFT_HALF_WIDTH = round(4 * sf)`
-- Apply structured elevation profile based on BFS distance `d`:
-  - `d = 0` (rift axis): depression `= -0.20` (deeper than current -0.12, now penetrating below the reduced interior uplift)
-  - `d = 1 to round(1.5*sf)` (rift floor): depression `= -0.15`, add `ridgedFbm * 0.06` for volcanic features along axis
-  - `d = round(1.5*sf) to round(2.5*sf)` (rift shoulders): uplift `= +0.05 * (1 - (d-1.5*sf)/(1*sf))`
-  - `d > round(2.5*sf)`: smoothstep transition to ambient
-- The depression is applied IN ADDITION to whatever the base+tectonic layers produced, so it's relative, not absolute
-- With Rank 2's lower interior uplift (~+0.06), a -0.20 rift depression yields net ~-0.08 — an actual depression below sea level (rift lake). The shoulders at +0.05 create the flanking escarpments.
+**Approach** (replace current flat -0.12 depression):
+- BFS from divergent continent-continent boundary cells through same-plate land, max `round(4 * sf)` cells
+- Structured profile: graben axis at -0.25 (must overwhelm base + interior), floor with volcanic ridged noise, shoulders at +0.05, smoothstep fadeout
+- **Lesson from Phase 1**: The depression magnitude must account for the base elevation (~0.20) PLUS the tectonic-modulated interior uplift at that position. Post-Phase-1 interior at a rift far from collisions is ~+0.06, so a -0.25 graben yields net ~0.01 (sea level / rift lake). At a rift near collisions (interior ~+0.15), net ~0.10 (elevated rift, still a valley relative to shoulders at +0.05 above ambient).
+- Add debug layer for rift contribution.
 
 ---
 
 ### Rank 4: Strengthen Mountain Asymmetry
-**Why #4**: The existing asymmetry mechanisms (sf suppression, differential stress decay) produce ~10% asymmetry. Increasing this to ~30-50% would produce visibly realistic orogens without adding new systems. This is an amplification of existing behavior, not a new feature.
+**Why**: 15% asymmetry (post Phase 1) is still too subtle. The harmonic-mean base elevation is inherently symmetric and dominates. This is also the KEY ENABLER for true foreland basins (Gap 3).
 
-**Scaling**: Operates on existing distance fields and subduction factors, which are already resolution-scaled. No new BFS needed.
+**Scaling**: Operates on existing distance fields and subduction factors. No new BFS.
 
-**Approach** (modify base elevation and tectonic sections):
-- **In base elevation** (lines 297-305): Modulate `dist_mountain` by subduction factor before feeding into the harmonic-mean formula:
+**Updated approach** (informed by Phase 1 learnings):
+- **In base elevation**: Modulate `dist_mountain` by subduction factor:
   ```
   const sfLocal = r_subductFactor[r];
-  const asymmetry = 1.0 + (sfLocal - 0.5) * 1.2;  // 0.4 for sf=0, 1.6 for sf=1
+  const asymmetry = 1.0 + (sfLocal - 0.5) * 1.2;  // 0.4 (overriding) to 1.6 (subducting)
   const a_eff = (dist_mountain[r] * asymmetry) + eps;
   ```
-  This makes the distance-field "ridge" shift toward the subducting side (shorter effective distance = higher elevation) and the overriding side gentler (longer effective distance = lower elevation farther from peak)
-- **Amplify sf suppression** (lines 320-323): Increase from `0.35` to `0.5`:
-  ```
-  r_elevation[r] *= 1 - suppression * 0.50;
-  ```
-- These two changes transform the ~10% asymmetry into ~30-40% asymmetry
-
-**Key concern**: The `r_subductFactor` at non-boundary cells was propagated during stress BFS (line 138: `r_subductFactor[nb] = sf`). For cells far from any boundary, sf = default 0.5, so `asymmetry = 1.0` — no effect. The asymmetry only activates near collision zones where sf has been propagated, which is correct.
+  On the subducting side (sf > 0.5), effective mountain distance is inflated → lower base elevation → room for foreland basin.
+  On the overriding side (sf < 0.5), effective distance is compressed → higher base elevation → steeper mountain front.
+- **Amplify sf suppression**: Increase from `0.35` to `0.50`.
+- **Foreland basin emerges**: With base elevation lowered by ~30% on the subducting side, the -0.06 foreland dip can now create genuine depressions. At foreland position: base ~0.10 (was 0.16) + interior ~0.15 (high tectonicActivity) - 0.06 dip = ~0.19. Still not a deep basin, but significantly lower than the mountain front. The contrast from mountain peak (~0.85) to foreland (~0.19) is now ~4:1.
+- **Lesson 5 applies**: `r_subductFactor` is only propagated ~5-12 hops from boundaries. Beyond that, sf=0.5 and asymmetry=1.0 (neutral). This means the asymmetry effect is concentrated near collision zones — which is correct geologically.
 
 ---
 
 ### Rank 5: Post-Collision Plateau Enhancement
-**Why #5**: With Rank 2 already creating tectonic-aware interior uplift, this rank adds the specific broad elevated tableland behind continent-continent collisions. Rank 2 does the bulk of the work; this adds the characteristic flat-topped shape.
+**Why**: Phase 1's tectonic-aware interior already creates elevation differentiation. This rank adds the flat-topped *character* of plateaus — noise suppression on the overriding side behind collisions.
 
-**Scaling**: Uses the already-propagated `r_stress` which scales naturally. No additional BFS needed.
-
-**Approach** (insert after tectonic uplift, before noise):
-- For land cells where:
-  - `r_stress[r] > 0.05 * maxStress` (has propagated collision stress)
-  - `r_subductFactor[r] < 0.45` (on the overriding side)
-  - `dist_mountain[r] > round(3 * sf)` (not the mountain front itself, but behind it)
-- Apply:
-  - Additional uplift: `+0.06 * stressNorm * (1 - sf)` — modest boost on top of what Rank 2's tectonic-aware interior already provides
-  - Noise suppression: multiply total noise by `max(0.2, 1 - stressNorm * 0.8)` — flatten the plateau top
-- This creates the characteristic flat-topped elevated region (Tibet, Altiplano) as a specific enhancement to the overriding-plate interior, rather than a separate system
-
-**Key concern**: Must not double-count with Rank 2's `tectonicActivity`-based interior uplift. The Rank 2 uplift is a base that varies from +0.06 to +0.22 based on nearby stress. This Rank 5 enhancement adds the flat-top *character* (noise suppression) and a modest extra boost. Together they produce: mountain front (~0.8-1.0) → plateau (~0.4-0.5, flat) → gradual decline to interior (~0.15-0.20, also flatter than current). Without Rank 5, you get the elevation gradient but not the flatness.
+**Updated approach** (leverages Phase 1 infrastructure):
+- The `tectonicActivity` field from Phase 1 already identifies where plateaus should form. This rank adds:
+  - Extra noise suppression for cells with high `tectonicActivity` AND on the overriding side (`sf < 0.45` where sf is propagated): multiply noise by `max(0.15, 1 - tectonicActivity * 0.85)`
+  - Modest additional uplift: `+0.04 * tectonicActivity * (1 - sf)` for overriding-side cells with dist_mountain > `round(3*sf)`
+- This stacks with Phase 1's tectonic-modulated interior to produce: mountain front → flat elevated plateau → gradual decline to low flat craton.
+- **No new BFS needed** — reuses `tectonicActivity`, `dist_mountain`, and propagated `sf`.
 
 ---
 
 ### Rank 6: Oceanic Fracture Zones
-**Why #6**: Zero existing coverage; transform ocean boundaries produce no elevation effect. Visible in any bathymetric view. Relatively simple to implement.
+**Why**: Zero existing coverage. Transform ocean boundaries produce no elevation effect.
 
-**Scaling**: Fracture zone influence width scales with `scaleFactor`. At 2k regions, width = ~2 cells (just a line of depressed cells). At high resolution, the stepped offset pattern emerges.
+**Scaling**: Width scales with `scaleFactor`. At 2k: 2 cells (line). At high res: stepped offset pattern.
 
-**Approach** (insert in ocean elevation section, after ocean floor base):
-- For ocean cells on transform boundaries (`btype === 3 && r_bothOcean[r]`):
-  - BFS outward through ocean plate, max `round(4 * sf)` cells
-  - Apply depression: `-0.04 * (1 - d/maxDist)` with high-frequency directional noise for stepped offsets
-  - Where fracture zones cross mid-ocean ridge uplift (nearby `btype === 2` cells), offset the ridge crest (reduce ridge uplift on one side of the fracture)
-- Creates the characteristic staircase pattern in ocean bathymetry
+**Approach** (insert in ocean elevation section):
+- **Lesson 1 applies**: Seed ONLY from `btype === 3 && r_bothOcean[r]` cells (ocean transform boundaries specifically), not all transform cells.
+- BFS outward through ocean plate, max `round(4 * sf)` cells.
+- Depression: `-0.04 * (1 - d/maxDist)` with high-frequency directional noise.
+- Offset mid-ocean ridge where fractures cross.
 
 ---
 
 ### Rank 7: Back-Arc Basins
-**Why #7**: No existing layer produces depression behind volcanic arcs. Moderate visual impact — creates marginal seas when depression goes below water level.
+**Why**: No existing layer produces depression behind volcanic arcs.
 
-**Scaling**: Basin distance from arc front scales with `scaleFactor`.
+**Scaling**: Basin distance scales with `scaleFactor`.
 
-**Approach** (insert after tectonic uplift):
-- For ocean-continent convergent boundaries, identify cells on the overriding continental plate that are `round(5*sf)` to `round(12*sf)` cells behind the collision front
-- Requires: a new short BFS from convergent ocean-continent boundary cells inward through the overriding plate (already have `r_subductFactor < 0.5` to identify overriding side)
-- Apply depression: smoothstep down to `-0.06 * stressNorm` at `round(8*sf)` cells, then back up
-- Modulate with noise for irregular basin shape
-- Cells that end up below 0 will appear as water through the existing water sphere
+**Updated approach** (informed by Lesson 3):
+- Can use `dist_mountain` to identify distance from convergent boundary on the overriding side. Back-arc basin zone starts where `dist_mountain > round(5*sf)` and `dist_mountain < round(12*sf)`.
+- **Lesson 5 applies**: Need to verify sf < 0.5 (overriding) at these distances. Since sf propagation extends ~12 hops on the overriding side, and back-arc starts at 5*sf, this works at sf≥1 (10k+ regions). At lower resolution, sf may have reverted to 0.5 — use `dist_mountain` finiteness as backup signal (it only propagates from overriding-side sources).
+- Apply depression: smoothstep down to `-0.06 * stressNorm` at `round(8*sf)` cells, modulated by noise.
+- Cells below 0 appear as marginal seas through water sphere.
 
 ---
 
 ### Rank 8: Hypsometric Distribution Correction
-**Why #8**: Even with all the above fixes, the overall elevation histogram may not match Earth's bimodal distribution. A light post-processing pass ensures global coherence.
+**Why**: Light post-processing to ensure bimodal elevation histogram.
 
-**Scaling**: Operates on elevation values directly — resolution-independent.
+**Scaling**: Resolution-independent (operates on values).
 
-**Approach** (final post-processing pass):
-- Compute separate histograms for ocean and land cells
-- Apply gentle quantile remapping toward target bimodal distribution
-- Light blend: `new_elev = lerp(old_elev, remapped_elev, 0.25)` to preserve local detail
-- This is a polish step, not a structural fix
+**Approach**: Separate histograms for ocean/land, gentle quantile remapping, light blend factor (0.25).
 
 ---
 
 ### Rank 9: Simplified Fluvial Erosion
-**Why #9**: Highest implementation cost. Adds valley networks, but depends on the mesh topology for flow routing.
+**Why**: Highest cost, highest potential. Adds drainage valleys.
 
-**Scaling**: Flow accumulation operates on mesh neighbors (inherently scale-independent). Erosion depth per unit flow is absolute. At low resolution, produces wide valleys; at high resolution, dendritic networks.
+**Scaling**: Flow accumulation on mesh neighbors is inherently scale-independent. Erosion depth absolute.
 
-**Approach** (new function, final elevation pass):
-- Topological sort land cells by elevation (highest first)
-- For each cell, route flow to steepest-descent neighbor
-- Accumulate flow: each cell contributes area=1 plus incoming flow
-- Erode: `elev[r] -= EROSION_RATE * log(1 + flow[r])` where `EROSION_RATE = 0.008`
-- 100-150 new lines
+**Approach**: Topological sort by elevation, steepest-descent flow routing, `elev -= EROSION_RATE * log(1 + flow)`.
 
 ---
 
 ## Recommended Implementation Phases
 
-**Phase 1** (Core structural fix): Rank 2
-- Tectonic-aware interior differentiation. This single change improves Gaps 2, 3, and partially 5. It's the highest-leverage modification because the uniform +0.14 interior uplift is the root cause of multiple issues.
+**Phase 1** — COMPLETED
+- Tectonic-aware interior differentiation (Rank 2).
+- Gaps addressed: #2 (uniform interiors), partial #3 (foreland), partial #5 (asymmetry).
 
 **Phase 2** (Mountain systems): Ranks 4 + 5
-- Strengthen asymmetry + plateau enhancement. These amplify existing mechanisms rather than adding new ones. Combined with Phase 1, produces complete mountain system profiles.
+- Strengthen asymmetry + plateau enhancement.
+- Combined with Phase 1, produces complete mountain system profiles.
+- **Key goal**: Rank 4's base asymmetry is the missing piece for foreland basins (Gap 3). Must be done before Rank 3 (rift valleys) to avoid tuning rift depths against a symmetric baseline that will later change.
 
 **Phase 3** (Structural features): Ranks 1 + 3
-- Passive margins + rift valleys. Independent additions that fill genuine zero-coverage gaps.
+- Passive margins + rift valleys.
+- Independent zero-coverage gaps.
+- Rift depths should be tuned AFTER Phase 2 modifies the base elevation asymmetry.
 
 **Phase 4** (Ocean + refinements): Ranks 6 + 7 + 8
-- Fracture zones + back-arc basins + hypsometric correction. Polish.
+- Fracture zones + back-arc basins + hypsometric correction.
 
 **Phase 5** (Advanced): Rank 9
 - Fluvial erosion. Most complex, implement last.
@@ -310,8 +255,13 @@ All features target `elevation.js` unless noted. Each uses `scaleFactor = Math.s
 After each phase:
 - Generate 10+ planets at 10k regions with default settings
 - Test at 2k, 10k, 50k, 200k regions to verify scaling invariance
-- Use debug layers to confirm new component contributes correctly (add debug layer for each new feature)
-- Verify that combined elevation at canonical positions (mountain front, foreland, interior, coast, passive ocean, active ocean, rift) matches expected values documented above
+- Use debug layers to confirm new component contributes correctly
+- Verify combined elevation at canonical positions matches expected values
 - Check `performance.now()` stays under 300ms at 10k regions
 - Verify no NaN/Infinity in output
-- Visual check: flat interiors should look flat, collision zones should look rough, foreland basins should be near sea level, passive margins should have wider shelves
+- Visual checks per phase:
+  - Phase 1: Flat quiet interiors, rough collision zones, elevated plateaus ✓
+  - Phase 2: Asymmetric mountain profiles, visible foreland depressions, flat-topped plateaus
+  - Phase 3: Wide passive shelves vs narrow active shelves, rift valleys with shoulders
+  - Phase 4: Fracture zone lines in ocean bathymetry, back-arc depressions
+  - Phase 5: Drainage valleys visible at high resolution
