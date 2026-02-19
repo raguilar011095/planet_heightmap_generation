@@ -104,13 +104,11 @@ Phase 3 attempted to implement passive vs active continental margins by differen
    - **Fadeout** (beyond shoulders): smoothstep to ambient (guarded against division by zero when `riftHalfWidth == shoulderEnd` at low resolution)
 3. **Graceful degradation**: At 2k regions (sf=0.45): axis + 1 floor cell + 1 shoulder cell, no fadeout zone. At 100k+ (sf=3.16): full 13-cell-wide structure with graben, floor, shoulders, and smooth transition.
 
-**Passive vs Active Margins (Rank 1) — ATTEMPTED, REVERTED:**
-4. **Coast-boundary BFS hoisted**: Moved from inside the coastal roughening block to before the main elevation loop. This is a structural cleanup — same logic, same data, just available earlier. Kept in place.
-5. **Margin-dependent ocean profiles**: Implemented with active (narrow shelf 3 cells, steep) vs passive (wide shelf 8 cells, gentle). Even after multiple rounds of deepening the profiles, false land kept appearing in oceans due to interaction with coastal noise, island scattering, and hotspot layers (see Lesson 8). **Reverted** to original fixed breakpoints pending holistic ocean rework.
+**Coast-boundary BFS hoisted**: Moved from inside the coastal roughening block to before the main elevation loop. Structural cleanup — same logic, same data, just available earlier.
 
 ### Gap status update
 
-**Gap 1 (Passive vs Active Margins)**: DEFERRED to Phase 5 (Ocean Overhaul). The `coastConvergent` infrastructure is in place; the challenge is coordinating ocean floor depths with all the layers that add positive elevation on top.
+**Gap 1 (Passive vs Active Margins)**: Covered by Ocean Rework (see `OCEAN_REWORK_PLAN.md`).
 
 **~~Gap 4 (Rift Valleys)~~**: ADDRESSED by Phase 3. Structured graben with axis depression (-0.15), volcanic floor texture, and flanking shoulders (+0.03). With Phase 1's reduced interior uplift (+0.06 for quiet areas), the rift axis should produce actual depressions.
 
@@ -119,7 +117,7 @@ Phase 3 attempted to implement passive vs active continental margins by differen
 ## Part 2: Remaining Gaps
 
 ### ~~Gap 1: Passive vs. Active Margins Are Identical~~
-**Status**: DEFERRED. Infrastructure in place (hoisted BFS, `coastConvergent` flag). Requires holistic ocean rework — see Phase 5.
+**Status**: Covered by Ocean Rework (`OCEAN_REWORK_PLAN.md`).
 
 ### ~~Gap 2: Continental Interiors Are Uniformly Elevated and Rough~~
 **Status**: ADDRESSED by Phase 1.
@@ -133,12 +131,25 @@ Phase 3 attempted to implement passive vs active continental margins by differen
 ### ~~Gap 5: Mountain Asymmetry Is Too Subtle~~
 **Status**: ADDRESSED by Phase 2. ~25-30% asymmetry, visible in base and normal views.
 
-### Gap 6: Ocean Fracture Zones — unchanged
+### ~~Gap 6: Ocean Fracture Zones~~
+**Status**: Covered by Ocean Rework (`OCEAN_REWORK_PLAN.md`).
+
 ### Gap 7: Back-Arc Basins — unchanged
 
 ---
 
-## Part 3: Remaining Implementation Plan
+## Part 3: Remaining Implementation Plan (Land-focused)
+
+Ocean work (margins, fracture zones, ridges, coastal roughening differentiation) is in `OCEAN_REWORK_PLAN.md`.
+
+### Rank 7: Back-Arc Basins
+**Why**: No existing layer produces depression behind volcanic arcs. Primarily affects land/coast.
+
+**Scaling**: Basin distance scales with `scaleFactor`.
+
+**Approach**: Identify overriding-plate cells 5-12 cells behind convergent ocean-continent boundaries. Apply smoothstep depression `-0.03 * stressNorm` (per Lesson 6). Cells below 0 appear as marginal seas.
+
+---
 
 ### Rank 8: Hypsometric Distribution Correction
 **Why**: Light post-processing to ensure bimodal elevation histogram.
@@ -174,16 +185,12 @@ Phase 3 attempted to implement passive vs active continental margins by differen
 - Rift valley structure (Rank 3). Passive margins attempted but reverted (Lesson 8).
 - Gaps addressed: #4 (rift valleys).
 
-**Phase 4** (Land refinements): Ranks 8 + 9
-- Hypsometric correction + simplified fluvial erosion.
-- These operate on the land elevation values and don't interact with the ocean coupling problem.
+**Phase 4** (Land refinements): Ranks 7 + 8 + 9
+- Back-arc basins + hypsometric correction + simplified fluvial erosion.
+- These primarily affect land elevation values.
 
-**Phase 5** (Ocean overhaul): Ranks 1 + 6 + 7
-- Passive vs active margins + oceanic fracture zones + back-arc basins.
-- All ocean-related features grouped together for a coordinated rework.
-- **Per Lesson 8**: Must be implemented holistically — ocean floor profiles, coastal roughening amplitudes, island scattering thresholds, and hotspot interaction all need to be tuned as a single system.
-- The `coastConvergent` BFS infrastructure from Phase 3 is already in place and available.
-- Approach should audit all layers that contribute positive elevation to ocean cells, establish a clear "depth budget" for each zone, then implement margin differentiation within that budget.
+**Ocean Rework** — See `OCEAN_REWORK_PLAN.md`
+- Covers margins, ridges, fracture zones, and coastal roughening differentiation as a coordinated system.
 
 ## Verification
 

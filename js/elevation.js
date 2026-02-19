@@ -213,6 +213,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_ocean    = new Float32Array(numRegions);
     const dl_hotspot  = new Float32Array(numRegions);
     const dl_tecActivity = new Float32Array(numRegions);
+    const dl_margins = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -383,6 +384,64 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     }
     const riftNoise = new SimplexNoise(seed + 419);
 
+    // ---- Mid-ocean ridge BFS (wider ridge feature from divergent ocean-ocean boundaries) ----
+    const RIDGE_HALF_WIDTH_BASE = 4;
+    const ridgeHalfWidth = Math.max(2, Math.round(RIDGE_HALF_WIDTH_BASE * scaleFactor));
+    const ridgeDist = new Float32Array(numRegions);
+    ridgeDist.fill(Infinity);
+    const ridgeSeeds = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (r_boundaryType[r] === 2 && r_bothOcean[r]) {
+            ridgeSeeds.push(r);
+            ridgeDist[r] = 0;
+        }
+    }
+    {
+        let qi = 0;
+        while (qi < ridgeSeeds.length) {
+            const r = ridgeSeeds[qi++];
+            const nd = ridgeDist[r] + 1;
+            if (nd > ridgeHalfWidth) continue;
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nr = out_r[ni];
+                if (nd < ridgeDist[nr] && r_isOcean[nr]) {
+                    ridgeDist[nr] = nd;
+                    ridgeSeeds.push(nr);
+                }
+            }
+        }
+    }
+
+    // ---- Oceanic fracture zone BFS (transform ocean-ocean boundaries) ----
+    const FRACTURE_HALF_WIDTH_BASE = 3;
+    const fractureHalfWidth = Math.max(2, Math.round(FRACTURE_HALF_WIDTH_BASE * scaleFactor));
+    const fractureDist = new Float32Array(numRegions);
+    fractureDist.fill(Infinity);
+    const fractureSeeds = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (r_boundaryType[r] === 3 && r_bothOcean[r]) {
+            fractureSeeds.push(r);
+            fractureDist[r] = 0;
+        }
+    }
+    {
+        let qi = 0;
+        while (qi < fractureSeeds.length) {
+            const r = fractureSeeds[qi++];
+            const nd = fractureDist[r] + 1;
+            if (nd > fractureHalfWidth) continue;
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nr = out_r[ni];
+                if (nd < fractureDist[nr] && r_isOcean[nr]) {
+                    fractureDist[nr] = nd;
+                    fractureSeeds.push(nr);
+                }
+            }
+        }
+    }
+
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
 
@@ -529,11 +588,13 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
         } else {
             const dc = dist_coast[r];
+            // Ocean floor profile: deeper than original to survive coastal roughening.
+            // Fixed breakpoints (5/12) — margin differentiation handled by coastal roughening character.
             let oceanBase;
             if (dc < 5) {
-                oceanBase = -0.02 - 0.06 * (dc / 5);
+                oceanBase = -0.04 - 0.06 * (dc / 5);
             } else if (dc < 12) {
-                oceanBase = -0.08 - 0.25 * ((dc - 5) / 7);
+                oceanBase = -0.10 - 0.25 * ((dc - 5) / 7);
             } else {
                 oceanBase = -0.35 + noise.fbm(x * 2, y * 2, z * 2, 3) * 0.03;
             }
@@ -541,11 +602,34 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             r_elevation[r] = Math.min(r_elevation[r], oceanBase);
             dl_ocean[r] = r_elevation[r];
 
+            // Margins debug: encode margin type + features
+            // 0.2=passive, 0.8=active, boosted by ridge/fracture presence
+            const isActiveMargin = coastConvergent[r] === 1;
+            dl_margins[r] = isActiveMargin ? 0.8 : 0.2;
+            if (ridgeDist[r] !== Infinity && ridgeDist[r] <= ridgeHalfWidth) dl_margins[r] = 1.0;
+            if (fractureDist[r] !== Infinity && fractureDist[r] <= fractureHalfWidth) dl_margins[r] = -0.5;
+
             const elevBeforeOcTec = r_elevation[r];
-            if (btype === 2 && r_bothOcean[r]) {
-                r_elevation[r] += 0.12 * noise.ridgedFbm(x * 3, y * 3, z * 3, 4) + 0.06;
+
+            // Mid-ocean ridge: wider feature with quadratic falloff from divergent boundary
+            const rd = ridgeDist[r];
+            if (rd !== Infinity && rd <= ridgeHalfWidth) {
+                const t = rd / ridgeHalfWidth;
+                const ridgeFade = (1 - t) * (1 - t);
+                const ridgeNoise = noise.ridgedFbm(x * 3, y * 3, z * 3, 4);
+                const ridgeUplift = (0.12 * ridgeNoise + 0.06) * ridgeFade;
+                r_elevation[r] += ridgeUplift;
             }
 
+            // Oceanic fracture zones: linear depressions at transform boundaries
+            const fd = fractureDist[r];
+            if (fd !== Infinity && fd <= fractureHalfWidth) {
+                const ft = fd / fractureHalfWidth;
+                const fractureFade = 1 - ft;
+                r_elevation[r] -= 0.03 * fractureFade;
+            }
+
+            // Trenches at convergent boundaries
             if (btype === 1) {
                 r_elevation[r] -= 0.15 + 0.15 * stressNorm;
             }
@@ -579,19 +663,26 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 : 0;
 
             const elevBeforeCoast = r_elevation[r];
+            const isPassiveCoast = !coastConvergent[r];
 
             // Layer 1: Coastal fractal noise
+            // Passive: lower freq + amp → broad bays, gentle peninsulas
+            // Active: higher freq + amp → rugged, fjord-like
             const falloff1 = (1 - t) * (1 - t);
             const stressAmp1 = 1 + sn * 5;
-            let n1 = cNoise.fbm(x * 18 + 3.7, y * 18 + 7.1, z * 18 + 2.3, 5, 0.55);
-            let coastNoise1 = n1 * 0.12 * falloff1 * stressAmp1;
+            const coastFreq = isPassiveCoast ? 12 : 18;
+            const coastAmp = isPassiveCoast ? 0.08 : 0.12;
+            let n1 = cNoise.fbm(x * coastFreq + 3.7, y * coastFreq + 7.1, z * coastFreq + 2.3, 5, 0.55);
+            let coastNoise1 = n1 * coastAmp * falloff1 * stressAmp1;
             if (subSup > 0 && coastNoise1 > 0) {
                 coastNoise1 *= (1 - subSup);
             }
             r_elevation[r] += coastNoise1;
 
             // Layer 3: Coastline-aware domain warping
-            const falloffW = Math.max(0, 1 - t * 1.5);
+            // Passive: wider influence (warp dies slower). Active: concentrated near coast.
+            const warpReach = isPassiveCoast ? 1.2 : 1.5;
+            const falloffW = Math.max(0, 1 - t * warpReach);
             if (falloffW > 0) {
                 const warpAmt = 0.35 * falloffW * (1 + sn * 2);
                 const dwx = cNoise3.fbm(x * 6 + 11.3, y * 6 + 4.7, z * 6 + 8.2, 3, 0.6) * warpAmt;
@@ -606,7 +697,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 r_elevation[r] += warpDelta;
             }
 
-            // Layer 2: Island scattering
+            // Layer 2: Island scattering (original behavior — kept conservative to avoid false land)
             if (r_isOcean[r] && dBdry[r] > 0
                 && dBdry[r] <= Math.max(4, Math.round(4 * scaleFactor))
                 && subSup < 0.3) {
@@ -784,6 +875,6 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
 }
