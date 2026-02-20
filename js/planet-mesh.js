@@ -46,7 +46,7 @@ export function buildMapMesh() {
     const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
     const showStress = document.getElementById('chkStress').checked;
-    const waterLevel = +document.getElementById('sWL').value;
+    const waterLevel = 0;
     const debugLayer = state.debugLayer || '';
 
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
@@ -154,7 +154,7 @@ export function buildMesh() {
     const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
     const showStress = document.getElementById('chkStress').checked;
-    const waterLevel = +document.getElementById('sWL').value;
+    const waterLevel = 0;
     const debugLayer = state.debugLayer || '';
 
     // Precompute debug layer min/max if active
