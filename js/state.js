@@ -11,7 +11,6 @@ export const state = {
     mapMesh: null,
     mapMode: false,
     editMode: false,
-    editSubMode: 'toggle',
     dragStart: null,
     debugLayer: '',
 };

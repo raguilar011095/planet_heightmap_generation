@@ -56,7 +56,7 @@ document.getElementById('chkMap').addEventListener('change', () => {
         waterMesh.visible = !showPlates && !showStress;
         scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
-        ctrl.enabled = !(state.editMode && state.editSubMode === 'drift');
+        ctrl.enabled = true;
     }
 });
 

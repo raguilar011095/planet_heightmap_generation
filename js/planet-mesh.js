@@ -338,7 +338,7 @@ export function buildDriftArrows() {
         scene.remove(state.arrowGroup);
         state.arrowGroup = null;
     }
-    if (!state.curData || !state.editMode) return;
+    return;
 
     state.arrowGroup = new THREE.Group();
     const { r_xyz, plateSeeds, plateVec, plateIsOcean } = state.curData;

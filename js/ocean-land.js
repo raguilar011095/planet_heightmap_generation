@@ -20,6 +20,7 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
     }
     for (let r = 0; r < numRegions; r++) {
         const p = r_plate[r];
+        if (!plateCentroid[p]) { plateArea[p] = 0; plateCentroid[p] = [0, 0, 0]; }
         plateArea[p]++;
         plateCentroid[p][0] += r_xyz[3*r];
         plateCentroid[p][1] += r_xyz[3*r+1];

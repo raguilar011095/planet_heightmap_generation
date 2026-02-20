@@ -39,15 +39,16 @@ export function generate() {
 
     computePlateColors(plateSeeds, plateIsOcean);
 
-    // 4b. Plate densities
+    // 4b. Plate densities — pre-compute both land and ocean values per plate
+    // so toggling land/sea in edit mode uses the correct density range.
     const plateDensity = {};
+    const plateDensityLand = {};
+    const plateDensityOcean = {};
     for (const r of plateSeeds) {
         const drng = makeRng(r + 777);
-        if (plateIsOcean.has(r)) {
-            plateDensity[r] = 3.0 + drng() * 0.5;
-        } else {
-            plateDensity[r] = 2.4 + drng() * 0.5;
-        }
+        plateDensityOcean[r] = 3.0 + drng() * 0.5;
+        plateDensityLand[r] = 2.4 + drng() * 0.5;
+        plateDensity[r] = plateIsOcean.has(r) ? plateDensityOcean[r] : plateDensityLand[r];
     }
 
     // 5. Noise generator
@@ -68,7 +69,8 @@ export function generate() {
     }
 
     state.curData = { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
-                      plateDensity, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r,
+                      plateDensity, plateDensityLand, plateDensityOcean,
+                      r_elevation, t_elevation, mountain_r, coastline_r, ocean_r,
                       r_stress, noise, seed, debugLayers };
 
     const t4 = performance.now();
