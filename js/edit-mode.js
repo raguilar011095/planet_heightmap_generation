@@ -14,7 +14,7 @@ const mouse = new THREE.Vector2();
 function recomputeElevation() {
     const { mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, plateDensity, noise, seed } = state.curData;
     const nMag   = +document.getElementById('sNs').value;
-    const spread = +document.getElementById('sSp').value;
+    const spread = 5;
 
     const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress } =
         assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);

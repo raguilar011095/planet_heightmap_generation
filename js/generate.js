@@ -18,7 +18,7 @@ export function generate() {
     const P     = +document.getElementById('sP').value;
     const jitter= +document.getElementById('sJ').value;
     const nMag  = +document.getElementById('sNs').value;
-    const spread= +document.getElementById('sSp').value;
+    const spread = 5;
 
     // 1. Build sphere mesh
     const t1 = performance.now();
