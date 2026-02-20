@@ -214,6 +214,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_hotspot  = new Float32Array(numRegions);
     const dl_tecActivity = new Float32Array(numRegions);
     const dl_margins = new Float32Array(numRegions);
+    const dl_backArc = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -442,6 +443,42 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
+    // ---- Back-arc basin BFS (depression behind subduction zones) ----
+    // Seeds: overriding side of any convergent boundary involving ocean.
+    // Excludes continent-continent collisions (r_hasOcean === 0).
+    const baStart = Math.max(1, Math.round(2 * scaleFactor));
+    const baPeak = Math.max(2, Math.round(3 * scaleFactor));
+    const baEnd = Math.max(3, Math.round(5 * scaleFactor));
+    const backArcDist = new Float32Array(numRegions);
+    backArcDist.fill(Infinity);
+    const backArcStress = new Float32Array(numRegions);
+    const backArcSeeds = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (r_boundaryType[r] === 1 && r_hasOcean[r] && r_subductFactor[r] < 0.50) {
+            backArcSeeds.push(r);
+            backArcDist[r] = 0;
+            backArcStress[r] = r_stress[r] / maxStress;
+        }
+    }
+    {
+        let qi = 0;
+        while (qi < backArcSeeds.length) {
+            const r = backArcSeeds[qi++];
+            const nd = backArcDist[r] + 1;
+            if (nd > baEnd) continue;
+            const plate = r_plate[r];
+            mesh.r_circulate_r(out_r, r);
+            for (let ni = 0; ni < out_r.length; ni++) {
+                const nr = out_r[ni];
+                if (nd < backArcDist[nr] && r_plate[nr] === plate) {
+                    backArcDist[nr] = nd;
+                    backArcStress[nr] = backArcStress[r];
+                    backArcSeeds.push(nr);
+                }
+            }
+        }
+    }
+
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
 
@@ -525,6 +562,32 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 }
             }
 
+            // Back-arc basin: bell-shaped depression behind subduction zones.
+            // Uses pre-computed backArcDist BFS from convergent boundaries with ocean involvement.
+            // Suppressed when another mountain-building collision is closer than the subduction source.
+            {
+                const bad = backArcDist[r];
+                if (bad !== Infinity && bad >= baStart) {
+                    // Orogeny suppression: if dist_mountain < backArcDist, another collision is closer
+                    const dMtn = dist_mountain[r];
+                    const orogenyFactor = (dMtn !== Infinity && dMtn < bad)
+                        ? Math.max(0, dMtn / bad)
+                        : 1.0;
+                    let baEffect = 0;
+                    if (bad <= baPeak) {
+                        const t = (bad - baStart) / Math.max(1, baPeak - baStart);
+                        const s = t * t * (3 - 2 * t);
+                        baEffect = -0.10 * backArcStress[r] * s * orogenyFactor;
+                    } else if (bad <= baEnd) {
+                        const t = (bad - baPeak) / Math.max(1, baEnd - baPeak);
+                        const s = t * t * (3 - 2 * t);
+                        baEffect = -0.10 * backArcStress[r] * (1 - s) * orogenyFactor;
+                    }
+                    r_elevation[r] += baEffect;
+                    dl_backArc[r] = baEffect;
+                }
+            }
+
             dl_tectonic[r] = r_elevation[r] - elevBefore;
 
             // Compute tectonic activity early — used by noise, interior, and plateau sections.
@@ -553,7 +616,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 ? Math.max(0.30, 1 - tectonicActivity * 0.60)
                 : 1.0;
             const noiseScale = (0.25 + 0.75 * noiseActivity) * plateauSuppress;
-            const totalNoise = (noiseVal + detailNoise) * noiseScale;
+            // Fine detail layer: 8x frequency, quarter strength, half-dampened.
+            // Uses sqrt of noiseScale so it retains texture in quiet interiors where other noise is suppressed.
+            const fineNoise = noise.fbm(wx * 8 + 41.7, wy * 8 + 13.2, wz * 8 + 27.9, 3, 0.5) * noiseMag * 0.25;
+            const fineScale = Math.sqrt(noiseScale);
+            const totalNoise = (noiseVal + detailNoise) * noiseScale + fineNoise * fineScale;
             r_elevation[r] += totalNoise;
             dl_noise[r] = totalNoise;
 
@@ -633,6 +700,30 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             if (btype === 1) {
                 r_elevation[r] -= 0.15 + 0.15 * stressNorm;
             }
+
+            // Back-arc basin: deepen ocean floor behind subduction zones
+            {
+                const bad = backArcDist[r];
+                if (bad !== Infinity && bad >= baStart) {
+                    const dMtn = dist_mountain[r];
+                    const orogenyFactor = (dMtn !== Infinity && dMtn < bad)
+                        ? Math.max(0, dMtn / bad)
+                        : 1.0;
+                    let baEffect = 0;
+                    if (bad <= baPeak) {
+                        const t = (bad - baStart) / Math.max(1, baPeak - baStart);
+                        const s = t * t * (3 - 2 * t);
+                        baEffect = -0.10 * backArcStress[r] * s * orogenyFactor;
+                    } else if (bad <= baEnd) {
+                        const t = (bad - baPeak) / Math.max(1, baEnd - baPeak);
+                        const s = t * t * (3 - 2 * t);
+                        baEffect = -0.10 * backArcStress[r] * (1 - s) * orogenyFactor;
+                    }
+                    r_elevation[r] += baEffect;
+                    dl_backArc[r] = baEffect;
+                }
+            }
+
             dl_tectonic[r] = r_elevation[r] - elevBeforeOcTec;
 
             const oceanNoise = noise.fbm(wx, wy, wz) * noiseMag * 0.3;
@@ -875,6 +966,6 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
 }
