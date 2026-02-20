@@ -45,7 +45,7 @@ export function buildMapMesh() {
 
     const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
-    const showStress = document.getElementById('chkStress').checked;
+    const showStress = false;
     const waterLevel = 0;
     const debugLayer = state.debugLayer || '';
 
@@ -153,7 +153,7 @@ export function buildMesh() {
     if (!state.curData) return;
     const { mesh, r_xyz, t_xyz, r_plate, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
     const showPlates = document.getElementById('chkPlates').checked;
-    const showStress = document.getElementById('chkStress').checked;
+    const showStress = false;
     const waterLevel = 0;
     const debugLayer = state.debugLayer || '';
 

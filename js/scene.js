@@ -16,6 +16,7 @@ camera.position.set(0, 0.4, 2.8);
 
 export const ctrl = new OrbitControls(camera, canvas);
 ctrl.enableDamping = true; ctrl.dampingFactor = 0.06;
+ctrl.enablePan = false;
 ctrl.minDistance = 1.4; ctrl.maxDistance = 8;
 ctrl.enableZoom = false; // disable built-in zoom; custom handler below
 

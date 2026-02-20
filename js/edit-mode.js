@@ -1,8 +1,7 @@
-// Edit mode: toggle plates land/sea.
-// Also handles pointer hover for plate info display.
+// Plate interaction: hover info + ctrl-click to toggle land/sea.
 
 import * as THREE from 'three';
-import { canvas, camera, ctrl } from './scene.js';
+import { canvas, camera } from './scene.js';
 import { state } from './state.js';
 import { assignElevation } from './elevation.js';
 import { computePlateColors, buildMesh, updateHoverHighlight } from './planet-mesh.js';
@@ -43,30 +42,28 @@ function getHitInfo(event) {
     const s = hits[0].faceIndex;
     const region = state.curData.mesh.s_begin_r(s);
     const plate = state.curData.r_plate[region];
-    const localPt = hits[0].point.clone().applyMatrix4(
-        new THREE.Matrix4().copy(state.planetMesh.matrixWorld).invert()
-    );
-    return { region, plate, point: localPt };
+    return { region, plate };
 }
 
-/** Set up all edit-mode and hover event listeners. */
+/** Set up hover and ctrl-click event listeners. */
 export function setupEditMode() {
+    let downInfo = null;
+
     canvas.addEventListener('pointerdown', (e) => {
-        if (!state.editMode || !state.curData || e.button !== 0) return;
+        if (!state.curData || e.button !== 0 || !e.ctrlKey) return;
         const hit = getHitInfo(e);
         if (!hit) return;
-        state.dragStart = { x: e.clientX, y: e.clientY, plate: hit.plate };
+        downInfo = { x: e.clientX, y: e.clientY, plate: hit.plate };
     });
 
     canvas.addEventListener('pointerup', (e) => {
-        if (!state.editMode || !state.dragStart || !state.curData || e.button !== 0) { state.dragStart = null; return; }
+        if (!downInfo || !state.curData || e.button !== 0) { downInfo = null; return; }
 
-        const dx = e.clientX - state.dragStart.x;
-        const dy = e.clientY - state.dragStart.y;
-        const dist2 = dx * dx + dy * dy;
+        const dx = e.clientX - downInfo.x;
+        const dy = e.clientY - downInfo.y;
 
-        if (dist2 < 36) {
-            const pid = state.dragStart.plate;
+        if (dx * dx + dy * dy < 36) {
+            const pid = downInfo.plate;
             const { plateIsOcean, plateDensity, plateDensityLand, plateDensityOcean } = state.curData;
             if (plateIsOcean.has(pid)) {
                 plateIsOcean.delete(pid);
@@ -75,13 +72,34 @@ export function setupEditMode() {
                 plateIsOcean.add(pid);
                 plateDensity[pid] = plateDensityOcean[pid];
             }
-            recomputeElevation();
+
+            const hoverEl = document.getElementById('hoverInfo');
+            hoverEl.innerHTML = '\u23F3 Regenerating\u2026';
+            hoverEl.style.display = 'block';
+
+            const btn = document.getElementById('generate');
+            btn.disabled = true;
+            btn.textContent = 'Generating\u2026';
+            btn.classList.add('generating');
+
+            setTimeout(() => {
+                recomputeElevation();
+                btn.disabled = false;
+                btn.textContent = 'Generate New Planet';
+                btn.classList.remove('generating');
+                // Update hover info to reflect the new state
+                if (state.hoveredPlate >= 0 && state.curData) {
+                    const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
+                    const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
+                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> &nbsp; Ctrl-click to toggle`;
+                }
+            }, 16);
         }
-        state.dragStart = null;
+        downInfo = null;
     });
 
     canvas.addEventListener('pointermove', (e) => {
-        if (!state.curData || !state.planetMesh) {
+        if (state.mapMode || !state.curData || !state.planetMesh) {
             if (state.hoveredPlate >= 0) {
                 state.hoveredPlate = -1;
                 document.getElementById('hoverInfo').style.display = 'none';
@@ -96,21 +114,13 @@ export function setupEditMode() {
             const hoverEl = document.getElementById('hoverInfo');
             if (state.hoveredPlate >= 0) {
                 const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
-                const dot2 = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
+                const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
                 const typeStr = isOcean ? 'Ocean' : 'Land';
-                hoverEl.innerHTML = `${dot2} <b>${typeStr}</b> &nbsp; Click to toggle`;
+                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> &nbsp; Ctrl-click to toggle`;
                 hoverEl.style.display = 'block';
             } else {
                 hoverEl.style.display = 'none';
             }
         }
-    });
-
-    // Edit mode checkbox
-    document.getElementById('chkEdit').addEventListener('change', () => {
-        state.editMode = document.getElementById('chkEdit').checked;
-        document.getElementById('editPanel').style.display = state.editMode ? 'block' : 'none';
-        canvas.classList.toggle('edit-active', state.editMode);
-        buildMesh();
     });
 }

@@ -8,38 +8,81 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     border: 1px solid rgba(255,255,255,0.08);
     min-width: 270px; user-select: none;
 }
-#ui h2 { margin-bottom: 4px; font-size: 18px; font-weight: 600; }
-#ui .sub { font-size: 11px; color: #667; margin-bottom: 16px; }
+#ui h2 { margin-bottom: 4px; font-size: 20px; font-weight: 600; }
+#ui .sub { font-size: 13px; color: #889; margin-bottom: 16px; }
+.section { margin-bottom: 6px; }
+.section summary {
+    font-size: 13px; font-weight: 600; color: #9ac;
+    text-transform: uppercase; letter-spacing: 0.06em;
+    cursor: pointer; padding: 6px 0; list-style: none;
+    display: flex; align-items: center; gap: 6px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.section summary::-webkit-details-marker { display: none; }
+.section summary::before {
+    content: '\25B6'; font-size: 9px; color: #78a;
+    transition: transform 0.2s ease;
+    display: inline-block;
+}
+.section[open] > summary::before { transform: rotate(90deg); }
+.section-body { padding: 8px 0 2px; }
+.section[open] > summary { border-bottom-color: rgba(255,255,255,0.06); margin-bottom: 2px; }
 .cg { margin-bottom: 10px; }
-.cg label { display: block; font-size: 12px; color: #99a; margin-bottom: 3px; }
+.cg label { display: block; font-size: 14px; color: #aab; margin-bottom: 3px; }
 .cg .v { float: right; color: #6af; font-variant-numeric: tabular-nums; }
+.tip {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 16px; height: 16px; font-size: 11px; line-height: 1;
+    border-radius: 50%; background: rgba(255,255,255,0.18); color: #bcd;
+    cursor: help; position: relative; vertical-align: text-top;
+    margin-left: 3px; flex-shrink: 0; transform: translateY(1px);
+}
+.tip:hover { background: rgba(255,255,255,0.25); color: #def; }
+.tip:hover::after {
+    content: attr(data-tip);
+    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+    background: rgba(8,8,28,0.96); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 6px 10px; font-size: 13px; color: #cde; white-space: nowrap;
+    z-index: 100; pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+}
 input[type="range"] { width: 100%; accent-color: #48f; cursor: pointer; }
+select {
+    width: 100%; padding: 7px 10px; font-size: 14px; font-family: inherit;
+    background: rgba(255,255,255,0.06); color: #cde;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    cursor: pointer; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23667'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+}
+select:hover { border-color: rgba(255,255,255,0.18); }
+select:focus { outline: none; border-color: #48f; }
+select option { background: #12122a; color: #cde; }
 button#generate {
-    width: 100%; padding: 10px; margin-top: 10px;
+    width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 12px;
     background: linear-gradient(135deg, #2255cc, #3366ee);
     color: white; border: none; border-radius: 8px;
-    font-size: 14px; font-weight: 500; cursor: pointer;
+    font-size: 15px; font-weight: 500; cursor: pointer;
+    transition: background 0.3s ease, opacity 0.3s ease;
 }
 button#generate:hover { filter: brightness(1.15); }
+button#generate.stale {
+    background: linear-gradient(135deg, #b87a1a, #d4922a);
+}
+button#generate.stale:hover { filter: brightness(1.15); }
+button#generate.generating {
+    background: linear-gradient(135deg, #333, #444);
+    cursor: wait; opacity: 0.8;
+}
 .tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
-.tg label { font-size: 11px; color: #88a; display: flex; align-items: center; gap: 4px; cursor: pointer; }
-#stats { position: absolute; top: 16px; right: 16px; font-size: 11px; color: #556; text-align: right; line-height: 1.6; }
-#info { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 11px; color: #445; }
+.tg label { font-size: 13px; color: #99b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+#stats { position: absolute; top: 16px; right: 16px; font-size: 12px; color: #778; text-align: right; line-height: 1.6; }
+#info { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #667; }
 #hoverInfo {
     position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
-    font-size: 12px; color: #cde; background: rgba(8,8,28,0.85);
+    font-size: 14px; color: #cde; background: rgba(8,8,28,0.85);
     backdrop-filter: blur(8px); padding: 6px 14px; border-radius: 8px;
     border: 1px solid rgba(255,255,255,0.08); white-space: nowrap;
     pointer-events: none; display: none; line-height: 1.5;
 }
-#editPanel { display: none; margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.08); }
-#editPanel .mode-btns { display: flex; gap: 6px; margin-bottom: 8px; }
-#editPanel .mode-btns button {
-    flex: 1; padding: 6px; font-size: 11px; border: 1px solid rgba(255,255,255,0.15);
-    border-radius: 5px; background: transparent; color: #88a; cursor: pointer;
-}
-#editPanel .mode-btns button.active { background: rgba(68,136,255,0.25); color: #adf; border-color: #48f; }
-#editPanel .mode-btns button:hover:not(.active) { background: rgba(255,255,255,0.05); }
-#editHelp { font-size: 11px; color: #667; line-height: 1.4; }
-#editInfo { font-size: 12px; color: #cde; margin-top: 8px; min-height: 18px; }
-.edit-active { cursor: crosshair !important; }

@@ -891,6 +891,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const hx = r_xyz[3*centerR], hy = r_xyz[3*centerR+1], hz = r_xyz[3*centerR+2];
             const plate = r_plate[centerR];
             const drift = plateVec[plate];
+            if (!drift) continue;
 
             // Ocean hotspots are stronger so they punch through the ocean floor
             const isOceanHotspot = plateIsOcean.has(plate);

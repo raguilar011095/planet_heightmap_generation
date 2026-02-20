@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Procedural Planet Generator</title>
+    <link rel="icon" href="data:,">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -11,60 +12,79 @@
     <div id="ui">
         <h2>Planet Generator</h2>
         <div class="sub">Fibonacci sphere &middot; Voronoi cells &middot; plate tectonics</div>
-        <div class="cg">
-            <label>Regions <span class="v" id="vN">200000</span></label>
-            <input type="range" id="sN" min="2000" max="640000" value="200000" step="1000">
-        </div>
-        <div class="cg">
-            <label>Plates <span class="v" id="vP">80</span></label>
-            <input type="range" id="sP" min="4" max="120" value="80" step="1">
-        </div>
-        <div class="cg">
-            <label>Continents <span class="v" id="vCn">4</span></label>
-            <input type="range" id="sCn" min="1" max="10" value="4" step="1">
-        </div>
-        <div class="cg">
-            <label>Jitter <span class="v" id="vJ">0.75</span></label>
-            <input type="range" id="sJ" min="0" max="1" value="0.75" step="0.05">
-        </div>
-        <div class="cg">
-            <label>Noise <span class="v" id="vNs">0.40</span></label>
-            <input type="range" id="sNs" min="0" max="0.5" value="0.40" step="0.01">
-        </div>
+        <details class="section" open>
+            <summary>Planet Mesh</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Regions <span class="tip" data-tip="Resolution — number of Voronoi cells on the sphere">?</span> <span class="v" id="vN">200000</span></label>
+                    <input type="range" id="sN" min="2000" max="640000" value="200000" step="1000">
+                </div>
+                <div class="cg">
+                    <label>Jitter <span class="tip" data-tip="Point randomness — 0 is uniform, 1 is fully scattered">?</span> <span class="v" id="vJ">0.75</span></label>
+                    <input type="range" id="sJ" min="0" max="1" value="0.75" step="0.05">
+                </div>
+            </div>
+        </details>
+        <details class="section" open>
+            <summary>Orogeny</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Plates <span class="tip" data-tip="Number of tectonic plates to simulate">?</span> <span class="v" id="vP">80</span></label>
+                    <input type="range" id="sP" min="4" max="120" value="80" step="1">
+                </div>
+                <div class="cg">
+                    <label>Continents <span class="tip" data-tip="Target number of landmasses">?</span> <span class="v" id="vCn">4</span></label>
+                    <input type="range" id="sCn" min="1" max="10" value="4" step="1">
+                </div>
+                <div class="cg">
+                    <label>Noise <span class="tip" data-tip="Terrain roughness — higher adds more detail">?</span> <span class="v" id="vNs">0.40</span></label>
+                    <input type="range" id="sNs" min="0" max="0.5" value="0.40" step="0.01">
+                </div>
+            </div>
+        </details>
         <button id="generate">Generate New Planet</button>
-        <div class="tg">
-            <label><input type="checkbox" id="chkWire"> Borders</label>
-            <label><input type="checkbox" id="chkPlates"> Plates</label>
-            <label><input type="checkbox" id="chkStress"> Boundaries</label>
-        </div>
-        <div class="tg">
-            <label><input type="checkbox" id="chkRotate"> Rotate</label>
-            <label><input type="checkbox" id="chkEdit"> Edit Mode</label>
-            <label><input type="checkbox" id="chkMap"> Map</label>
-        </div>
-        <div class="cg">
-            <label>Debug Layer</label>
-            <select id="debugLayer">
-                <option value="">Normal</option>
-                <option value="base">Base</option>
-                <option value="tectonic">Tectonic</option>
-                <option value="noise">Noise</option>
-                <option value="interior">Interior</option>
-                <option value="coastal">Coastal</option>
-                <option value="ocean">Ocean</option>
-                <option value="hotspot">Hotspot</option>
-                <option value="tecActivity">Tectonic Activity</option>
-                <option value="margins">Margins</option>
-                <option value="backArc">Back-Arc</option>
-            </select>
-        </div>
-        <div id="editPanel">
-            <div id="editHelp">Click a plate to toggle land/sea</div>
-        </div>
+        <details class="section" open>
+            <summary>Visual Options</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>View</label>
+                    <select id="viewMode">
+                        <option value="globe">Globe</option>
+                        <option value="map">Map</option>
+                    </select>
+                </div>
+                <div class="tg">
+                    <label><input type="checkbox" id="chkWire"> Cells</label>
+                    <label><input type="checkbox" id="chkPlates"> Plates</label>
+                    <label><input type="checkbox" id="chkRotate"> Rotate</label>
+                </div>
+            </div>
+        </details>
+        <details class="section">
+            <summary>Advanced Visualization</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Debug Layer</label>
+                    <select id="debugLayer">
+                        <option value="">Normal</option>
+                        <option value="base">Base</option>
+                        <option value="tectonic">Tectonic</option>
+                        <option value="noise">Noise</option>
+                        <option value="interior">Interior</option>
+                        <option value="coastal">Coastal</option>
+                        <option value="ocean">Ocean</option>
+                        <option value="hotspot">Hotspot</option>
+                        <option value="tecActivity">Tectonic Activity</option>
+                        <option value="margins">Margins</option>
+                        <option value="backArc">Back-Arc</option>
+                    </select>
+                </div>
+            </div>
+        </details>
     </div>
     <div id="stats"></div>
     <div id="hoverInfo"></div>
-    <div id="info">Drag to rotate &middot; Scroll to zoom</div>
+    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click plate to toggle land/sea</div>
 
     <script type="importmap">
     {

@@ -10,7 +10,6 @@ export const state = {
     hoveredPlate: -1,
     mapMesh: null,
     mapMode: false,
-    editMode: false,
     dragStart: null,
     debugLayer: '',
 };

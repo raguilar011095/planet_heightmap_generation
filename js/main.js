@@ -9,23 +9,41 @@ import { generate } from './generate.js';
 import { buildMesh, buildMapMesh } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 
-// Slider value displays
+// Slider value displays + stale tracking
+const sliderIds = ['sN','sP','sCn','sJ','sNs'];
+let lastGenValues = {};
+
+function snapshotSliders() {
+    for (const id of sliderIds) lastGenValues[id] = document.getElementById(id).value;
+}
+
+function checkStale() {
+    const btn = document.getElementById('generate');
+    if (btn.classList.contains('generating')) return;
+    const stale = sliderIds.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    btn.classList.toggle('stale', stale);
+    btn.textContent = stale ? 'Regenerate' : 'Generate New Planet';
+}
+
 for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs']]) {
     document.getElementById(s).addEventListener('input', e => {
         document.getElementById(v).textContent = e.target.value;
+        checkStale();
     });
 }
 
 // Generate button
-document.getElementById('generate').addEventListener('click', generate);
+const genBtn = document.getElementById('generate');
+genBtn.addEventListener('click', generate);
+genBtn.addEventListener('generate-done', snapshotSliders);
 
 // View-mode checkboxes
-for (const id of ['chkWire','chkPlates','chkStress'])
+for (const id of ['chkWire','chkPlates'])
     document.getElementById(id).addEventListener('change', buildMesh);
 
-// Map view toggle
-document.getElementById('chkMap').addEventListener('change', () => {
-    state.mapMode = document.getElementById('chkMap').checked;
+// View mode dropdown (Globe / Map)
+document.getElementById('viewMode').addEventListener('change', (e) => {
+    state.mapMode = e.target.value === 'map';
     if (state.mapMode) {
         if (state.planetMesh) state.planetMesh.visible = false;
         waterMesh.visible = false;
@@ -51,8 +69,7 @@ document.getElementById('chkMap').addEventListener('change', () => {
         if (state.arrowGroup) state.arrowGroup.visible = true;
         if (state.mapMesh) state.mapMesh.visible = false;
         const showPlates = document.getElementById('chkPlates').checked;
-        const showStress = document.getElementById('chkStress').checked;
-        waterMesh.visible = !showPlates && !showStress;
+        waterMesh.visible = !showPlates;
         scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
         ctrl.enabled = true;
