@@ -10,7 +10,7 @@ import { buildMesh, buildMapMesh } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 
 // Slider value displays
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sWL','vWL']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs']]) {
     document.getElementById(s).addEventListener('input', e => {
         document.getElementById(v).textContent = e.target.value;
     });
@@ -22,7 +22,6 @@ document.getElementById('generate').addEventListener('click', generate);
 // View-mode checkboxes
 for (const id of ['chkWire','chkPlates','chkStress'])
     document.getElementById(id).addEventListener('change', buildMesh);
-document.getElementById('sWL').addEventListener('input', buildMesh);
 
 // Map view toggle
 document.getElementById('chkMap').addEventListener('change', () => {
