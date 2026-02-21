@@ -81,7 +81,7 @@ All generation parameters live in a single section:
 
 ### Sidebar & Loading
 
-The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (< 768px) the sidebar starts collapsed automatically. A loading screen with spinner is shown while the app initializes and the first planet generates.
+The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (< 768px) the sidebar starts collapsed automatically. A fullscreen overlay with spinner, title, and progress bar appears during every generation — fully opaque on initial load, semi-transparent on subsequent builds so the previous planet is dimmed behind it. Stage labels (shaping, plates, oceans, mountains, painting) update as the pipeline progresses.
 
 ### Tutorial & Help
 

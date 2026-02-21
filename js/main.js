@@ -59,10 +59,46 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
     });
 }
 
+// Build overlay — unified loading / generation overlay
+const buildOverlay  = document.getElementById('buildOverlay');
+const buildBarFill  = document.getElementById('buildBarFill');
+const buildBarLabel = document.getElementById('buildBarLabel');
+let overlayActive = true; // starts active (visible in HTML on first load)
+
+function onProgress(pct, label) {
+    if (!overlayActive) return;
+    if (buildBarFill)  buildBarFill.style.transform = 'scaleX(' + (pct / 100) + ')';
+    if (buildBarLabel) buildBarLabel.textContent = label;
+}
+
+function showBuildOverlay() {
+    if (!buildBarFill || !buildOverlay) return;
+    // Snap bar to 0 instantly — disable transition, reset transform, force reflow
+    buildBarFill.style.transition = 'none';
+    buildBarFill.style.transform = 'scaleX(0)';
+    buildBarLabel.textContent = '';
+    buildBarFill.offsetWidth; // force reflow
+    buildBarFill.style.transition = '';
+    overlayActive = true;
+    buildOverlay.classList.remove('hidden');
+}
+
+function hideBuildOverlay() {
+    setTimeout(() => {
+        overlayActive = false;
+        if (buildOverlay) {
+            buildOverlay.classList.add('hidden');
+            // After first generation, switch from opaque to semi-transparent
+            buildOverlay.classList.remove('initial');
+        }
+    }, 500);
+}
+
 // Generate button
 const genBtn = document.getElementById('generate');
-genBtn.addEventListener('click', () => generate());
+genBtn.addEventListener('click', () => { showBuildOverlay(); generate(undefined, [], onProgress); });
 genBtn.addEventListener('generate-done', snapshotSliders);
+genBtn.addEventListener('generate-done', hideBuildOverlay);
 genBtn.addEventListener('generate-done', () => {
     const infoEl = document.getElementById('info');
     if (!infoEl.dataset.nudged) {
@@ -157,7 +193,8 @@ function applyCode(code) {
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
-    generate(params.seed, params.toggledIndices);
+    showBuildOverlay();
+    generate(params.seed, params.toggledIndices, onProgress);
 }
 
 loadBtn.addEventListener('click', () => {
@@ -257,15 +294,6 @@ sidebarToggle.addEventListener('click', () => {
     sidebarToggle.title = collapsed ? 'Show panel' : 'Collapse panel';
 });
 
-// Remove loading screen after first generation
-genBtn.addEventListener('generate-done', () => {
-    const loading = document.getElementById('loadingScreen');
-    if (loading) {
-        loading.classList.add('fade-out');
-        loading.addEventListener('transitionend', () => loading.remove(), { once: true });
-    }
-}, { once: true });
-
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -342,13 +370,12 @@ window.addEventListener('resize', () => {
 
     helpBtn.addEventListener('click', openModal);
 
-    // Auto-show on first visit — wait until the loading screen has faded out
+    // Auto-show on first visit — wait until the build overlay has faded out
     overlay.classList.add('hidden');
     if (!localStorage.getItem(LS_KEY)) {
         genBtn.addEventListener('generate-done', () => {
-            const loading = document.getElementById('loadingScreen');
-            if (loading) {
-                loading.addEventListener('transitionend', () => openModal(), { once: true });
+            if (buildOverlay) {
+                buildOverlay.addEventListener('transitionend', () => openModal(), { once: true });
             } else {
                 openModal();
             }
@@ -366,8 +393,8 @@ if (hashParams) {
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
-    generate(hashParams.seed, hashParams.toggledIndices);
+    generate(hashParams.seed, hashParams.toggledIndices, onProgress);
 } else {
-    generate();
+    generate(undefined, [], onProgress);
 }
 animate();

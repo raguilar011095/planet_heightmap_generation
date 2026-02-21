@@ -8,9 +8,15 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <div id="loadingScreen">
-        <div id="loadingSpinner"></div>
-        <div id="loadingText">World Buildr</div>
+    <div id="buildOverlay" class="build-overlay initial">
+        <div class="build-overlay-inner">
+            <div class="build-overlay-spinner"></div>
+            <div class="build-overlay-title">World Buildr</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="buildBarFill"></div>
+            </div>
+            <div class="progress-label" id="buildBarLabel"></div>
+        </div>
     </div>
     <canvas id="canvas"></canvas>
     <div id="ui">

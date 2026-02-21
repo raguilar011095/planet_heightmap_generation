@@ -285,17 +285,25 @@ button#generate.generating {
 }
 .btn-primary:hover { filter: brightness(1.15); }
 
-/* Loading screen */
-#loadingScreen {
+/* Build overlay — unified loading / generation screen */
+.build-overlay {
     position: fixed; inset: 0;
-    background: #030308;
-    display: flex; flex-direction: column;
-    align-items: center; justify-content: center;
-    z-index: 1000;
+    background: rgba(3,3,8,0.75);
+    z-index: 100;
+    display: flex; align-items: center; justify-content: center;
     transition: opacity 0.5s ease;
 }
-#loadingScreen.fade-out { opacity: 0; pointer-events: none; }
-#loadingSpinner {
+.build-overlay.hidden {
+    opacity: 0; pointer-events: none;
+}
+.build-overlay.initial {
+    background: #030308;
+    z-index: 1000;
+}
+.build-overlay-inner {
+    display: flex; flex-direction: column; align-items: center;
+}
+.build-overlay-spinner {
     width: 40px; height: 40px;
     border: 3px solid rgba(255,255,255,0.1);
     border-top-color: #48f;
@@ -303,9 +311,32 @@ button#generate.generating {
     animation: spin 0.8s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
-#loadingText {
+.build-overlay-title {
     margin-top: 16px; color: #667;
-    font-size: 14px; font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 14px;
+}
+
+/* Progress bar */
+.progress-bar-container {
+    width: 240px; height: 4px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-top: 20px;
+}
+.progress-bar-fill {
+    height: 100%; width: 100%;
+    background: #48f;
+    border-radius: 2px;
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.4s ease;
+    will-change: transform;
+}
+.progress-label {
+    font-size: 13px; color: #9ab;
+    margin-top: 8px;
+    text-align: center;
 }
 
 /* Mobile */
