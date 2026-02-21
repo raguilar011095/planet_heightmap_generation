@@ -8,10 +8,20 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <div id="loadingScreen">
+        <div id="loadingSpinner"></div>
+        <div id="loadingText">World Buildr</div>
+    </div>
     <canvas id="canvas"></canvas>
     <div id="ui">
-        <h2>World Buildr</h2>
-        <div class="sub">Build worlds shaped by tectonic forces</div>
+        <div id="sidebarHeader">
+            <div>
+                <h2>World Buildr</h2>
+                <div class="sub">Build worlds shaped by tectonic forces</div>
+            </div>
+            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+        </div>
+        <div id="sidebarContent">
         <details class="section" open>
             <summary>Shape Your World</summary>
             <div class="section-body">
@@ -43,6 +53,12 @@
             </div>
         </details>
         <button id="generate">Build New World</button>
+        <div id="seedRow">
+            <input type="text" id="seedCode" placeholder="Planet code">
+            <button id="copyBtn" title="Copy code">&#x2398;</button>
+            <button id="loadBtn" title="Load planet from code">Load</button>
+        </div>
+        <div id="seedError">Invalid planet code</div>
         <details class="section" open>
             <summary>Visual Options</summary>
             <div class="section-body">
@@ -57,6 +73,17 @@
                     <label><input type="checkbox" id="chkWire"> Wireframe</label>
                     <label><input type="checkbox" id="chkPlates"> Show Plates</label>
                     <label><input type="checkbox" id="chkRotate"> Auto-Rotate</label>
+                    <label><input type="checkbox" id="chkGrid" checked> Grid Lines</label>
+                </div>
+                <div class="cg" id="gridSpacingGroup">
+                    <label>Grid Spacing</label>
+                    <select id="gridSpacing">
+                        <option value="30">30°</option>
+                        <option value="15" selected>15°</option>
+                        <option value="10">10°</option>
+                        <option value="5">5°</option>
+                        <option value="2.5">2.5°</option>
+                    </select>
                 </div>
             </div>
         </details>
@@ -82,6 +109,7 @@
                 <div id="stats"></div>
             </div>
         </details>
+        </div>
     </div>
     <button id="helpBtn" title="Tutorial">?</button>
 
@@ -98,12 +126,17 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
-                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents — ocean rises into land, land floods into ocean.</p>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean.</p>
+            </div>
+            <div class="tutorial-step" data-step="3">
+                <h3>Save &amp; Share</h3>
+                <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
                 <span class="dot" data-dot="1"></span>
                 <span class="dot" data-dot="2"></span>
+                <span class="dot" data-dot="3"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>

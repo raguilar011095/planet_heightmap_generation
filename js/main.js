@@ -6,7 +6,8 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          tickZoom, tickMapZoom } from './scene.js';
 import { state } from './state.js';
 import { generate } from './generate.js';
-import { buildMesh, buildMapMesh } from './planet-mesh.js';
+import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
+import { buildMesh, buildMapMesh, rebuildGrids } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 
 // Slider value displays + stale tracking
@@ -34,7 +35,7 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
 
 // Generate button
 const genBtn = document.getElementById('generate');
-genBtn.addEventListener('click', generate);
+genBtn.addEventListener('click', () => generate());
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', () => {
     const infoEl = document.getElementById('info');
@@ -45,9 +46,125 @@ genBtn.addEventListener('generate-done', () => {
     }
 }, { once: true });
 
+// Planet code — display after generation, copy, load, URL hash
+const seedInput = document.getElementById('seedCode');
+const copyBtn   = document.getElementById('copyBtn');
+const loadBtn   = document.getElementById('loadBtn');
+let currentCode = ''; // the code for the currently loaded planet
+
+function updateLoadBtn() {
+    const val = seedInput.value.trim().toLowerCase();
+    const ready = val.length > 0 && val !== currentCode;
+    loadBtn.classList.toggle('ready', ready);
+}
+
+/** Get sorted array of toggled plate indices by diffing current vs original plateIsOcean. */
+function getToggledIndices() {
+    const d = state.curData;
+    if (!d || !d.originalPlateIsOcean) return [];
+    const indices = [];
+    const seeds = Array.from(d.plateSeeds);
+    for (let i = 0; i < seeds.length; i++) {
+        const r = seeds[i];
+        if (d.originalPlateIsOcean.has(r) !== d.plateIsOcean.has(r)) {
+            indices.push(i);
+        }
+    }
+    return indices;
+}
+
+/** Encode current planet state and update the seed input + URL hash. */
+function updatePlanetCode(flash) {
+    const d = state.curData;
+    if (!d) return;
+    const code = encodePlanetCode(
+        d.seed,
+        +document.getElementById('sN').value,
+        +document.getElementById('sJ').value,
+        +document.getElementById('sP').value,
+        +document.getElementById('sCn').value,
+        +document.getElementById('sNs').value,
+        getToggledIndices()
+    );
+    currentCode = code;
+    seedInput.value = code;
+    updateLoadBtn();
+    history.replaceState(null, '', '#' + code);
+    if (flash) {
+        seedInput.classList.add('flash');
+        seedInput.addEventListener('animationend', () => seedInput.classList.remove('flash'), { once: true });
+    }
+}
+
+genBtn.addEventListener('generate-done', () => updatePlanetCode(false));
+
+document.addEventListener('plates-edited', () => updatePlanetCode(true));
+
+copyBtn.addEventListener('click', () => {
+    if (!seedInput.value) return;
+    navigator.clipboard.writeText(seedInput.value).then(() => {
+        copyBtn.textContent = '\u2713';
+        setTimeout(() => { copyBtn.textContent = '\u2398'; }, 1200);
+    });
+});
+
+seedInput.addEventListener('input', () => {
+    updateLoadBtn();
+    seedError.classList.remove('visible');
+});
+
+const seedError = document.getElementById('seedError');
+
+function applyCode(code) {
+    const params = decodePlanetCode(code);
+    if (!params) {
+        seedInput.style.borderColor = '#c44';
+        seedError.classList.add('visible');
+        setTimeout(() => { seedInput.style.borderColor = ''; }, 1500);
+        return;
+    }
+    seedError.classList.remove('visible');
+    // Set slider values + fire input events to update displays
+    const map = { sN: params.N, sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness };
+    for (const [id, val] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        el.value = val;
+        el.dispatchEvent(new Event('input'));
+    }
+    generate(params.seed, params.toggledIndices);
+}
+
+loadBtn.addEventListener('click', () => {
+    applyCode(seedInput.value);
+});
+
+seedInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') applyCode(seedInput.value);
+});
+
 // View-mode checkboxes
 for (const id of ['chkWire','chkPlates'])
     document.getElementById(id).addEventListener('change', buildMesh);
+
+// Grid toggle
+const gridSpacingGroup = document.getElementById('gridSpacingGroup');
+document.getElementById('chkGrid').addEventListener('change', (e) => {
+    state.gridEnabled = e.target.checked;
+    gridSpacingGroup.style.display = state.gridEnabled ? '' : 'none';
+    if (state.mapMode) {
+        if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
+        if (state.globeGridMesh) state.globeGridMesh.visible = false;
+    } else {
+        if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
+        if (state.mapGridMesh) state.mapGridMesh.visible = false;
+    }
+});
+
+// Grid spacing dropdown
+document.getElementById('gridSpacing').addEventListener('change', (e) => {
+    state.gridSpacing = parseFloat(e.target.value);
+    rebuildGrids();
+});
 
 // View mode dropdown (Globe / Map)
 document.getElementById('viewMode').addEventListener('change', (e) => {
@@ -61,6 +178,8 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         if (state.arrowGroup) state.arrowGroup.visible = false;
         if (!state.mapMesh) buildMapMesh();
         if (state.mapMesh) state.mapMesh.visible = true;
+        if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
+        if (state.globeGridMesh) state.globeGridMesh.visible = false;
         scene.background = new THREE.Color(0x1a1a2e);
         ctrl.enabled = false;
         mapCtrl.enabled = true;
@@ -76,6 +195,8 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         if (state.wireMesh) state.wireMesh.visible = true;
         if (state.arrowGroup) state.arrowGroup.visible = true;
         if (state.mapMesh) state.mapMesh.visible = false;
+        if (state.mapGridMesh) state.mapGridMesh.visible = false;
+        if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
         const showPlates = document.getElementById('chkPlates').checked;
         waterMesh.visible = !showPlates;
         scene.background = new THREE.Color(0x030308);
@@ -96,6 +217,29 @@ if (debugLayerEl) {
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();
 
+// Sidebar toggle
+const sidebarToggle = document.getElementById('sidebarToggle');
+const uiPanel = document.getElementById('ui');
+if (window.innerWidth < 768) {
+    uiPanel.classList.add('collapsed');
+    sidebarToggle.innerHTML = '\u00BB';
+    sidebarToggle.title = 'Show panel';
+}
+sidebarToggle.addEventListener('click', () => {
+    const collapsed = uiPanel.classList.toggle('collapsed');
+    sidebarToggle.innerHTML = collapsed ? '\u00BB' : '\u00AB';
+    sidebarToggle.title = collapsed ? 'Show panel' : 'Collapse panel';
+});
+
+// Remove loading screen after first generation
+genBtn.addEventListener('generate-done', () => {
+    const loading = document.getElementById('loadingScreen');
+    if (loading) {
+        loading.classList.add('fade-out');
+        loading.addEventListener('transitionend', () => loading.remove(), { once: true });
+    }
+}, { once: true });
+
 // Animation loop
 function animate() {
     requestAnimationFrame(animate);
@@ -105,6 +249,7 @@ function animate() {
         waterMesh.rotation.y = state.planetMesh.rotation.y;
         if (state.wireMesh) state.wireMesh.rotation.y = state.planetMesh.rotation.y;
         if (state.arrowGroup) state.arrowGroup.rotation.y = state.planetMesh.rotation.y;
+        if (state.globeGridMesh) state.globeGridMesh.rotation.y = state.planetMesh.rotation.y;
     }
     renderer.render(scene, state.mapMode ? mapCamera : camera);
 }
@@ -180,6 +325,18 @@ window.addEventListener('resize', () => {
     }
 })();
 
-// Go!
-generate();
+// Go! Check URL hash for a planet code, otherwise random generation.
+const hashCode = location.hash.replace(/^#/, '').trim();
+const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
+if (hashParams) {
+    const map = { sN: hashParams.N, sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness };
+    for (const [id, val] of Object.entries(map)) {
+        const el = document.getElementById(id);
+        el.value = val;
+        el.dispatchEvent(new Event('input'));
+    }
+    generate(hashParams.seed, hashParams.toggledIndices);
+} else {
+    generate();
+}
 animate();

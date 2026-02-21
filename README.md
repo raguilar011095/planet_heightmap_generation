@@ -44,6 +44,14 @@ Then open **http://localhost:8000** in your browser. No dependencies to install,
 
 Click **Build New World** to create a new random planet.
 
+### Sharing Planets
+
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 11 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
+
+- **Copy** the code with the copy button and send it to someone
+- **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
+- **URL sharing** — the code is also stored in the URL hash (e.g. `#a7f3kq9xp2b`), so you can share the full URL directly. Opening a URL with a valid hash auto-loads that planet, including any plate edits.
+
 ## Controls
 
 ### Shape Your World
@@ -64,14 +72,20 @@ All generation parameters live in a single section:
 - **Wireframe** — show Voronoi cell edges as a wireframe overlay
 - **Show Plates** — color regions by plate (green shades = land, blue shades = ocean)
 - **Auto-Rotate** — spin the globe continuously
+- **Grid Lines** — toggle latitude/longitude grid overlay on both globe and map views
+- **Grid Spacing** — choose the interval between grid lines: 30°, 15°, 10°, 5°, or 2.5°
 
 ### Detailed Visualization
 
 - **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
 
+### Sidebar & Loading
+
+The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (< 768px) the sidebar starts collapsed automatically. A loading screen with spinner is shown while the app initializes and the first planet generates.
+
 ### Tutorial & Help
 
-A three-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, and interactive editing. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+A four-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, and saving/sharing via planet codes. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
 
 ### Interaction
 
@@ -116,6 +130,7 @@ js/
   main.js               Entry point — UI wiring, animation loop
   state.js              Shared mutable application state
   generate.js           Orchestrates the full geology pipeline
+  planet-code.js        Planet code encode/decode (seed + sliders → base36)
   rng.js                Seeded PRNG (Park-Miller LCG)
   simplex-noise.js      3D Simplex noise with fBm and ridged fBm
   color-map.js          Elevation → RGB colour mapping

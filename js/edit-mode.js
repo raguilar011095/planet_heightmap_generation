@@ -107,6 +107,8 @@ export function setupEditMode() {
                     const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
                     hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate &middot; Ctrl-click to ${isOcean ? 'raise land' : 'flood'}`;
                 }
+                // Notify main.js to update the planet code
+                document.dispatchEvent(new CustomEvent('plates-edited'));
             }, 16);
         }
         downInfo = null;

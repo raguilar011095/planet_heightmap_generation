@@ -7,9 +7,29 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     padding: 20px; border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.08);
     min-width: 270px; user-select: none;
+    transition: min-width 0.25s ease, padding 0.25s ease;
+    overflow: visible;
 }
 #ui h2 { margin-bottom: 4px; font-size: 20px; font-weight: 600; }
-#ui .sub { font-size: 13px; color: #889; margin-bottom: 16px; }
+#ui .sub { font-size: 13px; color: #889; margin-bottom: 0; }
+#sidebarHeader {
+    display: flex; align-items: flex-start; justify-content: space-between;
+    gap: 8px; margin-bottom: 16px;
+}
+#sidebarToggle {
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    color: #9ab; width: 28px; height: 28px;
+    font-size: 16px; line-height: 1; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; padding: 0;
+    transition: background 0.2s, color 0.2s;
+}
+#sidebarToggle:hover { background: rgba(255,255,255,0.12); color: #fff; }
+#ui.collapsed { min-width: 0; padding: 12px; }
+#ui.collapsed #sidebarHeader > div { display: none; }
+#ui.collapsed #sidebarContent { display: none; }
+#ui.collapsed #sidebarHeader { margin-bottom: 0; }
 .section { margin-bottom: 6px; }
 .section summary {
     font-size: 13px; font-weight: 600; color: #9ac;
@@ -43,8 +63,9 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
     background: rgba(8,8,28,0.96); backdrop-filter: blur(8px);
     border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
-    padding: 6px 10px; font-size: 13px; color: #cde; white-space: nowrap;
-    z-index: 100; pointer-events: none;
+    padding: 6px 10px; font-size: 13px; color: #cde;
+    width: 220px; white-space: normal; line-height: 1.4;
+    z-index: 200; pointer-events: none;
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 input[type="range"] { width: 100%; accent-color: #48f; cursor: pointer; }
@@ -75,6 +96,39 @@ button#generate.generating {
     background: linear-gradient(135deg, #333, #444);
     cursor: wait; opacity: 0.8;
 }
+#seedRow {
+    display: flex; gap: 4px; margin-bottom: 12px;
+}
+#seedCode {
+    flex: 1; min-width: 0;
+    background: rgba(255,255,255,0.06); color: #6af;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 5px 8px; font-size: 13px; font-family: 'Consolas', 'Courier New', monospace;
+    letter-spacing: 0.05em; outline: none;
+}
+#seedCode:focus { border-color: #48f; }
+#seedCode.flash { animation: seedFlash 0.6s ease; }
+@keyframes seedFlash {
+    0%   { background: rgba(68,136,255,0.25); border-color: #48f; }
+    100% { background: rgba(255,255,255,0.06); border-color: rgba(255,255,255,0.1); }
+}
+#seedRow button {
+    background: rgba(255,255,255,0.06); color: #9ab;
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 4px 8px; font-size: 13px; cursor: pointer;
+    transition: background 0.2s, color 0.2s, border-color 0.2s; white-space: nowrap;
+}
+#seedRow button:hover { background: rgba(255,255,255,0.12); color: #fff; }
+#loadBtn.ready {
+    background: linear-gradient(135deg, #2255cc, #3366ee);
+    color: #fff; border-color: transparent;
+}
+#loadBtn.ready:hover { filter: brightness(1.15); }
+#seedError {
+    font-size: 11px; color: #c44; margin: -8px 0 8px 2px;
+    display: none;
+}
+#seedError.visible { display: block; }
 .tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .tg label { font-size: 13px; color: #99b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 #stats {
@@ -223,3 +277,32 @@ button#generate.generating {
     transition: filter 0.2s;
 }
 .btn-primary:hover { filter: brightness(1.15); }
+
+/* Loading screen */
+#loadingScreen {
+    position: fixed; inset: 0;
+    background: #030308;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    z-index: 1000;
+    transition: opacity 0.5s ease;
+}
+#loadingScreen.fade-out { opacity: 0; pointer-events: none; }
+#loadingSpinner {
+    width: 40px; height: 40px;
+    border: 3px solid rgba(255,255,255,0.1);
+    border-top-color: #48f;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+#loadingText {
+    margin-top: 16px; color: #667;
+    font-size: 14px; font-family: 'Segoe UI', system-ui, sans-serif;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    #ui { max-width: calc(100vw - 32px); }
+    #topInfo { display: none; }
+}

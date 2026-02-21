@@ -103,15 +103,19 @@ export function buildMapMesh() {
         const minLon = Math.min(lon0, lon1, lon2);
         const wraps = (maxLon - minLon) > PI;
 
+        // Clamp projected coords to map bounds
+        const cx = (v) => Math.max(-2, Math.min(2, v));
+        const cy = (v) => Math.max(-1, Math.min(1, v));
+
         if (wraps) {
             if (lon0 < 0) lon0 += 2 * PI;
             if (lon1 < 0) lon1 += 2 * PI;
             if (lon2 < 0) lon2 += 2 * PI;
 
             let off = triCount * 9;
-            posArr[off]   = lon0*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
-            posArr[off+3] = lon1*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
-            posArr[off+6] = lon2*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+            posArr[off]   = cx(lon0*sx); posArr[off+1] = cy(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = cx(lon1*sx); posArr[off+4] = cy(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = cx(lon2*sx); posArr[off+7] = cy(lat2*sx); posArr[off+8] = 0;
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
@@ -119,9 +123,9 @@ export function buildMapMesh() {
             triCount++;
 
             off = triCount * 9;
-            posArr[off]   = (lon0-2*PI)*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
-            posArr[off+3] = (lon1-2*PI)*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
-            posArr[off+6] = (lon2-2*PI)*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+            posArr[off]   = cx((lon0-2*PI)*sx); posArr[off+1] = cy(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = cx((lon1-2*PI)*sx); posArr[off+4] = cy(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = cx((lon2-2*PI)*sx); posArr[off+7] = cy(lat2*sx); posArr[off+8] = 0;
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
@@ -129,9 +133,9 @@ export function buildMapMesh() {
             triCount++;
         } else {
             const off = triCount * 9;
-            posArr[off]   = lon0*sx; posArr[off+1] = lat0*sx; posArr[off+2] = 0;
-            posArr[off+3] = lon1*sx; posArr[off+4] = lat1*sx; posArr[off+5] = 0;
-            posArr[off+6] = lon2*sx; posArr[off+7] = lat2*sx; posArr[off+8] = 0;
+            posArr[off]   = cx(lon0*sx); posArr[off+1] = cy(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = cx(lon1*sx); posArr[off+4] = cy(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = cx(lon2*sx); posArr[off+7] = cy(lat2*sx); posArr[off+8] = 0;
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
@@ -152,6 +156,119 @@ export function buildMapMesh() {
     state.mapFaceToSide = faceToSide.subarray(0, triCount);
     state.mapBaseColors = new Float32Array(finalCol);
     scene.add(state.mapMesh);
+
+    buildMapGrid();
+}
+
+// Build lat/lon grid overlay for map view.
+function buildMapGrid() {
+    if (state.mapGridMesh) {
+        scene.remove(state.mapGridMesh);
+        state.mapGridMesh.geometry.dispose();
+        state.mapGridMesh.material.dispose();
+        state.mapGridMesh = null;
+    }
+
+    const spacing = state.gridSpacing;
+    const sx = 2 / Math.PI;
+    const Z = 0.001;
+    const positions = [];
+
+    for (let deg = -90; deg <= 90; deg += spacing) {
+        const y = (deg * Math.PI / 180) * sx;
+        positions.push(-2, y, Z, 2, y, Z);
+    }
+
+    for (let deg = -180; deg <= 180; deg += spacing) {
+        const x = (deg * Math.PI / 180) * sx;
+        positions.push(x, -1, Z, x, 1, Z);
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    state.mapGridMesh = new THREE.LineSegments(geo,
+        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 }));
+    state.mapGridMesh.visible = state.mapMode && state.gridEnabled;
+    scene.add(state.mapGridMesh);
+}
+
+// Build lat/lon grid on the 3D globe.
+function buildGlobeGrid() {
+    if (state.globeGridMesh) {
+        scene.remove(state.globeGridMesh);
+        state.globeGridMesh.geometry.dispose();
+        state.globeGridMesh.material.dispose();
+        state.globeGridMesh = null;
+    }
+
+    const spacing = state.gridSpacing;
+    const R = 1.002; // slightly above water sphere
+    const SEG = 120;  // segments per circle
+    const positions = [];
+
+    // Latitude lines
+    for (let deg = -90; deg <= 90; deg += spacing) {
+        if (deg === -90 || deg === 90) continue; // poles are points, skip
+        const lat = deg * Math.PI / 180;
+        const cosLat = Math.cos(lat);
+        const y = Math.sin(lat) * R;
+        for (let i = 0; i < SEG; i++) {
+            const lon0 = (i / SEG) * Math.PI * 2;
+            const lon1 = ((i + 1) / SEG) * Math.PI * 2;
+            positions.push(
+                Math.sin(lon0) * cosLat * R, y, Math.cos(lon0) * cosLat * R,
+                Math.sin(lon1) * cosLat * R, y, Math.cos(lon1) * cosLat * R
+            );
+        }
+    }
+
+    // Longitude lines (semicircles pole to pole)
+    for (let deg = -180; deg < 180; deg += spacing) {
+        const lon = deg * Math.PI / 180;
+        const sinLon = Math.sin(lon);
+        const cosLon = Math.cos(lon);
+        for (let i = 0; i < SEG; i++) {
+            const lat0 = -Math.PI / 2 + (i / SEG) * Math.PI;
+            const lat1 = -Math.PI / 2 + ((i + 1) / SEG) * Math.PI;
+            positions.push(
+                sinLon * Math.cos(lat0) * R, Math.sin(lat0) * R, cosLon * Math.cos(lat0) * R,
+                sinLon * Math.cos(lat1) * R, Math.sin(lat1) * R, cosLon * Math.cos(lat1) * R
+            );
+        }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+    const gridMat = new THREE.ShaderMaterial({
+        uniforms: {
+            color: { value: new THREE.Color(0xffffff) },
+            opacity: { value: 0.12 }
+        },
+        vertexShader: `
+            void main() {
+                gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+                gl_Position.z -= 0.002 * gl_Position.w; // depth bias: render on top of nearby surfaces
+            }
+        `,
+        fragmentShader: `
+            uniform vec3 color;
+            uniform float opacity;
+            void main() {
+                gl_FragColor = vec4(color, opacity);
+            }
+        `,
+        transparent: true,
+        depthWrite: false
+    });
+    state.globeGridMesh = new THREE.LineSegments(geo, gridMat);
+    state.globeGridMesh.visible = !state.mapMode && state.gridEnabled;
+    scene.add(state.globeGridMesh);
+}
+
+// Rebuild both grids (call when spacing changes).
+export function rebuildGrids() {
+    buildMapGrid();
+    buildGlobeGrid();
 }
 
 // Build Voronoi mesh — each half-edge produces one triangle.
@@ -294,6 +411,7 @@ export function buildMesh() {
     updateHoverHighlight();
 
     buildMapMesh();
+    buildGlobeGrid();
     if (state.mapMode) {
         state.planetMesh.visible = false;
         waterMesh.visible = false;
@@ -301,12 +419,16 @@ export function buildMesh() {
         starsMesh.visible = false;
         if (state.wireMesh) state.wireMesh.visible = false;
         if (state.arrowGroup) state.arrowGroup.visible = false;
+        if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
+        if (state.globeGridMesh) state.globeGridMesh.visible = false;
     } else {
         state.planetMesh.visible = true;
         atmosMesh.visible = true;
         starsMesh.visible = true;
         if (state.wireMesh) state.wireMesh.visible = true;
         if (state.arrowGroup) state.arrowGroup.visible = true;
+        if (state.mapGridMesh) state.mapGridMesh.visible = false;
+        if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
     }
 }
 

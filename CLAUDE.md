@@ -28,3 +28,10 @@ After any code change, check whether the tutorial modal content (in `index.html`
 - Core workflow (how to generate a planet, what controls to use)
 - Interactive features (navigation, editing, keyboard/mouse actions)
 - What the tool does or its key selling points
+
+After any code change that adds, removes, or modifies slider controls, update the planet code encoding in `js/planet-code.js` to match. The planet code packs the seed and all slider values into a compact base36 string using mixed-radix integer packing. If a slider's range, step, or count changes, or if a new slider is added, update:
+
+- The `SLIDERS` array (min, step, count for each slider)
+- The `RADICES` array (the count values in right-to-left order)
+- The `encodePlanetCode` and `decodePlanetCode` functions (packing/unpacking order)
+- The corresponding slider wiring in `js/main.js` (the `map` objects in the `generate-done` handler, `applyCode`, and hash-loading code)

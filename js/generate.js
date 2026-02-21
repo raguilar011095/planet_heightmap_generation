@@ -9,7 +9,7 @@ import { assignElevation } from './elevation.js';
 import { computePlateColors, buildMesh } from './planet-mesh.js';
 import { state } from './state.js';
 
-export function generate() {
+export function generate(overrideSeed, toggledIndices = []) {
     const btn = document.getElementById('generate');
     btn.disabled = true;
     btn.textContent = 'Building\u2026';
@@ -26,7 +26,7 @@ export function generate() {
     // Defer heavy work so the browser can repaint the button state
     setTimeout(() => {
         const t0 = performance.now();
-        const seed = Math.random() * 99999;
+        const seed = overrideSeed ?? Math.floor(Math.random() * 16777216);
         const rng  = makeRng(seed);
 
         // 1. Build sphere mesh
@@ -44,6 +44,21 @@ export function generate() {
 
         // 4. Ocean / land
         const plateIsOcean = assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents);
+
+        // Snapshot original ocean/land assignment before any toggles
+        const originalPlateIsOcean = new Set(plateIsOcean);
+
+        // 4a. Apply plate toggles from a loaded planet code
+        if (toggledIndices.length > 0) {
+            const seedArr = Array.from(plateSeeds);
+            for (const i of toggledIndices) {
+                if (i < seedArr.length) {
+                    const r = seedArr[i];
+                    if (plateIsOcean.has(r)) plateIsOcean.delete(r);
+                    else plateIsOcean.add(r);
+                }
+            }
+        }
 
         computePlateColors(plateSeeds, plateIsOcean);
 
@@ -77,6 +92,7 @@ export function generate() {
         }
 
         state.curData = { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
+                          originalPlateIsOcean,
                           plateDensity, plateDensityLand, plateDensityOcean,
                           r_elevation, t_elevation, mountain_r, coastline_r, ocean_r,
                           r_stress, noise, seed, debugLayers };

@@ -99,8 +99,11 @@ updateMapCameraFrustum();
 export const mapCtrl = new OrbitControls(mapCamera, canvas);
 mapCtrl.enableRotate = false;
 mapCtrl.enableDamping = true;
-mapCtrl.dampingFactor = 0.06;
+mapCtrl.dampingFactor = 0.09;
+mapCtrl.panSpeed = 1.4;
 mapCtrl.screenSpacePanning = true;
+mapCtrl.mouseButtons = { LEFT: THREE.MOUSE.PAN, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.PAN };
+mapCtrl.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_PAN };
 mapCtrl.minZoom = 0.5;
 mapCtrl.maxZoom = 20;
 mapCtrl.enableZoom = false; // custom handler below
