@@ -1,4 +1,6 @@
 // Plate interaction: hover info + ctrl-click to toggle land/sea.
+// Uses analytical ray-sphere intersection instead of Three.js mesh raycasting
+// for O(N) dot-product lookups rather than O(N) triangle intersection tests.
 
 import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
@@ -8,6 +10,8 @@ import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHigh
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
+const _inverseMatrix = new THREE.Matrix4();
+const _localRay = new THREE.Ray();
 
 /** Recompute elevation from the (possibly edited) plate data. */
 function recomputeElevation() {
@@ -30,47 +34,108 @@ function recomputeElevation() {
     buildMesh();
 }
 
-/** Raycast to find which plate the mouse is over. */
-function getHitInfo(event) {
-    if (!state.curData) return null;
+/** Find nearest region to a unit-sphere direction (max dot product). */
+function findNearestRegion(nx, ny, nz) {
+    const { mesh, r_xyz, r_plate } = state.curData;
+    const N = mesh.numRegions;
+    let bestDot = -2, bestR = -1;
+    for (let r = 0; r < N; r++) {
+        const dot = nx * r_xyz[3 * r] + ny * r_xyz[3 * r + 1] + nz * r_xyz[3 * r + 2];
+        if (dot > bestDot) { bestDot = dot; bestR = r; }
+    }
+    if (bestR < 0) return null;
+    return { region: bestR, plate: r_plate[bestR] };
+}
+
+/** Globe view: analytical ray-sphere intersection → nearest region.
+ *  ~50-100x faster than Three.js mesh raycasting at high detail. */
+function getHitInfoGlobe(event) {
+    if (!state.planetMesh) return null;
+    const rect = canvas.getBoundingClientRect();
+    mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+    mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+    raycaster.setFromCamera(mouse, camera);
+
+    // Transform ray into planet's local space (handles auto-rotation)
+    _inverseMatrix.copy(state.planetMesh.matrixWorld).invert();
+    _localRay.copy(raycaster.ray).applyMatrix4(_inverseMatrix);
+
+    const ox = _localRay.origin.x, oy = _localRay.origin.y, oz = _localRay.origin.z;
+    const dx = _localRay.direction.x, dy = _localRay.direction.y, dz = _localRay.direction.z;
+
+    // Ray-sphere: |O + tD|² = R²  (a=1 since direction is normalised)
+    const R = 1.08; // slightly above max elevation displacement
+    const b = 2 * (ox * dx + oy * dy + oz * dz);
+    const c = ox * ox + oy * oy + oz * oz - R * R;
+    const disc = b * b - 4 * c;
+    if (disc < 0) return null;
+
+    const t = (-b - Math.sqrt(disc)) * 0.5;
+    if (t < 0) return null;
+
+    // Hit point → normalise to unit direction
+    const hx = ox + t * dx, hy = oy + t * dy, hz = oz + t * dz;
+    const len = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1;
+    return findNearestRegion(hx / len, hy / len, hz / len);
+}
+
+/** Map view: unproject mouse → map plane → inverse equirect → nearest region. */
+function getHitInfoMap(event) {
+    if (!state.mapMesh) return null;
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
-    if (state.mapMode) {
-        if (!state.mapMesh || !state.mapFaceToSide) return null;
-        raycaster.setFromCamera(mouse, mapCamera);
-        const hits = raycaster.intersectObject(state.mapMesh);
-        if (hits.length === 0) return null;
-        const faceIdx = hits[0].faceIndex;
-        const s = state.mapFaceToSide[faceIdx];
-        const region = state.curData.mesh.s_begin_r(s);
-        const plate = state.curData.r_plate[region];
-        return { region, plate };
-    } else {
-        if (!state.planetMesh) return null;
-        raycaster.setFromCamera(mouse, camera);
-        const hits = raycaster.intersectObject(state.planetMesh);
-        if (hits.length === 0) return null;
-        const s = hits[0].faceIndex;
-        const region = state.curData.mesh.s_begin_r(s);
-        const plate = state.curData.r_plate[region];
-        return { region, plate };
-    }
+    // Intersect ray with z=0 plane to get world coords on the map
+    raycaster.setFromCamera(mouse, mapCamera);
+    const o = raycaster.ray.origin, d = raycaster.ray.direction;
+    if (Math.abs(d.z) < 1e-10) return null;
+    const t = -o.z / d.z;
+    const wx = o.x + t * d.x;
+    const wy = o.y + t * d.y;
+
+    // Inverse equirectangular: map coords → lon/lat → unit sphere xyz
+    const PI = Math.PI;
+    const sx = 2 / PI;
+    const lon = wx / sx;
+    const lat = wy / sx;
+    if (lat < -PI / 2 || lat > PI / 2 || lon < -PI || lon > PI) return null;
+
+    const cosLat = Math.cos(lat);
+    return findNearestRegion(
+        cosLat * Math.sin(lon),
+        Math.sin(lat),
+        cosLat * Math.cos(lon)
+    );
+}
+
+function getHitInfo(event) {
+    if (!state.curData) return null;
+    return state.mapMode ? getHitInfoMap(event) : getHitInfoGlobe(event);
 }
 
 /** Set up hover and ctrl-click event listeners. */
 export function setupEditMode() {
     let downInfo = null;
+    let orbiting = false;
+    let lastHoverTime = 0;
+    const HOVER_INTERVAL = 50; // ms — cap hover lookups
 
     canvas.addEventListener('pointerdown', (e) => {
-        if (!state.curData || e.button !== 0 || !e.ctrlKey) return;
-        const hit = getHitInfo(e);
-        if (!hit) return;
-        downInfo = { x: e.clientX, y: e.clientY, plate: hit.plate };
+        if (!state.curData) return;
+        if (e.button === 0 && e.ctrlKey) {
+            // Ctrl-click: plate editing
+            const hit = getHitInfo(e);
+            if (!hit) return;
+            downInfo = { x: e.clientX, y: e.clientY, plate: hit.plate };
+        } else if (e.button === 0 || e.button === 2) {
+            // Regular click/right-click: orbit or pan — skip hover raycasts
+            orbiting = true;
+        }
     });
 
     canvas.addEventListener('pointerup', (e) => {
+        orbiting = false;
         if (!downInfo || !state.curData || e.button !== 0) { downInfo = null; return; }
 
         const dx = e.clientX - downInfo.x;
@@ -122,6 +187,15 @@ export function setupEditMode() {
             }
             return;
         }
+
+        // Skip while orbiting/panning — no hover lookup during drag
+        if (orbiting) return;
+
+        // Throttle hover updates
+        const now = performance.now();
+        if (now - lastHoverTime < HOVER_INTERVAL) return;
+        lastHoverTime = now;
+
         const hit = getHitInfo(e);
         const newPlate = hit ? hit.plate : -1;
         if (newPlate !== state.hoveredPlate) {

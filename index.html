@@ -26,9 +26,10 @@
             <summary>Shape Your World</summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">200000</span></label>
-                    <input type="range" id="sN" min="2000" max="640000" value="200000" step="1000">
+                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">201,000</span></label>
+                    <input type="range" id="sN" min="0" max="1000" step="1" value="600">
                     <div class="slider-hint"><span>Coarse</span><span>Fine</span></div>
+                    <div class="detail-warn" id="detailWarn"></div>
                 </div>
                 <div class="cg">
                     <label>Irregularity <span class="tip" data-tip="How randomly the cell points are scattered — 0 gives a uniform grid, 1 gives fully organic, irregular shapes">?</span> <span class="v" id="vJ">0.75</span></label>

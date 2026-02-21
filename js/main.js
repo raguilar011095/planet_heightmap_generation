@@ -9,6 +9,7 @@ import { generate } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
 import { buildMesh, buildMapMesh, rebuildGrids } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
+import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 
 // Slider value displays + stale tracking
 const sliderIds = ['sN','sP','sCn','sJ','sNs'];
@@ -26,9 +27,34 @@ function checkStale() {
     btn.textContent = stale ? 'Rebuild' : 'Build New World';
 }
 
+// Detail slider warning update
+function updateDetailWarning(detail) {
+    const cg = document.getElementById('sN').closest('.cg');
+    const warn = document.getElementById('detailWarn');
+    cg.classList.remove('detail-orange', 'detail-red');
+    warn.className = 'detail-warn';
+    if (detail > 1280000) {
+        cg.classList.add('detail-red');
+        warn.classList.add('red');
+        warn.textContent = '\u26A0 Very high \u2014 generation will be slow';
+    } else if (detail > 640000) {
+        cg.classList.add('detail-orange');
+        warn.classList.add('orange');
+        warn.textContent = '\u26A0 High detail \u2014 may slow generation';
+    } else {
+        warn.textContent = '';
+    }
+}
+
 for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs']]) {
     document.getElementById(s).addEventListener('input', e => {
-        document.getElementById(v).textContent = e.target.value;
+        if (s === 'sN') {
+            const detail = detailFromSlider(+e.target.value);
+            document.getElementById(v).textContent = detail.toLocaleString();
+            updateDetailWarning(detail);
+        } else {
+            document.getElementById(v).textContent = e.target.value;
+        }
         checkStale();
     });
 }
@@ -79,7 +105,7 @@ function updatePlanetCode(flash) {
     if (!d) return;
     const code = encodePlanetCode(
         d.seed,
-        +document.getElementById('sN').value,
+        detailFromSlider(+document.getElementById('sN').value),
         +document.getElementById('sJ').value,
         +document.getElementById('sP').value,
         +document.getElementById('sCn').value,
@@ -125,7 +151,7 @@ function applyCode(code) {
     }
     seedError.classList.remove('visible');
     // Set slider values + fire input events to update displays
-    const map = { sN: params.N, sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness };
+    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;
@@ -316,12 +342,17 @@ window.addEventListener('resize', () => {
 
     helpBtn.addEventListener('click', openModal);
 
-    // Auto-show on first visit
-    if (localStorage.getItem(LS_KEY)) {
-        overlay.classList.add('hidden');
-    } else {
-        overlay.classList.remove('hidden');
-        showStep(0);
+    // Auto-show on first visit — wait until the loading screen has faded out
+    overlay.classList.add('hidden');
+    if (!localStorage.getItem(LS_KEY)) {
+        genBtn.addEventListener('generate-done', () => {
+            const loading = document.getElementById('loadingScreen');
+            if (loading) {
+                loading.addEventListener('transitionend', () => openModal(), { once: true });
+            } else {
+                openModal();
+            }
+        }, { once: true });
     }
 })();
 
@@ -329,7 +360,7 @@ window.addEventListener('resize', () => {
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
 if (hashParams) {
-    const map = { sN: hashParams.N, sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness };
+    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;

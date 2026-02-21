@@ -148,6 +148,13 @@ button#generate.generating {
     margin-bottom: 4px;
     pointer-events: none;
 }
+/* Detail slider warning levels */
+.cg.detail-orange input[type=range] { accent-color: #e8a020; }
+.cg.detail-red input[type=range] { accent-color: #d04030; }
+.detail-warn { font-size: 11px; margin-top: -2px; margin-bottom: 4px; }
+.detail-warn:empty { display: none; }
+.detail-warn.orange { color: #e8a020; }
+.detail-warn.red { color: #d04030; }
 #topInfo {
     position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
     font-size: 13px; color: #889;
@@ -178,16 +185,16 @@ button#generate.generating {
 /* Help button */
 #helpBtn {
     position: absolute; top: 16px; right: 16px;
-    width: 32px; height: 32px; border-radius: 50%;
-    background: rgba(8,8,28,0.88); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.08);
-    color: #bcd; font-size: 16px; font-weight: 600;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: rgba(40,60,120,0.7); backdrop-filter: blur(12px);
+    border: 1px solid rgba(100,160,255,0.25);
+    color: #8bf; font-size: 18px; font-weight: 700;
     cursor: pointer; z-index: 50;
     display: flex; align-items: center; justify-content: center;
-    transition: background 0.2s, color 0.2s;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
     padding: 0; line-height: 1;
 }
-#helpBtn:hover { background: rgba(255,255,255,0.12); color: #fff; }
+#helpBtn:hover { background: rgba(60,90,180,0.8); border-color: rgba(100,160,255,0.5); color: #fff; }
 
 /* Tutorial overlay */
 #tutorialOverlay {
@@ -195,7 +202,7 @@ button#generate.generating {
     background: rgba(0,0,0,0.6);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.5s ease;
 }
 #tutorialOverlay.hidden {
     opacity: 0; pointer-events: none;
@@ -210,10 +217,10 @@ button#generate.generating {
     border-radius: 12px;
     padding: 32px 28px 24px;
     color: #cde;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.5s ease, transform 0.5s ease;
 }
 #tutorialOverlay.hidden #tutorialCard {
-    opacity: 0; transform: translateY(-12px);
+    opacity: 0; transform: translateY(-16px);
 }
 
 /* Close button */

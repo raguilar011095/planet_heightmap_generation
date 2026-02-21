@@ -8,6 +8,7 @@ import { assignOceanLand } from './ocean-land.js';
 import { assignElevation } from './elevation.js';
 import { computePlateColors, buildMesh } from './planet-mesh.js';
 import { state } from './state.js';
+import { detailFromSlider } from './detail-scale.js';
 
 export function generate(overrideSeed, toggledIndices = []) {
     const btn = document.getElementById('generate');
@@ -16,7 +17,7 @@ export function generate(overrideSeed, toggledIndices = []) {
     btn.classList.add('generating');
 
     // Capture slider values before deferring so they're consistent
-    const N     = +document.getElementById('sN').value;
+    const N     = detailFromSlider(+document.getElementById('sN').value);
     const P     = +document.getElementById('sP').value;
     const jitter= +document.getElementById('sJ').value;
     const nMag  = +document.getElementById('sNs').value;

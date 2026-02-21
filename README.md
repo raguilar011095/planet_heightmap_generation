@@ -60,7 +60,7 @@ All generation parameters live in a single section:
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Detail | 2,000 – 640,000 | 200,000 | Number of Voronoi cells on the sphere |
+| Detail | 2,000 – 2,560,000 | 200,000 | Number of Voronoi cells on the sphere |
 | Irregularity | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
@@ -141,6 +141,7 @@ js/
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info
+  detail-scale.js       Non-linear (quadratic) detail slider mapping
 ```
 
 ## Dependencies
