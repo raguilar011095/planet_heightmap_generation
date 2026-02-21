@@ -15,7 +15,7 @@ function recomputeElevation() {
     const nMag   = +document.getElementById('sNs').value;
     const spread = 5;
 
-    const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress } =
+    const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } =
         assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
 
     const t_elevation = new Float32Array(mesh.numTriangles);
@@ -25,7 +25,7 @@ function recomputeElevation() {
         t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
     }
 
-    Object.assign(state.curData, { r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress });
+    Object.assign(state.curData, { r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers });
     computePlateColors(plateSeeds, plateIsOcean);
     buildMesh();
 }
