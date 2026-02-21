@@ -12,7 +12,7 @@ All three tenets should be considered simultaneously. When they conflict, break 
 2. **Ease of use and efficiency** — The interface should be approachable and intuitive. Generation should be fast. Don't sacrifice usability for realism.
 3. **Scientific plausibility** — Terrain, tectonics, and geology should be grounded in real planetary science. Results don't need to be physically accurate simulations, but they should be believable.
 
-## Key Rule
+## Key Rules
 
 After any code change, check whether README.md needs updating. The README documents all UI controls, features, algorithms, and project structure. If a change adds, removes, or modifies any of the following, update the README to match:
 
@@ -22,3 +22,9 @@ After any code change, check whether README.md needs updating. The README docume
 - Visual features (rendering, overlays, debug layers)
 - Project file structure (new files, renamed files, removed files)
 - External dependencies
+
+After any code change, check whether the tutorial modal content (in `index.html`, inside `#tutorialOverlay`) needs updating. The tutorial has three steps that describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
+
+- Core workflow (how to generate a planet, what controls to use)
+- Interactive features (navigation, editing, keyboard/mouse actions)
+- What the tool does or its key selling points

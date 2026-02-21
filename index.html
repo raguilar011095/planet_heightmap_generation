@@ -83,6 +83,35 @@
             </div>
         </details>
     </div>
+    <button id="helpBtn" title="Tutorial">?</button>
+
+    <div id="tutorialOverlay" class="hidden">
+        <div id="tutorialCard">
+            <button id="tutorialClose">&times;</button>
+            <div class="tutorial-step" data-step="0">
+                <h3>Welcome to World Buildr</h3>
+                <p>Generate unique procedural planets shaped by tectonic forces. Every world is one of a kind — with realistic continents, mountains, ocean trenches, and volcanic islands.</p>
+            </div>
+            <div class="tutorial-step" data-step="1">
+                <h3>Shape Your World</h3>
+                <p>Use the sliders in the left panel to control your planet's detail, plate count, number of continents, and terrain roughness. Then hit <strong>Build New World</strong> to generate.</p>
+            </div>
+            <div class="tutorial-step" data-step="2">
+                <h3>Explore &amp; Edit</h3>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents — ocean rises into land, land floods into ocean.</p>
+            </div>
+            <div class="tutorial-dots">
+                <span class="dot active" data-dot="0"></span>
+                <span class="dot" data-dot="1"></span>
+                <span class="dot" data-dot="2"></span>
+            </div>
+            <div class="tutorial-nav">
+                <button id="tutorialBack" class="btn-ghost" disabled>Back</button>
+                <button id="tutorialNext" class="btn-primary">Next</button>
+            </div>
+        </div>
+    </div>
+
     <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
     <div id="hoverInfo"></div>
     <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>

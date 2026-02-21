@@ -69,6 +69,10 @@ All generation parameters live in a single section:
 
 - **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
 
+### Tutorial & Help
+
+A three-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, and interactive editing. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+
 ### Interaction
 
 Navigation hints are shown in the sidebar panel and as a contextual tooltip when hovering the planet.

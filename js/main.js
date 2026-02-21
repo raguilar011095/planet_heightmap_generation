@@ -117,6 +117,69 @@ window.addEventListener('resize', () => {
     renderer.setSize(innerWidth, innerHeight);
 });
 
+// Tutorial modal
+(function initTutorial() {
+    const overlay  = document.getElementById('tutorialOverlay');
+    const card     = document.getElementById('tutorialCard');
+    const closeBtn = document.getElementById('tutorialClose');
+    const backBtn  = document.getElementById('tutorialBack');
+    const nextBtn  = document.getElementById('tutorialNext');
+    const helpBtn  = document.getElementById('helpBtn');
+    const steps    = card.querySelectorAll('.tutorial-step');
+    const dots     = card.querySelectorAll('.dot');
+    const TOTAL    = steps.length;
+    const LS_KEY   = 'worldbuildr-tutorial-seen';
+    let current    = 0;
+
+    function showStep(i) {
+        current = i;
+        steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
+        dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+        backBtn.disabled = i === 0;
+        nextBtn.textContent = i === TOTAL - 1 ? 'Get Started' : 'Next';
+    }
+
+    function openModal() {
+        current = 0;
+        showStep(0);
+        overlay.classList.remove('hidden');
+    }
+
+    function closeModal() {
+        overlay.classList.add('hidden');
+        localStorage.setItem(LS_KEY, '1');
+    }
+
+    nextBtn.addEventListener('click', () => {
+        if (current < TOTAL - 1) showStep(current + 1);
+        else closeModal();
+    });
+
+    backBtn.addEventListener('click', () => {
+        if (current > 0) showStep(current - 1);
+    });
+
+    closeBtn.addEventListener('click', closeModal);
+
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) closeModal();
+    });
+
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
+    });
+
+    helpBtn.addEventListener('click', openModal);
+
+    // Auto-show on first visit
+    if (localStorage.getItem(LS_KEY)) {
+        overlay.classList.add('hidden');
+    } else {
+        overlay.classList.remove('hidden');
+        showStep(0);
+    }
+})();
+
 // Go!
 generate();
 animate();
