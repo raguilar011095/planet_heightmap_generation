@@ -1,8 +1,8 @@
-# Procedural Planet Generator
+# World Buildr
 
 A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Uses native ES modules with no build step required.
 
-![Planet Generator](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
+![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
 
 ## Features
 
@@ -10,12 +10,15 @@ A browser-based procedural planet generator that creates realistic terrestrial p
 - **Tectonic plate simulation** — round-robin flood fill with directional growth bias, boundary smoothing, and fragment reconnection
 - **Ocean/land assignment** — farthest-point continent seeding, round-robin growth with separation guarantees, trapped sea absorption, targeting ~30% land coverage
 - **Collision detection** — convergent, divergent, and transform boundary classification with density-based subduction modeling
-- **Elevation generation** — three distance fields (mountain/ocean/coastline) combined via harmonic-mean formula, stress-driven uplift, continental shelf/slope/abyss profiles, mid-ocean ridges, trenches, foreland basins, and rift valleys
-- **Coastal roughening** — fractal noise, domain warping for bays/headlands, and offshore island scattering
+- **Elevation generation** — three distance fields (mountain/ocean/coastline) combined via harmonic-mean formula, stress-driven uplift, asymmetric mountain profiles, continental shelf/slope/abyss profiles, foreland basins, plateau formation, and rift valleys with graben profiles
+- **Ocean floor features** — mid-ocean ridges at divergent boundaries, deep trenches at subduction zones, fracture zones at transform boundaries, back-arc basins behind subduction zones
+- **Island arcs** — volcanic island chains at ocean-ocean convergent boundaries with ridged noise shaping
+- **Hotspot volcanism** — mantle plume simulation with drift-trail island chains, per-hotspot variation in strength/decay/spacing, and volcanic texture noise
+- **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
-- **Interactive editing** — toggle plates between land/sea, set drift directions by dragging, adjust plate densities
-- **Visualization overlays** — Voronoi cell borders, plate coloring, boundary stress view
+- **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
+- **Debug visualization** — ten selectable layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc) for inspecting each elevation component
 
 ## Quick Start
 
@@ -37,38 +40,31 @@ Click **Generate New Planet** to create a new random planet.
 
 ### Sliders
 
-| Control | Range | Description |
-|---------|-------|-------------|
-| Regions | 2,000 - 640,000 | Number of Voronoi cells on the sphere |
-| Plates | 4 - 120 | Number of tectonic plates |
-| Continents | 1 - 10 | Number of separate landmasses |
-| Jitter | 0 - 1 | Randomization of Fibonacci point positions |
-| Noise | 0 - 0.4 | Fractal noise magnitude for terrain detail |
-| Collision Spread | 0 - 10 | How far collision stress propagates inland |
-| Water Level | -0.5 - 0.5 | Raises or lowers the sea level |
+| Control | Range | Default | Description |
+|---------|-------|---------|-------------|
+| Regions | 2,000 – 640,000 | 200,000 | Number of Voronoi cells on the sphere |
+| Jitter | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
+| Plates | 4 – 120 | 80 | Number of tectonic plates |
+| Continents | 1 – 10 | 4 | Target number of separate landmasses |
+| Noise | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
 
-### Toggles
+### Visual Options
 
-- **Borders** — show Voronoi cell edges
-- **Plates** — color regions by plate (green = land, blue = ocean)
-- **Boundaries** — visualize boundary types and stress magnitude
+- **View** dropdown — switch between Globe and Map (equirectangular projection)
+- **Cell Grid** — show Voronoi cell edges as a wireframe overlay
+- **Plates** — color regions by plate (green shades = land, blue shades = ocean)
 - **Rotate** — auto-rotate the globe
-- **Edit Mode** — enable interactive plate editing
-- **Map** — switch to equirectangular map projection
 
-### Edit Mode
+### Advanced Visualization
 
-When Edit Mode is enabled, three sub-modes are available:
+- **Debug Layer** dropdown — select an elevation component to visualize in isolation: Normal, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
 
-- **Land / Sea** — click a plate to toggle between land and ocean
-- **Set Drift** — click and drag on a plate to change its movement direction
-- **Density** — click to increase plate density (+0.1), shift+click to decrease (-0.1)
+### Interaction
 
-### Navigation
-
-- **Drag** to rotate the globe
-- **Scroll** to zoom in/out
-- **Hover** over a plate to see its type, density, and drift direction
+- **Drag** to rotate the globe (or pan in map view)
+- **Scroll** to zoom in/out (smooth lerp-based zoom)
+- **Hover** over the planet to highlight the plate under the cursor and see its type (Ocean/Land)
+- **Ctrl-click** a plate to toggle it between land and ocean (elevation is recomputed automatically)
 
 ## How It Works
 
@@ -82,7 +78,7 @@ When Edit Mode is enabled, three sub-modes are available:
 6. **Ocean/land assignment** using farthest-point continent seeding with area budgeting
 7. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
 8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
-9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, and multi-layered noise
+9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
 10. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
@@ -92,6 +88,8 @@ When Edit Mode is enabled, three sub-modes are available:
 - **Harmonic-mean distance blending** — `(1/a - 1/b) / (1/a + 1/b + 1/c)` for smooth elevation transitions
 - **Domain warping** — noise-driven coordinate offsets for organic coastlines
 - **Density-based subduction** — tanh mapping of density differences with undulation noise
+- **BFS distance fields** — randomized frontier expansion from boundary seeds, used for elevation, coast distance, rift width, ridge profiles, and back-arc basins
+- **Gaussian dome uplift** — hotspot volcanism modeled as great-circle-distance Gaussians with shape warping noise
 
 ## Project Structure
 
@@ -110,8 +108,8 @@ js/
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   scene.js              Three.js scene, cameras, controls, lights
-  planet-mesh.js        Voronoi mesh, map projection, hover highlight, drift arrows
-  edit-mode.js          Edit mode interaction + pointer event handling
+  planet-mesh.js        Voronoi mesh, map projection, hover highlight
+  edit-mode.js          Ctrl-click plate toggle + hover info
 ```
 
 ## Dependencies

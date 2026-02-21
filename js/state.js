@@ -9,6 +9,8 @@ export const state = {
     baseColors: null,
     hoveredPlate: -1,
     mapMesh: null,
+    mapFaceToSide: null,
+    mapBaseColors: null,
     mapMode: false,
     dragStart: null,
     debugLayer: '',

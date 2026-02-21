@@ -63,6 +63,7 @@ export function buildMapMesh() {
 
     const posArr = new Float32Array(numSides * 18);
     const colArr = new Float32Array(numSides * 18);
+    const faceToSide = new Int32Array(numSides * 2);  // max faces = 2x sides (wrapping)
     let triCount = 0;
 
     for (let s = 0; s < numSides; s++) {
@@ -114,6 +115,7 @@ export function buildMapMesh() {
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            faceToSide[triCount] = s;
             triCount++;
 
             off = triCount * 9;
@@ -123,6 +125,7 @@ export function buildMapMesh() {
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            faceToSide[triCount] = s;
             triCount++;
         } else {
             const off = triCount * 9;
@@ -132,6 +135,7 @@ export function buildMapMesh() {
             colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
             colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
             colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            faceToSide[triCount] = s;
             triCount++;
         }
     }
@@ -145,6 +149,8 @@ export function buildMapMesh() {
 
     state.mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     state.mapMesh.visible = state.mapMode;
+    state.mapFaceToSide = faceToSide.subarray(0, triCount);
+    state.mapBaseColors = new Float32Array(finalCol);
     scene.add(state.mapMesh);
 }
 
@@ -317,6 +323,32 @@ export function updateHoverHighlight() {
             const br = mesh.s_begin_r(s);
             if (r_plate[br] === state.hoveredPlate) {
                 const off = s * 9;
+                for (let j = 0; j < 3; j++) {
+                    colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
+                    colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
+                    colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
+                }
+            }
+        }
+    }
+    colorAttr.needsUpdate = true;
+}
+
+// Hover highlight for map mesh.
+export function updateMapHoverHighlight() {
+    if (!state.mapMesh || !state.curData || !state.mapBaseColors || !state.mapFaceToSide) return;
+    const colorAttr = state.mapMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+    colors.set(state.mapBaseColors);
+
+    if (state.hoveredPlate >= 0) {
+        const { mesh, r_plate } = state.curData;
+        const fts = state.mapFaceToSide;
+        for (let f = 0; f < fts.length; f++) {
+            const s = fts[f];
+            const br = mesh.s_begin_r(s);
+            if (r_plate[br] === state.hoveredPlate) {
+                const off = f * 9;
                 for (let j = 0; j < 3; j++) {
                     colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
                     colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);

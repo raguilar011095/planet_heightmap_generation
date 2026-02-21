@@ -1,10 +1,10 @@
 // Plate interaction: hover info + ctrl-click to toggle land/sea.
 
 import * as THREE from 'three';
-import { canvas, camera } from './scene.js';
+import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
 import { assignElevation } from './elevation.js';
-import { computePlateColors, buildMesh, updateHoverHighlight } from './planet-mesh.js';
+import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -32,17 +32,31 @@ function recomputeElevation() {
 
 /** Raycast to find which plate the mouse is over. */
 function getHitInfo(event) {
-    if (!state.planetMesh || !state.curData) return null;
+    if (!state.curData) return null;
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
     mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(mouse, camera);
-    const hits = raycaster.intersectObject(state.planetMesh);
-    if (hits.length === 0) return null;
-    const s = hits[0].faceIndex;
-    const region = state.curData.mesh.s_begin_r(s);
-    const plate = state.curData.r_plate[region];
-    return { region, plate };
+
+    if (state.mapMode) {
+        if (!state.mapMesh || !state.mapFaceToSide) return null;
+        raycaster.setFromCamera(mouse, mapCamera);
+        const hits = raycaster.intersectObject(state.mapMesh);
+        if (hits.length === 0) return null;
+        const faceIdx = hits[0].faceIndex;
+        const s = state.mapFaceToSide[faceIdx];
+        const region = state.curData.mesh.s_begin_r(s);
+        const plate = state.curData.r_plate[region];
+        return { region, plate };
+    } else {
+        if (!state.planetMesh) return null;
+        raycaster.setFromCamera(mouse, camera);
+        const hits = raycaster.intersectObject(state.planetMesh);
+        if (hits.length === 0) return null;
+        const s = hits[0].faceIndex;
+        const region = state.curData.mesh.s_begin_r(s);
+        const plate = state.curData.r_plate[region];
+        return { region, plate };
+    }
 }
 
 /** Set up hover and ctrl-click event listeners. */
@@ -99,7 +113,7 @@ export function setupEditMode() {
     });
 
     canvas.addEventListener('pointermove', (e) => {
-        if (state.mapMode || !state.curData || !state.planetMesh) {
+        if (!state.curData) {
             if (state.hoveredPlate >= 0) {
                 state.hoveredPlate = -1;
                 document.getElementById('hoverInfo').style.display = 'none';
@@ -110,7 +124,8 @@ export function setupEditMode() {
         const newPlate = hit ? hit.plate : -1;
         if (newPlate !== state.hoveredPlate) {
             state.hoveredPlate = newPlate;
-            updateHoverHighlight();
+            if (state.mapMode) updateMapHoverHighlight();
+            else updateHoverHighlight();
             const hoverEl = document.getElementById('hoverInfo');
             if (state.hoveredPlate >= 0) {
                 const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
