@@ -12,7 +12,7 @@ import { state } from './state.js';
 export function generate() {
     const btn = document.getElementById('generate');
     btn.disabled = true;
-    btn.textContent = 'Generating\u2026';
+    btn.textContent = 'Building\u2026';
     btn.classList.add('generating');
 
     // Capture slider values before deferring so they're consistent
@@ -93,7 +93,7 @@ export function generate() {
             `<span style="color:#445;font-size:10px">mesh ${tMesh.toFixed(0)} · plates ${tPlates.toFixed(0)} · elev ${tElev.toFixed(0)} · render ${tBuild.toFixed(0)}</span>`;
 
         btn.disabled = false;
-        btn.textContent = 'Generate New Planet';
+        btn.textContent = 'Build New World';
         btn.classList.remove('generating', 'stale');
         btn.dispatchEvent(new CustomEvent('generate-done'));
     }, 16);

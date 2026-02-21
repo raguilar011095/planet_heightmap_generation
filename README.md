@@ -4,6 +4,14 @@ A browser-based procedural planet generator that creates realistic terrestrial p
 
 ![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
 
+## Guiding Principles
+
+1. **Artistic appeal** — Visually interesting, scientifically informed output. Aesthetics come first.
+2. **Ease of use and efficiency** — Approachable interface, fast generation. Don't sacrifice usability for realism.
+3. **Scientific plausibility** — Grounded in real planetary science. Believable, not necessarily physically accurate.
+
+All three are considered together; ties are broken in the order above.
+
 ## Features
 
 - **Fibonacci sphere meshing** with Voronoi cell tessellation via Delaunay triangulation
@@ -18,7 +26,7 @@ A browser-based procedural planet generator that creates realistic terrestrial p
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
 - **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
-- **Debug visualization** — ten selectable layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc) for inspecting each elevation component
+- **Detailed visualization** — ten selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc) for viewing each elevation component in isolation
 
 ## Quick Start
 
@@ -34,37 +42,41 @@ npx serve .
 
 Then open **http://localhost:8000** in your browser. No dependencies to install, no build step.
 
-Click **Generate New Planet** to create a new random planet.
+Click **Build New World** to create a new random planet.
 
 ## Controls
 
-### Sliders
+### Shape Your World
+
+All generation parameters live in a single section:
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Regions | 2,000 – 640,000 | 200,000 | Number of Voronoi cells on the sphere |
-| Jitter | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
+| Detail | 2,000 – 640,000 | 200,000 | Number of Voronoi cells on the sphere |
+| Irregularity | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
-| Noise | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
+| Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
 
 ### Visual Options
 
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
-- **Cell Grid** — show Voronoi cell edges as a wireframe overlay
-- **Plates** — color regions by plate (green shades = land, blue shades = ocean)
-- **Rotate** — auto-rotate the globe
+- **Wireframe** — show Voronoi cell edges as a wireframe overlay
+- **Show Plates** — color regions by plate (green shades = land, blue shades = ocean)
+- **Auto-Rotate** — spin the globe continuously
 
-### Advanced Visualization
+### Detailed Visualization
 
-- **Debug Layer** dropdown — select an elevation component to visualize in isolation: Normal, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
 
 ### Interaction
 
+Navigation hints are shown in the sidebar panel and as a contextual tooltip when hovering the planet.
+
 - **Drag** to rotate the globe (or pan in map view)
 - **Scroll** to zoom in/out (smooth lerp-based zoom)
-- **Hover** over the planet to highlight the plate under the cursor and see its type (Ocean/Land)
-- **Ctrl-click** a plate to toggle it between land and ocean (elevation is recomputed automatically)
+- **Hover** over the planet to highlight the plate under the cursor and see its type
+- **Ctrl-click** a plate to reshape continents — ocean plates rise into land, land plates flood into ocean (elevation is recomputed automatically)
 
 ## How It Works
 

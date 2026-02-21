@@ -11,25 +11,20 @@
     <canvas id="canvas"></canvas>
     <div id="ui">
         <h2>World Buildr</h2>
-        <div class="sub">Procedural terrain shaped by tectonic forces</div>
+        <div class="sub">Build worlds shaped by tectonic forces</div>
         <details class="section" open>
-            <summary>Planet Mesh</summary>
+            <summary>Shape Your World</summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Regions <span class="tip" data-tip="Resolution of the sphere — more regions means finer coastlines and terrain detail, but takes longer to generate">?</span> <span class="v" id="vN">200000</span></label>
+                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">200000</span></label>
                     <input type="range" id="sN" min="2000" max="640000" value="200000" step="1000">
                     <div class="slider-hint"><span>Coarse</span><span>Fine</span></div>
                 </div>
                 <div class="cg">
-                    <label>Jitter <span class="tip" data-tip="How randomly the cell points are scattered — 0 gives a uniform grid, 1 gives fully organic, irregular shapes">?</span> <span class="v" id="vJ">0.75</span></label>
+                    <label>Irregularity <span class="tip" data-tip="How randomly the cell points are scattered — 0 gives a uniform grid, 1 gives fully organic, irregular shapes">?</span> <span class="v" id="vJ">0.75</span></label>
                     <input type="range" id="sJ" min="0" max="1" value="0.75" step="0.05">
                     <div class="slider-hint"><span>Uniform</span><span>Scattered</span></div>
                 </div>
-            </div>
-        </details>
-        <details class="section" open>
-            <summary>Orogeny</summary>
-            <div class="section-body">
                 <div class="cg">
                     <label>Plates <span class="tip" data-tip="Number of tectonic plates — more plates means more boundaries where mountains, trenches, and coastlines form">?</span> <span class="v" id="vP">80</span></label>
                     <input type="range" id="sP" min="4" max="120" value="80" step="1">
@@ -41,13 +36,13 @@
                     <div class="slider-hint"><span>Supercontinent</span><span>Archipelago</span></div>
                 </div>
                 <div class="cg">
-                    <label>Noise <span class="tip" data-tip="Terrain roughness — higher adds more detail">?</span> <span class="v" id="vNs">0.40</span></label>
+                    <label>Roughness <span class="tip" data-tip="Terrain roughness — higher values add more fractal detail to mountains and coastlines">?</span> <span class="v" id="vNs">0.40</span></label>
                     <input type="range" id="sNs" min="0" max="0.5" value="0.40" step="0.01">
                     <div class="slider-hint"><span>Smooth</span><span>Rugged</span></div>
                 </div>
             </div>
         </details>
-        <button id="generate">Generate New Planet</button>
+        <button id="generate">Build New World</button>
         <details class="section" open>
             <summary>Visual Options</summary>
             <div class="section-body">
@@ -59,19 +54,19 @@
                     </select>
                 </div>
                 <div class="tg">
-                    <label><input type="checkbox" id="chkWire"> Cell Grid</label>
-                    <label><input type="checkbox" id="chkPlates"> Plates</label>
-                    <label><input type="checkbox" id="chkRotate"> Rotate</label>
+                    <label><input type="checkbox" id="chkWire"> Wireframe</label>
+                    <label><input type="checkbox" id="chkPlates"> Show Plates</label>
+                    <label><input type="checkbox" id="chkRotate"> Auto-Rotate</label>
                 </div>
             </div>
         </details>
-        <details class="section">
-            <summary>Advanced Visualization</summary>
+        <details class="section" open>
+            <summary>Detailed Visualization</summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Debug Layer</label>
+                    <label>Inspect</label>
                     <select id="debugLayer">
-                        <option value="">Normal</option>
+                        <option value="">Terrain</option>
                         <option value="base">Base</option>
                         <option value="tectonic">Tectonic</option>
                         <option value="noise">Noise</option>
@@ -88,8 +83,9 @@
             </div>
         </details>
     </div>
+    <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
     <div id="hoverInfo"></div>
-    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click plate to toggle land/sea</div>
+    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
 
     <script type="importmap">
     {

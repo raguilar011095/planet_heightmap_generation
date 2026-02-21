@@ -94,7 +94,25 @@ button#generate.generating {
     margin-bottom: 4px;
     pointer-events: none;
 }
-#info { position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%); font-size: 13px; color: #667; }
+#topInfo {
+    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #889;
+    background: rgba(8,8,28,0.85); backdrop-filter: blur(8px);
+    padding: 6px 14px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    white-space: nowrap; pointer-events: none;
+}
+#info {
+    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    font-size: 13px; color: #667; transition: color 0.4s ease;
+}
+#info.nudge { animation: infoNudge 2.5s ease; }
+@keyframes infoNudge {
+    0%   { color: #667; }
+    15%  { color: #acd; }
+    85%  { color: #acd; }
+    100% { color: #667; }
+}
 #hoverInfo {
     position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
     font-size: 14px; color: #cde; background: rgba(8,8,28,0.85);

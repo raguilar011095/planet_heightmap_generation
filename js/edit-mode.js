@@ -88,24 +88,24 @@ export function setupEditMode() {
             }
 
             const hoverEl = document.getElementById('hoverInfo');
-            hoverEl.innerHTML = '\u23F3 Regenerating\u2026';
+            hoverEl.innerHTML = '\u23F3 Rebuilding\u2026';
             hoverEl.style.display = 'block';
 
             const btn = document.getElementById('generate');
             btn.disabled = true;
-            btn.textContent = 'Generating\u2026';
+            btn.textContent = 'Building\u2026';
             btn.classList.add('generating');
 
             setTimeout(() => {
                 recomputeElevation();
                 btn.disabled = false;
-                btn.textContent = 'Generate New Planet';
+                btn.textContent = 'Build New World';
                 btn.classList.remove('generating');
                 // Update hover info to reflect the new state
                 if (state.hoveredPlate >= 0 && state.curData) {
                     const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
                     const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
-                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> &nbsp; Ctrl-click to toggle`;
+                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate &middot; Ctrl-click to ${isOcean ? 'raise land' : 'flood'}`;
                 }
             }, 16);
         }
@@ -131,7 +131,7 @@ export function setupEditMode() {
                 const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
                 const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
                 const typeStr = isOcean ? 'Ocean' : 'Land';
-                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> &nbsp; Ctrl-click to toggle`;
+                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> plate &middot; Ctrl-click to ${isOcean ? 'raise land' : 'flood'}`;
                 hoverEl.style.display = 'block';
             } else {
                 hoverEl.style.display = 'none';

@@ -22,7 +22,7 @@ function checkStale() {
     if (btn.classList.contains('generating')) return;
     const stale = sliderIds.some(id => document.getElementById(id).value !== lastGenValues[id]);
     btn.classList.toggle('stale', stale);
-    btn.textContent = stale ? 'Regenerate' : 'Generate New Planet';
+    btn.textContent = stale ? 'Rebuild' : 'Build New World';
 }
 
 for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs']]) {
@@ -36,6 +36,14 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
 const genBtn = document.getElementById('generate');
 genBtn.addEventListener('click', generate);
 genBtn.addEventListener('generate-done', snapshotSliders);
+genBtn.addEventListener('generate-done', () => {
+    const infoEl = document.getElementById('info');
+    if (!infoEl.dataset.nudged) {
+        infoEl.dataset.nudged = '1';
+        infoEl.classList.add('nudge');
+        infoEl.addEventListener('animationend', () => infoEl.classList.remove('nudge'), { once: true });
+    }
+}, { once: true });
 
 // View-mode checkboxes
 for (const id of ['chkWire','chkPlates'])

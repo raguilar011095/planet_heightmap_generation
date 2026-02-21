@@ -4,6 +4,14 @@
 
 World Buildr — a browser-based procedural planet generator using Three.js and ES modules with no build step.
 
+## Guiding Principles
+
+All three tenets should be considered simultaneously. When they conflict, break ties in this order:
+
+1. **Artistic appeal** — The output should look visually interesting and compelling, informed by real science but not constrained by it. Aesthetics come first.
+2. **Ease of use and efficiency** — The interface should be approachable and intuitive. Generation should be fast. Don't sacrifice usability for realism.
+3. **Scientific plausibility** — Terrain, tectonics, and geology should be grounded in real planetary science. Results don't need to be physically accurate simulations, but they should be believable.
+
 ## Key Rule
 
 After any code change, check whether README.md needs updating. The README documents all UI controls, features, algorithms, and project structure. If a change adds, removes, or modifies any of the following, update the README to match:
