@@ -203,6 +203,8 @@ export function expandRegions(mesh, regions, steps) {
 export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity) {
     const { numRegions } = mesh;
     const r_elevation = new Float32Array(numRegions);
+    const _timing = [];
+    let _t0 = performance.now();
 
     // Debug layers — track each component's contribution
     const dl_base     = new Float32Array(numRegions);
@@ -218,6 +220,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
+    _timing.push({ stage: 'Collisions', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Propagate stress inward
     const scaleFactor = Math.sqrt(numRegions / 10000);
@@ -227,6 +230,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const subductDecayFactor = Math.pow(subductBaseDecay, 1 / scaleFactor);
     const numPasses = Math.max(1, Math.round(spread * 3 * scaleFactor));
     propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
+    _timing.push({ stage: 'Stress propagation', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Plate centres are also seeds
     for (const r of plateSeeds) {
@@ -278,6 +282,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         if (r_isOcean[r]) oceanBarriers.add(r);
     }
     const dist_coast_land = assignDistanceField(mesh, landCoastSeeds, oceanBarriers, seed + 5);
+    _timing.push({ stage: 'Distance fields (6x BFS)', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Fixed band width for interior uplift (in BFS cells), scaled by resolution.
     // Tune INTERIOR_BAND_BASE to control how many cells deep the transition is.
@@ -384,6 +389,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
     const riftNoise = new SimplexNoise(seed + 419);
+    _timing.push({ stage: 'Coast boundary + rift BFS', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // ---- Mid-ocean ridge BFS (wider ridge feature from divergent ocean-ocean boundaries) ----
     const RIDGE_HALF_WIDTH_BASE = 4;
@@ -478,6 +484,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
         }
     }
+
+    _timing.push({ stage: 'Ridge/fracture/back-arc BFS', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
@@ -732,6 +740,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
+    _timing.push({ stage: 'Main elevation loop (land+ocean)', ms: performance.now() - _t0 }); _t0 = performance.now();
+
     // Coastal roughening (uses hoisted coastBdry BFS data: dBdry, coastStressMax, etc.)
     {
         const coastRoughenDist = Math.max(8, Math.round(8 * scaleFactor));
@@ -807,6 +817,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
+    _timing.push({ stage: 'Coastal roughening', ms: performance.now() - _t0 }); _t0 = performance.now();
+
     // Island arcs — ocean-ocean convergent boundary uplift
     {
         const arcNoise = new SimplexNoise(seed + 307);
@@ -862,6 +874,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
         }
     }
+
+    _timing.push({ stage: 'Island arcs', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Hotspot volcanism — mantle plumes with drift chains
     {
@@ -967,6 +981,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
+    _timing.push({ stage: 'Hotspot volcanism', ms: performance.now() - _t0 });
+
     const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc };
-    return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers };
+    return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing };
 }

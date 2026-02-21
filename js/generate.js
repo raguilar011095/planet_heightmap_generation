@@ -35,7 +35,9 @@ export function generate(overrideSeed, toggledIndices = []) {
         const tMesh = performance.now() - t1;
 
         // 2. Triangle centres
+        const tTri0 = performance.now();
         const t_xyz = generateTriangleCenters(mesh, r_xyz);
+        const tTriCenters = performance.now() - tTri0;
 
         // 3. Plates
         const t2 = performance.now();
@@ -43,7 +45,9 @@ export function generate(overrideSeed, toggledIndices = []) {
         const tPlates = performance.now() - t2;
 
         // 4. Ocean / land
+        const tOcean0 = performance.now();
         const plateIsOcean = assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents);
+        const tOcean = performance.now() - tOcean0;
 
         // Snapshot original ocean/land assignment before any toggles
         const originalPlateIsOcean = new Set(plateIsOcean);
@@ -79,17 +83,19 @@ export function generate(overrideSeed, toggledIndices = []) {
 
         // 6. Elevation
         const t3 = performance.now();
-        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } =
+        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
             assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
         const tElev = performance.now() - t3;
 
         // 7. Triangle elevations
+        const tTriElev0 = performance.now();
         const t_elevation = new Float32Array(mesh.numTriangles);
         for (let t = 0; t < mesh.numTriangles; t++) {
             const s0 = 3 * t;
             const a = mesh.s_begin_r(s0), b = mesh.s_begin_r(s0+1), c = mesh.s_begin_r(s0+2);
             t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
         }
+        const tTriElev = performance.now() - tTriElev0;
 
         state.curData = { mesh, r_xyz, t_xyz, r_plate, plateSeeds, plateVec, plateIsOcean,
                           originalPlateIsOcean,
@@ -101,7 +107,41 @@ export function generate(overrideSeed, toggledIndices = []) {
         buildMesh();
         const tBuild = performance.now() - t4;
 
-        const ms = (performance.now() - t0).toFixed(0);
+        const tTotal = performance.now() - t0;
+
+        // ---- Console timing report ----
+        const f = v => v.toFixed(1);
+        console.log(
+            `%c[World Buildr] Generation complete`,
+            'color:#6cf;font-weight:bold'
+        );
+        console.log(
+            `  Parameters: detail=${N}  plates=${P}  continents=${numContinents}  jitter=${jitter}  roughness=${nMag}  seed=${seed}`
+        );
+        console.log(
+            `  Regions: ${mesh.numRegions.toLocaleString()}  Triangles: ${mesh.numTriangles.toLocaleString()}  Sides: ${mesh.numSides.toLocaleString()}`
+        );
+
+        const pipelineRows = [
+            { stage: 'Sphere mesh',      ms: tMesh },
+            { stage: 'Triangle centers', ms: tTriCenters },
+            { stage: 'Plates',           ms: tPlates },
+            { stage: 'Ocean/land',       ms: tOcean },
+            { stage: 'Elevation (total)', ms: tElev },
+            { stage: 'Triangle elevs',   ms: tTriElev },
+            { stage: 'Render (buildMesh)', ms: tBuild },
+        ];
+        console.log('  Pipeline breakdown:');
+        console.table(pipelineRows.map(r => ({ Stage: r.stage, 'ms': f(r.ms), '%': f(r.ms / tTotal * 100) + '%' })));
+
+        if (_timing) {
+            console.log('  Elevation sub-stages:');
+            console.table(_timing.map(r => ({ Stage: r.stage, 'ms': f(r.ms), '%': f(r.ms / tElev * 100) + '%' })));
+        }
+
+        console.log(`  TOTAL: ${f(tTotal)} ms`);
+
+        const ms = tTotal.toFixed(0);
         document.getElementById('stats').innerHTML =
             `Regions: ${mesh.numRegions.toLocaleString()}<br>` +
             `Triangles: ${mesh.numTriangles.toLocaleString()}<br>` +
