@@ -3,7 +3,8 @@
     "allow": [
       "Bash(python3:*)",
       "Bash(python -m http.server:*)",
-      "Bash(du:*)"
+      "Bash(du:*)",
+      "Bash(node:*)"
     ]
   }
 }

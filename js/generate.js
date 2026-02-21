@@ -25,6 +25,7 @@ export function generate(overrideSeed, toggledIndices = []) {
 
     // Defer heavy work so the browser can repaint the button state
     setTimeout(() => {
+      try {
         const t0 = performance.now();
         const seed = overrideSeed ?? Math.floor(Math.random() * 16777216);
         const rng  = makeRng(seed);
@@ -109,6 +110,18 @@ export function generate(overrideSeed, toggledIndices = []) {
 
         const tTotal = performance.now() - t0;
 
+        // ---- Diagnostics ----
+        {
+            let landCount = 0, nanCount = 0;
+            for (let r = 0; r < mesh.numRegions; r++) {
+                if (!plateIsOcean.has(r_plate[r])) landCount++;
+                if (isNaN(r_elevation[r])) nanCount++;
+            }
+            const landPct = (100 * landCount / mesh.numRegions).toFixed(1);
+            if (nanCount > 0) console.error(`[World Buildr] WARNING: ${nanCount} NaN elevation values detected!`);
+            if (landCount / mesh.numRegions < 0.10) console.warn(`[World Buildr] WARNING: Only ${landPct}% land (${landCount} regions). Ocean/land growth may have stalled.`);
+        }
+
         // ---- Console timing report ----
         const f = v => v.toFixed(1);
         console.log(
@@ -152,5 +165,11 @@ export function generate(overrideSeed, toggledIndices = []) {
         btn.textContent = 'Build New World';
         btn.classList.remove('generating', 'stale');
         btn.dispatchEvent(new CustomEvent('generate-done'));
+      } catch (err) {
+        console.error('[World Buildr] Generation failed:', err);
+        btn.disabled = false;
+        btn.textContent = 'Build New World';
+        btn.classList.remove('generating');
+      }
     }, 16);
 }

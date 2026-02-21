@@ -41,7 +41,10 @@ export function stereographicProjection(r_xyz, N) {
     const flat = new Float64Array(2 * N);
     for (let i = 0; i < N; i++) {
         const z = r_xyz[3*i+2];
-        const denom = 1 - z;
+        // Clamp denominator to prevent Infinity when a jittered point lands
+        // on or near the projection pole (z ≈ 1). The exact projected position
+        // doesn't matter for near-pole points — addPoleToMesh corrects connectivity.
+        const denom = Math.max(1e-12, 1 - z);
         flat[2*i]   = r_xyz[3*i]   / denom;
         flat[2*i+1] = r_xyz[3*i+1] / denom;
     }

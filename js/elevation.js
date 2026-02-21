@@ -954,26 +954,46 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
         }
 
+        // Pre-compute per-dome constants for the inner loop:
+        // - cosThresh: cosine-domain early exit (replaces Math.acos + comparison)
+        // - invS2: Gaussian exponent factor (avoids division in inner loop)
+        for (let d = 0; d < domes.length; d++) {
+            const dm = domes[d];
+            dm.cosThresh = Math.cos(dm.sigma * 5);
+            dm.invS2 = -0.5 / (dm.sigma * dm.sigma);
+        }
+
         // Apply dome uplift to all cells
         for (let r = 0; r < numRegions; r++) {
             const rx = r_xyz[3*r], ry = r_xyz[3*r+1], rz = r_xyz[3*r+2];
+
+            // Quick check: is this region near ANY dome? (cosine domain, no trig)
+            // Skips the expensive shapeWarp noise for the ~99% of regions far from all domes.
+            let near = false;
+            for (let d = 0; d < domes.length; d++) {
+                if (domes[d].x * rx + domes[d].y * ry + domes[d].z * rz > domes[d].cosThresh) {
+                    near = true; break;
+                }
+            }
+            if (!near) continue;
+
             // Shape warp: distort dome radius so edges aren't perfect circles
             const shapeWarp = 1.0 + 0.3 * hsNoise.fbm(rx * 25 + 3.2, ry * 25 + 7.8, rz * 25 + 1.5, 2);
+            const shapeWarpSq = shapeWarp * shapeWarp;
             let totalUplift = 0;
             for (let d = 0; d < domes.length; d++) {
                 const dm = domes[d];
                 const dot = dm.x * rx + dm.y * ry + dm.z * rz;
-                const angle = Math.acos(Math.min(1, Math.max(-1, dot)));
-                if (angle > dm.sigma * 5) continue;
-                const warpedAngle = angle * shapeWarp;
-                const invS2 = -0.5 / (dm.sigma * dm.sigma);
-                const gauss = Math.exp(warpedAngle * warpedAngle * invS2);
+                if (dot < dm.cosThresh) continue;
+                // Small-angle approximation: angle² ≈ 2(1 - dot).
+                // Valid here because sigma*5 ≈ 0.05 rad; error < 0.1% in this range.
+                const angleSq = 2 * (1 - dot);
+                const gauss = Math.exp(angleSq * shapeWarpSq * dm.invS2);
                 totalUplift += dm.strength * gauss;
             }
             if (totalUplift > 0.001) {
                 // Modulate with ridged noise for volcanic texture
-                const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
-                const volc = 0.6 + 0.4 * hsNoise.ridgedFbm(x * 6, y * 6, z * 6, 3);
+                const volc = 0.6 + 0.4 * hsNoise.ridgedFbm(rx * 6, ry * 6, rz * 6, 3);
                 const uplift = totalUplift * volc;
                 r_elevation[r] += uplift;
                 dl_hotspot[r] = uplift;
