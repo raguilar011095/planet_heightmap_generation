@@ -100,6 +100,41 @@ export class SphereMesh {
             const r = triangles[s];
             if (this._r_s[r] === -1) this._r_s[r] = s;
         }
+
+        // Pre-compute flat adjacency lists for r_circulate_r and r_circulate_t.
+        // Replaces per-call half-edge traversal with cache-friendly array reads.
+        const adjCount = new Int32Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            const s0 = this._r_s[r];
+            if (s0 === -1) continue;
+            let s = s0;
+            do {
+                adjCount[r]++;
+                s = this._next(this.halfedges[s]);
+            } while (s !== s0);
+        }
+
+        this._adjOffset = new Int32Array(numRegions + 1);
+        for (let r = 0; r < numRegions; r++) {
+            this._adjOffset[r + 1] = this._adjOffset[r] + adjCount[r];
+        }
+
+        const totalAdj = this._adjOffset[numRegions];
+        this._adjList = new Int32Array(totalAdj);   // neighbor regions
+        this._adjTriList = new Int32Array(totalAdj); // neighbor triangles
+
+        for (let r = 0; r < numRegions; r++) {
+            const s0 = this._r_s[r];
+            if (s0 === -1) continue;
+            let s = s0;
+            let idx = this._adjOffset[r];
+            do {
+                this._adjList[idx] = this.s_end_r(s);
+                this._adjTriList[idx] = this.s_inner_t(s);
+                idx++;
+                s = this._next(this.halfedges[s]);
+            } while (s !== s0);
+        }
     }
 
     _next(s)    { return (s % 3 === 2) ? s - 2 : s + 1; }
@@ -109,26 +144,20 @@ export class SphereMesh {
     s_outer_t(s){ return (this.halfedges[s] / 3) | 0; }
 
     r_circulate_r(out, r) {
-        out.length = 0;
-        const s0 = this._r_s[r];
-        if (s0 === -1) return out;
-        let s = s0;
-        do {
-            out.push(this.s_end_r(s));
-            s = this._next(this.halfedges[s]);
-        } while (s !== s0);
+        const start = this._adjOffset[r];
+        const end = this._adjOffset[r + 1];
+        const len = end - start;
+        out.length = len;
+        for (let i = 0; i < len; i++) out[i] = this._adjList[start + i];
         return out;
     }
 
     r_circulate_t(out, r) {
-        out.length = 0;
-        const s0 = this._r_s[r];
-        if (s0 === -1) return out;
-        let s = s0;
-        do {
-            out.push(this.s_inner_t(s));
-            s = this._next(this.halfedges[s]);
-        } while (s !== s0);
+        const start = this._adjOffset[r];
+        const end = this._adjOffset[r + 1];
+        const len = end - start;
+        out.length = len;
+        for (let i = 0; i < len; i++) out[i] = this._adjTriList[start + i];
         return out;
     }
 }
