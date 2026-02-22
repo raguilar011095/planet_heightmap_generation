@@ -246,6 +246,10 @@ button#generate.generating {
 }
 .tutorial-step p {
     font-size: 14px; line-height: 1.6; color: #9ab;
+    margin-bottom: 8px;
+}
+.tutorial-step p:last-of-type {
+    margin-bottom: 0;
 }
 .tutorial-step p strong {
     color: #cde;
