@@ -294,7 +294,7 @@ export function buildMesh() {
     if (state.wireMesh)   { scene.remove(state.wireMesh);   state.wireMesh.geometry.dispose();   state.wireMesh.material.dispose(); }
 
     const { numSides } = mesh;
-    const V = 0.06;
+    const V = 0.04;
     const pos = new Float32Array(numSides * 9);
     const col = new Float32Array(numSides * 9);
     const nrm = new Float32Array(numSides * 9);
@@ -308,9 +308,9 @@ export function buildMesh() {
         const ite = t_elevation[it]  - waterLevel;
         const ote = t_elevation[ot]  - waterLevel;
 
-        const rDisp  = 1.0 + (re  > 0 ? re  * V : re  * V * 0.3);
-        const itDisp = 1.0 + (ite > 0 ? ite * V : ite * V * 0.3);
-        const otDisp = 1.0 + (ote > 0 ? ote * V : ote * V * 0.3);
+        const rDisp  = 1.0 + (re  > 0 ? Math.pow(re,  0.9) * V : re  * V * 0.3);
+        const itDisp = 1.0 + (ite > 0 ? Math.pow(ite, 0.9) * V : ite * V * 0.3);
+        const otDisp = 1.0 + (ote > 0 ? Math.pow(ote, 0.9) * V : ote * V * 0.3);
 
         const off = s * 9;
         let v0x = t_xyz[3*it]   * itDisp,
@@ -392,8 +392,8 @@ export function buildMesh() {
             if (s < mesh.halfedges[s]) {
                 const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s);
                 const ite = t_elevation[it], ote = t_elevation[ot];
-                const d1 = 1.001 + (ite > 0 ? ite*V : ite*V*0.3);
-                const d2 = 1.001 + (ote > 0 ? ote*V : ote*V*0.3);
+                const d1 = 1.001 + (ite > 0 ? Math.pow(ite, 0.9)*V : ite*V*0.3);
+                const d2 = 1.001 + (ote > 0 ? Math.pow(ote, 0.9)*V : ote*V*0.3);
                 lp.push(
                     t_xyz[3*it]*d1, t_xyz[3*it+1]*d1, t_xyz[3*it+2]*d1,
                     t_xyz[3*ot]*d2, t_xyz[3*ot+1]*d2, t_xyz[3*ot+2]*d2
