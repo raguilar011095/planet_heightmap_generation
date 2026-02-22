@@ -7,7 +7,7 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
 import { state } from './state.js';
 import { generate } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, buildMapMesh, rebuildGrids } from './planet-mesh.js';
+import { buildMesh, buildMapMesh, rebuildGrids, exportMap } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 
@@ -276,6 +276,45 @@ if (debugLayerEl) {
         buildMesh();
     });
 }
+
+// Export modal
+(function initExport() {
+    const overlay   = document.getElementById('exportOverlay');
+    const closeBtn  = document.getElementById('exportClose');
+    const cancelBtn = document.getElementById('exportCancel');
+    const goBtn     = document.getElementById('exportGo');
+    const widthEl   = document.getElementById('exportWidth');
+    const dimsEl    = document.getElementById('exportDims');
+    const typeEl    = document.getElementById('exportType');
+    const openBtn   = document.getElementById('exportBtn');
+
+    function updateDims() {
+        const w = +widthEl.value;
+        dimsEl.textContent = w + ' \u00D7 ' + (w / 2);
+    }
+
+    function openModal() { overlay.classList.remove('hidden'); updateDims(); }
+    function closeModal() { overlay.classList.add('hidden'); }
+
+    openBtn.addEventListener('click', openModal);
+    closeBtn.addEventListener('click', closeModal);
+    cancelBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
+    });
+    widthEl.addEventListener('input', updateDims);
+
+    goBtn.addEventListener('click', async () => {
+        const type = typeEl.value;
+        const w = +widthEl.value;
+        closeModal();
+        showBuildOverlay();
+        onProgress(0, 'Preparing export...');
+        await exportMap(type, w, onProgress);
+        hideBuildOverlay();
+    });
+})();
 
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();

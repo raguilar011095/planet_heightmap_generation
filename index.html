@@ -94,6 +94,7 @@
                 </div>
             </div>
         </details>
+        <button id="exportBtn" class="export-btn">Export Map</button>
         <details class="section">
             <summary>Detailed Visualization</summary>
             <div class="section-body">
@@ -111,6 +112,8 @@
                         <option value="tecActivity">Tectonic Activity</option>
                         <option value="margins">Margins</option>
                         <option value="backArc">Back-Arc</option>
+                        <option value="heightmap">Heightmap</option>
+                        <option value="landheightmap">Land Heightmap</option>
                     </select>
                 </div>
                 <div id="stats"></div>
@@ -139,6 +142,7 @@
             <div class="tutorial-step" data-step="3">
                 <h3>Save &amp; Share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
+                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; full-color terrain or black-and-white heightmaps.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
@@ -149,6 +153,29 @@
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>
                 <button id="tutorialNext" class="btn-primary">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportOverlay" class="hidden">
+        <div id="exportCard">
+            <button id="exportClose">&times;</button>
+            <h3>Export Map</h3>
+            <div class="cg">
+                <label>Type</label>
+                <select id="exportType">
+                    <option value="color">Color Map</option>
+                    <option value="heightmap">Heightmap (B&amp;W)</option>
+                    <option value="landheightmap">Land Heightmap (B&amp;W)</option>
+                </select>
+            </div>
+            <div class="cg">
+                <label>Width <span class="v" id="exportDims">4096 &times; 2048</span></label>
+                <input type="range" id="exportWidth" min="1024" max="65536" step="1024" value="4096">
+            </div>
+            <div class="export-actions">
+                <button id="exportCancel" class="btn-ghost">Cancel</button>
+                <button id="exportGo" class="btn-primary">Export</button>
             </div>
         </div>
     </div>

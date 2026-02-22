@@ -26,7 +26,8 @@ All three are considered together; ties are broken in the order above.
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
 - **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
-- **Detailed visualization** — ten selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc) for viewing each elevation component in isolation
+- **Detailed visualization** — twelve selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, heightmap, land heightmap) for viewing each elevation component in isolation
+- **Map export** — download high-resolution equirectangular PNGs (color terrain, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
 
 ## Quick Start
 
@@ -77,7 +78,16 @@ All generation parameters live in a single section:
 
 ### Detailed Visualization
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, or Back-Arc
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+
+### Export
+
+Click **Export Map** (below Visual Options) to open the export modal:
+
+- **Type** — Color Map (terrain colors), Heightmap (B&W full range, black = deepest, white = highest), or Land Heightmap (B&W, sea level = black, highest peak = white, ocean is black)
+- **Width** slider — 1024 to 65536 pixels (height is always width/2 for equirectangular). Large exports use tiled rendering to handle GPU texture limits.
+- Downloads an equirectangular PNG with no grid overlay
+- A progress overlay shows rendering and PNG encoding status during export
 
 ### Sidebar & Loading
 
@@ -85,7 +95,7 @@ The control panel can be collapsed and expanded with the **«** toggle button in
 
 ### Tutorial & Help
 
-A four-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, and saving/sharing via planet codes. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+A four-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
 
 ### Interaction
 

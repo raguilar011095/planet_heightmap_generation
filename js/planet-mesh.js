@@ -1,10 +1,24 @@
 // Planet mesh construction: Voronoi geometry, map projection, overlays.
 
 import * as THREE from 'three';
-import { scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
+import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
 import { elevationToColor } from './color-map.js';
 import { makeRng } from './rng.js';
+
+// Grayscale heightmap: black (lowest) → white (highest)
+function heightmapColor(elevation, minElev, maxElev) {
+    const range = maxElev - minElev || 1;
+    const t = Math.max(0, Math.min(1, (elevation - minElev) / range));
+    return [t, t, t];
+}
+
+// Land heightmap: ocean = black, land = black (sea level) → white (highest peak)
+function landHeightmapColor(elevation, maxElev) {
+    if (elevation <= 0) return [0, 0, 0];
+    const t = Math.max(0, Math.min(1, elevation / (maxElev || 1)));
+    return [t, t, t];
+}
 
 // Diverging color map: blue (negative) → white (zero) → red (positive)
 function debugValueToColor(v, minV, maxV) {
@@ -50,11 +64,21 @@ export function buildMapMesh() {
     const debugLayer = state.debugLayer || '';
 
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
-    if (debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isHeightmap = debugLayer === 'heightmap';
+    const isLandHeightmap = debugLayer === 'landheightmap';
+    if (!isHeightmap && !isLandHeightmap && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
             if (dbgArr[r] > dbgMax) dbgMax = dbgArr[r];
+        }
+    }
+
+    let elevMin = Infinity, elevMax = -Infinity;
+    if (isHeightmap || isLandHeightmap) {
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
+            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
         }
     }
 
@@ -73,7 +97,11 @@ export function buildMapMesh() {
 
         const re = r_elevation[br] - waterLevel;
         let cr, cg, cb;
-        if (dbgArr) {
+        if (isLandHeightmap) {
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+        } else if (isHeightmap) {
+            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+        } else if (dbgArr) {
             [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         } else if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
@@ -282,11 +310,21 @@ export function buildMesh() {
 
     // Precompute debug layer min/max if active
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
-    if (debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isHeightmap = debugLayer === 'heightmap';
+    const isLandHeightmap = debugLayer === 'landheightmap';
+    if (!isHeightmap && !isLandHeightmap && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
             if (dbgArr[r] > dbgMax) dbgMax = dbgArr[r];
+        }
+    }
+
+    let elevMin = Infinity, elevMax = -Infinity;
+    if (isHeightmap || isLandHeightmap) {
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
+            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
         }
     }
 
@@ -350,7 +388,11 @@ export function buildMesh() {
         }
 
         let cr, cg, cb;
-        if (dbgArr) {
+        if (isLandHeightmap) {
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+        } else if (isHeightmap) {
+            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+        } else if (dbgArr) {
             [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         } else if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
@@ -516,4 +558,192 @@ export function buildDriftArrows() {
     }
 
     scene.add(state.arrowGroup);
+}
+
+// Export equirectangular map as PNG (async, with tiled rendering for large sizes).
+export async function exportMap(type, width, onProgress) {
+    if (!state.curData) return;
+
+    const height = width / 2;
+    const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
+    const isBW = type === 'heightmap' || type === 'landheightmap';
+
+    // Compute elevation range
+    let elevMin = Infinity, elevMax = -Infinity;
+    if (isBW) {
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
+            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
+        }
+    }
+
+    // Build map triangles (same projection as buildMapMesh, chosen coloring, no grid)
+    const { numSides } = mesh;
+    const PI = Math.PI;
+    const sx = 2 / PI;
+
+    const posArr = new Float32Array(numSides * 18);
+    const colArr = new Float32Array(numSides * 18);
+    let triCount = 0;
+
+    for (let s = 0; s < numSides; s++) {
+        const it = mesh.s_inner_t(s);
+        const ot = mesh.s_outer_t(s);
+        const br = mesh.s_begin_r(s);
+
+        let cr, cg, cb;
+        if (type === 'landheightmap') {
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+        } else if (type === 'heightmap') {
+            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+        } else {
+            [cr, cg, cb] = elevationToColor(r_elevation[br]);
+        }
+
+        const x0 = t_xyz[3*it], y0 = t_xyz[3*it+1], z0 = t_xyz[3*it+2];
+        const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
+        const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
+
+        let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
+        let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
+        let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
+
+        const clx = (v) => Math.max(-2, Math.min(2, v));
+        const cly = (v) => Math.max(-1, Math.min(1, v));
+
+        const maxLon = Math.max(lon0, lon1, lon2);
+        const minLon = Math.min(lon0, lon1, lon2);
+        const wraps = (maxLon - minLon) > PI;
+
+        if (wraps) {
+            if (lon0 < 0) lon0 += 2 * PI;
+            if (lon1 < 0) lon1 += 2 * PI;
+            if (lon2 < 0) lon2 += 2 * PI;
+
+            let off = triCount * 9;
+            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+            colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+            colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            triCount++;
+
+            off = triCount * 9;
+            posArr[off]   = clx((lon0-2*PI)*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx((lon1-2*PI)*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx((lon2-2*PI)*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+            colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+            colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            triCount++;
+        } else {
+            const off = triCount * 9;
+            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            colArr[off]=cr; colArr[off+1]=cg; colArr[off+2]=cb;
+            colArr[off+3]=cr; colArr[off+4]=cg; colArr[off+5]=cb;
+            colArr[off+6]=cr; colArr[off+7]=cg; colArr[off+8]=cb;
+            triCount++;
+        }
+    }
+
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr.buffer, 0, triCount * 9), 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colArr.buffer, 0, triCount * 9), 3));
+
+    const mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+
+    const offScene = new THREE.Scene();
+    offScene.background = isBW ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
+    offScene.add(mapMesh);
+
+    // Tiled rendering — split into GPU-sized tiles if image exceeds max texture size
+    const maxTex = renderer.capabilities.maxTextureSize;
+    const tileW = Math.min(width, maxTex);
+    const tileH = Math.min(height, maxTex);
+    const tilesX = Math.ceil(width / tileW);
+    const tilesY = Math.ceil(height / tileH);
+    const totalTiles = tilesX * tilesY;
+
+    const cvs = document.createElement('canvas');
+    cvs.width = width;
+    cvs.height = height;
+    const ctx = cvs.getContext('2d');
+
+    let tilesDone = 0;
+    for (let ty = 0; ty < tilesY; ty++) {
+        for (let tx = 0; tx < tilesX; tx++) {
+            const px0 = tx * tileW;
+            const py0 = ty * tileH;
+            const pw = Math.min(tileW, width - px0);
+            const ph = Math.min(tileH, height - py0);
+
+            // Orthographic frustum for this tile (map space: x [-2,2], y [-1,1])
+            const left   = -2 + 4 * px0 / width;
+            const right  = -2 + 4 * (px0 + pw) / width;
+            const top    =  1 - 2 * py0 / height;
+            const bottom =  1 - 2 * (py0 + ph) / height;
+
+            const cam = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 10);
+            cam.position.set(0, 0, 5);
+            cam.lookAt(0, 0, 0);
+
+            const renderTarget = new THREE.WebGLRenderTarget(pw, ph);
+            renderer.setRenderTarget(renderTarget);
+            renderer.render(offScene, cam);
+
+            const pixels = new Uint8Array(pw * ph * 4);
+            renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, pixels);
+            renderer.setRenderTarget(null);
+            renderTarget.dispose();
+
+            // Write tile to canvas (flip rows + sRGB gamma)
+            const imageData = ctx.createImageData(pw, ph);
+            const out = imageData.data;
+            for (let y = 0; y < ph; y++) {
+                const src = (ph - 1 - y) * pw * 4;
+                const dst = y * pw * 4;
+                for (let x = 0; x < pw; x++) {
+                    const si = src + x * 4, di = dst + x * 4;
+                    for (let c = 0; c < 3; c++) {
+                        const v = pixels[si + c] / 255;
+                        out[di + c] = (v <= 0.0031308
+                            ? v * 12.92
+                            : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255 + 0.5 | 0;
+                    }
+                    out[di + 3] = pixels[si + 3];
+                }
+            }
+            ctx.putImageData(imageData, px0, py0);
+
+            tilesDone++;
+            if (onProgress) onProgress(tilesDone / totalTiles * 80, 'Rendering...');
+            await new Promise(r => setTimeout(r, 0));
+        }
+    }
+
+    // Cleanup mesh
+    geo.dispose();
+    mapMesh.material.dispose();
+
+    // Encode & download
+    if (onProgress) onProgress(85, 'Encoding PNG...');
+    await new Promise(r => setTimeout(r, 0));
+
+    const filename = type === 'landheightmap' ? 'atlas-land-heightmap.png'
+        : type === 'heightmap' ? 'atlas-heightmap.png' : 'atlas-colormap.png';
+
+    await new Promise(resolve => {
+        cvs.toBlob(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            a.click();
+            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            resolve();
+        }, 'image/png');
+    });
 }
