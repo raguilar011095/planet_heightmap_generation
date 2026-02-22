@@ -1001,7 +1001,16 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
     }
 
-    _timing.push({ stage: 'Hotspot volcanism', ms: performance.now() - _t0 });
+    _timing.push({ stage: 'Hotspot volcanism', ms: performance.now() - _t0 }); _t0 = performance.now();
+
+    // Compress positive elevations to soften tall peaks
+    for (let r = 0; r < numRegions; r++) {
+        if (r_elevation[r] > 0) {
+            r_elevation[r] = Math.pow(r_elevation[r], 0.9);
+        }
+    }
+
+    _timing.push({ stage: 'Peak compression', ms: performance.now() - _t0 });
 
     const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing };
