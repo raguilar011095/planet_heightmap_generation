@@ -564,6 +564,9 @@ export function buildDriftArrows() {
 export async function exportMap(type, width, onProgress) {
     if (!state.curData) return;
 
+    // Yield so the browser paints the loading overlay before heavy work begins
+    await new Promise(r => setTimeout(r, 50));
+
     const height = width / 2;
     const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
     const isBW = type === 'heightmap' || type === 'landheightmap';
@@ -732,8 +735,9 @@ export async function exportMap(type, width, onProgress) {
     if (onProgress) onProgress(85, 'Encoding PNG...');
     await new Promise(r => setTimeout(r, 0));
 
-    const filename = type === 'landheightmap' ? 'atlas-land-heightmap.png'
-        : type === 'heightmap' ? 'atlas-heightmap.png' : 'atlas-colormap.png';
+    const seed = state.curData ? state.curData.seed : '';
+    const filename = type === 'landheightmap' ? `atlas-land-heightmap-${seed}.png`
+        : type === 'heightmap' ? `atlas-heightmap-${seed}.png` : `atlas-colormap-${seed}.png`;
 
     await new Promise(resolve => {
         cvs.toBlob(blob => {

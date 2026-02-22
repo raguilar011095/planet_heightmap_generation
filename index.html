@@ -171,7 +171,15 @@
             </div>
             <div class="cg">
                 <label>Width <span class="v" id="exportDims">4096 &times; 2048</span></label>
-                <input type="range" id="exportWidth" min="1024" max="65536" step="1024" value="4096">
+                <select id="exportWidth">
+                    <option value="1024">1024</option>
+                    <option value="2048">2048</option>
+                    <option value="4096" selected>4096</option>
+                    <option value="8192">8192</option>
+                    <option value="16384">16384</option>
+                    <option value="32768">32768</option>
+                    <option value="65536">65536</option>
+                </select>
             </div>
             <div class="export-actions">
                 <button id="exportCancel" class="btn-ghost">Cancel</button>
