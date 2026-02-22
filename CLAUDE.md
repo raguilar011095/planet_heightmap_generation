@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-World Buildr — a browser-based procedural planet generator using Three.js and ES modules with no build step.
+Atlas Engine — a browser-based procedural planet generator using Three.js and ES modules with no build step.
 
 ## Guiding Principles
 

@@ -327,7 +327,7 @@ window.addEventListener('resize', () => {
     const steps    = card.querySelectorAll('.tutorial-step');
     const dots     = card.querySelectorAll('.dot');
     const TOTAL    = steps.length;
-    const LS_KEY   = 'worldbuildr-tutorial-seen';
+    const LS_KEY   = 'atlas-engine-tutorial-seen';
     let current    = 0;
 
     function showStep(i) {

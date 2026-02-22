@@ -1,4 +1,4 @@
-# World Buildr
+# Atlas Engine
 
 A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Uses native ES modules with no build step required.
 

@@ -141,14 +141,14 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                     if (isNaN(ctx.r_elevation[r])) nanCount++;
                 }
                 const landPct = (100 * landCount / mesh.numRegions).toFixed(1);
-                if (nanCount > 0) console.error(`[World Buildr] WARNING: ${nanCount} NaN elevation values detected!`);
-                if (landCount / mesh.numRegions < 0.10) console.warn(`[World Buildr] WARNING: Only ${landPct}% land (${landCount} regions). Ocean/land growth may have stalled.`);
+                if (nanCount > 0) console.error(`[Atlas Engine] WARNING: ${nanCount} NaN elevation values detected!`);
+                if (landCount / mesh.numRegions < 0.10) console.warn(`[Atlas Engine] WARNING: Only ${landPct}% land (${landCount} regions). Ocean/land growth may have stalled.`);
             }
 
             // ---- Console timing report ----
             const f = v => v.toFixed(1);
             console.log(
-                `%c[World Buildr] Generation complete`,
+                `%c[Atlas Engine] Generation complete`,
                 'color:#6cf;font-weight:bold'
             );
             console.log(
@@ -194,7 +194,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
     ];
 
     function fail(err) {
-        console.error('[World Buildr] Generation failed:', err);
+        console.error('[Atlas Engine] Generation failed:', err);
         btn.disabled = false;
         btn.textContent = 'Build New World';
         btn.classList.remove('generating');

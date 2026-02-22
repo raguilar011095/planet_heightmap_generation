@@ -4,7 +4,14 @@
       "Bash(python3:*)",
       "Bash(python -m http.server:*)",
       "Bash(du:*)",
-      "Bash(node:*)"
+      "Bash(node:*)",
+      "Bash(wc:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(sort:*)",
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:docs.github.com)"
     ]
   }
 }
