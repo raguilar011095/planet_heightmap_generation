@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
 import { assignElevation } from './elevation.js';
+import { smoothElevation, erodeElevation } from './terrain-post.js';
 import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
 
 const raycaster = new THREE.Raycaster();
@@ -22,6 +23,37 @@ function recomputeElevation() {
     const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } =
         assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
 
+    const prePostElev = new Float32Array(r_elevation);
+
+    // Terrain post-processing (matches generate.js logic)
+    const smoothing = +document.getElementById('sS').value;
+    const erosion = +document.getElementById('sEr').value;
+    if (smoothing > 0 || erosion > 0) {
+        const r_isOcean = new Uint8Array(mesh.numRegions);
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (plateIsOcean.has(r_plate[r])) r_isOcean[r] = 1;
+        }
+
+        const preErosion = new Float32Array(r_elevation);
+
+        if (smoothing > 0) {
+            const smoothIters = Math.round(1 + smoothing * 4);
+            const smoothStr = 0.2 + smoothing * 0.5;
+            smoothElevation(mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
+        }
+
+        if (erosion > 0) {
+            const erosionK = erosion * 0.01;
+            erodeElevation(mesh, r_elevation, r_xyz, r_isOcean, erosionK);
+        }
+
+        const dl_erosionDelta = new Float32Array(mesh.numRegions);
+        for (let r = 0; r < mesh.numRegions; r++) {
+            dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
+        }
+        debugLayers.erosionDelta = dl_erosionDelta;
+    }
+
     const t_elevation = new Float32Array(mesh.numTriangles);
     for (let t = 0; t < mesh.numTriangles; t++) {
         const s0 = 3 * t;
@@ -29,7 +61,7 @@ function recomputeElevation() {
         t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
     }
 
-    Object.assign(state.curData, { r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers });
+    Object.assign(state.curData, { prePostElev, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers });
     computePlateColors(plateSeeds, plateIsOcean);
     buildMesh();
 }

@@ -8,6 +8,7 @@ import { state } from './state.js';
 import { generate } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
 import { buildMesh, buildMapMesh, rebuildGrids, exportMap } from './planet-mesh.js';
+import { smoothElevation, erodeElevation } from './terrain-post.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 
@@ -26,6 +27,83 @@ function checkStale() {
     btn.classList.toggle('stale', stale);
     btn.textContent = stale ? 'Rebuild' : 'Build New World';
 }
+
+// Reapply smoothing + erosion without full rebuild
+function reapplyPostProcessing() {
+    const d = state.curData;
+    if (!d || !d.prePostElev) return;
+
+    const { mesh, r_xyz, r_plate, plateIsOcean, prePostElev, debugLayers } = d;
+    const smoothing = +document.getElementById('sS').value;
+    const erosion = +document.getElementById('sEr').value;
+
+    // Restore pre-post elevation
+    const r_elevation = new Float32Array(prePostElev);
+
+    if (smoothing > 0 || erosion > 0) {
+        const r_isOcean = new Uint8Array(mesh.numRegions);
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (plateIsOcean.has(r_plate[r])) r_isOcean[r] = 1;
+        }
+
+        const pre = new Float32Array(r_elevation);
+
+        if (smoothing > 0) {
+            const smoothIters = Math.round(1 + smoothing * 4);
+            const smoothStr = 0.2 + smoothing * 0.5;
+            smoothElevation(mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
+        }
+
+        if (erosion > 0) {
+            const erosionK = erosion * 0.01;
+            erodeElevation(mesh, r_elevation, r_xyz, r_isOcean, erosionK);
+        }
+
+        const dl_erosionDelta = new Float32Array(mesh.numRegions);
+        for (let r = 0; r < mesh.numRegions; r++) {
+            dl_erosionDelta[r] = r_elevation[r] - pre[r];
+        }
+        debugLayers.erosionDelta = dl_erosionDelta;
+    } else {
+        delete debugLayers.erosionDelta;
+    }
+
+    // Recompute triangle elevations
+    const t_elevation = new Float32Array(mesh.numTriangles);
+    for (let t = 0; t < mesh.numTriangles; t++) {
+        const s0 = 3 * t;
+        const a = mesh.s_begin_r(s0), b = mesh.s_begin_r(s0 + 1), c = mesh.s_begin_r(s0 + 2);
+        t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
+    }
+
+    d.r_elevation = r_elevation;
+    d.t_elevation = t_elevation;
+
+    buildMesh();
+    updatePlanetCode(false);
+}
+
+const reapplyBtn = document.getElementById('reapplyBtn');
+
+function markReapplyPending() {
+    reapplyBtn.disabled = false;
+    reapplyBtn.classList.add('ready');
+}
+
+function clearReapplyPending() {
+    reapplyBtn.disabled = true;
+    reapplyBtn.classList.remove('ready');
+}
+
+reapplyBtn.addEventListener('click', () => {
+    if (reapplyBtn.disabled) return;
+    clearReapplyPending();
+    reapplyBtn.classList.add('spinning');
+    setTimeout(() => {
+        reapplyPostProcessing();
+        reapplyBtn.classList.remove('spinning');
+    }, 16);
+});
 
 // Detail slider warning update
 function updateDetailWarning(detail) {
@@ -46,7 +124,7 @@ function updateDetailWarning(detail) {
     }
 }
 
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sS','vS'],['sEr','vEr']]) {
     document.getElementById(s).addEventListener('input', e => {
         if (s === 'sN') {
             const detail = detailFromSlider(+e.target.value);
@@ -55,7 +133,11 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
         } else {
             document.getElementById(v).textContent = e.target.value;
         }
-        checkStale();
+        if (s === 'sS' || s === 'sEr') {
+            markReapplyPending();
+        } else {
+            checkStale();
+        }
     });
 }
 
@@ -96,7 +178,7 @@ function hideBuildOverlay() {
 
 // Generate button
 const genBtn = document.getElementById('generate');
-genBtn.addEventListener('click', () => { showBuildOverlay(); generate(undefined, [], onProgress); });
+genBtn.addEventListener('click', () => { clearReapplyPending(); showBuildOverlay(); generate(undefined, [], onProgress); });
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);
 genBtn.addEventListener('generate-done', () => {
@@ -146,6 +228,8 @@ function updatePlanetCode(flash) {
         +document.getElementById('sP').value,
         +document.getElementById('sCn').value,
         +document.getElementById('sNs').value,
+        +document.getElementById('sS').value,
+        +document.getElementById('sEr').value,
         getToggledIndices()
     );
     currentCode = code;
@@ -187,12 +271,13 @@ function applyCode(code) {
     }
     seedError.classList.remove('visible');
     // Set slider values + fire input events to update displays
-    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness };
+    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sS: params.smoothing, sEr: params.erosion };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
+    clearReapplyPending();
     showBuildOverlay();
     generate(params.seed, params.toggledIndices, onProgress);
 }
@@ -426,7 +511,7 @@ window.addEventListener('resize', () => {
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
 if (hashParams) {
-    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness };
+    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sS: hashParams.smoothing, sEr: hashParams.erosion };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;

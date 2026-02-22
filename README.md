@@ -22,11 +22,12 @@ All three are considered together; ties are broken in the order above.
 - **Ocean floor features** — mid-ocean ridges at divergent boundaries, deep trenches at subduction zones, fracture zones at transform boundaries, back-arc basins behind subduction zones
 - **Island arcs** — volcanic island chains at ocean-ocean convergent boundaries with ridged noise shaping
 - **Hotspot volcanism** — mantle plume simulation with drift-trail island chains, per-hotspot variation in strength/decay/spacing, and volcanic texture noise
+- **Terrain post-processing** — independently controllable bilateral smoothing to blend harsh BFS distance-field boundaries, and flow-accumulation erosion that carves natural drainage valleys using stream power law
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
 - **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
-- **Detailed visualization** — twelve selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, heightmap, land heightmap) for viewing each elevation component in isolation
+- **Detailed visualization** — thirteen selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, heightmap, land heightmap) for viewing each elevation component in isolation
 - **Map export** — download high-resolution equirectangular PNGs (color terrain, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
 
 ## Quick Start
@@ -47,7 +48,7 @@ Click **Build New World** to create a new random planet.
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 11 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 13 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -66,6 +67,10 @@ All generation parameters live in a single section:
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
 | Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
+| Smoothing | 0 – 1 | 0.10 | Blends harsh terrain boundaries from tectonic generation |
+| Basic Erosion | 0 – 1 | 0.10 | Simulates basic water erosion — carves drainage valleys using flow accumulation |
+
+Smoothing and Erosion do not require a full rebuild. Adjusting either slider lights up the **reapply** button (↻) next to Build New World — click it to reapply only the post-processing passes on the current planet.
 
 ### Visual Options
 
@@ -78,7 +83,7 @@ All generation parameters live in a single section:
 
 ### Detailed Visualization
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
 
 ### Export
 
@@ -119,7 +124,8 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 7. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
 8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
 9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
-10. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
+10. **Terrain post-processing** applies bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, and flow-accumulation erosion (controlled by Erosion slider) carves drainage valleys using stream power law
+11. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
 
@@ -148,6 +154,7 @@ js/
   plates.js             Tectonic plate generation (round-robin flood fill)
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
+  terrain-post.js       Bilateral smoothing and flow-based erosion
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info

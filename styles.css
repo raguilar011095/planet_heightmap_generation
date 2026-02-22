@@ -80,13 +80,33 @@ select {
 select:hover { border-color: rgba(255,255,255,0.18); }
 select:focus { outline: none; border-color: #48f; }
 select option { background: #12122a; color: #cde; }
+#buildRow {
+    display: flex; gap: 6px; margin-top: 10px; margin-bottom: 12px;
+}
 button#generate {
-    width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 12px;
+    flex: 1; padding: 10px;
     background: linear-gradient(135deg, #2255cc, #3366ee);
     color: white; border: none; border-radius: 8px;
     font-size: 15px; font-weight: 500; cursor: pointer;
     transition: background 0.3s ease, opacity 0.3s ease;
 }
+#reapplyBtn {
+    width: 38px; flex-shrink: 0;
+    background: rgba(255,255,255,0.06); color: #556;
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 8px;
+    font-size: 18px; cursor: default;
+    display: flex; align-items: center; justify-content: center;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+    padding: 0;
+}
+#reapplyBtn:disabled { opacity: 0.4; }
+#reapplyBtn.spinning { animation: spin 0.8s linear infinite; }
+#reapplyBtn.ready {
+    background: linear-gradient(135deg, #1a7a4a, #22aa5a);
+    color: #fff; border-color: transparent;
+    cursor: pointer; opacity: 1;
+}
+#reapplyBtn.ready:hover { filter: brightness(1.15); }
 button#generate:hover { filter: brightness(1.15); }
 button#generate.stale {
     background: linear-gradient(135deg, #b87a1a, #d4922a);

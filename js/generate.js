@@ -6,6 +6,7 @@ import { buildSphere, generateTriangleCenters } from './sphere-mesh.js';
 import { generatePlates } from './plates.js';
 import { assignOceanLand } from './ocean-land.js';
 import { assignElevation } from './elevation.js';
+import { smoothElevation, erodeElevation } from './terrain-post.js';
 import { computePlateColors, buildMesh } from './planet-mesh.js';
 import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
@@ -22,6 +23,8 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
     const jitter= +document.getElementById('sJ').value;
     const nMag  = +document.getElementById('sNs').value;
     const numContinents = +document.getElementById('sCn').value;
+    const smoothing = +document.getElementById('sS').value;
+    const erosion = +document.getElementById('sEr').value;
     const spread = 5;
 
     // Shared context passed between stages
@@ -104,6 +107,43 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
             ctx.r_stress = r_stress;
             ctx.debugLayers = debugLayers;
             ctx._timing = _timing;
+            ctx.prePostElev = new Float32Array(r_elevation);
+
+            // Terrain post-processing: smoothing + erosion (independent)
+            if (smoothing > 0 || erosion > 0) {
+                const tPost0 = performance.now();
+
+                const r_isOcean = new Uint8Array(ctx.mesh.numRegions);
+                for (let r = 0; r < ctx.mesh.numRegions; r++) {
+                    if (ctx.plateIsOcean.has(ctx.r_plate[r])) r_isOcean[r] = 1;
+                }
+
+                const preErosion = new Float32Array(r_elevation);
+
+                if (smoothing > 0) {
+                    const smoothIters = Math.round(1 + smoothing * 4);   // 1–5
+                    const smoothStr = 0.2 + smoothing * 0.5;             // 0.2–0.7
+                    const tSmooth0 = performance.now();
+                    smoothElevation(ctx.mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
+                    ctx._timing.push({ stage: 'Smoothing', ms: performance.now() - tSmooth0 });
+                }
+
+                if (erosion > 0) {
+                    const erosionK = erosion * 0.01;                     // 0–0.01
+                    const tErode0 = performance.now();
+                    erodeElevation(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, erosionK);
+                    ctx._timing.push({ stage: 'Erosion', ms: performance.now() - tErode0 });
+                }
+
+                // Compute erosion delta layer (post - pre)
+                const dl_erosionDelta = new Float32Array(ctx.mesh.numRegions);
+                for (let r = 0; r < ctx.mesh.numRegions; r++) {
+                    dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
+                }
+                debugLayers.erosionDelta = dl_erosionDelta;
+
+                ctx.tPost = performance.now() - tPost0;
+            }
 
             const tTriElev0 = performance.now();
             const t_elevation = new Float32Array(ctx.mesh.numTriangles);
@@ -121,6 +161,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                               plateIsOcean: ctx.plateIsOcean, originalPlateIsOcean: ctx.originalPlateIsOcean,
                               plateDensity: ctx.plateDensity, plateDensityLand: ctx.plateDensityLand,
                               plateDensityOcean: ctx.plateDensityOcean,
+                              prePostElev: ctx.prePostElev,
                               r_elevation: ctx.r_elevation, t_elevation: ctx.t_elevation,
                               mountain_r: ctx.mountain_r, coastline_r: ctx.coastline_r, ocean_r: ctx.ocean_r,
                               r_stress: ctx.r_stress, noise: ctx.noise, seed: ctx.seed, debugLayers: ctx.debugLayers };
@@ -152,7 +193,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                 'color:#6cf;font-weight:bold'
             );
             console.log(
-                `  Parameters: detail=${N}  plates=${P}  continents=${numContinents}  jitter=${jitter}  roughness=${nMag}  seed=${ctx.seed}`
+                `  Parameters: detail=${N}  plates=${P}  continents=${numContinents}  jitter=${jitter}  roughness=${nMag}  smoothing=${smoothing}  erosion=${erosion}  seed=${ctx.seed}`
             );
             console.log(
                 `  Regions: ${ctx.mesh.numRegions.toLocaleString()}  Triangles: ${ctx.mesh.numTriangles.toLocaleString()}  Sides: ${ctx.mesh.numSides.toLocaleString()}`
@@ -164,6 +205,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                 { stage: 'Plates',           ms: ctx.tPlates },
                 { stage: 'Ocean/land',       ms: ctx.tOcean },
                 { stage: 'Elevation (total)', ms: ctx.tElev },
+                ...(ctx.tPost ? [{ stage: 'Terrain post', ms: ctx.tPost }] : []),
                 { stage: 'Triangle elevs',   ms: ctx.tTriElev },
                 { stage: 'Render (buildMesh)', ms: tBuild },
             ];
