@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { generate } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
 import { buildMesh, buildMapMesh, rebuildGrids, exportMap } from './planet-mesh.js';
-import { smoothElevation, erodeElevation } from './terrain-post.js';
+import { smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 
@@ -35,15 +35,19 @@ function reapplyPostProcessing() {
 
     const { mesh, r_xyz, r_plate, plateIsOcean, prePostElev, debugLayers } = d;
     const smoothing = +document.getElementById('sS').value;
-    const erosion = +document.getElementById('sEr').value;
+    const glacialErosion = +document.getElementById('sGl').value;
+    const hydraulicErosion = +document.getElementById('sHEr').value;
+    const thermalErosion = +document.getElementById('sTEr').value;
+    const ridgeSharpening = +document.getElementById('sRs').value;
 
     // Restore pre-post elevation
     const r_elevation = new Float32Array(prePostElev);
 
-    if (smoothing > 0 || erosion > 0) {
+    // Soil creep always runs (hardcoded at 0.75 strength)
+    {
         const r_isOcean = new Uint8Array(mesh.numRegions);
         for (let r = 0; r < mesh.numRegions; r++) {
-            if (plateIsOcean.has(r_plate[r])) r_isOcean[r] = 1;
+            if (r_elevation[r] <= 0) r_isOcean[r] = 1;
         }
 
         const pre = new Float32Array(r_elevation);
@@ -54,18 +58,32 @@ function reapplyPostProcessing() {
             smoothElevation(mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
         }
 
-        if (erosion > 0) {
-            const erosionK = erosion * 0.01;
-            erodeElevation(mesh, r_elevation, r_xyz, r_isOcean, erosionK);
+        if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0) {
+            const gIters = Math.round(glacialErosion * 10);
+            const hIters = Math.round(hydraulicErosion * 20);
+            const hK = hydraulicErosion * 0.001;
+            const tIters = Math.round(thermalErosion * 10);
+            const talusSlope = 1.2 - thermalErosion * 0.4;
+            const kThermal = thermalErosion * 0.15;
+            erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
+                hIters, hK, 0.5, 1.0,
+                tIters, talusSlope, kThermal,
+                gIters, glacialErosion);
         }
+
+        if (ridgeSharpening > 0) {
+            const rsIters = Math.round(1 + ridgeSharpening * 3);
+            const rsStr = ridgeSharpening * 0.08;
+            sharpenRidges(mesh, r_elevation, r_isOcean, rsIters, rsStr);
+        }
+
+        applySoilCreep(mesh, r_elevation, r_isOcean, 3, 0.1125);
 
         const dl_erosionDelta = new Float32Array(mesh.numRegions);
         for (let r = 0; r < mesh.numRegions; r++) {
             dl_erosionDelta[r] = r_elevation[r] - pre[r];
         }
         debugLayers.erosionDelta = dl_erosionDelta;
-    } else {
-        delete debugLayers.erosionDelta;
     }
 
     // Recompute triangle elevations
@@ -124,7 +142,7 @@ function updateDetailWarning(detail) {
     }
 }
 
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sS','vS'],['sEr','vEr']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs']]) {
     document.getElementById(s).addEventListener('input', e => {
         if (s === 'sN') {
             const detail = detailFromSlider(+e.target.value);
@@ -133,7 +151,7 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
         } else {
             document.getElementById(v).textContent = e.target.value;
         }
-        if (s === 'sS' || s === 'sEr') {
+        if (s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
             markReapplyPending();
         } else {
             checkStale();
@@ -229,7 +247,11 @@ function updatePlanetCode(flash) {
         +document.getElementById('sCn').value,
         +document.getElementById('sNs').value,
         +document.getElementById('sS').value,
-        +document.getElementById('sEr').value,
+        +document.getElementById('sGl').value,
+        +document.getElementById('sHEr').value,
+        +document.getElementById('sTEr').value,
+        +document.getElementById('sRs').value,
+        0.75,
         getToggledIndices()
     );
     currentCode = code;
@@ -271,7 +293,7 @@ function applyCode(code) {
     }
     seedError.classList.remove('visible');
     // Set slider values + fire input events to update displays
-    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sS: params.smoothing, sEr: params.erosion };
+    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sS: params.smoothing, sGl: params.glacialErosion, sHEr: params.hydraulicErosion, sTEr: params.thermalErosion, sRs: params.ridgeSharpening };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;
@@ -511,7 +533,7 @@ window.addEventListener('resize', () => {
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
 if (hashParams) {
-    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sS: hashParams.smoothing, sEr: hashParams.erosion };
+    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sS: hashParams.smoothing, sGl: hashParams.glacialErosion, sHEr: hashParams.hydraulicErosion, sTEr: hashParams.thermalErosion, sRs: hashParams.ridgeSharpening };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;

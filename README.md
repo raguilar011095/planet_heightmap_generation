@@ -22,7 +22,7 @@ All three are considered together; ties are broken in the order above.
 - **Ocean floor features** — mid-ocean ridges at divergent boundaries, deep trenches at subduction zones, fracture zones at transform boundaries, back-arc basins behind subduction zones
 - **Island arcs** — volcanic island chains at ocean-ocean convergent boundaries with ridged noise shaping
 - **Hotspot volcanism** — mantle plume simulation with drift-trail island chains, per-hotspot variation in strength/decay/spacing, and volcanic texture noise
-- **Terrain post-processing** — independently controllable bilateral smoothing to blend harsh BFS distance-field boundaries, and flow-accumulation erosion that carves natural drainage valleys using stream power law
+- **Terrain post-processing** — independently controllable bilateral smoothing to blend harsh BFS distance-field boundaries, glacial erosion that carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes via latitude-driven ice flow with drainage accumulation, priority-flood pit resolution with canyon carving (Barnes et al. algorithm that ensures every land cell drains to the ocean, carving dramatic canyons through mountain saddle points rather than filling basins), iterative implicit stream power hydraulic erosion (Braun-Willett style) that carves self-reinforcing river valleys with automatic sediment deposition in flat receivers, thermal erosion that softens ridges via talus-angle material transport, ridge sharpening that accentuates mountain ridgelines, and always-on soil creep (Laplacian diffusion) that rounds off hillslopes
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
@@ -48,7 +48,7 @@ Click **Build New World** to create a new random planet.
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 13 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 17 characters; Ctrl-click edits extend the code to include the toggled plates. Legacy 13-character, 14-character, and 16-character codes (from earlier versions) are still supported and will use default values for any newer sliders. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -58,7 +58,7 @@ Every generated planet produces a **planet code** (shown below the Build button)
 
 ### Shape Your World
 
-All generation parameters live in a single section:
+Core world parameters that control the planet's structure (changing these requires a full rebuild):
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
@@ -67,10 +67,18 @@ All generation parameters live in a single section:
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
 | Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
-| Smoothing | 0 – 1 | 0.10 | Blends harsh terrain boundaries from tectonic generation |
-| Basic Erosion | 0 – 1 | 0.10 | Simulates basic water erosion — carves drainage valleys using flow accumulation |
 
-Smoothing and Erosion do not require a full rebuild. Adjusting either slider lights up the **reapply** button (↻) next to Build New World — click it to reapply only the post-processing passes on the current planet.
+### Terrain Sculpting
+
+Post-processing passes that refine the terrain (collapsed by default — the defaults produce good results). These do not require a full rebuild; adjusting any slider lights up the **Reapply** button at the bottom of this section — click it to reapply only the sculpting passes on the current planet.
+
+| Control | Range | Default | Description |
+|---------|-------|---------|-------------|
+| Smoothing | 0 – 1 | 0.10 | Blends harsh terrain boundaries from tectonic generation |
+| Glacial Erosion | 0 – 1 | 0.35 | Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes via latitude-driven ice flow |
+| Hydraulic Erosion | 0 – 1 | 0.35 | Iterative stream-power erosion — resolves endorheic basins via priority-flood canyon carving, then carves river valleys and dendritic drainage networks, with automatic sediment deposition in flat receivers |
+| Thermal Erosion | 0 – 1 | 0.10 | Slope-driven material transport — softens ridges and creates natural talus slopes |
+| Ridge Sharpening | 0 – 1 | 0.35 | Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain |
 
 ### Visual Options
 
@@ -124,7 +132,7 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 7. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
 8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
 9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
-10. **Terrain post-processing** applies bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, and flow-accumulation erosion (controlled by Erosion slider) carves drainage valleys using stream power law
+10. **Terrain post-processing** applies bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, glacial erosion (controlled by Glacial Erosion slider) carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes, priority-flood pit resolution carves canyons through mountain saddle points to ensure all land drains to the ocean, iterative implicit stream power hydraulic erosion with sediment deposition (controlled by Hydraulic Erosion slider) carves self-reinforcing river valleys, thermal erosion (controlled by Thermal Erosion slider) softens ridges via talus-angle material transport, ridge sharpening (controlled by Ridge Sharpening slider) accentuates mountain ridgelines, and always-on soil creep gently rounds off hillslopes
 11. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
@@ -154,7 +162,7 @@ js/
   plates.js             Tectonic plate generation (round-robin flood fill)
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
-  terrain-post.js       Bilateral smoothing and flow-based erosion
+  terrain-post.js       Bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info

@@ -6,7 +6,7 @@ import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
 import { assignElevation } from './elevation.js';
-import { smoothElevation, erodeElevation } from './terrain-post.js';
+import { smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
 
 const raycaster = new THREE.Raycaster();
@@ -27,11 +27,14 @@ function recomputeElevation() {
 
     // Terrain post-processing (matches generate.js logic)
     const smoothing = +document.getElementById('sS').value;
-    const erosion = +document.getElementById('sEr').value;
-    if (smoothing > 0 || erosion > 0) {
+    const glacialErosion = +document.getElementById('sGl').value;
+    const hydraulicErosion = +document.getElementById('sHEr').value;
+    const thermalErosion = +document.getElementById('sTEr').value;
+    const ridgeSharpening = +document.getElementById('sRs').value;
+    {
         const r_isOcean = new Uint8Array(mesh.numRegions);
         for (let r = 0; r < mesh.numRegions; r++) {
-            if (plateIsOcean.has(r_plate[r])) r_isOcean[r] = 1;
+            if (r_elevation[r] <= 0) r_isOcean[r] = 1;
         }
 
         const preErosion = new Float32Array(r_elevation);
@@ -42,10 +45,26 @@ function recomputeElevation() {
             smoothElevation(mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
         }
 
-        if (erosion > 0) {
-            const erosionK = erosion * 0.01;
-            erodeElevation(mesh, r_elevation, r_xyz, r_isOcean, erosionK);
+        if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0) {
+            const gIters = Math.round(glacialErosion * 10);
+            const hIters = Math.round(hydraulicErosion * 20);
+            const hK = hydraulicErosion * 0.001;
+            const tIters = Math.round(thermalErosion * 10);
+            const talusSlope = 1.2 - thermalErosion * 0.4;
+            const kThermal = thermalErosion * 0.15;
+            erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
+                hIters, hK, 0.5, 1.0,
+                tIters, talusSlope, kThermal,
+                gIters, glacialErosion);
         }
+
+        if (ridgeSharpening > 0) {
+            const rsIters = Math.round(1 + ridgeSharpening * 3);
+            const rsStr = ridgeSharpening * 0.08;
+            sharpenRidges(mesh, r_elevation, r_isOcean, rsIters, rsStr);
+        }
+
+        applySoilCreep(mesh, r_elevation, r_isOcean, 3, 0.1125);
 
         const dl_erosionDelta = new Float32Array(mesh.numRegions);
         for (let r = 0; r < mesh.numRegions; r++) {
