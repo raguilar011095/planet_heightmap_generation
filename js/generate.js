@@ -6,7 +6,7 @@ import { buildSphere, generateTriangleCenters } from './sphere-mesh.js';
 import { generatePlates } from './plates.js';
 import { assignOceanLand } from './ocean-land.js';
 import { assignElevation } from './elevation.js';
-import { smoothElevation, erodeElevation } from './terrain-post.js';
+import { smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { computePlateColors, buildMesh } from './planet-mesh.js';
 import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
@@ -24,7 +24,10 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
     const nMag  = +document.getElementById('sNs').value;
     const numContinents = +document.getElementById('sCn').value;
     const smoothing = +document.getElementById('sS').value;
-    const erosion = +document.getElementById('sEr').value;
+    const hydraulicErosion = +document.getElementById('sHEr').value;
+    const thermalErosion = +document.getElementById('sTEr').value;
+    const ridgeSharpening = +document.getElementById('sRs').value;
+    const glacialErosion = +document.getElementById('sGl').value;
     const spread = 5;
 
     // Shared context passed between stages
@@ -109,13 +112,16 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
             ctx._timing = _timing;
             ctx.prePostElev = new Float32Array(r_elevation);
 
-            // Terrain post-processing: smoothing + erosion (independent)
-            if (smoothing > 0 || erosion > 0) {
+            // Terrain post-processing: smoothing + erosion + ridge + creep
+            // Soil creep always runs (hardcoded at 0.75 strength)
+            {
                 const tPost0 = performance.now();
 
+                // Use elevation to determine ocean — cells below sea level are ocean
+                // regardless of plate type, so islands on ocean plates get processed too
                 const r_isOcean = new Uint8Array(ctx.mesh.numRegions);
                 for (let r = 0; r < ctx.mesh.numRegions; r++) {
-                    if (ctx.plateIsOcean.has(ctx.r_plate[r])) r_isOcean[r] = 1;
+                    if (r_elevation[r] <= 0) r_isOcean[r] = 1;
                 }
 
                 const preErosion = new Float32Array(r_elevation);
@@ -128,11 +134,33 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                     ctx._timing.push({ stage: 'Smoothing', ms: performance.now() - tSmooth0 });
                 }
 
-                if (erosion > 0) {
-                    const erosionK = erosion * 0.01;                     // 0–0.01
+                if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0) {
+                    const gIters = Math.round(glacialErosion * 10);      // 0–10
+                    const hIters = Math.round(hydraulicErosion * 20);    // 0–20
+                    const hK = hydraulicErosion * 0.001;                 // 0–0.001
+                    const tIters = Math.round(thermalErosion * 10);      // 0–10
+                    const talusSlope = 1.2 - thermalErosion * 0.4;       // 1.2–0.8
+                    const kThermal = thermalErosion * 0.15;              // 0–0.15
                     const tErode0 = performance.now();
-                    erodeElevation(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, erosionK);
-                    ctx._timing.push({ stage: 'Erosion', ms: performance.now() - tErode0 });
+                    erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean,
+                        hIters, hK, 0.5, 1.0,
+                        tIters, talusSlope, kThermal,
+                        gIters, glacialErosion);
+                    ctx._timing.push({ stage: 'Erosion (glacial+hydraulic+thermal)', ms: performance.now() - tErode0 });
+                }
+
+                if (ridgeSharpening > 0) {
+                    const rsIters = Math.round(1 + ridgeSharpening * 3); // 1–4
+                    const rsStr = ridgeSharpening * 0.08;                // 0–0.08
+                    const tRS0 = performance.now();
+                    sharpenRidges(ctx.mesh, r_elevation, r_isOcean, rsIters, rsStr);
+                    ctx._timing.push({ stage: 'Ridge sharpening', ms: performance.now() - tRS0 });
+                }
+
+                {
+                    const tSC0 = performance.now();
+                    applySoilCreep(ctx.mesh, r_elevation, r_isOcean, 3, 0.1125);
+                    ctx._timing.push({ stage: 'Soil creep', ms: performance.now() - tSC0 });
                 }
 
                 // Compute erosion delta layer (post - pre)
@@ -193,7 +221,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress) {
                 'color:#6cf;font-weight:bold'
             );
             console.log(
-                `  Parameters: detail=${N}  plates=${P}  continents=${numContinents}  jitter=${jitter}  roughness=${nMag}  smoothing=${smoothing}  erosion=${erosion}  seed=${ctx.seed}`
+                `  Parameters: detail=${N}  plates=${P}  continents=${numContinents}  jitter=${jitter}  roughness=${nMag}  smoothing=${smoothing}  glacialErosion=${glacialErosion}  hydraulicErosion=${hydraulicErosion}  thermalErosion=${thermalErosion}  ridgeSharpening=${ridgeSharpening}  seed=${ctx.seed}`
             );
             console.log(
                 `  Regions: ${ctx.mesh.numRegions.toLocaleString()}  Triangles: ${ctx.mesh.numTriangles.toLocaleString()}  Sides: ${ctx.mesh.numSides.toLocaleString()}`
