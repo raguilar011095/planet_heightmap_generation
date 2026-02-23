@@ -48,7 +48,7 @@ Click **Build New World** to create a new random planet.
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 17 characters; Ctrl-click edits extend the code to include the toggled plates. Legacy 13-character, 14-character, and 16-character codes (from earlier versions) are still supported and will use default values for any newer sliders. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 17 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
