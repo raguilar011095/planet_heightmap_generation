@@ -406,8 +406,117 @@ button#generate.generating {
     margin-top: 18px;
 }
 
-/* Mobile */
+/* Sheet handle — hidden on desktop */
+.sheet-handle { display: none; }
+
+/* Edit toggle — hidden on desktop */
+.edit-toggle { display: none; }
+
+/* ───── Mobile: tablets + phones ───── */
 @media (max-width: 768px) {
-    #ui { max-width: calc(100vw - 32px); }
     #topInfo { display: none; }
+
+    /* Bottom sheet */
+    #ui {
+        position: fixed; bottom: 0; left: 0; right: 0;
+        top: auto;
+        max-height: 70vh;
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        border-radius: 16px 16px 0 0;
+        padding: 10px 20px 20px;
+        min-width: 0;
+        z-index: 30;
+        transition: transform 0.3s ease;
+    }
+    #ui.collapsed {
+        transform: translateY(calc(100% - 60px));
+        overflow: hidden;
+        padding: 10px 20px 20px;
+    }
+    #ui.collapsed #sidebarContent { display: none; }
+    #ui.collapsed #sidebarHeader > div { display: none; }
+    #ui.collapsed #sidebarHeader { margin-bottom: 0; }
+
+    /* Show drag handle */
+    .sheet-handle {
+        display: flex;
+        justify-content: center;
+        padding: 8px 0 4px;
+        cursor: grab;
+        touch-action: none;
+    }
+    .sheet-handle span {
+        display: block;
+        width: 36px; height: 4px;
+        background: rgba(255,255,255,0.25);
+        border-radius: 2px;
+    }
+
+    /* Hide desktop sidebar toggle */
+    #sidebarToggle { display: none; }
+
+    /* Edit toggle button */
+    .edit-toggle {
+        display: flex;
+        align-items: center; justify-content: center;
+        position: fixed; bottom: 70px; right: 16px;
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        background: rgba(40,60,120,0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(100,160,255,0.25);
+        color: #8bf;
+        cursor: pointer;
+        z-index: 40;
+        transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+    }
+    .edit-toggle.active {
+        background: rgba(34,170,90,0.85);
+        border-color: rgba(34,170,90,0.5);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(34,170,90,0.4);
+    }
+
+    /* Touch targets */
+    #helpBtn { width: 44px; height: 44px; font-size: 20px; }
+    .tg label input[type="checkbox"] { width: 20px; height: 20px; }
+    button#generate { padding: 14px; font-size: 16px; }
+    select { padding: 10px 12px; }
+    #seedRow button { padding: 8px 12px; }
+
+    /* Font sizes */
+    .cg label { font-size: 15px; }
+    .section summary { font-size: 14px; }
+    #stats { font-size: 12px; }
+    .slider-hint { font-size: 12px; }
+    #seedCode { font-size: 14px; }
+
+    /* Tooltips: reposition above */
+    .tip:hover::after {
+        left: 50%; top: auto;
+        bottom: calc(100% + 8px);
+        transform: translateX(-50%);
+    }
+
+    /* Info bars: shift up above collapsed sheet */
+    #info { bottom: 68px; }
+    #hoverInfo { bottom: 92px; }
+
+    /* Tutorial card — tighter padding */
+    #tutorialCard { padding: 24px 20px 18px; }
+}
+
+/* ───── Mobile landscape ───── */
+@media (max-width: 768px) and (orientation: landscape) {
+    #ui { max-height: 50vh; }
+}
+
+/* ───── Small phones ───── */
+@media (max-width: 480px) {
+    #ui { padding: 8px 14px 14px; }
+    #tutorialCard { padding: 20px 16px 14px; }
+    button#generate { padding: 12px; font-size: 15px; }
+    .cg label { font-size: 14px; }
+    .section summary { font-size: 13px; }
 }

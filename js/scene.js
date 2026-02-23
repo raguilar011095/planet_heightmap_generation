@@ -33,6 +33,28 @@ canvas.addEventListener('wheel', (e) => {
     _zoomTarget = THREE.MathUtils.clamp(_zoomTarget, ctrl.minDistance, ctrl.maxDistance);
 }, { passive: false });
 
+// Pinch-to-zoom for globe (touch)
+let _pinchDist = 0;
+canvas.addEventListener('touchstart', (e) => {
+    if (!ctrl.enabled || e.touches.length !== 2) { _pinchDist = 0; return; }
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _pinchDist = Math.sqrt(dx * dx + dy * dy);
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+    if (!ctrl.enabled || e.touches.length !== 2 || _pinchDist === 0) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const ratio = _pinchDist / dist;
+    _zoomTarget *= ratio;
+    _zoomTarget = THREE.MathUtils.clamp(_zoomTarget, ctrl.minDistance, ctrl.maxDistance);
+    _pinchDist = dist;
+}, { passive: true });
+
+canvas.addEventListener('touchend', () => { _pinchDist = 0; }, { passive: true });
+
 export function tickZoom() {
     const v = new THREE.Vector3().subVectors(camera.position, ctrl.target);
     const cur = v.length();
@@ -121,6 +143,28 @@ canvas.addEventListener('wheel', (e) => {
     _mapZoomTarget *= dir < 0 ? 1 / MAP_ZOOM_STEP : MAP_ZOOM_STEP;
     _mapZoomTarget = THREE.MathUtils.clamp(_mapZoomTarget, mapCtrl.minZoom, mapCtrl.maxZoom);
 }, { passive: false });
+
+// Pinch-to-zoom for map (touch)
+let _mapPinchDist = 0;
+canvas.addEventListener('touchstart', (e) => {
+    if (!mapCtrl.enabled || e.touches.length !== 2) { _mapPinchDist = 0; return; }
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    _mapPinchDist = Math.sqrt(dx * dx + dy * dy);
+}, { passive: true });
+
+canvas.addEventListener('touchmove', (e) => {
+    if (!mapCtrl.enabled || e.touches.length !== 2 || _mapPinchDist === 0) return;
+    const dx = e.touches[0].clientX - e.touches[1].clientX;
+    const dy = e.touches[0].clientY - e.touches[1].clientY;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const ratio = dist / _mapPinchDist;
+    _mapZoomTarget *= ratio;
+    _mapZoomTarget = THREE.MathUtils.clamp(_mapZoomTarget, mapCtrl.minZoom, mapCtrl.maxZoom);
+    _mapPinchDist = dist;
+}, { passive: true });
+
+canvas.addEventListener('touchend', () => { _mapPinchDist = 0; }, { passive: true });
 
 export function tickMapZoom() {
     const cur = mapCamera.zoom;

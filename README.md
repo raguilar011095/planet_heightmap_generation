@@ -104,7 +104,7 @@ Click **Export Map** (below Visual Options) to open the export modal:
 
 ### Sidebar & Loading
 
-The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (< 768px) the sidebar starts collapsed automatically. A fullscreen overlay with spinner, title, and progress bar appears during every generation — fully opaque on initial load, semi-transparent on subsequent builds so the previous planet is dimmed behind it. Stage labels (shaping, plates, oceans, mountains, painting) update as the pipeline progresses.
+The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (≤ 768px) the sidebar becomes a bottom sheet with a drag handle — starts collapsed, showing only the handle and header. Drag up or tap the handle to expand. A fullscreen overlay with spinner, title, and progress bar appears during every generation — fully opaque on initial load, semi-transparent on subsequent builds so the previous planet is dimmed behind it. Stage labels (shaping, plates, oceans, mountains, painting) update as the pipeline progresses.
 
 ### Tutorial & Help
 
@@ -114,10 +114,24 @@ A four-step tutorial modal introduces the tool on first visit (auto-shown via `l
 
 Navigation hints are shown in the sidebar panel and as a contextual tooltip when hovering the planet.
 
-- **Drag** to rotate the globe (or pan in map view)
-- **Scroll** to zoom in/out (smooth lerp-based zoom)
-- **Hover** over the planet to highlight the plate under the cursor and see its type
-- **Ctrl-click** a plate to reshape continents — ocean plates rise into land, land plates flood into ocean (elevation is recomputed automatically)
+| Action | Desktop | Mobile |
+|--------|---------|--------|
+| Rotate globe / pan map | Drag | Drag (one finger) |
+| Zoom | Scroll wheel | Pinch with two fingers |
+| Highlight plate | Hover | — |
+| Reshape continents | Ctrl-click a plate | Tap the edit button (pencil), then tap a plate |
+
+### Mobile Support
+
+Atlas Engine is fully usable on phones and tablets:
+
+- **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
+- **Pinch-to-zoom** — two-finger pinch zooms the globe and map, using the same smooth lerp as desktop scroll-zoom.
+- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap any plate to reshape.
+- **Touch-friendly targets** — buttons, checkboxes, and sliders are enlarged for comfortable finger input.
+- **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K). Export widths above 8192px are disabled on mobile.
+- **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.
+- **Orientation** changes are handled automatically.
 
 ## How It Works
 

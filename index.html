@@ -20,6 +20,7 @@
     </div>
     <canvas id="canvas"></canvas>
     <div id="ui">
+        <div id="sheetHandle" class="sheet-handle"><span></span></div>
         <div id="sidebarHeader">
             <div>
                 <h2>Atlas Engine</h2>
@@ -221,6 +222,11 @@
     </div>
 
     <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
+    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
+        </svg>
+    </button>
     <div id="hoverInfo"></div>
     <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
 

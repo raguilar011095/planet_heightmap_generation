@@ -18,4 +18,6 @@ export const state = {
     mapMode: false,
     dragStart: null,
     debugLayer: '',
+    isTouchDevice: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0),
+    editMode: false,
 };

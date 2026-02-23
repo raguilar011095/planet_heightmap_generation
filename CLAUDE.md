@@ -29,6 +29,15 @@ After any code change, check whether the tutorial modal content (in `index.html`
 - Interactive features (navigation, editing, keyboard/mouse actions)
 - What the tool does or its key selling points
 
+After any code change that affects the UI, ensure it works on mobile. The app uses a responsive bottom-sheet layout on screens ≤ 768px (`styles.css` media queries) and has touch-specific behavior throughout. If a change adds, removes, or modifies any of the following, verify and update the mobile experience:
+
+- New buttons or controls — must have ≥ 44px touch targets on mobile (see `@media (max-width: 768px)` in `styles.css`)
+- New interactions — must have touch equivalents; desktop uses Ctrl-click for plate editing, mobile uses `state.editMode` toggle (`js/edit-mode.js`); desktop uses scroll-to-zoom, mobile uses pinch (`js/scene.js`)
+- Tooltips — must reposition above their trigger on mobile, not to the right (overflow off-screen)
+- New overlays or modals — must be usable within the bottom-sheet layout and not be hidden behind it
+- Performance-sensitive features — consider lower thresholds on touch devices (detail warnings, export limits); check `state.isTouchDevice` in `js/state.js`
+- Info/hint text — update both desktop text (in `index.html`) and the mobile-specific text set in `js/main.js` (search for `state.isTouchDevice`)
+
 After any code change that adds, removes, or modifies slider controls, update the planet code encoding in `js/planet-code.js` to match. The planet code packs the seed and all slider values into a compact base36 string using mixed-radix integer packing. If a slider's range, step, or count changes, or if a new slider is added, update:
 
 - The `SLIDERS` array (min, step, count for each slider)

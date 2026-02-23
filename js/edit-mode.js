@@ -174,8 +174,10 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointerdown', (e) => {
         if (!state.curData) return;
-        if (e.button === 0 && e.ctrlKey) {
-            // Ctrl-click: plate editing
+        const isEditTap = (e.button === 0 && e.ctrlKey) ||
+                          (e.button === 0 && state.isTouchDevice && state.editMode);
+        if (isEditTap) {
+            // Ctrl-click or mobile edit-mode tap: plate editing
             const hit = getHitInfo(e);
             if (!hit) return;
             downInfo = { x: e.clientX, y: e.clientY, plate: hit.plate };
@@ -221,7 +223,8 @@ export function setupEditMode() {
                 if (state.hoveredPlate >= 0 && state.curData) {
                     const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
                     const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
-                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate &middot; Ctrl-click to ${isOcean ? 'raise land' : 'flood'}`;
+                    const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
+                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate &middot; ${action} to ${isOcean ? 'raise land' : 'flood'}`;
                 }
                 // Notify main.js to update the planet code
                 document.dispatchEvent(new CustomEvent('plates-edited'));
@@ -258,7 +261,8 @@ export function setupEditMode() {
                 const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
                 const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
                 const typeStr = isOcean ? 'Ocean' : 'Land';
-                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> plate &middot; Ctrl-click to ${isOcean ? 'raise land' : 'flood'}`;
+                const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
+                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> plate &middot; ${action} to ${isOcean ? 'raise land' : 'flood'}`;
                 hoverEl.style.display = 'block';
             } else {
                 hoverEl.style.display = 'none';

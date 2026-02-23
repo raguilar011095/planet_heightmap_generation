@@ -123,17 +123,20 @@ reapplyBtn.addEventListener('click', () => {
     }, 16);
 });
 
-// Detail slider warning update
+// Detail slider warning update (lower thresholds on touch devices)
+const WARN_ORANGE = state.isTouchDevice ? 200000 : 640000;
+const WARN_RED    = state.isTouchDevice ? 500000 : 1280000;
+
 function updateDetailWarning(detail) {
     const cg = document.getElementById('sN').closest('.cg');
     const warn = document.getElementById('detailWarn');
     cg.classList.remove('detail-orange', 'detail-red');
     warn.className = 'detail-warn';
-    if (detail > 1280000) {
+    if (detail > WARN_RED) {
         cg.classList.add('detail-red');
         warn.classList.add('red');
         warn.textContent = '\u26A0 Very high \u2014 generation will be slow';
-    } else if (detail > 640000) {
+    } else if (detail > WARN_ORANGE) {
         cg.classList.add('detail-orange');
         warn.classList.add('orange');
         warn.textContent = '\u26A0 High detail \u2014 may slow generation';
@@ -426,18 +429,107 @@ if (debugLayerEl) {
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();
 
-// Sidebar toggle
+// Sidebar toggle (desktop) + bottom sheet (mobile)
 const sidebarToggle = document.getElementById('sidebarToggle');
 const uiPanel = document.getElementById('ui');
-if (window.innerWidth < 768) {
+const isMobileLayout = () => window.innerWidth <= 768;
+
+if (isMobileLayout()) {
     uiPanel.classList.add('collapsed');
-    sidebarToggle.innerHTML = '\u00BB';
-    sidebarToggle.title = 'Show panel';
 }
+
+// Desktop sidebar toggle
 sidebarToggle.addEventListener('click', () => {
     const collapsed = uiPanel.classList.toggle('collapsed');
     sidebarToggle.innerHTML = collapsed ? '\u00BB' : '\u00AB';
     sidebarToggle.title = collapsed ? 'Show panel' : 'Collapse panel';
+});
+
+// Bottom-sheet drag behavior (touch only)
+(function initBottomSheet() {
+    const handle = document.getElementById('sheetHandle');
+    if (!handle) return;
+    let startY = 0, startTransform = 0, dragging = false;
+
+    function getTranslateY() {
+        const st = getComputedStyle(uiPanel);
+        const m = new DOMMatrix(st.transform);
+        return m.m42;
+    }
+
+    handle.addEventListener('touchstart', (e) => {
+        if (!isMobileLayout()) return;
+        dragging = true;
+        startY = e.touches[0].clientY;
+        startTransform = uiPanel.classList.contains('collapsed') ? getTranslateY() : 0;
+        uiPanel.style.transition = 'none';
+    }, { passive: true });
+
+    window.addEventListener('touchmove', (e) => {
+        if (!dragging) return;
+        const dy = e.touches[0].clientY - startY;
+        const newY = Math.max(0, startTransform + dy);
+        uiPanel.style.transform = `translateY(${newY}px)`;
+    }, { passive: true });
+
+    window.addEventListener('touchend', () => {
+        if (!dragging) return;
+        dragging = false;
+        uiPanel.style.transition = '';
+        const curY = getTranslateY();
+        const sheetH = uiPanel.offsetHeight;
+        if (curY > sheetH * 0.3) {
+            uiPanel.classList.add('collapsed');
+        } else {
+            uiPanel.classList.remove('collapsed');
+        }
+        uiPanel.style.transform = '';
+    });
+
+    // Tap on handle toggles collapsed state
+    handle.addEventListener('click', () => {
+        if (!isMobileLayout()) return;
+        uiPanel.classList.toggle('collapsed');
+    });
+})();
+
+// Edit-mode toggle wiring
+(function initEditToggle() {
+    const editBtn = document.getElementById('editToggle');
+    if (!editBtn) return;
+    editBtn.addEventListener('click', () => {
+        state.editMode = !state.editMode;
+        editBtn.classList.toggle('active', state.editMode);
+    });
+})();
+
+// Mobile info text
+if (state.isTouchDevice) {
+    const infoEl = document.getElementById('info');
+    if (infoEl) infoEl.textContent = 'Drag to rotate \u00b7 Pinch to zoom \u00b7 Use edit button to reshape';
+}
+
+// Disable export widths > 8192 on touch devices
+if (state.isTouchDevice) {
+    const exportWidth = document.getElementById('exportWidth');
+    if (exportWidth) {
+        for (const opt of exportWidth.options) {
+            if (+opt.value > 8192) {
+                opt.disabled = true;
+                opt.textContent = opt.value + ' (too large for mobile)';
+            }
+        }
+    }
+}
+
+// Orientation change handler
+window.addEventListener('orientationchange', () => {
+    setTimeout(() => {
+        camera.aspect = innerWidth / innerHeight;
+        camera.updateProjectionMatrix();
+        updateMapCameraFrustum();
+        renderer.setSize(innerWidth, innerHeight);
+    }, 100);
 });
 
 // Animation loop
@@ -515,6 +607,15 @@ window.addEventListener('resize', () => {
     });
 
     helpBtn.addEventListener('click', openModal);
+
+    // Update tutorial step 2 for touch devices
+    if (state.isTouchDevice) {
+        const step2 = card.querySelector('.tutorial-step[data-step="2"]');
+        if (step2) {
+            const p = step2.querySelector('p');
+            if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean.';
+        }
+    }
 
     // Auto-show on first visit — wait until the build overlay has faded out
     overlay.classList.add('hidden');
