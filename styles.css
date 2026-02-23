@@ -155,6 +155,16 @@ button#generate.generating {
     padding-top: 8px;
     border-top: 1px solid rgba(255,255,255,0.06);
 }
+#repoLink {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 12px; color: #556;
+    text-decoration: none;
+    margin-top: 10px; padding-top: 10px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    transition: color 0.2s;
+}
+#repoLink:hover { color: #9ab; }
+#repoLink svg { flex-shrink: 0; }
 .slider-hint {
     display: flex;
     justify-content: space-between;
