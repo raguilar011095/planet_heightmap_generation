@@ -11,7 +11,18 @@
       "Bash(sort:*)",
       "WebSearch",
       "WebFetch(domain:github.com)",
-      "WebFetch(domain:docs.github.com)"
+      "WebFetch(domain:docs.github.com)",
+      "WebFetch(domain:aparis69.github.io)",
+      "WebFetch(domain:www.gamedev.net)",
+      "WebFetch(domain:www.proceduralpixels.com)",
+      "WebFetch(domain:www-sop.inria.fr)",
+      "WebFetch(domain:perso.liris.cnrs.fr)",
+      "WebFetch(domain:web.mit.edu)",
+      "WebFetch(domain:nickmcd.me)",
+      "WebFetch(domain:inria.hal.science)",
+      "WebFetch(domain:jobtalle.com)",
+      "WebFetch(domain:frozenfractal.com)",
+      "WebFetch(domain:old.cescg.org)"
     ]
   }
 }
