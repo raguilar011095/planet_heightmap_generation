@@ -15,7 +15,7 @@ All three are considered together; ties are broken in the order above.
 ## Features
 
 - **Fibonacci sphere meshing** with Voronoi cell tessellation via Delaunay triangulation
-- **Tectonic plate simulation** — round-robin flood fill with directional growth bias, boundary smoothing, and fragment reconnection
+- **Tectonic plate simulation** — farthest-point seed placement with top-3 jitter, round-robin flood fill with directional growth bias, growth-rate governor, compactness penalty to prevent spindly shapes, multi-pass boundary smoothing, and fragment reconnection
 - **Ocean/land assignment** — farthest-point continent seeding, round-robin growth with separation guarantees, trapped sea absorption, targeting ~30% land coverage
 - **Collision detection** — convergent, divergent, and transform boundary classification with density-based subduction modeling
 - **Elevation generation** — three distance fields (mountain/ocean/coastline) combined via harmonic-mean formula, stress-driven uplift, asymmetric mountain profiles, continental shelf/slope/abyss profiles, foreland basins, plateau formation, and rift valleys with graben profiles
@@ -127,7 +127,7 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 2. **Stereographic projection** maps the sphere points to 2D
 3. **Delaunator** computes Delaunay triangulation in projected space
 4. **Pole closure** connects convex hull edges to a pole point, creating a watertight mesh
-5. **Plate generation** via round-robin flood fill with per-plate growth rates and directional bias
+5. **Plate generation** via farthest-point seed placement (with top-3 jitter for variety), round-robin flood fill with per-plate growth rates, directional bias coupled inversely to growth rate, growth-rate governor, and compactness penalty
 6. **Ocean/land assignment** using farthest-point continent seeding with area budgeting
 7. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
 8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
@@ -159,7 +159,7 @@ js/
   simplex-noise.js      3D Simplex noise with fBm and ridged fBm
   color-map.js          Elevation → RGB colour mapping
   sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
-  plates.js             Tectonic plate generation (round-robin flood fill)
+  plates.js             Tectonic plate generation (farthest-point seeding, round-robin flood fill, compactness constraints)
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   terrain-post.js       Bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
