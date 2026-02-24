@@ -654,6 +654,63 @@ window.addEventListener('resize', () => {
     }
 })();
 
+// Power-user survey — triggers after 3+ distinct hours across 2+ distinct days
+(function initSurveyTracker() {
+    const LS = 'wo-usage';
+    const LS_DISMISSED = 'wo-survey-dismissed';
+
+    if (localStorage.getItem(LS_DISMISSED)) return;
+
+    // Simple hash so we don't store raw timestamps
+    function hash(str) {
+        let h = 5381;
+        for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
+        return h.toString(36);
+    }
+
+    let data;
+    try { data = JSON.parse(localStorage.getItem(LS)) || {}; } catch (_) { data = {}; }
+    const hours = data.h || 0;
+    const days  = data.d || 0;
+    const lastH = data.lh || '';
+    const lastD = data.ld || '';
+
+    const now = new Date();
+    const hourKey = hash(now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate() + 'T' + now.getHours());
+    const dayKey  = hash(now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate());
+
+    const newHours = hourKey !== lastH ? hours + 1 : hours;
+    const newDays  = dayKey  !== lastD ? days  + 1 : days;
+
+    localStorage.setItem(LS, JSON.stringify({ h: newHours, d: newDays, lh: hourKey, ld: dayKey }));
+
+    if (newHours >= 3 && newDays >= 2) {
+        const overlay    = document.getElementById('surveyOverlay');
+        const closeBtn   = document.getElementById('surveyClose');
+        const dismissBtn = document.getElementById('surveyDismiss');
+        const linkBtn    = document.getElementById('surveyLink');
+        if (!overlay) return;
+
+        function dismiss() {
+            overlay.classList.add('hidden');
+            localStorage.setItem(LS_DISMISSED, '1');
+        }
+
+        // Show after the first generation completes
+        genBtn.addEventListener('generate-done', () => {
+            setTimeout(() => overlay.classList.remove('hidden'), 1000);
+        }, { once: true });
+
+        closeBtn.addEventListener('click', dismiss);
+        dismissBtn.addEventListener('click', dismiss);
+        linkBtn.addEventListener('click', dismiss);
+        overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && !overlay.classList.contains('hidden')) dismiss();
+        });
+    }
+})();
+
 // Go! Check URL hash for a planet code, otherwise random generation.
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
