@@ -203,6 +203,7 @@ button#generate.generating {
 #info {
     position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
     font-size: 13px; color: #667; transition: color 0.4s ease;
+    pointer-events: none;
 }
 #info.nudge { animation: infoNudge 2.5s ease; }
 @keyframes infoNudge {
@@ -433,6 +434,9 @@ button#generate.generating {
 /* Edit toggle — hidden on desktop */
 .edit-toggle { display: none; }
 
+/* Refresh FAB — hidden on desktop */
+.refresh-fab { display: none; }
+
 /* ───── Mobile: tablets + phones ───── */
 @media (max-width: 768px) {
     #topInfo { display: none; }
@@ -441,9 +445,9 @@ button#generate.generating {
     #ui {
         position: fixed; bottom: 0; left: 0; right: 0;
         top: auto;
+        display: flex; flex-direction: column;
         max-height: 70vh;
-        overflow-y: auto;
-        -webkit-overflow-scrolling: touch;
+        overflow: visible;
         border-radius: 16px 16px 0 0;
         padding: 10px 20px 20px;
         min-width: 0;
@@ -453,18 +457,40 @@ button#generate.generating {
     }
     #ui.collapsed {
         transform: translateY(calc(100% - 60px));
-        overflow: hidden;
         padding: 10px 20px 20px;
     }
+    /* Override desktop display:none — content stays rendered (for full-height drag) but invisible */
+    #ui.collapsed #sidebarContent { display: block; visibility: hidden; }
+    #ui.collapsed #sidebarHeader > div { display: block; visibility: hidden; }
     #ui.collapsed #sidebarHeader { margin-bottom: 0; }
+    /* Reveal content as soon as a drag begins */
+    #ui.collapsed.dragging #sidebarContent,
+    #ui.collapsed.dragging #sidebarHeader > div { visibility: visible; }
+
+    /* Mobile sidebarContent becomes the scroll container */
+    #sidebarContent {
+        overflow-y: auto;
+        -webkit-overflow-scrolling: touch;
+        overscroll-behavior: contain;
+        flex: 1;
+        min-height: 0;
+        padding-right: 0; padding-left: 0;
+    }
+
+    /* Disable content scroll during handle drag */
+    #ui.dragging #sidebarContent {
+        overflow-y: hidden;
+        pointer-events: none;
+    }
 
     /* Show drag handle */
     .sheet-handle {
         display: flex;
         justify-content: center;
-        padding: 8px 0 4px;
+        padding: 12px 0 8px;
         cursor: grab;
         touch-action: none;
+        flex-shrink: 0;
     }
     .sheet-handle span {
         display: block;
@@ -488,10 +514,33 @@ button#generate.generating {
         border: 1px solid rgba(100,160,255,0.25);
         color: #8bf;
         cursor: pointer;
-        z-index: 40;
+        z-index: 25;
         transition: background 0.2s, box-shadow 0.2s, color 0.2s;
     }
     .edit-toggle.active {
+        background: rgba(34,170,90,0.85);
+        border-color: rgba(34,170,90,0.5);
+        color: #fff;
+        box-shadow: 0 0 12px rgba(34,170,90,0.4);
+    }
+
+    /* Refresh FAB — mirrors edit toggle on the left */
+    .refresh-fab {
+        display: flex;
+        align-items: center; justify-content: center;
+        position: fixed; bottom: 70px; left: 16px;
+        width: 48px; height: 48px;
+        border-radius: 50%;
+        background: rgba(40,60,120,0.8);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(100,160,255,0.25);
+        color: #8bf;
+        cursor: pointer;
+        z-index: 25;
+        transition: background 0.3s, box-shadow 0.3s, color 0.3s, border-color 0.3s;
+    }
+    .refresh-fab:hover { background: rgba(60,90,180,0.9); color: #fff; }
+    .refresh-fab.armed {
         background: rgba(34,170,90,0.85);
         border-color: rgba(34,170,90,0.5);
         color: #fff;
