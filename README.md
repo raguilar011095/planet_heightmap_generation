@@ -1,4 +1,4 @@
-# Atlas Engine
+# World Orogen
 
 A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Uses native ES modules with no build step required.
 
@@ -123,7 +123,7 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 
 ### Mobile Support
 
-Atlas Engine is fully usable on phones and tablets:
+World Orogen is fully usable on phones and tablets:
 
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map, using the same smooth lerp as desktop scroll-zoom.
