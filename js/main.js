@@ -386,13 +386,15 @@ sidebarToggle.addEventListener('click', () => {
     sidebarToggle.title = collapsed ? 'Show panel' : 'Collapse panel';
 });
 
-// Bottom-sheet drag behavior (touch only)
+// Bottom-sheet drag behavior (Pointer Events + setPointerCapture)
 (function initBottomSheet() {
     const handle = document.getElementById('sheetHandle');
     if (!handle) return;
+
     let startY = 0, startTransform = 0, dragging = false;
     let lastY = 0, lastTime = 0, velocity = 0;
     let didDrag = false;
+    let rafId = 0, pendingY = null;
 
     function getTranslateY() {
         const st = getComputedStyle(uiPanel);
@@ -400,49 +402,81 @@ sidebarToggle.addEventListener('click', () => {
         return m.m42;
     }
 
-    handle.addEventListener('touchstart', (e) => {
+    function getCollapsedY() {
+        return uiPanel.offsetHeight - 60;
+    }
+
+    function applyTransform() {
+        if (pendingY !== null) {
+            uiPanel.style.transform = `translateY(${pendingY}px)`;
+            pendingY = null;
+        }
+        rafId = 0;
+    }
+
+    function scheduleTransform(y) {
+        pendingY = y;
+        if (!rafId) rafId = requestAnimationFrame(applyTransform);
+    }
+
+    function cleanup() {
+        dragging = false;
+        uiPanel.style.transition = '';
+        uiPanel.classList.remove('dragging');
+        if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+        pendingY = null;
+    }
+
+    handle.addEventListener('pointerdown', (e) => {
         if (!isMobileLayout()) return;
+        e.preventDefault();
+        handle.setPointerCapture(e.pointerId);
         dragging = true;
         didDrag = false;
-        const y = e.touches[0].clientY;
-        startY = y;
-        lastY = y;
+        startY = e.clientY;
+        lastY = e.clientY;
         lastTime = performance.now();
         velocity = 0;
         startTransform = uiPanel.classList.contains('collapsed') ? getTranslateY() : 0;
         uiPanel.style.transition = 'none';
-    }, { passive: true });
+        uiPanel.classList.add('dragging');
+    });
 
-    window.addEventListener('touchmove', (e) => {
+    handle.addEventListener('pointermove', (e) => {
         if (!dragging) return;
-        const y = e.touches[0].clientY;
+        const y = e.clientY;
         const now = performance.now();
         const dt = now - lastTime;
         if (dt > 0) velocity = (y - lastY) / dt; // px/ms, positive = downward
         lastY = y;
         lastTime = now;
         const dy = y - startY;
-        if (Math.abs(dy) > 5) didDrag = true; // distinguish drag from tap
-        const newY = Math.max(0, startTransform + dy);
-        uiPanel.style.transform = `translateY(${newY}px)`;
-    }, { passive: true });
+        if (Math.abs(dy) > 5) didDrag = true;
+        const collapsedY = getCollapsedY();
+        const newY = Math.max(0, Math.min(collapsedY, startTransform + dy));
+        scheduleTransform(newY);
+    });
 
-    window.addEventListener('touchend', () => {
+    handle.addEventListener('pointerup', (e) => {
         if (!dragging) return;
-        dragging = false;
-        uiPanel.style.transition = '';
+        handle.releasePointerCapture(e.pointerId);
+        cleanup();
         const curY = getTranslateY();
-        const sheetH = uiPanel.offsetHeight;
-        const collapsedY = sheetH - 60;
-        // How far open is the sheet? 0 = fully collapsed, 1 = fully expanded
+        const collapsedY = getCollapsedY();
         const progress = collapsedY > 0 ? 1 - curY / collapsedY : 0;
-        // Fast swipe overrides position; otherwise snap at 30% open
         const shouldCollapse = velocity > 0.3 || (velocity > -0.3 && progress < 0.3);
         if (shouldCollapse) {
             uiPanel.classList.add('collapsed');
         } else {
             uiPanel.classList.remove('collapsed');
         }
+        uiPanel.style.transform = '';
+    });
+
+    handle.addEventListener('pointercancel', (e) => {
+        if (!dragging) return;
+        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
+        cleanup();
         uiPanel.style.transform = '';
     });
 
@@ -461,6 +495,35 @@ sidebarToggle.addEventListener('click', () => {
     editBtn.addEventListener('click', () => {
         state.editMode = !state.editMode;
         editBtn.classList.toggle('active', state.editMode);
+    });
+})();
+
+// Mobile refresh FAB — two-tap to regenerate (blue → green → generate)
+(function initRefreshFab() {
+    const btn = document.getElementById('refreshFab');
+    if (!btn) return;
+    let armed = false;
+    let timer = 0;
+
+    function disarm() {
+        armed = false;
+        btn.classList.remove('armed');
+        clearTimeout(timer);
+    }
+
+    btn.addEventListener('click', () => {
+        if (!armed) {
+            armed = true;
+            btn.classList.add('armed');
+            timer = setTimeout(disarm, 3000);
+        } else {
+            disarm();
+            // Collapse sheet so user sees the planet build
+            if (isMobileLayout()) uiPanel.classList.add('collapsed');
+            clearReapplyPending();
+            showBuildOverlay();
+            generate(undefined, [], onProgress);
+        }
     });
 })();
 
