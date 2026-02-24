@@ -891,29 +891,49 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     _timing.push({ stage: 'Island arcs', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Hotspot volcanism — mantle plumes with drift chains
+    // Dual-component model: broad thermal swell + volcanic peak with
+    // domain-warped shape distortion, age-dependent texture, drift
+    // elongation, summit calderas, and radial rift-zone ridges.
     {
         const NUM_HOTSPOTS = 5;
-        const CHAIN_LENGTH = 6;        // base, varies ±2
-        const CHAIN_DECAY  = 0.75;     // base, varies ±0.08
-        const CHAIN_SPACING = 0.06;    // base radians, varies ±30%
-        const DOME_SIGMA   = 0.01;     // base dome radius, varies ±30%
-        const DOME_STRENGTH = 0.50;    // base, varies ±20%
+        const CHAIN_LENGTH = 6;
+        const CHAIN_DECAY  = 0.75;
+        const CHAIN_SPACING = 0.06;
+        const DOME_SIGMA   = 0.006;
+        const DOME_STRENGTH = 0.60;
+
+        const SWELL_SIGMA_MULT = 2;    // swell is 2x wider than peak (was 3)
+        const SWELL_STR_MULT   = 0.10; // swell is 10% the peak strength
 
         const hsRng = makeRng(seed + 999);
-        const hsNoise = new SimplexNoise(seed + 501);
+        const hsNoise  = new SimplexNoise(seed + 501);
+        const hsNoise2 = new SimplexNoise(seed + 502); // for domain warp
+        const hsNoise3 = new SimplexNoise(seed + 503); // for rift angles
 
-        // Build list of all dome sources: active hotspots + ghost chain points
-        const domes = []; // { x, y, z, strength, sigma }
+        // Build list of all dome sources
+        // Each dome carries: position, strength, sigma, chainIndex (0 = active),
+        // chainLength, drift direction, and tangent frame for rift ridges.
+        const domes = [];
+
+        // Tangent frame for drift elongation & rift ridges
+        // tU = drift projected onto tangent plane at dome center
+        // tV = cross(normal, tU) — perpendicular in tangent plane
+        const buildTangentFrame = (px, py, pz, dx, dy, dz) => {
+            const dd = dx*px + dy*py + dz*pz;
+            let ux = dx - dd*px, uy = dy - dd*py, uz = dz - dd*pz;
+            const uLen = Math.sqrt(ux*ux + uy*uy + uz*uz) || 1;
+            ux /= uLen; uy /= uLen; uz /= uLen;
+            const vx = py*uz - pz*uy, vy = pz*ux - px*uz, vz = px*uy - py*ux;
+            return { ux, uy, uz, vx, vy, vz };
+        };
 
         const hsRandInt = makeRandInt(seed + 1001);
         for (let h = 0; h < NUM_HOTSPOTS; h++) {
-            // Per-hotspot variation (wide ranges)
             const hStrength = DOME_STRENGTH * (0.4 + hsRng() * 1.2);
             const hSigma    = DOME_SIGMA * (0.4 + hsRng() * 1.2);
             const hDecay    = CHAIN_DECAY + (hsRng() - 0.5) * 0.35;
-            const hLength   = Math.max(2, CHAIN_LENGTH + Math.round((hsRng() - 0.5) * 10));
+            const hLength   = Math.max(3, CHAIN_LENGTH + Math.round((hsRng() - 0.5) * 10));
 
-            // Pick a random region as hotspot center
             const centerR = hsRandInt(numRegions);
             const hx = r_xyz[3*centerR], hy = r_xyz[3*centerR+1], hz = r_xyz[3*centerR+2];
             const plate = r_plate[centerR];
@@ -922,19 +942,34 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const drift = plateVelocityAt(plateVec, plate, hx, hy, hz);
             const driftLen = Math.sqrt(drift[0]*drift[0] + drift[1]*drift[1] + drift[2]*drift[2]);
             if (driftLen < 1e-6) continue;
-            // Normalize (chain code uses direction only, projects & normalizes later)
             drift[0] /= driftLen; drift[1] /= driftLen; drift[2] /= driftLen;
 
-            // Ocean hotspots are stronger so they punch through the ocean floor
             const isOceanHotspot = plateIsOcean.has(plate);
             const oceanBoost = isOceanHotspot ? 1.8 : 1.0;
 
-            // Active hotspot dome
-            domes.push({ x: hx, y: hy, z: hz, strength: hStrength * oceanBoost, sigma: hSigma });
+            // Rift angles: 2-3 evenly spaced rifts for active dome, fewer for older
+            const baseRiftAngle = hsNoise3.noise3D(hx*10, hy*10, hz*10) * Math.PI;
+            const riftAnglesForDome = (ci, cl) => {
+                if (ci === 0) return [baseRiftAngle, baseRiftAngle + Math.PI * 0.6, baseRiftAngle - Math.PI * 0.6];
+                if (ci === 1) return [baseRiftAngle, baseRiftAngle + Math.PI];
+                if (ci <= Math.floor(cl * 0.4)) return [baseRiftAngle];
+                return [];
+            };
 
-            // Chain: trail in direction opposite to plate drift (great-circle steps)
-            // Compute a perpendicular vector for trajectory wobble
-            const pdot = drift[1] * hx - drift[0] * hy;
+            // Active dome — store base strength (no ocean boost) for swell;
+            // peak strength gets ocean boost so it punches through ocean floor.
+            const frame0 = buildTangentFrame(hx, hy, hz, drift[0], drift[1], drift[2]);
+            domes.push({
+                x: hx, y: hy, z: hz,
+                strength: hStrength * oceanBoost, baseStrength: hStrength,
+                sigma: hSigma,
+                chainIndex: 0, chainLength: hLength,
+                dx: drift[0], dy: drift[1], dz: drift[2],
+                ...frame0,
+                riftAngles: riftAnglesForDome(0, hLength),
+            });
+
+            // Chain trail
             let perpX = drift[1] * hz - drift[2] * hy;
             let perpY = drift[2] * hx - drift[0] * hz;
             let perpZ = drift[0] * hy - drift[1] * hx;
@@ -943,76 +978,176 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
             let cx = hx, cy = hy, cz = hz;
             let str = hStrength * oceanBoost;
+            let baseStr = hStrength;
             for (let c = 0; c < hLength; c++) {
-                str *= hDecay;
-                // Per-step variation (wide ranges)
-                str *= (0.7 + hsRng() * 0.6);  // extra per-step strength jitter
+                const ci = c + 1; // chainIndex (0 = active, 1+ = trail)
+                const decayJitter = hDecay * (0.7 + hsRng() * 0.6);
+                str *= decayJitter;
+                baseStr *= decayJitter;
                 const stepSpacing = CHAIN_SPACING * (0.3 + hsRng() * 1.4);
-                const stepSigma   = hSigma * (0.5 + hsRng() * 1.0);
-                // Wobble: deflect direction by a random angle off the main drift
-                const wobble = (hsRng() - 0.5) * 0.8; // ±0.4 radians off-axis
-                const dx = -drift[0] + perpX * wobble;
-                const dy = -drift[1] + perpY * wobble;
-                const dz = -drift[2] + perpZ * wobble;
-                // Project onto tangent plane at current point
-                const dot = dx * cx + dy * cy + dz * cz;
-                let tx = dx - dot * cx, ty = dy - dot * cy, tz = dz - dot * cz;
+                // #4: age broadening — older domes get wider
+                const ageBroadening = 1.0 + ci * 0.06;
+                const stepSigma = hSigma * (0.5 + hsRng() * 1.0) * ageBroadening;
+                const wobble = (hsRng() - 0.5) * 0.8;
+                const ddx = -drift[0] + perpX * wobble;
+                const ddy = -drift[1] + perpY * wobble;
+                const ddz = -drift[2] + perpZ * wobble;
+                const dot = ddx * cx + ddy * cy + ddz * cz;
+                let tx = ddx - dot * cx, ty = ddy - dot * cy, tz = ddz - dot * cz;
                 const tLen = Math.sqrt(tx*tx + ty*ty + tz*tz);
                 if (tLen < 1e-6) break;
                 tx /= tLen; ty /= tLen; tz /= tLen;
-                // Rotate point along great circle
                 const cosA = Math.cos(stepSpacing);
                 const sinA = Math.sin(stepSpacing);
                 cx = cx * cosA + tx * sinA;
                 cy = cy * cosA + ty * sinA;
                 cz = cz * cosA + tz * sinA;
-                const nLen = Math.sqrt(cx*cx + cy*cy + cz*cz);
-                cx /= nLen; cy /= nLen; cz /= nLen;
-                domes.push({ x: cx, y: cy, z: cz, strength: str, sigma: stepSigma });
+                const nL = Math.sqrt(cx*cx + cy*cy + cz*cz);
+                cx /= nL; cy /= nL; cz /= nL;
+
+                const frameC = buildTangentFrame(cx, cy, cz, drift[0], drift[1], drift[2]);
+                domes.push({
+                    x: cx, y: cy, z: cz,
+                    strength: str, baseStrength: baseStr,
+                    sigma: stepSigma,
+                    chainIndex: ci, chainLength: hLength,
+                    dx: drift[0], dy: drift[1], dz: drift[2],
+                    ...frameC,
+                    riftAngles: riftAnglesForDome(ci, hLength),
+                });
             }
         }
 
-        // Pre-compute per-dome constants for the inner loop:
-        // - cosThresh: cosine-domain early exit (replaces Math.acos + comparison)
-        // - invS2: Gaussian exponent factor (avoids division in inner loop)
+        // Pre-compute per-dome constants
         for (let d = 0; d < domes.length; d++) {
             const dm = domes[d];
-            dm.cosThresh = Math.cos(dm.sigma * 5);
+            // Peak threshold — 5.5σ (slight increase from 5 for drift elongation)
+            dm.cosThreshPeak = Math.cos(dm.sigma * 5.5);
             dm.invS2 = -0.5 / (dm.sigma * dm.sigma);
+            // Swell uses base strength (no ocean boost) so it doesn't
+            // broadly raise ocean floor — only peaks punch through.
+            const swSigma = dm.sigma * SWELL_SIGMA_MULT;
+            dm.swellSigma = swSigma;
+            dm.swellStrength = dm.baseStrength * SWELL_STR_MULT;
+            dm.cosThreshSwell = Math.cos(swSigma * 3);
+            dm.invS2Swell = -0.5 / (swSigma * swSigma);
+            // #5: drift elongation scale factor (1/1.4 for parallel axis)
+            dm.driftStretch = 1.0 / 1.4;
+            // #6: caldera (only on active or most recent chain member with enough strength)
+            dm.hasCaldera = dm.chainIndex <= 1 && dm.strength > 0.15;
+            dm.calderaSigma = dm.sigma * 0.25;
+            dm.calderaDepth = dm.strength * 0.20;
+            dm.invS2Caldera = -0.5 / (dm.calderaSigma * dm.calderaSigma);
+            // Age factor for texture (0 = active = most textured, 1 = oldest = smooth)
+            dm.ageFactor = dm.chainLength > 0 ? dm.chainIndex / dm.chainLength : 0;
         }
 
         // Apply dome uplift to all cells
         for (let r = 0; r < numRegions; r++) {
             const rx = r_xyz[3*r], ry = r_xyz[3*r+1], rz = r_xyz[3*r+2];
 
-            // Quick check: is this region near ANY dome? (cosine domain, no trig)
-            // Skips the expensive shapeWarp noise for the ~99% of regions far from all domes.
-            let near = false;
+            // Two-level early exit:
+            // Level 1 — check if near any dome's swell radius (cheap, wide)
+            let nearSwell = false;
+            let nearPeak  = false;
             for (let d = 0; d < domes.length; d++) {
-                if (domes[d].x * rx + domes[d].y * ry + domes[d].z * rz > domes[d].cosThresh) {
-                    near = true; break;
+                const dm = domes[d];
+                const cdot = dm.x * rx + dm.y * ry + dm.z * rz;
+                if (cdot > dm.cosThreshSwell) {
+                    nearSwell = true;
+                    if (cdot > dm.cosThreshPeak) { nearPeak = true; break; }
                 }
             }
-            if (!near) continue;
+            if (!nearSwell) continue;
 
-            // Shape warp: distort dome radius so edges aren't perfect circles
-            const shapeWarp = 1.0 + 0.3 * hsNoise.fbm(rx * 25 + 3.2, ry * 25 + 7.8, rz * 25 + 1.5, 2);
-            const shapeWarpSq = shapeWarp * shapeWarp;
+            // Compute shape warp only if near a peak (expensive noise)
+            let shapeWarp = 1.0, shapeWarpSq = 1.0;
+            if (nearPeak) {
+                // #2: domain-warped fbm for aggressive shape distortion
+                const warpScale = 8;
+                const wx = hsNoise2.fbm(rx * warpScale + 5.1, ry * warpScale + 3.7, rz * warpScale + 9.2, 2, 0.5) * 0.4;
+                const wy = hsNoise2.fbm(rx * warpScale + 11.3, ry * warpScale + 7.1, rz * warpScale + 2.9, 2, 0.5) * 0.4;
+                const wz = hsNoise2.fbm(rx * warpScale + 1.7, ry * warpScale + 13.5, rz * warpScale + 6.4, 2, 0.5) * 0.4;
+                shapeWarp = 1.0 + 0.40 * hsNoise.fbm(
+                    (rx + wx) * 20 + 3.2, (ry + wy) * 20 + 7.8, (rz + wz) * 20 + 1.5, 4, 0.5
+                );
+                shapeWarpSq = shapeWarp * shapeWarp;
+            }
+
             let totalUplift = 0;
+            let totalSwellUplift = 0;
+            let weightedAge = 0;
+            let ageWeightSum = 0;
+
             for (let d = 0; d < domes.length; d++) {
                 const dm = domes[d];
                 const dot = dm.x * rx + dm.y * ry + dm.z * rz;
-                if (dot < dm.cosThresh) continue;
-                // Small-angle approximation: angle² ≈ 2(1 - dot).
-                // Valid here because sigma*5 ≈ 0.05 rad; error < 0.1% in this range.
-                const angleSq = 2 * (1 - dot);
-                const gauss = Math.exp(angleSq * shapeWarpSq * dm.invS2);
-                totalUplift += dm.strength * gauss;
+
+                // --- Thermal swell (smooth, no warp) ---
+                if (dot > dm.cosThreshSwell) {
+                    const swAngleSq = 2 * (1 - dot);
+                    totalSwellUplift += dm.swellStrength * Math.exp(swAngleSq * dm.invS2Swell);
+                }
+
+                // --- Volcanic peak (warped, textured) ---
+                if (dot < dm.cosThreshPeak) continue;
+
+                // #5: drift-direction elongation
+                // Decompose angular offset into drift-parallel and drift-perpendicular
+                // by projecting the tangent-plane offset vector onto the dome's frame
+                const offX = rx - dot * dm.x, offY = ry - dot * dm.y, offZ = rz - dot * dm.z;
+                const parComp  = offX * dm.ux + offY * dm.uy + offZ * dm.uz;
+                const perpComp = offX * dm.vx + offY * dm.vy + offZ * dm.vz;
+                // Stretch parallel component (makes profile elongated along drift)
+                const stretchedParSq = (parComp * dm.driftStretch) * (parComp * dm.driftStretch);
+                const angleSq = stretchedParSq + perpComp * perpComp;
+
+                let gauss = Math.exp(angleSq * shapeWarpSq * dm.invS2);
+
+                // #7: radial rift-zone ridges — boost Gaussian along rift angles
+                if (dm.riftAngles.length > 0 && gauss > 0.01) {
+                    const angle = Math.atan2(perpComp, parComp);
+                    let maxRift = 0;
+                    for (let ri = 0; ri < dm.riftAngles.length; ri++) {
+                        let da = angle - dm.riftAngles[ri];
+                        // Wrap to [-PI, PI]
+                        da = da - Math.round(da / (2 * Math.PI)) * 2 * Math.PI;
+                        const c2 = Math.cos(da);
+                        const riftFactor = c2 * c2 * c2 * c2; // cos^4 for tighter ridges
+                        if (riftFactor > maxRift) maxRift = riftFactor;
+                    }
+                    gauss *= (1.0 + 0.5 * maxRift);
+                }
+
+                const peakUplift = dm.strength * gauss;
+                totalUplift += peakUplift;
+
+                // Track weighted age for texture blending
+                weightedAge += dm.ageFactor * peakUplift;
+                ageWeightSum += peakUplift;
+
+                // #6: summit caldera — subtract a narrow Gaussian at center
+                if (dm.hasCaldera) {
+                    const calderaGauss = Math.exp(angleSq * dm.invS2Caldera);
+                    totalUplift -= dm.calderaDepth * calderaGauss;
+                }
             }
-            if (totalUplift > 0.001) {
-                // Modulate with ridged noise for volcanic texture
-                const volc = 0.6 + 0.4 * hsNoise.ridgedFbm(rx * 6, ry * 6, rz * 6, 3);
-                const uplift = totalUplift * volc;
+
+            const combinedUplift = totalSwellUplift + totalUplift;
+            if (combinedUplift > 0.001) {
+                // #3: age-dependent volcanic texture
+                const age = ageWeightSum > 0 ? weightedAge / ageWeightSum : 0;
+                // Active: dramatic gullies (0.4-1.2); Old: smooth eroded (0.7-1.0)
+                const texBase = 0.7 * hsNoise.ridgedFbm(rx * 12, ry * 12, rz * 12, 4, 2.0, 0.5, 1.0);
+                const texDetail = 0.3 * hsNoise.ridgedFbm(rx * 30, ry * 30, rz * 30, 3, 2.0, 0.5, 1.0);
+                const texRaw = texBase + texDetail;
+                // Blend texture range based on age
+                const texMin = 0.4 + age * 0.3;   // 0.4 (active) → 0.7 (old)
+                const texMax = 1.2 - age * 0.2;   // 1.2 (active) → 1.0 (old)
+                const volc = texMin + (texMax - texMin) * texRaw;
+
+                // Apply texture only to peak component; swell is smooth
+                const uplift = totalSwellUplift + Math.max(0, totalUplift) * volc;
                 r_elevation[r] += uplift;
                 dl_hotspot[r] = uplift;
             }
