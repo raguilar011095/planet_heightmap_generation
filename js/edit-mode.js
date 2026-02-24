@@ -5,8 +5,7 @@
 import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
-import { assignElevation } from './elevation.js';
-import { smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
+import { editRecomputeViaWorker } from './generate.js';
 import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
 
 const raycaster = new THREE.Raycaster();
@@ -14,75 +13,9 @@ const mouse = new THREE.Vector2();
 const _inverseMatrix = new THREE.Matrix4();
 const _localRay = new THREE.Ray();
 
-/** Recompute elevation from the (possibly edited) plate data. */
-function recomputeElevation() {
-    const { mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, plateDensity, noise, seed } = state.curData;
-    const nMag   = +document.getElementById('sNs').value;
-    const spread = 5;
-
-    const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } =
-        assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
-
-    const prePostElev = new Float32Array(r_elevation);
-
-    // Terrain post-processing (matches generate.js logic)
-    const smoothing = +document.getElementById('sS').value;
-    const glacialErosion = +document.getElementById('sGl').value;
-    const hydraulicErosion = +document.getElementById('sHEr').value;
-    const thermalErosion = +document.getElementById('sTEr').value;
-    const ridgeSharpening = +document.getElementById('sRs').value;
-    {
-        const r_isOcean = new Uint8Array(mesh.numRegions);
-        for (let r = 0; r < mesh.numRegions; r++) {
-            if (r_elevation[r] <= 0) r_isOcean[r] = 1;
-        }
-
-        const preErosion = new Float32Array(r_elevation);
-
-        if (smoothing > 0) {
-            const smoothIters = Math.round(1 + smoothing * 4);
-            const smoothStr = 0.2 + smoothing * 0.5;
-            smoothElevation(mesh, r_elevation, r_isOcean, smoothIters, smoothStr);
-        }
-
-        if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0) {
-            const gIters = Math.round(glacialErosion * 10);
-            const hIters = Math.round(hydraulicErosion * 20);
-            const hK = hydraulicErosion * 0.001;
-            const tIters = Math.round(thermalErosion * 10);
-            const talusSlope = 1.2 - thermalErosion * 0.4;
-            const kThermal = thermalErosion * 0.15;
-            erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
-                hIters, hK, 0.5, 1.0,
-                tIters, talusSlope, kThermal,
-                gIters, glacialErosion);
-        }
-
-        if (ridgeSharpening > 0) {
-            const rsIters = Math.round(1 + ridgeSharpening * 3);
-            const rsStr = ridgeSharpening * 0.08;
-            sharpenRidges(mesh, r_elevation, r_isOcean, rsIters, rsStr);
-        }
-
-        applySoilCreep(mesh, r_elevation, r_isOcean, 3, 0.1125);
-
-        const dl_erosionDelta = new Float32Array(mesh.numRegions);
-        for (let r = 0; r < mesh.numRegions; r++) {
-            dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
-        }
-        debugLayers.erosionDelta = dl_erosionDelta;
-    }
-
-    const t_elevation = new Float32Array(mesh.numTriangles);
-    for (let t = 0; t < mesh.numTriangles; t++) {
-        const s0 = 3 * t;
-        const a = mesh.s_begin_r(s0), b = mesh.s_begin_r(s0+1), c = mesh.s_begin_r(s0+2);
-        t_elevation[t] = (r_elevation[a] + r_elevation[b] + r_elevation[c]) / 3;
-    }
-
-    Object.assign(state.curData, { prePostElev, r_elevation, t_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers });
-    computePlateColors(plateSeeds, plateIsOcean);
-    buildMesh();
+/** Recompute elevation from the (possibly edited) plate data via worker. */
+function recomputeElevation(onDone) {
+    editRecomputeViaWorker(onDone);
 }
 
 /** Find nearest region to a unit-sphere direction (max dot product). */
@@ -214,8 +147,7 @@ export function setupEditMode() {
             btn.textContent = 'Building\u2026';
             btn.classList.add('generating');
 
-            setTimeout(() => {
-                recomputeElevation();
+            recomputeElevation(() => {
                 btn.disabled = false;
                 btn.textContent = 'Build New World';
                 btn.classList.remove('generating');
@@ -228,7 +160,7 @@ export function setupEditMode() {
                 }
                 // Notify main.js to update the planet code
                 document.dispatchEvent(new CustomEvent('plates-edited'));
-            }, 16);
+            });
         }
         downInfo = null;
     });
