@@ -237,16 +237,17 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
     }
 
-    // Assign a random movement vector per plate
+    // Assign an Euler pole + angular velocity per plate
     const plateVec = {};
     for (const center of plateSeeds) {
-        const nbs = mesh.r_circulate_r([], center);
-        const nb = nbs[randInt(nbs.length)];
-        const dx = r_xyz[3*nb]-r_xyz[3*center],
-              dy = r_xyz[3*nb+1]-r_xyz[3*center+1],
-              dz = r_xyz[3*nb+2]-r_xyz[3*center+2];
-        const len = Math.sqrt(dx*dx+dy*dy+dz*dz) || 1;
-        plateVec[center] = [dx/len, dy/len, dz/len];
+        // Random Euler pole uniformly distributed on the sphere
+        const theta = rng() * 2 * Math.PI;
+        const cosP = 2 * rng() - 1;
+        const sinP = Math.sqrt(1 - cosP * cosP);
+        const pole = [sinP * Math.cos(theta), sinP * Math.sin(theta), cosP];
+        // Angular velocity: magnitude 0.5–2.0, random sign
+        const omega = (0.5 + rng() * 1.5) * (rng() < 0.5 ? -1 : 1);
+        plateVec[center] = { pole, omega };
     }
 
     return { r_plate, plateSeeds, plateVec };

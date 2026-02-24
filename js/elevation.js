@@ -5,6 +5,21 @@ import { makeRandInt, makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';
 
 // ----------------------------------------------------------------
+//  Euler-pole velocity helper
+// ----------------------------------------------------------------
+export function plateVelocityAt(plateVec, plateId, x, y, z) {
+    const pv = plateVec[plateId];
+    const px = pv.pole[0], py = pv.pole[1], pz = pv.pole[2];
+    const omega = pv.omega;
+    // v = omega * cross(pole, position)
+    return [
+        omega * (py * z - pz * y),
+        omega * (pz * x - px * z),
+        omega * (px * y - py * x)
+    ];
+}
+
+// ----------------------------------------------------------------
 //  Collision detection
 // ----------------------------------------------------------------
 const COLLISION_THRESHOLD = 0.75;
@@ -51,7 +66,8 @@ export function findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pla
                 const ri3 = 3*r, ni3 = 3*nb;
                 const dx = r_xyz[ri3]-r_xyz[ni3], dy = r_xyz[ri3+1]-r_xyz[ni3+1], dz = r_xyz[ri3+2]-r_xyz[ni3+2];
                 const dBefore = Math.sqrt(dx*dx+dy*dy+dz*dz);
-                const v1 = plateVec[myPlate], v2 = plateVec[r_plate[nb]];
+                const v1 = plateVelocityAt(plateVec, myPlate, r_xyz[ri3], r_xyz[ri3+1], r_xyz[ri3+2]);
+                const v2 = plateVelocityAt(plateVec, r_plate[nb], r_xyz[ni3], r_xyz[ni3+1], r_xyz[ni3+2]);
                 const ax = r_xyz[ri3]  +v1[0]*dt, ay = r_xyz[ri3+1]  +v1[1]*dt, az = r_xyz[ri3+2]  +v1[2]*dt;
                 const bx = r_xyz[ni3] +v2[0]*dt, by = r_xyz[ni3+1] +v2[1]*dt, bz = r_xyz[ni3+2] +v2[2]*dt;
                 const adx = ax-bx, ady = ay-by, adz = az-bz;
@@ -295,9 +311,18 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const TECTONIC_REACH_BASE = 20;
     const tectonicReach = Math.max(6, Math.round(TECTONIC_REACH_BASE * scaleFactor));
 
+    // Use 95th-percentile of non-zero stress for normalization.
+    // Euler-pole velocity varies across plates, creating outlier high-stress
+    // cells that would skew a raw-max normalizer and make typical mountains shorter.
     let maxStress = 0;
+    const stressVals = [];
     for (let r = 0; r < numRegions; r++) {
+        if (r_stress[r] > 0.01) stressVals.push(r_stress[r]);
         if (r_stress[r] > maxStress) maxStress = r_stress[r];
+    }
+    if (stressVals.length > 0) {
+        stressVals.sort((a, b) => a - b);
+        maxStress = stressVals[Math.min(stressVals.length - 1, Math.floor(stressVals.length * 0.97))];
     }
     if (maxStress < 0.01) maxStress = 1;
 
@@ -331,7 +356,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     for (let i = 0; i < coastBdry.length; i++) {
         const r = coastBdry[i];
         dBdry[r] = 0;
-        coastStressMax[r] = r_stress[r] / maxStress;
+        coastStressMax[r] = Math.min(1, r_stress[r] / maxStress);
         coastSubductMax[r] = r_subductFactor[r];
         coastConvergent[r] = r_boundaryType[r] === 1 ? 1 : 0;
     }
@@ -463,7 +488,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         if (r_boundaryType[r] === 1 && r_hasOcean[r] && r_subductFactor[r] < 0.50) {
             backArcSeeds.push(r);
             backArcDist[r] = 0;
-            backArcStress[r] = r_stress[r] / maxStress;
+            backArcStress[r] = Math.min(1, r_stress[r] / maxStress);
         }
     }
     {
@@ -507,7 +532,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         }
         dl_base[r] = r_elevation[r];
 
-        const stressNorm = r_stress[r] / maxStress;
+        const stressNorm = Math.min(1, r_stress[r] / maxStress);
         const btype = r_boundaryType[r];
 
         const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
@@ -754,7 +779,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
             const t = dBdry[r] / coastRoughenDist;
 
-            const sn = Math.max(coastStressMax[r], r_stress[r] / maxStress);
+            const sn = Math.min(1, Math.max(coastStressMax[r], r_stress[r] / maxStress));
 
             const isSubductingOcean = r_isOcean[r]
                 && coastConvergent[r]
@@ -833,7 +858,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             if (r_boundaryType[r] === 1 && r_bothOcean[r] && r_subductFactor[r] < 0.45) {
                 arcSeeds.push(r);
                 arcDist[r] = 0;
-                arcStress[r] = r_stress[r] / maxStress;
+                arcStress[r] = Math.min(1, r_stress[r] / maxStress);
             }
         }
 
@@ -904,8 +929,13 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const centerR = hsRandInt(numRegions);
             const hx = r_xyz[3*centerR], hy = r_xyz[3*centerR+1], hz = r_xyz[3*centerR+2];
             const plate = r_plate[centerR];
-            const drift = plateVec[plate];
-            if (!drift) continue;
+            const pv = plateVec[plate];
+            if (!pv) continue;
+            const drift = plateVelocityAt(plateVec, plate, hx, hy, hz);
+            const driftLen = Math.sqrt(drift[0]*drift[0] + drift[1]*drift[1] + drift[2]*drift[2]);
+            if (driftLen < 1e-6) continue;
+            // Normalize (chain code uses direction only, projects & normalizes later)
+            drift[0] /= driftLen; drift[1] /= driftLen; drift[2] /= driftLen;
 
             // Ocean hotspots are stronger so they punch through the ocean floor
             const isOceanHotspot = plateIsOcean.has(plate);

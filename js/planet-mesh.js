@@ -542,7 +542,13 @@ export function buildDriftArrows() {
     for (const seed of plateSeeds) {
         const px = r_xyz[3*seed], py = r_xyz[3*seed+1], pz = r_xyz[3*seed+2];
         const pos = new THREE.Vector3(px, py, pz).normalize();
-        const drift = new THREE.Vector3(...plateVec[seed]);
+        const pv = plateVec[seed];
+        const vel = [
+            pv.omega * (pv.pole[1] * pz - pv.pole[2] * py),
+            pv.omega * (pv.pole[2] * px - pv.pole[0] * pz),
+            pv.omega * (pv.pole[0] * py - pv.pole[1] * px)
+        ];
+        const drift = new THREE.Vector3(...vel);
 
         const radial = drift.dot(pos);
         const tangent = drift.clone().sub(pos.clone().multiplyScalar(radial));
