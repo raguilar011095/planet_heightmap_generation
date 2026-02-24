@@ -191,6 +191,10 @@ Loaded via CDN import maps (no installation needed):
 - [Three.js](https://threejs.org/) v0.160.0 — 3D rendering
 - [Delaunator](https://github.com/mapbox/delaunator) v5.0.1 — 2D Delaunay triangulation
 
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+
 ## Acknowledgments
 
 Inspired by [Red Blob Games' planet generation](https://www.redblobgames.com/x/1843-planet-generation/) — Fibonacci sphere meshing, dual-mesh traversal, and distance-field elevation approach.
