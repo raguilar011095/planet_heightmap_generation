@@ -9,7 +9,7 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
     const numRegions = mesh.numRegions;
     const plateIds = Array.from(plateSeeds);
     const numPlates = plateIds.length;
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
 
     // 1. Plate areas and centroids
     const plateArea = {};
@@ -39,10 +39,9 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
     for (const pid of plateIds) { plateAdj[pid] = new Set(); platePerim[pid] = 0; }
     for (let r = 0; r < numRegions; r++) {
         const myPlate = r_plate[r];
-        mesh.r_circulate_r(out_r, r);
         let isBoundary = false;
-        for (let ni = 0; ni < out_r.length; ni++) {
-            const nbPlate = r_plate[out_r[ni]];
+        for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+            const nbPlate = r_plate[adjList[ni]];
             if (myPlate !== nbPlate) {
                 plateAdj[myPlate].add(nbPlate);
                 isBoundary = true;

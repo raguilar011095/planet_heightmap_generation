@@ -46,9 +46,43 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         plateSeeds.add(newSeed);
         isSeed[newSeed] = 1;
         const nsx = r_xyz[3*newSeed], nsy = r_xyz[3*newSeed+1], nsz = r_xyz[3*newSeed+2];
-        for (let r = 0; r < numRegions; r++) {
-            const d = 1 - (r_xyz[3*r]*nsx + r_xyz[3*r+1]*nsy + r_xyz[3*r+2]*nsz);
-            if (d < minDistToSeed[r]) minDistToSeed[r] = d;
+
+        // Fused pass: update minDistToSeed from new seed AND find top-3 for next iteration
+        if (plateSeeds.size < numPlates) {
+            t0r = -1; t0d = -1; t1r = -1; t1d = -1; t2r = -1; t2d = -1;
+            for (let r = 0; r < numRegions; r++) {
+                const d = 1 - (r_xyz[3*r]*nsx + r_xyz[3*r+1]*nsy + r_xyz[3*r+2]*nsz);
+                if (d < minDistToSeed[r]) minDistToSeed[r] = d;
+                if (isSeed[r]) continue;
+                const md = minDistToSeed[r];
+                if (md > t2d) {
+                    if (md > t0d) {
+                        t2r = t1r; t2d = t1d; t1r = t0r; t1d = t0d; t0r = r; t0d = md;
+                    } else if (md > t1d) {
+                        t2r = t1r; t2d = t1d; t1r = r; t1d = md;
+                    } else {
+                        t2r = r; t2d = md;
+                    }
+                }
+            }
+            // Next iteration can skip the search pass — top-3 is already computed
+            validCount = (t0r !== -1) + (t1r !== -1) + (t2r !== -1);
+            if (!validCount) break;
+            const pick2 = randInt(validCount);
+            const newSeed2 = pick2 === 0 ? t0r : pick2 === 1 ? t1r : t2r;
+            plateSeeds.add(newSeed2);
+            isSeed[newSeed2] = 1;
+            const ns2x = r_xyz[3*newSeed2], ns2y = r_xyz[3*newSeed2+1], ns2z = r_xyz[3*newSeed2+2];
+            for (let r = 0; r < numRegions; r++) {
+                const d = 1 - (r_xyz[3*r]*ns2x + r_xyz[3*r+1]*ns2y + r_xyz[3*r+2]*ns2z);
+                if (d < minDistToSeed[r]) minDistToSeed[r] = d;
+            }
+        } else {
+            // Last seed — just update distances (needed for distance field, but loop will exit)
+            for (let r = 0; r < numRegions; r++) {
+                const d = 1 - (r_xyz[3*r]*nsx + r_xyz[3*r+1]*nsy + r_xyz[3*r+2]*nsz);
+                if (d < minDistToSeed[r]) minDistToSeed[r] = d;
+            }
         }
     }
 
@@ -82,7 +116,7 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         plateAreaCount[pid] = 1;
     }
 
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     let remaining = numRegions - plateIds.length;
     const COMPACT_WEIGHT = 0.3;
     const expectedArea = Math.max(1, (numRegions - plateIds.length) / numPlates);
@@ -137,8 +171,8 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
                 frontier[bestIdx] = frontier[frontier.length - 1];
                 frontier.pop();
 
-                mesh.r_circulate_r(out_r, current);
-                for (const nb of out_r) {
+                for (let j = adjOffset[current], jEnd = adjOffset[current + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     if (r_plate[nb] === -1) {
                         r_plate[nb] = pid;
                         frontier.push(nb);
@@ -158,8 +192,8 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         orphans = false;
         for (let r = 0; r < numRegions; r++) {
             if (r_plate[r] === -1) {
-                mesh.r_circulate_r(out_r, r);
-                for (const nb of out_r) {
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     if (r_plate[nb] !== -1) {
                         r_plate[r] = r_plate[nb];
                         orphans = true;
@@ -171,22 +205,34 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
     }
 
     // Smooth boundaries: majority-vote removes thin tendrils
+    // Uses inline plate-count arrays instead of Map for performance.
     const SMOOTH_PASSES = 3;
-    const counts = new Map();
+    let maxDeg = 0;
+    for (let r = 0; r < numRegions; r++) {
+        const deg = adjOffset[r + 1] - adjOffset[r];
+        if (deg > maxDeg) maxDeg = deg;
+    }
+    const cntPlates = new Int32Array(maxDeg);
+    const cntValues = new Uint8Array(maxDeg);
     for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
         const threshold = pass === 0 ? 0.4 : 0.5;
         for (let r = 0; r < numRegions; r++) {
-            mesh.r_circulate_r(out_r, r);
-            counts.clear();
-            for (const nb of out_r) {
-                const p = r_plate[nb];
-                counts.set(p, (counts.get(p) || 0) + 1);
+            const rStart = adjOffset[r], rEnd = adjOffset[r + 1];
+            const deg = rEnd - rStart;
+            let nDistinct = 0;
+            for (let j = rStart; j < rEnd; j++) {
+                const p = r_plate[adjList[j]];
+                let found = false;
+                for (let k = 0; k < nDistinct; k++) {
+                    if (cntPlates[k] === p) { cntValues[k]++; found = true; break; }
+                }
+                if (!found) { cntPlates[nDistinct] = p; cntValues[nDistinct] = 1; nDistinct++; }
             }
             let bestPlate = r_plate[r], bestCount = 0;
-            for (const [p, c] of counts) {
-                if (c > bestCount) { bestCount = c; bestPlate = p; }
+            for (let k = 0; k < nDistinct; k++) {
+                if (cntValues[k] > bestCount) { bestCount = cntValues[k]; bestPlate = cntPlates[k]; }
             }
-            if (bestCount > out_r.length * threshold && !isSeed[r]) {
+            if (bestCount > deg * threshold && !isSeed[r]) {
                 r_plate[r] = bestPlate;
             }
         }
@@ -199,9 +245,8 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
             const bfs = [pid];
             visited[pid] = 1;
             for (let qi = 0; qi < bfs.length; qi++) {
-                mesh.r_circulate_r(out_r, bfs[qi]);
-                for (let ni = 0; ni < out_r.length; ni++) {
-                    const nb = out_r[ni];
+                for (let ni = adjOffset[bfs[qi]], niEnd = adjOffset[bfs[qi] + 1]; ni < niEnd; ni++) {
+                    const nb = adjList[ni];
                     if (!visited[nb] && r_plate[nb] === pid) {
                         visited[nb] = 1;
                         bfs.push(nb);
@@ -212,10 +257,9 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         const queue = [];
         for (let r = 0; r < numRegions; r++) {
             if (!visited[r]) {
-                mesh.r_circulate_r(out_r, r);
-                for (let ni = 0; ni < out_r.length; ni++) {
-                    if (visited[out_r[ni]]) {
-                        r_plate[r] = r_plate[out_r[ni]];
+                for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                    if (visited[adjList[ni]]) {
+                        r_plate[r] = r_plate[adjList[ni]];
                         visited[r] = 1;
                         queue.push(r);
                         break;
@@ -225,9 +269,8 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
         for (let qi = 0; qi < queue.length; qi++) {
             const r = queue[qi];
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nb = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nb = adjList[ni];
                 if (!visited[nb]) {
                     r_plate[nb] = r_plate[r];
                     visited[nb] = 1;

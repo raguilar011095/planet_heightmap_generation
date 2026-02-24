@@ -167,7 +167,8 @@ styles.css              All CSS
 js/
   main.js               Entry point — UI wiring, animation loop
   state.js              Shared mutable application state
-  generate.js           Orchestrates the full geology pipeline
+  generate.js           Worker dispatcher — posts jobs, handles results
+  planet-worker.js      Web Worker — runs geology pipeline off main thread
   planet-code.js        Planet code encode/decode (seed + sliders → base36)
   rng.js                Seeded PRNG (Park-Miller LCG)
   simplex-noise.js      3D Simplex noise with fBm and ridged fBm

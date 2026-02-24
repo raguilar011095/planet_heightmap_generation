@@ -35,7 +35,7 @@ export function findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pla
     const r_boundaryType = new Int8Array(numRegions);
     const r_bothOcean = new Uint8Array(numRegions);
     const r_hasOcean  = new Uint8Array(numRegions);
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
 
     const plateOcean = {};
     for (const pid of plateIsOcean) plateOcean[pid] = 1;
@@ -59,9 +59,8 @@ export function findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pla
         let bestComp = -Infinity;
         let best = -1;
         let bestNormalComp = 0;
-        mesh.r_circulate_r(out_r, r);
-        for (let ni = 0; ni < out_r.length; ni++) {
-            const nb = out_r[ni];
+        for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+            const nb = adjList[ni];
             if (myPlate !== r_plate[nb]) {
                 const ri3 = 3*r, ni3 = 3*nb;
                 const dx = r_xyz[ri3]-r_xyz[ni3], dy = r_xyz[ri3+1]-r_xyz[ni3+1], dz = r_xyz[ri3+2]-r_xyz[ni3+2];
@@ -126,7 +125,7 @@ export function findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pla
 //  Stress propagation — frontier-based BFS diffusion inward
 // ----------------------------------------------------------------
 export function propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses) {
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     const plateOcean = {};
     for (const pid of plateIsOcean) plateOcean[pid] = 1;
 
@@ -146,9 +145,8 @@ export function propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateI
             const propagated = r_stress[r] * effDecay;
             if (propagated < 0.005) continue;
 
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nb = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nb = adjList[ni];
                 if (r_plate[nb] === plate && propagated > r_stress[nb]) {
                     r_stress[nb] = propagated;
                     r_subductFactor[nb] = sf;
@@ -174,14 +172,13 @@ export function assignDistanceField(mesh, seeds, stops, seed) {
     const queue = [];
     for (const r of seeds) { queue.push(r); r_dist[r] = 0; }
 
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     for (let qi = 0; qi < queue.length; qi++) {
         const pos = qi + randInt(queue.length - qi);
         const cur = queue[pos];
         queue[pos] = queue[qi];
-        mesh.r_circulate_r(out_r, cur);
-        for (let ni = 0; ni < out_r.length; ni++) {
-            const nb = out_r[ni];
+        for (let ni = adjOffset[cur], niEnd = adjOffset[cur + 1]; ni < niEnd; ni++) {
+            const nb = adjList[ni];
             if (r_dist[nb] === Infinity && !isStop[nb]) {
                 r_dist[nb] = r_dist[cur] + 1;
                 queue.push(nb);
@@ -196,12 +193,12 @@ export function expandRegions(mesh, regions, steps) {
     if (steps <= 0) return regions;
     const expanded = new Set(regions);
     let frontier = [...regions];
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     for (let i = 0; i < steps; i++) {
         const next = [];
         for (const r of frontier) {
-            mesh.r_circulate_r(out_r, r);
-            for (const nb of out_r) {
+            for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                const nb = adjList[j];
                 if (!expanded.has(nb)) {
                     expanded.add(nb);
                     next.push(nb);
@@ -272,12 +269,11 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     }
 
     const coastSeeds = new Set();
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     for (let r = 0; r < numRegions; r++) {
         if (!r_isOcean[r]) {
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                if (r_isOcean[out_r[ni]]) { coastSeeds.add(out_r[ni]); break; }
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                if (r_isOcean[adjList[ni]]) { coastSeeds.add(adjList[ni]); break; }
             }
         }
     }
@@ -288,9 +284,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const landCoastSeeds = new Set();
     for (let r = 0; r < numRegions; r++) {
         if (r_isOcean[r]) continue;
-        mesh.r_circulate_r(out_r, r);
-        for (let ni = 0; ni < out_r.length; ni++) {
-            if (r_isOcean[out_r[ni]]) { landCoastSeeds.add(r); break; }
+        for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+            if (r_isOcean[adjList[ni]]) { landCoastSeeds.add(r); break; }
         }
     }
     const oceanBarriers = new Set();
@@ -338,9 +333,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const coastBdry = [];
     for (let r = 0; r < numRegions; r++) {
         const rOc = r_isOcean[r];
-        mesh.r_circulate_r(out_r, r);
-        for (let ni = 0; ni < out_r.length; ni++) {
-            if (r_isOcean[out_r[ni]] !== rOc) {
+        for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+            if (r_isOcean[adjList[ni]] !== rOc) {
                 coastBdry.push(r);
                 break;
             }
@@ -366,9 +360,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const r = coastBdry[qi++];
             const nd = dBdry[r] + 1;
             if (nd > maxCD) continue;
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < dBdry[nr]) {
                     dBdry[nr] = nd;
                     coastStressMax[nr] = coastStressMax[r];
@@ -403,9 +396,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const nd = riftDist[r] + 1;
             if (nd > riftHalfWidth) continue;
             const plate = r_plate[r];
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < riftDist[nr] && r_plate[nr] === plate && !r_isOcean[nr]) {
                     riftDist[nr] = nd;
                     riftSeeds.push(nr);
@@ -434,9 +426,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const r = ridgeSeeds[qi++];
             const nd = ridgeDist[r] + 1;
             if (nd > ridgeHalfWidth) continue;
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < ridgeDist[nr] && r_isOcean[nr]) {
                     ridgeDist[nr] = nd;
                     ridgeSeeds.push(nr);
@@ -463,9 +454,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const r = fractureSeeds[qi++];
             const nd = fractureDist[r] + 1;
             if (nd > fractureHalfWidth) continue;
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < fractureDist[nr] && r_isOcean[nr]) {
                     fractureDist[nr] = nd;
                     fractureSeeds.push(nr);
@@ -498,9 +488,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const nd = backArcDist[r] + 1;
             if (nd > baEnd) continue;
             const plate = r_plate[r];
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < backArcDist[nr] && r_plate[nr] === plate) {
                     backArcDist[nr] = nd;
                     backArcStress[nr] = backArcStress[r];
@@ -868,9 +857,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const nd = arcDist[r] + 1;
             if (nd > maxArcDist) continue;
             const plate = r_plate[r];
-            mesh.r_circulate_r(out_r, r);
-            for (let ni = 0; ni < out_r.length; ni++) {
-                const nr = out_r[ni];
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
                 if (nd < arcDist[nr] && r_plate[nr] === plate && r_isOcean[nr]) {
                     arcDist[nr] = nd;
                     arcStress[nr] = arcStress[r];

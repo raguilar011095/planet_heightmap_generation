@@ -55,7 +55,7 @@ class MinHeap {
  */
 function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
     const N = mesh.numRegions;
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
     const EPS = 1e-7;
 
     // --- Identify the main ocean body via BFS ---
@@ -71,9 +71,8 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
         while (queue.length > 0) {
             const cur = queue.pop();
             size++;
-            mesh.r_circulate_r(out_r, cur);
-            for (let i = 0; i < out_r.length; i++) {
-                const nb = out_r[i];
+            for (let i = adjOffset[cur], iEnd = adjOffset[cur + 1]; i < iEnd; i++) {
+                const nb = adjList[i];
                 if (r_isOcean[nb] && oceanLabel[nb] < 0) {
                     oceanLabel[nb] = label;
                     queue.push(nb);
@@ -115,11 +114,10 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
     // Seed: land cells adjacent to the main open ocean (not inland seas)
     for (let r = 0; r < N; r++) {
         if (r_isOcean[r]) { visited[r] = 1; continue; }
-        mesh.r_circulate_r(out_r, r);
-        for (let i = 0; i < out_r.length; i++) {
-            if (isOpenOcean[out_r[i]]) {
+        for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+            if (isOpenOcean[adjList[i]]) {
                 visited[r] = 1;
-                drainTo[r] = out_r[i]; // drains to open ocean neighbor
+                drainTo[r] = adjList[i]; // drains to open ocean neighbor
                 heap.push(r);
                 break;
             }
@@ -130,9 +128,8 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
     while (heap.size > 0) {
         const r = heap.pop();
         const surfR = surface[r];
-        mesh.r_circulate_r(out_r, r);
-        for (let i = 0; i < out_r.length; i++) {
-            const nb = out_r[i];
+        for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+            const nb = adjList[i];
             if (visited[nb]) continue;
             visited[nb] = 1;
             drainTo[nb] = r;
@@ -223,15 +220,14 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
 export function smoothElevation(mesh, r_elevation, r_isOcean, iterations, strength) {
     const N = mesh.numRegions;
     const tmp = new Float32Array(N);
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
 
     // Pre-compute coastline lock: land cells adjacent to at least one ocean cell
     const locked = new Uint8Array(N);
     for (let r = 0; r < N; r++) {
         if (r_isOcean[r]) continue;
-        mesh.r_circulate_r(out_r, r);
-        for (let i = 0; i < out_r.length; i++) {
-            if (r_isOcean[out_r[i]]) { locked[r] = 1; break; }
+        for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+            if (r_isOcean[adjList[i]]) { locked[r] = 1; break; }
         }
     }
 
@@ -240,10 +236,9 @@ export function smoothElevation(mesh, r_elevation, r_isOcean, iterations, streng
             if (locked[r]) { tmp[r] = r_elevation[r]; continue; }
 
             const h = r_elevation[r];
-            mesh.r_circulate_r(out_r, r);
             let wSum = 0, hSum = 0;
-            for (let i = 0; i < out_r.length; i++) {
-                const nh = r_elevation[out_r[i]];
+            for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+                const nh = r_elevation[adjList[i]];
                 const diff = Math.abs(nh - h);
                 const w = 1 / (1 + diff * 8);
                 wSum += w;
@@ -277,7 +272,8 @@ export function smoothElevation(mesh, r_elevation, r_isOcean, iterations, streng
 export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     hIters, K, m, dt,
     tIters, talusSlope, kThermal,
-    gIters, glacialStrength)
+    gIters, glacialStrength,
+    neighborDist)
 {
     gIters = gIters || 0;
     glacialStrength = glacialStrength || 0;
@@ -286,7 +282,7 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     if (totalIters <= 0) return;
 
     const N = mesh.numRegions;
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
 
     // Collect land cell indices
     const landCells = [];
@@ -353,6 +349,15 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     const midFloodIter = Math.round(totalIters * 0.75);
     let midFloodDone = false;
 
+    // Pre-allocate thermal erosion buffers (max neighbor degree)
+    let maxDeg = 0;
+    for (let r = 0; r < N; r++) {
+        const deg = adjOffset[r + 1] - adjOffset[r];
+        if (deg > maxDeg) maxDeg = deg;
+    }
+    const excNb  = new Int32Array(maxDeg);
+    const excVal = new Float32Array(maxDeg);
+
     for (let iter = 0; iter < totalIters; iter++) {
 
         if (!midFloodDone && iter >= midFloodIter) {
@@ -360,10 +365,17 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             priorityFloodCarve(mesh, r_elevation, r_isOcean, 0.85);
         }
 
-        // ---- Glacial step ----
-        if (iter < gIters && glacIdx) {
-            // Sort land cells by descending elevation (also used by hydraulic below)
+        // Sort land cells by descending elevation — needed by glacial ice flow
+        // and hydraulic flow accumulation. If glacial runs this iteration and
+        // hydraulic follows, glacial modifies elevations so we re-sort before hydraulic.
+        const glacialThisIter = iter < gIters && glacIdx;
+        const hydraulicThisIter = iter < hIters;
+        if (glacialThisIter || hydraulicThisIter) {
             landCells.sort((a, b) => r_elevation[b] - r_elevation[a]);
+        }
+
+        // ---- Glacial step ----
+        if (glacialThisIter) {
 
             // Rebuild ice drainage from current elevations
             iceTarget.fill(-1);
@@ -373,10 +385,9 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                 const r = landCells[i];
                 if (glacIdx[r] <= 0) continue;
                 const h = r_elevation[r];
-                mesh.r_circulate_r(out_r, r);
                 let bestNb = -1, bestDrop = 0;
-                for (let j = 0; j < out_r.length; j++) {
-                    const nb = out_r[j];
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     const drop = h - r_elevation[nb];
                     if (drop > bestDrop) { bestDrop = drop; bestNb = nb; }
                 }
@@ -403,14 +414,10 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                 r_elevation[r] -= deepening;
 
                 // Valley widening for U-shape
-                mesh.r_circulate_r(out_r, r);
-                for (let j = 0; j < out_r.length; j++) {
-                    const nb = out_r[j];
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     if (r_isOcean[nb]) continue;
-                    const dx = r_xyz[3 * r]     - r_xyz[3 * nb];
-                    const dy = r_xyz[3 * r + 1] - r_xyz[3 * nb + 1];
-                    const dz = r_xyz[3 * r + 2] - r_xyz[3 * nb + 2];
-                    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+                    const d = neighborDist[j] || 1e-6;
                     const slope = Math.abs(r_elevation[r] - r_elevation[nb]) / d;
                     r_elevation[nb] -= deepening * 0.4 * Math.max(0, 1 - slope);
                 }
@@ -436,10 +443,9 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             for (let r = 0; r < N; r++) {
                 if (r_isOcean[r]) continue;
                 if (glacIdx[r] <= 0.2 || iceFlow[r] <= gFjordThreshold) continue;
-                mesh.r_circulate_r(out_r, r);
                 let isCoastal = false;
-                for (let j = 0; j < out_r.length; j++) {
-                    if (r_isOcean[out_r[j]]) { isCoastal = true; break; }
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    if (r_isOcean[adjList[j]]) { isCoastal = true; break; }
                 }
                 if (isCoastal) {
                     r_elevation[r] -= gFjordCarve * Math.pow(iceFlow[r], 0.5);
@@ -454,50 +460,50 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
         }
 
         // ---- Hydraulic step ----
-        if (iter < hIters) {
+        if (hydraulicThisIter) {
+            // Re-sort if glacial step modified elevations this iteration
+            if (glacialThisIter) {
+                landCells.sort((a, b) => r_elevation[b] - r_elevation[a]);
+            }
             // Build drainage graph (steepest descent)
             drainTarget.fill(-1);
 
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
                 const h = r_elevation[r];
-                mesh.r_circulate_r(out_r, r);
 
-                let bestNb = -1, bestDrop = -Infinity;
-                for (let j = 0; j < out_r.length; j++) {
-                    const nb = out_r[j];
+                let bestNb = -1, bestDrop = -Infinity, bestJ = -1;
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     const drop = h - r_elevation[nb];
                     if (drop > bestDrop) {
                         bestDrop = drop;
                         bestNb = nb;
+                        bestJ = j;
                     }
                 }
 
                 // Pit handling: drain to least-steep-ascent neighbor
                 if (bestDrop <= 0) {
                     let minAscent = Infinity;
-                    for (let j = 0; j < out_r.length; j++) {
-                        const nb = out_r[j];
+                    for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                        const nb = adjList[j];
                         const ascent = r_elevation[nb] - h;
                         if (ascent < minAscent) {
                             minAscent = ascent;
                             bestNb = nb;
+                            bestJ = j;
                         }
                     }
                 }
 
                 if (bestNb >= 0) {
                     drainTarget[r] = bestNb;
-                    const dx = r_xyz[3 * r]     - r_xyz[3 * bestNb];
-                    const dy = r_xyz[3 * r + 1] - r_xyz[3 * bestNb + 1];
-                    const dz = r_xyz[3 * r + 2] - r_xyz[3 * bestNb + 2];
-                    cellDist[r] = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+                    cellDist[r] = neighborDist[bestJ] || 1e-6;
                 }
             }
 
-            // Flow accumulation (sort descending, propagate)
-            landCells.sort((a, b) => r_elevation[b] - r_elevation[a]);
-
+            // Flow accumulation (already sorted descending at top of iteration)
             flow.fill(0);
             for (let i = 0; i < landCount; i++) flow[landCells[i]] = 1;
 
@@ -545,29 +551,24 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
                 const h = r_elevation[r];
-                mesh.r_circulate_r(out_r, r);
 
                 let totalExcess = 0;
-                let exStart = i * 0; // reuse inline to avoid allocation
-                const excNb = [];
-                const excVal = [];
+                let excCount = 0;
 
-                for (let j = 0; j < out_r.length; j++) {
-                    const nb = out_r[j];
+                for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                    const nb = adjList[j];
                     if (r_isOcean[nb]) continue;
                     const nh = r_elevation[nb];
                     if (nh >= h) continue;
 
-                    const dx = r_xyz[3 * r]     - r_xyz[3 * nb];
-                    const dy = r_xyz[3 * r + 1] - r_xyz[3 * nb + 1];
-                    const dz = r_xyz[3 * r + 2] - r_xyz[3 * nb + 2];
-                    const d = Math.sqrt(dx * dx + dy * dy + dz * dz) || 1e-6;
+                    const d = neighborDist[j] || 1e-6;
 
                     const slope = (h - nh) / d;
                     if (slope > talusSlope) {
                         const excess = (slope - talusSlope) * d;
-                        excNb.push(nb);
-                        excVal.push(excess);
+                        excNb[excCount] = nb;
+                        excVal[excCount] = excess;
+                        excCount++;
                         totalExcess += excess;
                     }
                 }
@@ -575,10 +576,10 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                 if (totalExcess <= 0) continue;
 
                 const transfer = kThermal * totalExcess * 0.5;
-                for (let j = 0; j < excNb.length; j++) {
-                    const share = (excVal[j] / totalExcess) * transfer;
+                for (let k = 0; k < excCount; k++) {
+                    const share = (excVal[k] / totalExcess) * transfer;
                     delta[r]       -= share;
-                    delta[excNb[j]] += share;
+                    delta[excNb[k]] += share;
                 }
             }
 
@@ -593,10 +594,9 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
         const tmp = new Float32Array(r_elevation);
         for (let r = 0; r < N; r++) {
             if (r_isOcean[r] || glacIdx[r] <= 0) continue;
-            mesh.r_circulate_r(out_r, r);
             let sum = 0, count = 0;
-            for (let j = 0; j < out_r.length; j++) {
-                if (!r_isOcean[out_r[j]]) { sum += r_elevation[out_r[j]]; count++; }
+            for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                if (!r_isOcean[adjList[j]]) { sum += r_elevation[adjList[j]]; count++; }
             }
             if (count > 0) {
                 const avg = sum / count;
@@ -615,20 +615,26 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
  */
 export function sharpenRidges(mesh, r_elevation, r_isOcean, iterations, strength) {
     const N = mesh.numRegions;
+    const { adjOffset, adjList } = mesh;
+
+    // Pre-build land cell list to skip ~40% ocean cells each iteration
+    const landCells = [];
+    for (let r = 0; r < N; r++) {
+        if (!r_isOcean[r]) landCells.push(r);
+    }
+    const landCount = landCells.length;
+
     const tmp = new Float32Array(N);
     const original = new Float32Array(r_elevation);
-    const out_r = [];
 
     for (let iter = 0; iter < iterations; iter++) {
-        for (let r = 0; r < N; r++) {
-            if (r_isOcean[r]) { tmp[r] = r_elevation[r]; continue; }
-
+        for (let li = 0; li < landCount; li++) {
+            const r = landCells[li];
             const h = r_elevation[r];
-            mesh.r_circulate_r(out_r, r);
-            let sum = 0, count = 0;
-            for (let i = 0; i < out_r.length; i++) {
-                sum += r_elevation[out_r[i]];
-                count++;
+            let sum = 0;
+            const count = adjOffset[r + 1] - adjOffset[r];
+            for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+                sum += r_elevation[adjList[i]];
             }
             if (count === 0) { tmp[r] = h; continue; }
 
@@ -643,7 +649,7 @@ export function sharpenRidges(mesh, r_elevation, r_isOcean, iterations, strength
                 tmp[r] = h;
             }
         }
-        for (let r = 0; r < N; r++) r_elevation[r] = tmp[r];
+        for (let li = 0; li < landCount; li++) r_elevation[landCells[li]] = tmp[landCells[li]];
     }
 }
 
@@ -654,29 +660,30 @@ export function sharpenRidges(mesh, r_elevation, r_isOcean, iterations, strength
  */
 export function applySoilCreep(mesh, r_elevation, r_isOcean, iterations, strength) {
     const N = mesh.numRegions;
-    const tmp = new Float32Array(N);
-    const out_r = [];
+    const { adjOffset, adjList } = mesh;
 
-    // Pre-compute coastline lock
-    const locked = new Uint8Array(N);
+    // Pre-build interior land cell list: skip ocean cells and coastline-locked cells
+    const interiorLand = [];
     for (let r = 0; r < N; r++) {
         if (r_isOcean[r]) continue;
-        mesh.r_circulate_r(out_r, r);
-        for (let i = 0; i < out_r.length; i++) {
-            if (r_isOcean[out_r[i]]) { locked[r] = 1; break; }
+        let coastal = false;
+        for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+            if (r_isOcean[adjList[i]]) { coastal = true; break; }
         }
+        if (!coastal) interiorLand.push(r);
     }
+    const ilCount = interiorLand.length;
+
+    const tmp = new Float32Array(N);
 
     for (let iter = 0; iter < iterations; iter++) {
-        for (let r = 0; r < N; r++) {
-            if (r_isOcean[r] || locked[r]) { tmp[r] = r_elevation[r]; continue; }
-
+        for (let li = 0; li < ilCount; li++) {
+            const r = interiorLand[li];
             const h = r_elevation[r];
-            mesh.r_circulate_r(out_r, r);
             let sum = 0, count = 0;
-            for (let i = 0; i < out_r.length; i++) {
-                if (!r_isOcean[out_r[i]]) {
-                    sum += r_elevation[out_r[i]];
+            for (let i = adjOffset[r], iEnd = adjOffset[r + 1]; i < iEnd; i++) {
+                if (!r_isOcean[adjList[i]]) {
+                    sum += r_elevation[adjList[i]];
                     count++;
                 }
             }
@@ -685,6 +692,6 @@ export function applySoilCreep(mesh, r_elevation, r_isOcean, iterations, strengt
             const avg = sum / count;
             tmp[r] = h + (avg - h) * strength;
         }
-        for (let r = 0; r < N; r++) r_elevation[r] = tmp[r];
+        for (let li = 0; li < ilCount; li++) r_elevation[interiorLand[li]] = tmp[interiorLand[li]];
     }
 }

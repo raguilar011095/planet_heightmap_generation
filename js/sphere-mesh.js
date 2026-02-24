@@ -1,7 +1,8 @@
 // Sphere mesh construction: Fibonacci sphere → Delaunay → close pole → SphereMesh.
 // Adapted from Red Blob Games sphere-mesh.js.
 
-import Delaunator from 'delaunator';
+let _Delaunator = null;
+export function setDelaunator(D) { _Delaunator = D; }
 
 // Fibonacci sphere with jitter — evenly-distributed points using the
 // Fibonacci spiral. Jitter randomises positions for more organic Voronoi cells.
@@ -138,6 +139,10 @@ export class SphereMesh {
                 s = this._next(this.halfedges[s]);
             } while (s !== s0);
         }
+
+        // Public aliases for direct adjacency iteration (avoids r_circulate_r copy overhead)
+        this.adjOffset = this._adjOffset;
+        this.adjList   = this._adjList;
     }
 
     _next(s)    { return (s % 3 === 2) ? s - 2 : s + 1; }
@@ -169,7 +174,7 @@ export class SphereMesh {
 export function buildSphere(N, jitter, rng) {
     const r_xyz = generateFibonacciSphere(N, jitter, rng);
     const flat = stereographicProjection(r_xyz, N);
-    const delaunay = new Delaunator(flat);
+    const delaunay = new _Delaunator(flat);
 
     const poleXYZ = new Float32Array(3 * (N + 1));
     poleXYZ.set(r_xyz);
@@ -178,6 +183,23 @@ export function buildSphere(N, jitter, rng) {
     const closed = addPoleToMesh(N, delaunay.triangles, delaunay.halfedges);
     const mesh = new SphereMesh(closed.triangles, closed.halfedges, N + 1);
     return { mesh, r_xyz: poleXYZ };
+}
+
+// Pre-compute Euclidean distance between each region and its neighbors.
+// Indexed by the same adjacency slot as adjList: neighborDist[i] is the
+// distance from region r to adjList[i] where adjOffset[r] <= i < adjOffset[r+1].
+export function computeNeighborDist(mesh, r_xyz) {
+    const { adjOffset, adjList } = mesh;
+    const neighborDist = new Float32Array(adjList.length);
+    for (let r = 0; r < mesh.numRegions; r++) {
+        const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
+        for (let i = adjOffset[r]; i < adjOffset[r+1]; i++) {
+            const nb = adjList[i];
+            const dx = x - r_xyz[3*nb], dy = y - r_xyz[3*nb+1], dz = z - r_xyz[3*nb+2];
+            neighborDist[i] = Math.sqrt(dx*dx + dy*dy + dz*dz);
+        }
+    }
+    return neighborDist;
 }
 
 // Triangle centres (= Voronoi vertices on the sphere).
