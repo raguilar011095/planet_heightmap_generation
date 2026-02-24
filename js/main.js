@@ -133,7 +133,14 @@ function hideBuildOverlay() {
 
 // Generate button
 const genBtn = document.getElementById('generate');
-genBtn.addEventListener('click', () => { clearReapplyPending(); showBuildOverlay(); generate(undefined, [], onProgress); });
+genBtn.addEventListener('click', () => {
+    clearReapplyPending();
+    showBuildOverlay();
+    // Collapse bottom sheet on mobile so user can see the planet build
+    const ui = document.getElementById('ui');
+    if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
+    generate(undefined, [], onProgress);
+});
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);
 genBtn.addEventListener('generate-done', () => {
@@ -384,6 +391,8 @@ sidebarToggle.addEventListener('click', () => {
     const handle = document.getElementById('sheetHandle');
     if (!handle) return;
     let startY = 0, startTransform = 0, dragging = false;
+    let lastY = 0, lastTime = 0, velocity = 0;
+    let didDrag = false;
 
     function getTranslateY() {
         const st = getComputedStyle(uiPanel);
@@ -394,14 +403,26 @@ sidebarToggle.addEventListener('click', () => {
     handle.addEventListener('touchstart', (e) => {
         if (!isMobileLayout()) return;
         dragging = true;
-        startY = e.touches[0].clientY;
+        didDrag = false;
+        const y = e.touches[0].clientY;
+        startY = y;
+        lastY = y;
+        lastTime = performance.now();
+        velocity = 0;
         startTransform = uiPanel.classList.contains('collapsed') ? getTranslateY() : 0;
         uiPanel.style.transition = 'none';
     }, { passive: true });
 
     window.addEventListener('touchmove', (e) => {
         if (!dragging) return;
-        const dy = e.touches[0].clientY - startY;
+        const y = e.touches[0].clientY;
+        const now = performance.now();
+        const dt = now - lastTime;
+        if (dt > 0) velocity = (y - lastY) / dt; // px/ms, positive = downward
+        lastY = y;
+        lastTime = now;
+        const dy = y - startY;
+        if (Math.abs(dy) > 5) didDrag = true; // distinguish drag from tap
         const newY = Math.max(0, startTransform + dy);
         uiPanel.style.transform = `translateY(${newY}px)`;
     }, { passive: true });
@@ -412,7 +433,12 @@ sidebarToggle.addEventListener('click', () => {
         uiPanel.style.transition = '';
         const curY = getTranslateY();
         const sheetH = uiPanel.offsetHeight;
-        if (curY > sheetH * 0.3) {
+        const collapsedY = sheetH - 60;
+        // How far open is the sheet? 0 = fully collapsed, 1 = fully expanded
+        const progress = collapsedY > 0 ? 1 - curY / collapsedY : 0;
+        // Fast swipe overrides position; otherwise snap at 30% open
+        const shouldCollapse = velocity > 0.3 || (velocity > -0.3 && progress < 0.3);
+        if (shouldCollapse) {
             uiPanel.classList.add('collapsed');
         } else {
             uiPanel.classList.remove('collapsed');
@@ -420,9 +446,10 @@ sidebarToggle.addEventListener('click', () => {
         uiPanel.style.transform = '';
     });
 
-    // Tap on handle toggles collapsed state
+    // Tap on handle toggles collapsed state (suppressed if a drag just happened)
     handle.addEventListener('click', () => {
         if (!isMobileLayout()) return;
+        if (didDrag) { didDrag = false; return; }
         uiPanel.classList.toggle('collapsed');
     });
 })();

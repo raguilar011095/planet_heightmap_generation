@@ -9,6 +9,17 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     min-width: 270px; user-select: none;
     transition: min-width 0.25s ease, padding 0.25s ease;
     overflow: visible;
+    display: flex; flex-direction: column;
+    max-height: calc(100vh - 32px);
+}
+#sidebarContent {
+    overflow-y: auto; flex: 1; min-height: 0;
+}
+#sidebarContent::-webkit-scrollbar { width: 10px; }
+#sidebarContent::-webkit-scrollbar-track { background: transparent; margin: 2px 0; }
+#sidebarContent::-webkit-scrollbar-thumb {
+    background: rgba(255,255,255,0.15); border-radius: 5px;
+    border-left: 5px solid transparent; border-right: 2px solid transparent; background-clip: padding-box;
 }
 #ui h2 { margin-bottom: 4px; font-size: 20px; font-weight: 600; }
 #ui .sub { font-size: 13px; color: #889; margin-bottom: 0; }
@@ -437,15 +448,14 @@ button#generate.generating {
         padding: 10px 20px 20px;
         min-width: 0;
         z-index: 30;
-        transition: transform 0.3s ease;
+        transition: transform 0.35s cubic-bezier(0.32, 0.72, 0, 1);
+        will-change: transform;
     }
     #ui.collapsed {
         transform: translateY(calc(100% - 60px));
         overflow: hidden;
         padding: 10px 20px 20px;
     }
-    #ui.collapsed #sidebarContent { display: none; }
-    #ui.collapsed #sidebarHeader > div { display: none; }
     #ui.collapsed #sidebarHeader { margin-bottom: 0; }
 
     /* Show drag handle */

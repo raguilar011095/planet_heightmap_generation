@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Atlas Engine — a browser-based procedural planet generator using Three.js and ES modules with no build step.
+World Orogen — a browser-based procedural planet generator using Three.js and ES modules with no build step.
 
 ## Guiding Principles
 

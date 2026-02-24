@@ -16,7 +16,7 @@ let workerSupported = true;
 try {
     worker = new Worker(new URL('./planet-worker.js', import.meta.url), { type: 'module' });
 } catch (e) {
-    console.warn('[Atlas Engine] Module workers not supported, falling back to main thread:', e);
+    console.warn('[World Orogen] Module workers not supported, falling back to main thread:', e);
     workerSupported = false;
 }
 
@@ -33,7 +33,7 @@ function resetUI() {
 }
 
 function fail(err) {
-    console.error('[Atlas Engine] Generation failed:', err);
+    console.error('[World Orogen] Generation failed:', err);
     resetUI();
     if (_onProgress) _onProgress(0, '');
 }
@@ -106,13 +106,13 @@ if (worker) {
                         if (isNaN(r_elevation[r])) nanCount++;
                     }
                     const landPct = (100 * landCount / mesh.numRegions).toFixed(1);
-                    if (nanCount > 0) console.error(`[Atlas Engine] WARNING: ${nanCount} NaN elevation values detected!`);
-                    if (landCount / mesh.numRegions < 0.10) console.warn(`[Atlas Engine] WARNING: Only ${landPct}% land (${landCount} regions). Ocean/land growth may have stalled.`);
+                    if (nanCount > 0) console.error(`[World Orogen] WARNING: ${nanCount} NaN elevation values detected!`);
+                    if (landCount / mesh.numRegions < 0.10) console.warn(`[World Orogen] WARNING: Only ${landPct}% land (${landCount} regions). Ocean/land growth may have stalled.`);
                 }
 
                 const f = v => typeof v === 'number' ? v.toFixed(1) : v;
 
-                console.log(`%c[Atlas Engine] Generation complete`, 'color:#6cf;font-weight:bold');
+                console.log(`%c[World Orogen] Generation complete`, 'color:#6cf;font-weight:bold');
                 if (msg._params) {
                     console.log(`  Params: N=${msg._params.N.toLocaleString()} P=${msg._params.P} jitter=${msg._params.jitter} noise=${msg._params.nMag} continents=${msg._params.numContinents} seed=${msg._params.seed}`);
                     console.log(`  Sculpting: smooth=${msg._params.smoothing} glacial=${msg._params.glacialErosion} hydraulic=${msg._params.hydraulicErosion} thermal=${msg._params.thermalErosion} ridge=${msg._params.ridgeSharpening}`);
@@ -177,7 +177,7 @@ if (worker) {
 
                 const f = v => typeof v === 'number' ? v.toFixed(1) : v;
                 const rt = msg._reapplyTiming || {};
-                console.log(`%c[Atlas Engine] Reapply complete`, 'color:#8f8;font-weight:bold');
+                console.log(`%c[World Orogen] Reapply complete`, 'color:#8f8;font-weight:bold');
                 if (msg._postTiming && msg._postTiming.length > 0) {
                     console.groupCollapsed('  %cPost-processing sub-stages', 'color:#8f8');
                     console.table(msg._postTiming.map(r => ({ Stage: r.stage, 'ms': f(r.ms) })));
@@ -217,7 +217,7 @@ if (worker) {
 
                 const f = v => typeof v === 'number' ? v.toFixed(1) : v;
                 const et = msg._editTiming || {};
-                console.log(`%c[Atlas Engine] Edit recompute complete`, 'color:#fc8;font-weight:bold');
+                console.log(`%c[World Orogen] Edit recompute complete`, 'color:#fc8;font-weight:bold');
 
                 if (msg._timing) {
                     console.groupCollapsed('  %cElevation sub-stages', 'color:#fc8');
