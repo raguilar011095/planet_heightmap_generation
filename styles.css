@@ -428,6 +428,51 @@ button#generate.generating {
     margin-top: 18px;
 }
 
+/* Survey overlay */
+#surveyOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.5s ease;
+}
+#surveyOverlay.hidden {
+    opacity: 0; pointer-events: none;
+}
+#surveyCard {
+    position: relative;
+    max-width: 380px; width: 90%;
+    background: rgba(8,8,28,0.94); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 28px 24px 20px;
+    color: #cde;
+}
+#surveyCard h3 {
+    font-size: 18px; font-weight: 600; color: #fff;
+    margin-bottom: 10px;
+}
+#surveyCard p {
+    font-size: 14px; line-height: 1.6; color: #9ab;
+    margin-bottom: 0;
+}
+#surveyClose {
+    position: absolute; top: 10px; right: 14px;
+    background: none; border: none;
+    color: #667; font-size: 22px; cursor: pointer;
+    line-height: 1; padding: 4px;
+    transition: color 0.2s;
+}
+#surveyClose:hover { color: #fff; }
+.survey-actions {
+    display: flex; justify-content: flex-end; gap: 10px;
+    margin-top: 18px;
+}
+.survey-actions .btn-primary {
+    text-decoration: none;
+    display: inline-flex; align-items: center;
+}
+
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
