@@ -27,7 +27,10 @@ All three are considered together; ties are broken in the order above.
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
 - **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
-- **Detailed visualization** — thirteen selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, heightmap, land heightmap) for viewing each elevation component in isolation
+- **Seasonal wind simulation** — pressure-driven wind patterns with a longitude-varying ITCZ that tracks the thermal equator (~5° over ocean, up to 15-20° over continents), Gaussian pressure bands (subtropical highs, subpolar lows, polar highs), land/sea thermal contrast for monsoon-like pressure reversals, elevation barometric effects, and Coriolis-deflected geostrophic wind with natural cross-equatorial flow reversal. Computed for both summer and winter seasons.
+- **Ocean surface currents** — rule-based geographic gyre simulation driven by wind belts (trade winds, westerlies, polar easterlies) with a longitude-varying ITCZ equatorial countercurrent. Continental shelves are classified as western or eastern boundaries via coast-normal BFS, producing subtropical gyres (CW in NH, CCW in SH) with western boundary intensification (Gulf Stream, Kuroshio effect) and weaker eastern boundary return flow. Detects circumpolar channels for unobstructed eastward currents (Antarctic Circumpolar Current). Currents are colored by heat transport: red = warm poleward flow, blue = cold equatorward flow, black = zonal (neutral). Computed for both summer and winter seasons.
+- **Precipitation** — moisture advection simulation driven by wind patterns, ocean warmth, and terrain. Six precipitation mechanisms: warm-current coastal moisture advected downwind with distance depletion, ITCZ convective uplift (±15° of thermal equator), frontal precipitation at subpolar convergence zones (~45–65°), orographic rain on windward slopes and rain shadow suppression on leeward sides, lee cyclogenesis near high mountains with nearby downwind coast, and diffuse polar-front precipitation at high latitudes. Subtropical high suppression (~25–35°) and continental interior dryness reduce precipitation in those zones. Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
+- **Detailed visualization** — twenty-one selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, pressure summer/winter, wind speed summer/winter, ocean currents summer/winter, precipitation summer/winter, heightmap, land heightmap) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
 - **Map export** — download high-resolution equirectangular PNGs (color terrain, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
 
 ## Quick Start
@@ -91,7 +94,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Detailed Visualization
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
 
 ### Export
 
@@ -147,7 +150,10 @@ World Orogen is fully usable on phones and tablets:
 8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
 9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
 10. **Terrain post-processing** applies bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, glacial erosion (controlled by Glacial Erosion slider) carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes, priority-flood pit resolution carves canyons through mountain saddle points to ensure all land drains to the ocean, iterative implicit stream power hydraulic erosion with sediment deposition (controlled by Hydraulic Erosion slider) carves self-reinforcing river valleys, thermal erosion (controlled by Thermal Erosion slider) softens ridges via talus-angle material transport, ridge sharpening (controlled by Ridge Sharpening slider) accentuates mountain ridgelines, and always-on soil creep gently rounds off hillslopes
-11. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
+11. **Wind simulation** computes a longitude-varying ITCZ by scanning for the thermal maximum at each longitude (accounting for land/sea heating differential and elevation lapse rate), builds pressure fields from Gaussian zonal bands centered on the ITCZ plus land/sea thermal modifiers and elevation barometric effects, then derives wind vectors from pressure gradients with latitude-dependent Coriolis deflection and surface friction. Computed for both NH summer and winter.
+12. **Ocean currents** uses a rule-based geographic approach: classifies ocean cells by wind belt (trades, westerlies, polar easterlies) to set base zonal flow, runs three BFS passes from coastal seeds to compute distance to western and eastern coastlines (classified by coast-normal direction), deflects currents poleward near western boundaries (warm, intensified ×2) and equatorward near eastern boundaries (cold, weaker ×0.8), detects circumpolar channels at ±60° latitude for unobstructed eastward flow, smooths with 5 Laplacian passes, and classifies heat transport by meridional flow direction. Computed for both seasons.
+13. **Precipitation** computes moisture advection from coasts using iterative upwind propagation driven by wind vectors, with depletion based on distance and elevation gain. Applies six mechanisms: ITCZ convective uplift, frontal convergence at subpolar lows, orographic rain/rain shadow from windward/leeward elevation gradients, lee cyclogenesis, polar front diffuse precipitation, and subtropical high suppression. Normalized via 95th-percentile scaling. Computed for both seasons.
+14. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
 
@@ -178,6 +184,9 @@ js/
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   terrain-post.js       Bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
+  wind.js               Seasonal wind simulation — pressure fields, ITCZ tracking, Coriolis wind
+  ocean.js              Ocean surface currents — rule-based wind-belt gyres, coast BFS, circumpolar detection
+  precipitation.js      Precipitation simulation — moisture advection, ITCZ/frontal/orographic effects
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info

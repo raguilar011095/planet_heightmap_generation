@@ -7,7 +7,7 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
 import { state } from './state.js';
 import { generate, reapplyViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, buildMapMesh, rebuildGrids, exportMap } from './planet-mesh.js';
+import { buildMesh, buildMapMesh, rebuildGrids, exportMap, buildWindArrows, buildOceanCurrentArrows } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 
@@ -135,6 +135,8 @@ function hideBuildOverlay() {
 const genBtn = document.getElementById('generate');
 genBtn.addEventListener('click', () => {
     clearReapplyPending();
+    buildWindArrows(null); // dispose previous wind arrows
+    buildOceanCurrentArrows(null); // dispose previous ocean arrows
     showBuildOverlay();
     // Collapse bottom sheet on mobile so user can see the planet build
     const ui = document.getElementById('ui');
@@ -209,6 +211,18 @@ function updatePlanetCode(flash) {
 }
 
 genBtn.addEventListener('generate-done', () => updatePlanetCode(false));
+genBtn.addEventListener('generate-done', () => {
+    // Rebuild wind/ocean arrows if a relevant debug layer is active
+    const v = state.debugLayer;
+    const isWindLayer = v === 'pressureSummer' || v === 'pressureWinter' ||
+                        v === 'windSpeedSummer' || v === 'windSpeedWinter';
+    const isOceanLayer = v === 'oceanCurrentSummer' || v === 'oceanCurrentWinter';
+    if (isWindLayer) {
+        buildWindArrows(v.includes('Winter') ? 'winter' : 'summer');
+    } else if (isOceanLayer) {
+        buildOceanCurrentArrows(v.includes('Winter') ? 'winter' : 'summer');
+    }
+});
 
 document.addEventListener('plates-edited', () => updatePlanetCode(true));
 
@@ -294,6 +308,19 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         if (state.mapMesh) state.mapMesh.visible = true;
         if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
         if (state.globeGridMesh) state.globeGridMesh.visible = false;
+        // Toggle wind arrow sub-groups for map mode
+        if (state.windArrowGroup) {
+            state.windArrowGroup.traverse(c => {
+                if (c.name === 'windGlobe') c.visible = false;
+                if (c.name === 'windMap') c.visible = true;
+            });
+        }
+        if (state.oceanCurrentArrowGroup) {
+            state.oceanCurrentArrowGroup.traverse(c => {
+                if (c.name === 'oceanGlobe') c.visible = false;
+                if (c.name === 'oceanMap') c.visible = true;
+            });
+        }
         scene.background = new THREE.Color(0x1a1a2e);
         ctrl.enabled = false;
         mapCtrl.enabled = true;
@@ -311,8 +338,21 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         if (state.mapMesh) state.mapMesh.visible = false;
         if (state.mapGridMesh) state.mapGridMesh.visible = false;
         if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
+        // Toggle wind arrow sub-groups for globe mode
+        if (state.windArrowGroup) {
+            state.windArrowGroup.traverse(c => {
+                if (c.name === 'windGlobe') c.visible = true;
+                if (c.name === 'windMap') c.visible = false;
+            });
+        }
+        if (state.oceanCurrentArrowGroup) {
+            state.oceanCurrentArrowGroup.traverse(c => {
+                if (c.name === 'oceanGlobe') c.visible = true;
+                if (c.name === 'oceanMap') c.visible = false;
+            });
+        }
         const showPlates = document.getElementById('chkPlates').checked;
-        waterMesh.visible = !showPlates;
+        waterMesh.visible = !showPlates && !state.debugLayer;
         scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
         ctrl.enabled = true;
@@ -325,6 +365,23 @@ if (debugLayerEl) {
     debugLayerEl.addEventListener('change', (e) => {
         state.debugLayer = e.target.value;
         buildMesh();
+        // Show/hide wind/ocean arrows based on selected layer
+        const v = e.target.value;
+        const isWindLayer = v === 'pressureSummer' || v === 'pressureWinter' ||
+                            v === 'windSpeedSummer' || v === 'windSpeedWinter';
+        const isOceanLayer = v === 'oceanCurrentSummer' || v === 'oceanCurrentWinter';
+        if (isOceanLayer) {
+            const season = v.includes('Winter') ? 'winter' : 'summer';
+            buildWindArrows(null);
+            buildOceanCurrentArrows(season);
+        } else if (isWindLayer) {
+            const season = v.includes('Winter') ? 'winter' : 'summer';
+            buildOceanCurrentArrows(null);
+            buildWindArrows(season);
+        } else {
+            buildWindArrows(null);
+            buildOceanCurrentArrows(null);
+        }
     });
 }
 
@@ -565,6 +622,8 @@ function animate() {
         waterMesh.rotation.y = state.planetMesh.rotation.y;
         if (state.wireMesh) state.wireMesh.rotation.y = state.planetMesh.rotation.y;
         if (state.arrowGroup) state.arrowGroup.rotation.y = state.planetMesh.rotation.y;
+        if (state.windArrowGroup) state.windArrowGroup.rotation.y = state.planetMesh.rotation.y;
+        if (state.oceanCurrentArrowGroup) state.oceanCurrentArrowGroup.rotation.y = state.planetMesh.rotation.y;
         if (state.globeGridMesh) state.globeGridMesh.rotation.y = state.planetMesh.rotation.y;
     }
     renderer.render(scene, state.mapMode ? mapCamera : camera);

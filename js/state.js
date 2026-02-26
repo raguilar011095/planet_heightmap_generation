@@ -4,6 +4,7 @@ export const state = {
     planetMesh: null,
     wireMesh: null,
     arrowGroup: null,
+    windArrowGroup: null,
     curData: null,
     plateColors: {},
     baseColors: null,
@@ -20,4 +21,5 @@ export const state = {
     debugLayer: '',
     isTouchDevice: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0),
     editMode: false,
+    oceanCurrentArrowGroup: null,
 };
