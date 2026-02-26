@@ -4,6 +4,7 @@
 
 import { smoothstep } from './wind.js';
 import { computeGradients } from './wind.js';
+import { elevToHeightKm } from './color-map.js';
 
 const DEG = Math.PI / 180;
 
@@ -226,8 +227,8 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
             // Track weighted-average upwind elevation for gradient-based depletion
             let upwindMoisture = 0;
             let upwindWeight = 0;
-            let upwindElevSum = 0;
-            const elevHere = Math.max(0, r_elevation[r]);
+            let upwindHeightSum = 0;
+            const heightHere = elevToHeightKm(Math.max(0, r_elevation[r]));
             const end = adjOffset[r + 1];
             for (let ni = adjOffset[r]; ni < end; ni++) {
                 const nb = adjList[ni];
@@ -247,31 +248,31 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
                 if (dot > 0) {
                     const w = dot; // weight by alignment
                     upwindMoisture += moisture[nb] * w;
-                    upwindElevSum += Math.max(0, r_elevation[nb]) * w;
+                    upwindHeightSum += elevToHeightKm(Math.max(0, r_elevation[nb])) * w;
                     upwindWeight += w;
                 }
             }
 
             if (upwindWeight > 0) {
                 const incoming = upwindMoisture / upwindWeight;
-                const upwindElev = upwindElevSum / upwindWeight;
+                const upwindHeight = upwindHeightSum / upwindWeight;
 
-                // Depletion depends on elevation GAIN from upwind neighbor.
+                // Depletion depends on physical height GAIN (km) from upwind.
                 // All rates scale with maxHops so behavior is resolution-
                 // invariant: the same physical distance yields the same
                 // total depletion regardless of cell count.
-                const elevGain = Math.max(0, elevHere - upwindElev);
+                const heightGain = Math.max(0, heightHere - upwindHeight);
 
                 // Base friction: ~70% moisture survives the full maxHops
                 // distance over flat terrain. Per-hop retention = 0.7^(1/maxHops).
                 const depletionBase = 1 - Math.pow(0.70, 1 / maxHops);
 
-                // Elevation gain per hop shrinks at higher resolution (same
-                // slope, more cells). Multiply by maxHops to normalize to
-                // "gain over the full advection distance" — a total rise of
-                // ~0.15 (≈1000m) dumps significant moisture, ~0.3 near-total.
-                const normalizedGain = elevGain * maxHops;
-                const elevDepletion = Math.min(0.7, normalizedGain * 0.3);
+                // Height gain per hop (km) shrinks at higher resolution.
+                // Multiply by maxHops to get total rise over the advection
+                // distance. A ~1 km total rise dumps significant moisture,
+                // ~2 km near-total.
+                const normalizedGain = heightGain * maxHops;
+                const elevDepletion = Math.min(0.7, normalizedGain * 0.5);
                 const depletion = depletionBase + elevDepletion;
 
                 const carried = incoming * Math.max(0, 1 - depletion);
@@ -491,13 +492,14 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
             // (g) Lee cyclogenesis: localized wet zone on leeward side of high mountains
             // when ocean is nearby downwind (~200 km)
-            if (isLand && elev > 0.3) {
+            const heightKm = elevToHeightKm(Math.max(0, elev));
+            if (isLand && heightKm > 1.5) {
                 const we = r_windE[r], wn = r_windN[r];
                 const windDotGrad = we * r_elevGradE[r] + wn * r_elevGradN[r];
                 // ~200 km in hops (scale-invariant)
                 const leeCoastHops = Math.max(2, Math.round(200 / avgEdgeKm));
                 if (windDotGrad < -0.01 && r_coastDistLand[r] >= 0 && r_coastDistLand[r] < leeCoastHops) {
-                    p += 0.15 * Math.min(1, elev * 1.5);
+                    p += 0.15 * Math.min(1, heightKm / 5);
                 }
             }
 

@@ -1,6 +1,8 @@
 // Wind simulation: pressure-driven seasonal wind with longitude-varying ITCZ.
 // Computes pressure fields and wind vectors for summer and winter seasons.
 
+import { elevToHeightKm } from './color-map.js';
+
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
 
@@ -183,7 +185,7 @@ function computeITCZ(geoSample, season, tiltRad) {
         // Ocean default: 5°. Land pulls poleward up to +15°.
         // Need ~50% land coverage for full poleward pull.
         const landPull = Math.min(1, avgLand * 2);
-        const itczDeg = 5 + landPull * 15 - avgElev * 5;
+        const itczDeg = 5 + landPull * 15 - elevToHeightKm(avgElev) * 1.5;
         const clampedDeg = Math.max(5, Math.min(20, itczDeg));
 
         rawLats[i] = clampedDeg * sign * DEG;
@@ -272,7 +274,7 @@ function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noise
 
     // (f) Elevation (barometric) — mild effect; real weather maps use
     // sea-level-reduced pressure so elevation doesn't dominate zonal bands
-    p -= 8 * Math.max(0, elevation);
+    p -= 3 * elevToHeightKm(Math.max(0, elevation));
 
     // (g) Noise perturbation
     if (noiseFn) {

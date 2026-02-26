@@ -8,6 +8,7 @@ import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
 import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
+import { computeTemperature } from './temperature.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -147,6 +148,8 @@ if (worker) {
                     r_ocean_warmth_winter: msg.r_ocean_warmth_winter,
                     r_precip_summer: msg.r_precip_summer,
                     r_precip_winter: msg.r_precip_winter,
+                    r_temperature_summer: msg.r_temperature_summer,
+                    r_temperature_winter: msg.r_temperature_winter,
                     seed: msg.seed,
                     nMag: msg.nMag,
                     debugLayers: msg.debugLayers
@@ -194,6 +197,25 @@ if (worker) {
                         d.debugLayers.precipWinter = precipResult.r_precip_winter;
                     }
                     console.log(`[generate.js] Precipitation computed on main thread in ${(performance.now() - t0Precip).toFixed(0)} ms`);
+                }
+
+                // Temperature fallback
+                if (!state.curData.r_temperature_summer && msg.r_wind_east_summer) {
+                    console.log('[generate.js] Temperature data missing from worker — computing on main thread');
+                    const t0Temp = performance.now();
+                    const d = state.curData;
+                    const windResult = buildWindResultForOcean(mesh, d.r_xyz, d.r_elevation,
+                        d.r_wind_east_summer, d.r_wind_north_summer,
+                        d.r_wind_east_winter, d.r_wind_north_winter,
+                        d.itczLons, d.itczLatsSummer, d.itczLatsWinter);
+                    const tempResult = computeTemperature(mesh, d.r_xyz, d.r_elevation, windResult, d, d);
+                    d.r_temperature_summer = tempResult.r_temperature_summer;
+                    d.r_temperature_winter = tempResult.r_temperature_winter;
+                    if (d.debugLayers) {
+                        d.debugLayers.tempSummer = tempResult.r_temperature_summer;
+                        d.debugLayers.tempWinter = tempResult.r_temperature_winter;
+                    }
+                    console.log(`[generate.js] Temperature computed on main thread in ${(performance.now() - t0Temp).toFixed(0)} ms`);
                 }
 
                 const tBuildStart = performance.now();
@@ -310,6 +332,10 @@ if (worker) {
                     d.r_precip_summer = msg.r_precip_summer;
                     d.r_precip_winter = msg.r_precip_winter;
                 }
+                if (msg.r_temperature_summer) {
+                    d.r_temperature_summer = msg.r_temperature_summer;
+                    d.r_temperature_winter = msg.r_temperature_winter;
+                }
                 if (msg.windDebugLayers) {
                     Object.assign(d.debugLayers, msg.windDebugLayers);
                 }
@@ -382,6 +408,10 @@ if (worker) {
                     d.r_precip_summer = msg.r_precip_summer;
                     d.r_precip_winter = msg.r_precip_winter;
                 }
+                if (msg.r_temperature_summer) {
+                    d.r_temperature_summer = msg.r_temperature_summer;
+                    d.r_temperature_winter = msg.r_temperature_winter;
+                }
                 d.debugLayers = msg.debugLayers;
 
                 const tColorsStart = performance.now();
@@ -435,7 +465,7 @@ if (worker) {
 let _fallbackModules = null;
 async function loadFallback() {
     if (_fallbackModules) return _fallbackModules;
-    const [rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip] = await Promise.all([
+    const [rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp] = await Promise.all([
         import('./rng.js'),
         import('./simplex-noise.js'),
         import('./sphere-mesh.js'),
@@ -445,9 +475,10 @@ async function loadFallback() {
         import('./terrain-post.js'),
         import('./wind.js'),
         import('./ocean.js'),
-        import('./precipitation.js')
+        import('./precipitation.js'),
+        import('./temperature.js')
     ]);
-    _fallbackModules = { rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip };
+    _fallbackModules = { rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp };
     return _fallbackModules;
 }
 
@@ -536,6 +567,11 @@ function generateFallback(overrideSeed, toggledIndices, onProgress) {
             ctx.precipResult = precipResult;
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
+            // Temperature (fallback path)
+            const tempResult = m.temp.computeTemperature(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult, precipResult);
+            ctx.tempResult = tempResult;
+            debugLayers.tempSummer = tempResult.r_temperature_summer;
+            debugLayers.tempWinter = tempResult.r_temperature_winter;
             const t_elevation = new Float32Array(ctx.mesh.numTriangles);
             for (let t = 0; t < ctx.mesh.numTriangles; t++) {
                 const s0 = 3 * t;
@@ -570,7 +606,9 @@ function generateFallback(overrideSeed, toggledIndices, onProgress) {
                 r_ocean_warmth_summer: ctx.oceanResult.r_ocean_warmth_summer,
                 r_ocean_warmth_winter: ctx.oceanResult.r_ocean_warmth_winter,
                 r_precip_summer: ctx.precipResult.r_precip_summer,
-                r_precip_winter: ctx.precipResult.r_precip_winter
+                r_precip_winter: ctx.precipResult.r_precip_winter,
+                r_temperature_summer: ctx.tempResult.r_temperature_summer,
+                r_temperature_winter: ctx.tempResult.r_temperature_winter
             };
             buildMesh();
             progress(100, 'Done');

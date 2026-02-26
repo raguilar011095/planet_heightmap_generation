@@ -11,6 +11,7 @@ import { smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from '
 import { computeWind } from './wind.js';
 import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
+import { computeTemperature } from './temperature.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -188,7 +189,15 @@ function handleGenerate(data) {
         debugLayers.precipSummer = precipResult.r_precip_summer;
         debugLayers.precipWinter = precipResult.r_precip_winter;
 
-        progress(88, 'Computing triangle elevations\u2026');
+        progress(86, 'Computing temperature\u2026');
+        t0 = performance.now();
+        const tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult);
+        timing.push({ stage: 'Temperature', ms: performance.now() - t0 });
+        if (tempResult._tempTiming) timing.push(...tempResult._tempTiming);
+        debugLayers.tempSummer = tempResult.r_temperature_summer;
+        debugLayers.tempWinter = tempResult.r_temperature_winter;
+
+        progress(90, 'Computing triangle elevations\u2026');
         t0 = performance.now();
         const t_elevation = computeTriangleElevations(mesh, r_elevation);
         timing.push({ stage: 'Triangle elevations', ms: performance.now() - t0 });
@@ -248,6 +257,8 @@ function handleGenerate(data) {
             r_ocean_warmth_winter: oceanResult.r_ocean_warmth_winter,
             r_precip_summer: precipResult.r_precip_summer,
             r_precip_winter: precipResult.r_precip_winter,
+            r_temperature_summer: tempResult.r_temperature_summer,
+            r_temperature_winter: tempResult.r_temperature_winter,
             seed, nMag,
             debugLayers,
             _timing,                          // elevation sub-stages from assignElevation
@@ -303,7 +314,12 @@ function handleReapply(data) {
         const precipResult = computePrecipitation(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult);
         const tPrecip = performance.now() - t0;
 
-        progress(88, 'Computing triangle elevations\u2026');
+        progress(85, 'Computing temperature\u2026');
+        t0 = performance.now();
+        const tempResult = computeTemperature(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipResult);
+        const tTemp = performance.now() - t0;
+
+        progress(90, 'Computing triangle elevations\u2026');
         t0 = performance.now();
         const t_elevation = computeTriangleElevations(W.mesh, r_elevation);
         const tTriElev = performance.now() - t0;
@@ -332,13 +348,17 @@ function handleReapply(data) {
             r_ocean_warmth_winter: oceanResult.r_ocean_warmth_winter,
             r_precip_summer: precipResult.r_precip_summer,
             r_precip_winter: precipResult.r_precip_winter,
+            r_temperature_summer: tempResult.r_temperature_summer,
+            r_temperature_winter: tempResult.r_temperature_winter,
             windDebugLayers: {
                 pressureSummer: windResult.r_pressure_summer,
                 pressureWinter: windResult.r_pressure_winter,
                 windSpeedSummer: windResult.r_wind_speed_summer,
                 windSpeedWinter: windResult.r_wind_speed_winter,
                 precipSummer: precipResult.r_precip_summer,
-                precipWinter: precipResult.r_precip_winter
+                precipWinter: precipResult.r_precip_winter,
+                tempSummer: tempResult.r_temperature_summer,
+                tempWinter: tempResult.r_temperature_winter
             },
             _reapplyTiming: {
                 clone: tClone,
@@ -346,6 +366,7 @@ function handleReapply(data) {
                 wind: tWind,
                 ocean: tOcean,
                 precipitation: tPrecip,
+                temperature: tTemp,
                 triangleElevations: tTriElev,
                 workerTotal: tWorkerTotal
             },
@@ -409,7 +430,14 @@ function handleEditRecompute(data) {
         debugLayers.precipSummer = precipResult.r_precip_summer;
         debugLayers.precipWinter = precipResult.r_precip_winter;
 
-        progress(88, 'Computing triangle elevations\u2026');
+        progress(86, 'Computing temperature\u2026');
+        t0 = performance.now();
+        const tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult);
+        const tTemp = performance.now() - t0;
+        debugLayers.tempSummer = tempResult.r_temperature_summer;
+        debugLayers.tempWinter = tempResult.r_temperature_winter;
+
+        progress(90, 'Computing triangle elevations\u2026');
         t0 = performance.now();
         const t_elevation = computeTriangleElevations(mesh, r_elevation);
         const tTriElev = performance.now() - t0;
@@ -451,6 +479,8 @@ function handleEditRecompute(data) {
             r_ocean_warmth_winter: oceanResult.r_ocean_warmth_winter,
             r_precip_summer: precipResult.r_precip_summer,
             r_precip_winter: precipResult.r_precip_winter,
+            r_temperature_summer: tempResult.r_temperature_summer,
+            r_temperature_winter: tempResult.r_temperature_winter,
             debugLayers,
             _editTiming: {
                 elevation: tElev,
@@ -458,6 +488,7 @@ function handleEditRecompute(data) {
                 wind: tWind,
                 ocean: tOcean,
                 precipitation: tPrecip,
+                temperature: tTemp,
                 triangleElevations: tTriElev,
                 retainState: tRetain,
                 workerTotal: tWorkerTotal

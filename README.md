@@ -94,7 +94,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Detailed Visualization
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
 
 ### Export
 
@@ -153,7 +153,8 @@ World Orogen is fully usable on phones and tablets:
 11. **Wind simulation** computes a longitude-varying ITCZ by scanning for the thermal maximum at each longitude (accounting for land/sea heating differential and elevation lapse rate), builds pressure fields from Gaussian zonal bands centered on the ITCZ plus land/sea thermal modifiers and elevation barometric effects, then derives wind vectors from pressure gradients with latitude-dependent Coriolis deflection and surface friction. Computed for both NH summer and winter.
 12. **Ocean currents** uses a rule-based geographic approach: classifies ocean cells by wind belt (trades, westerlies, polar easterlies) to set base zonal flow, runs three BFS passes from coastal seeds to compute distance to western and eastern coastlines (classified by coast-normal direction), deflects currents poleward near western boundaries (warm, intensified ×2) and equatorward near eastern boundaries (cold, weaker ×0.8), detects circumpolar channels at ±60° latitude for unobstructed eastward flow, smooths with 5 Laplacian passes, and classifies heat transport by meridional flow direction. Computed for both seasons.
 13. **Precipitation** computes moisture advection from coasts using iterative upwind propagation driven by wind vectors, with depletion based on distance and elevation gain. Applies six mechanisms: ITCZ convective uplift, frontal convergence at subpolar lows, orographic rain/rain shadow from windward/leeward elevation gradients, lee cyclogenesis, polar front diffuse precipitation, and subtropical high suppression. Normalized via 95th-percentile scaling. Computed for both seasons.
-14. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
+14. **Temperature** computes per-cell surface temperature using the ITCZ as the thermal equator (warmest latitude band), with poleward cooling following a power-law curve. Modulated by seasonal hemisphere offset, continentality (hot interior summers, harsh interior winters), elevation lapse rate (6.5 C/1000m), ocean current warmth (diffused onto coastal land), and precipitation/cloud cover moderation. Normalized to a fixed -45 to +45 C range. Computed for both seasons.
+15. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
 
@@ -187,6 +188,7 @@ js/
   wind.js               Seasonal wind simulation — pressure fields, ITCZ tracking, Coriolis wind
   ocean.js              Ocean surface currents — rule-based wind-belt gyres, coast BFS, circumpolar detection
   precipitation.js      Precipitation simulation — moisture advection, ITCZ/frontal/orographic effects
+  temperature.js        Temperature simulation — ITCZ thermal equator, lapse rate, continentality, ocean currents
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info

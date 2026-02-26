@@ -3,20 +3,21 @@
 import * as THREE from 'three';
 import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
-import { elevationToColor } from './color-map.js';
+import { elevationToColor, elevToHeightKm } from './color-map.js';
 import { makeRng } from './rng.js';
 
-// Grayscale heightmap: black (lowest) → white (highest)
-function heightmapColor(elevation, minElev, maxElev) {
-    const range = maxElev - minElev || 1;
-    const t = Math.max(0, Math.min(1, (elevation - minElev) / range));
+// Grayscale heightmap: black (lowest) → white (highest), in physical height space
+function heightmapColor(elevation, minH, maxH) {
+    const h = elevToHeightKm(elevation);
+    const range = maxH - minH || 1;
+    const t = Math.max(0, Math.min(1, (h - minH) / range));
     return [t, t, t];
 }
 
-// Land heightmap: ocean = black, land = black (sea level) → white (highest peak)
-function landHeightmapColor(elevation, maxElev) {
+// Land heightmap: ocean = black, land = black (sea level) → white (highest peak), in physical height space
+function landHeightmapColor(elevation, maxH) {
     if (elevation <= 0) return [0, 0, 0];
-    const t = Math.max(0, Math.min(1, elevation / (maxElev || 1)));
+    const t = Math.max(0, Math.min(1, elevToHeightKm(elevation) / (maxH || 1)));
     return [t, t, t];
 }
 
@@ -54,6 +55,20 @@ function precipitationColor(value) {
         const s = (t - 0.75) / 0.25;
         return [0.15 - s * 0.05, 0.65 - s * 0.35, 0.65 + s * 0.20];
     }
+}
+
+// Temperature debug color: discrete bands matching real climate map style.
+// Input is 0-1 normalized from -45 to +45 C. Convert back to C for thresholds.
+function temperatureColor(value) {
+    const T = -45 + Math.max(0, Math.min(1, value)) * 90;
+    if (T < -38) return [0.78, 0.78, 0.78];       // White-gray
+    if (T <   0) return [0.00, 0.00, 0.50];        // Dark blue
+    if (T <  10) return [0.53, 0.81, 0.92];        // Light blue
+    if (T <  18) return [1.00, 1.00, 0.00];        // Yellow
+    if (T <  22) return [1.00, 0.65, 0.00];        // Orange
+    if (T <  32) return [1.00, 0.00, 0.00];        // Red
+    if (T <  40) return [0.55, 0.00, 0.00];        // Dark red
+    return [0.20, 0.00, 0.00];                      // Darker red
 }
 
 // Plate colours — green shades for land, blue for ocean.
@@ -98,7 +113,9 @@ export function buildMapMesh() {
     }
     const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
+    const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -109,8 +126,9 @@ export function buildMapMesh() {
     let elevMin = Infinity, elevMax = -Infinity;
     if (isHeightmap || isLandHeightmap) {
         for (let r = 0; r < mesh.numRegions; r++) {
-            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
-            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
+            const h = elevToHeightKm(r_elevation[r]);
+            if (h < elevMin) elevMin = h;
+            if (h > elevMax) elevMax = h;
         }
     }
 
@@ -140,7 +158,9 @@ export function buildMapMesh() {
 
         const re = r_elevation[br] - waterLevel;
         let cr, cg, cb;
-        if (isPrecip && precipArr) {
+        if (isTemp && tempArr) {
+            [cr, cg, cb] = temperatureColor(tempArr[br]);
+        } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);
         } else if (isOceanCurrent && oceanWarmth && oceanSpeed) {
             [cr, cg, cb] = oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
@@ -397,7 +417,9 @@ export function buildMesh() {
     }
     const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
+    const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -408,8 +430,9 @@ export function buildMesh() {
     let elevMin = Infinity, elevMax = -Infinity;
     if (isHeightmap || isLandHeightmap) {
         for (let r = 0; r < mesh.numRegions; r++) {
-            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
-            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
+            const h = elevToHeightKm(r_elevation[r]);
+            if (h < elevMin) elevMin = h;
+            if (h > elevMax) elevMax = h;
         }
     }
 
@@ -473,7 +496,9 @@ export function buildMesh() {
         }
 
         let cr, cg, cb;
-        if (isPrecip && precipArr) {
+        if (isTemp && tempArr) {
+            [cr, cg, cb] = temperatureColor(tempArr[br]);
+        } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);
         } else if (isOceanCurrent && oceanWarmth && oceanSpeed) {
             [cr, cg, cb] = oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
