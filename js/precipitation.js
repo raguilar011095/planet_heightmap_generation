@@ -5,6 +5,7 @@
 import { smoothstep } from './wind.js';
 import { computeGradients } from './wind.js';
 import { elevToHeightKm } from './color-map.js';
+import { computeHeuristicPrecipitation } from './heuristic-precip.js';
 
 const DEG = Math.PI / 180;
 
@@ -517,28 +518,44 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
         const tMechanisms = performance.now() - t0;
 
-        // ── Step 3: Smooth and normalize ──
+        // ── Step 3: Smooth (normalization deferred to blending step) ──
         t0 = performance.now();
         // Light smoothing ~100 km to blend cell-to-cell noise
         const precipSmoothPasses = Math.max(1, Math.round(100 / avgEdgeKm));
         smoothField(mesh, precip, precipSmoothPasses);
+        const tSmooth = performance.now() - t0;
 
-        // 95th-percentile normalization
-        const sorted = new Float32Array(precip);
+        timing.push({ stage: `Precip: advection (${name})`, ms: tAdvect });
+        timing.push({ stage: `Precip: mechanisms (${name})`, ms: tMechanisms });
+        timing.push({ stage: `Precip: smooth (${name})`, ms: tSmooth });
+
+        result[`r_precip_${name}`] = precip;
+    }
+
+    // ── Step 4: Blend with heuristic model and normalize ──
+    t0 = performance.now();
+    const heuristic = computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN);
+
+    for (const seasonName of ['summer', 'winter']) {
+        const complex = result[`r_precip_${seasonName}`];
+        const heur = heuristic[`r_precip_${seasonName}`];
+        const blended = new Float32Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            blended[r] = 0.5 * complex[r] + 0.5 * heur[r];
+        }
+
+        // 95th-percentile normalization on blended result
+        const sorted = new Float32Array(blended);
         sorted.sort();
         const p95idx = Math.floor(numRegions * 0.95);
         const maxPrecip = sorted[p95idx] || 1;
         for (let r = 0; r < numRegions; r++) {
-            precip[r] = Math.min(1, precip[r] / maxPrecip);
+            blended[r] = Math.min(1, blended[r] / maxPrecip);
         }
-        const tNormalize = performance.now() - t0;
 
-        timing.push({ stage: `Precip: advection (${name})`, ms: tAdvect });
-        timing.push({ stage: `Precip: mechanisms (${name})`, ms: tMechanisms });
-        timing.push({ stage: `Precip: smooth+normalize (${name})`, ms: tNormalize });
-
-        result[`r_precip_${name}`] = precip;
+        result[`r_precip_${seasonName}`] = blended;
     }
+    timing.push({ stage: 'Precip: heuristic blend+normalize', ms: performance.now() - t0 });
 
     result._precipTiming = timing;
     return result;
