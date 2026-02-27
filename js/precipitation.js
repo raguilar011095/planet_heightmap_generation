@@ -188,7 +188,7 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
         const windDotOcean = wdx * oceanDirX + wdy * oceanDirY + wdz * oceanDirZ;
 
         // Onshore wind: wind blows away from ocean direction (into land)
-        const onshore = windDotOcean < 0 ? 1.0 : 0.15; // small baseline even for offshore
+        const onshore = windDotOcean < 0 ? 1.0 : 0.25; // baseline even for offshore (sea breeze/evaporation)
 
         // Base moisture: warm currents provide more, cold currents less
         // avgWarmth ranges ~ [-1, 1]; warm > 0 boosts, cold < 0 reduces
@@ -202,7 +202,7 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
         if (r_isLand[r]) continue;
         // Give ocean cells a base moisture proportional to warmth (for polar/ITCZ effects)
         const warmth = r_oceanWarmth ? r_oceanWarmth[r] : 0;
-        moisture[r] = 0.3 + 0.3 * Math.max(0, warmth);
+        moisture[r] = 0.4 + 0.35 * Math.max(0, warmth);
     }
 
     // Iterative downwind propagation
@@ -263,16 +263,16 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
                 // total depletion regardless of cell count.
                 const heightGain = Math.max(0, heightHere - upwindHeight);
 
-                // Base friction: ~70% moisture survives the full maxHops
-                // distance over flat terrain. Per-hop retention = 0.7^(1/maxHops).
-                const depletionBase = 1 - Math.pow(0.70, 1 / maxHops);
+                // Base friction: ~78% moisture survives the full maxHops
+                // distance over flat terrain. Per-hop retention = 0.78^(1/maxHops).
+                const depletionBase = 1 - Math.pow(0.78, 1 / maxHops);
 
                 // Height gain per hop (km) shrinks at higher resolution.
                 // Multiply by maxHops to get total rise over the advection
                 // distance. A ~1 km total rise dumps significant moisture,
                 // ~2 km near-total.
                 const normalizedGain = heightGain * maxHops;
-                const elevDepletion = Math.min(0.7, normalizedGain * 0.5);
+                const elevDepletion = Math.min(0.8, normalizedGain * 0.55);
                 const depletion = depletionBase + elevDepletion;
 
                 const carried = incoming * Math.max(0, 1 - depletion);
@@ -311,7 +311,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     // Average edge length ≈ π / sqrt(numRegions) radians ≈ (π * 6371) / sqrt(N) km
     // hops ≈ 2000 / edgeLengthKm
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
-    const maxHops = Math.max(5, Math.min(20, Math.round(2000 / avgEdgeKm)));
+    const maxHops = Math.max(8, Math.min(20, Math.round(2000 / avgEdgeKm)));
 
     // Coast distance through land (shared between seasons)
     let t0 = performance.now();
@@ -421,14 +421,14 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                     // Windward: orographic enhancement — the steeper the slope
                     // the wind is pushing up, the more rain wrung out.
                     // gradient strength matters more than absolute height.
-                    const uplift = Math.min(1, windDotGrad * 12);
-                    p += uplift * 0.4;
+                    const uplift = Math.min(1, windDotGrad * 15);
+                    p += uplift * 0.6;
                 } else {
-                    // Leeward: moderate rain shadow. The advection step already
-                    // depleted moisture crossing the ridge; this is the *extra*
-                    // suppression from descending/warming air on the lee side.
-                    const shadow = Math.min(1, -windDotGrad * 10);
-                    p *= Math.max(0.15, 1 - shadow * 0.5);
+                    // Leeward: rain shadow. The advection step already depleted
+                    // moisture crossing the ridge; this is the *extra* suppression
+                    // from descending/warming air (foehn drying) on the lee side.
+                    const shadow = Math.min(1, -windDotGrad * 18);
+                    p *= Math.max(0.05, 1 - shadow * 0.85);
                 }
             }
 
@@ -441,7 +441,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // Latitude-based baseline: mild subtropical suppression (~20-35°)
             const subtropDist = Math.abs(absLatDeg - 28);
             const latBandSuppression = subtropDist < 12
-                ? smoothstep(12, 0, subtropDist) * 0.35 : 0;
+                ? smoothstep(12, 0, subtropDist) * 0.25 : 0;
 
             // Pressure modifier: high pressure adds suppression, low reduces it
             // Kept gentle — pressure nudges the baseline, doesn't overwhelm it.
@@ -486,7 +486,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // continental hearts far from any coast.
             if (isLand && r_continentality) {
                 const cont = r_continentality[r];
-                const dryness = smoothstep(0.6, 0.95, cont) * 0.25;
+                const dryness = smoothstep(0.6, 0.95, cont) * 0.15;
                 p *= Math.max(0.05, 1 - dryness);
             }
 

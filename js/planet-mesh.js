@@ -5,6 +5,7 @@ import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
 import { elevationToColor, elevToHeightKm } from './color-map.js';
 import { makeRng } from './rng.js';
+import { KOPPEN_CLASSES } from './koppen.js';
 
 // Grayscale heightmap: black (lowest) → white (highest), in physical height space
 function heightmapColor(elevation, minH, maxH) {
@@ -71,6 +72,12 @@ function temperatureColor(value) {
     return [0.20, 0.00, 0.00];                      // Darker red
 }
 
+// Köppen climate class color: returns [r,g,b] from KOPPEN_CLASSES lookup.
+function koppenColor(classId) {
+    const c = KOPPEN_CLASSES[classId] || KOPPEN_CLASSES[0];
+    return c.color;
+}
+
 // Plate colours — green shades for land, blue for ocean.
 export function computePlateColors(plateSeeds, plateIsOcean) {
     state.plateColors = {};
@@ -115,7 +122,9 @@ export function buildMapMesh() {
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isKoppen = debugLayer === 'koppen';
+    const koppenArr = isKoppen ? (debugLayers && debugLayers.koppen) : null;
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -158,7 +167,9 @@ export function buildMapMesh() {
 
         const re = r_elevation[br] - waterLevel;
         let cr, cg, cb;
-        if (isTemp && tempArr) {
+        if (isKoppen && koppenArr) {
+            [cr, cg, cb] = koppenColor(koppenArr[br]);
+        } else if (isTemp && tempArr) {
             [cr, cg, cb] = temperatureColor(tempArr[br]);
         } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);
@@ -419,7 +430,9 @@ export function buildMesh() {
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    const isKoppen = debugLayer === 'koppen';
+    const koppenArr = isKoppen ? (debugLayers && debugLayers.koppen) : null;
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -496,7 +509,9 @@ export function buildMesh() {
         }
 
         let cr, cg, cb;
-        if (isTemp && tempArr) {
+        if (isKoppen && koppenArr) {
+            [cr, cg, cb] = koppenColor(koppenArr[br]);
+        } else if (isTemp && tempArr) {
             [cr, cg, cb] = temperatureColor(tempArr[br]);
         } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);

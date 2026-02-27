@@ -12,6 +12,7 @@ import { computeWind } from './wind.js';
 import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
+import { classifyKoppen } from './koppen.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -197,6 +198,10 @@ function handleGenerate(data) {
         debugLayers.tempSummer = tempResult.r_temperature_summer;
         debugLayers.tempWinter = tempResult.r_temperature_winter;
 
+        t0 = performance.now();
+        debugLayers.koppen = classifyKoppen(mesh, r_elevation, tempResult, precipResult);
+        timing.push({ stage: 'Köppen classification', ms: performance.now() - t0 });
+
         progress(90, 'Computing triangle elevations\u2026');
         t0 = performance.now();
         const t_elevation = computeTriangleElevations(mesh, r_elevation);
@@ -358,7 +363,8 @@ function handleReapply(data) {
                 precipSummer: precipResult.r_precip_summer,
                 precipWinter: precipResult.r_precip_winter,
                 tempSummer: tempResult.r_temperature_summer,
-                tempWinter: tempResult.r_temperature_winter
+                tempWinter: tempResult.r_temperature_winter,
+                koppen: classifyKoppen(W.mesh, r_elevation, tempResult, precipResult)
             },
             _reapplyTiming: {
                 clone: tClone,
@@ -436,6 +442,8 @@ function handleEditRecompute(data) {
         const tTemp = performance.now() - t0;
         debugLayers.tempSummer = tempResult.r_temperature_summer;
         debugLayers.tempWinter = tempResult.r_temperature_winter;
+
+        debugLayers.koppen = classifyKoppen(mesh, r_elevation, tempResult, precipResult);
 
         progress(90, 'Computing triangle elevations\u2026');
         t0 = performance.now();

@@ -47,14 +47,18 @@ function smoothField(mesh, field, passes) {
 }
 
 // ── Diffuse ocean warmth onto nearby coastal land ───────────────────────────
-// Neighbor-average ocean warmth values onto land cells with low continentality.
-// Only affects cells with continentality < 0.4 (near coast).
+// Uses plate-based continentality so that warmth spreads freely across
+// shallow continental-shelf ocean and penetrates further inland. Ocean cells
+// on continental plates (shallow seas) inherit warmth from nearby oceanic-
+// plate cells first, then the warmth diffuses onto land.
 
-function diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_continentality, passes) {
+function diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_plateContinentality, passes) {
     const { adjOffset, adjList, numRegions } = mesh;
     const coastal = new Float32Array(numRegions);
 
-    // Seed: ocean cells contribute their warmth directly
+    // Seed: all ocean cells contribute their warmth directly.
+    // Continental-shelf ocean cells may have weak/no current warmth;
+    // they'll pick up values from nearby oceanic-plate neighbors via diffusion.
     for (let r = 0; r < numRegions; r++) {
         if (!r_isLand[r]) {
             coastal[r] = r_oceanWarmth ? r_oceanWarmth[r] : 0;
@@ -65,9 +69,11 @@ function diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_continentality, pas
     for (let pass = 0; pass < passes; pass++) {
         tmp.set(coastal);
         for (let r = 0; r < numRegions; r++) {
-            if (!r_isLand[r]) continue;
-            if (r_continentality && r_continentality[r] >= 0.4) continue;
+            // Skip deep-interior continental cells (plate-based)
+            if (r_plateContinentality && r_plateContinentality[r] >= 0.8) continue;
 
+            // Ocean cells also participate in diffusion so continental-shelf
+            // cells inherit warmth from nearby open-ocean neighbors
             let sum = coastal[r];
             let count = 1;
             const end = adjOffset[r + 1];
@@ -100,7 +106,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
     const numRegions = mesh.numRegions;
     const timing = [];
 
-    const { r_lat, r_lon, r_isLand, r_continentality } = windResult;
+    const { r_lat, r_lon, r_isLand, r_continentality, r_plateContinentality } = windResult;
 
     // Minimal smoothing: 1 pass just to blend cell-to-cell noise
     const smoothPasses = 1;
@@ -124,7 +130,10 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             name === 'summer' ? windResult.itczLatsSummer : windResult.itczLatsWinter);
 
         // Pre-compute diffused ocean warmth for coastal land influence
-        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_continentality, 3);
+        // Use plate-based continentality for diffusion so warmth crosses
+        // continental shelves and reaches further inland
+        const plateCont = r_plateContinentality || r_continentality;
+        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, 8);
 
         const temp = new Float32Array(numRegions);
 
@@ -135,6 +144,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             const isLand = r_isLand[r];
             const elev = r_elevation[r];
             const cont = r_continentality ? r_continentality[r] : 0;
+            const pCont = r_plateContinentality ? r_plateContinentality[r] : cont;
 
             // ── 1. Base temperature from thermal equator (ITCZ) ──
             // Two curves blended by absolute latitude:
@@ -174,12 +184,14 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
                 // Direct ocean effect: warm/cold currents shift SST
                 const warmth = r_oceanWarmth[r];
                 const speed = r_oceanSpeed[r];
-                T += warmth * Math.min(1, speed * 2) * 6;
+                T += warmth * Math.min(1, speed * 2) * 10;
             } else if (isLand) {
-                // Coastal land: diffused ocean warmth fades with continentality
+                // Coastal land: diffused ocean warmth fades with plate-based
+                // continentality so the effect reaches further inland and
+                // crosses continental shelves naturally
                 const cw = coastalWarmth[r];
                 if (Math.abs(cw) > 0.001) {
-                    T += cw * (1 - smoothstep(0, 0.4, cont)) * 8;
+                    T += cw * (1 - smoothstep(0, 0.8, pCont)) * 12;
                 }
             }
 
@@ -196,6 +208,27 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
                     const amp = smoothstep(0.3, 0.0, p) * 0.15;
                     T *= (1 + amp);
                 }
+            }
+
+            // ── 7. Maritime / continental moderation ──
+            // Ocean has high thermal inertia: coasts and small islands have
+            // smaller seasonal temperature swings (moderate climate), while
+            // continental interiors get more extreme summers and winters.
+            // Compute an annual-mean baseline (ITCZ at equator, no seasonal
+            // shift) and scale the seasonal deviation by continentality.
+            {
+                const distAnn = Math.abs(lat) / DEG; // distance from equator
+                const tAnn = Math.max(0, distAnn - tropicalHW) / maxDist;
+                const T_annual = 27 - 55 * Math.pow(tAnn, 1.5);
+                // Apply same elevation lapse to annual baseline
+                const T_ann_adj = isLand && elev > 0
+                    ? T_annual - 6.5 * elevToHeightKm(elev)
+                    : T_annual;
+                const deviation = T - T_ann_adj;
+                // Maritime factor: islands (cont≈0) → 0.35, coast (≈0.3) → 0.6,
+                // moderate inland (≈0.6) → 0.9, deep interior (≈1) → 1.2
+                const maritimeFactor = 0.35 + cont * 0.85;
+                T = T_ann_adj + deviation * maritimeFactor;
             }
 
             temp[r] = T;

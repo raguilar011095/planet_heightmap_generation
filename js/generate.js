@@ -9,6 +9,7 @@ import { detailFromSlider } from './detail-scale.js';
 import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
+import { classifyKoppen } from './koppen.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -216,6 +217,15 @@ if (worker) {
                         d.debugLayers.tempWinter = tempResult.r_temperature_winter;
                     }
                     console.log(`[generate.js] Temperature computed on main thread in ${(performance.now() - t0Temp).toFixed(0)} ms`);
+                }
+
+                // Köppen classification fallback
+                if (state.curData.debugLayers && !state.curData.debugLayers.koppen &&
+                    state.curData.r_temperature_summer && state.curData.r_precip_summer) {
+                    const d = state.curData;
+                    d.debugLayers.koppen = classifyKoppen(mesh, d.r_elevation,
+                        { r_temperature_summer: d.r_temperature_summer, r_temperature_winter: d.r_temperature_winter },
+                        { r_precip_summer: d.r_precip_summer, r_precip_winter: d.r_precip_winter });
                 }
 
                 const tBuildStart = performance.now();
@@ -572,6 +582,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress) {
             ctx.tempResult = tempResult;
             debugLayers.tempSummer = tempResult.r_temperature_summer;
             debugLayers.tempWinter = tempResult.r_temperature_winter;
+            debugLayers.koppen = classifyKoppen(ctx.mesh, r_elevation, tempResult, precipResult);
             const t_elevation = new Float32Array(ctx.mesh.numTriangles);
             for (let t = 0; t < ctx.mesh.numTriangles; t++) {
                 const s0 = 3 * t;

@@ -469,6 +469,16 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     const r_continentality = new Float32Array(numRegions);
     for (let r = 0; r < numRegions; r++) r_continentality[r] = r_isLand[r];
     smoothPressure(mesh, r_continentality, 10);
+
+    // Plate-based continentality: uses plate type (continental vs oceanic)
+    // instead of actual land/ocean. Continental plate cells = 1, oceanic = 0.
+    // This means continental shelves (underwater parts of continental plates)
+    // are treated as "continental" for temperature moderation purposes.
+    const r_plateContinentality = new Float32Array(numRegions);
+    for (let r = 0; r < numRegions; r++) {
+        r_plateContinentality[r] = plateIsOcean.has(r_plate[r]) ? 0 : 1;
+    }
+    smoothPressure(mesh, r_plateContinentality, 10);
     timing.push({ stage: 'Wind: continentality smoothing', ms: performance.now() - t0 });
 
     // Shared gradient scratch arrays
@@ -553,6 +563,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     result.r_sinLat = r_sinLat;
     result.r_isLand = r_isLand;
     result.r_continentality = r_continentality;
+    result.r_plateContinentality = r_plateContinentality;
     result.r_eastX = r_eastX;
     result.r_eastY = r_eastY;
     result.r_eastZ = r_eastZ;
