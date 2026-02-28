@@ -175,6 +175,7 @@ function handleGenerate(data) {
         debugLayers.pressureWinter = windResult.r_pressure_winter;
         debugLayers.windSpeedSummer = windResult.r_wind_speed_summer;
         debugLayers.windSpeedWinter = windResult.r_wind_speed_winter;
+        debugLayers.continentality = windResult.r_continentality;
 
         progress(78, 'Computing ocean currents\u2026');
         t0 = performance.now();
@@ -423,6 +424,7 @@ function handleEditRecompute(data) {
         debugLayers.pressureWinter = windResult.r_pressure_winter;
         debugLayers.windSpeedSummer = windResult.r_wind_speed_summer;
         debugLayers.windSpeedWinter = windResult.r_wind_speed_winter;
+        debugLayers.continentality = windResult.r_continentality;
 
         progress(78, 'Computing ocean currents\u2026');
         t0 = performance.now();

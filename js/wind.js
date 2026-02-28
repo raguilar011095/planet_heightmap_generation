@@ -397,6 +397,7 @@ function pressureToWind(r_gradE, r_gradN, r_sinLat,
  */
 export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise, axialTilt = 23.5) {
     const numRegions = mesh.numRegions;
+    const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const tiltRad = axialTilt * DEG;
     const timing = [];
 
@@ -462,24 +463,137 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
 
     const result = {};
 
-    // Precompute continentality: smooth r_isLand across the mesh so that
-    // coastal regions ≈ 0.3–0.5, deep interior ≈ 0.9+, open ocean ≈ 0.
-    // This gives the land/sea thermal modifier a natural coast-to-interior gradient.
+    // Precompute continentality via BFS coast distance.
+    // Laplacian smoothing of binary r_isLand converges too fast — interior
+    // cells hit 0.95+ within a few hundred km. Instead, compute actual
+    // hop distance from coast through land, convert to km, and map with
+    // smoothstep for a wide, tunable gradient.
+    //   0 km (coast):  cont ≈ 0.0
+    //   500 km:        cont ≈ 0.16
+    //   1000 km:       cont ≈ 0.50
+    //   1500 km:       cont ≈ 0.84
+    //   2000 km+:      cont ≈ 1.0
+    // Ocean cells near coast get a small value (~0.05–0.15) via a few
+    // smoothing passes, giving a natural land/sea thermal gradient.
     t0 = performance.now();
+    const { adjOffset, adjList } = mesh;
+
+    // Find the main ocean: largest connected component of non-land cells.
+    // Inland seas / small lakes don't count as "ocean" for continentality.
+    const r_oceanLabel = new Int32Array(numRegions);
+    r_oceanLabel.fill(-1);
+    let mainOceanLabel = -1, mainOceanSize = 0;
+    let nextLabel = 0;
+    for (let r = 0; r < numRegions; r++) {
+        if (r_isLand[r] || r_oceanLabel[r] >= 0) continue;
+        const label = nextLabel++;
+        let size = 0;
+        const floodQueue = [r];
+        r_oceanLabel[r] = label;
+        let fHead = 0;
+        while (fHead < floodQueue.length) {
+            const cur = floodQueue[fHead++];
+            size++;
+            const end = adjOffset[cur + 1];
+            for (let ni = adjOffset[cur]; ni < end; ni++) {
+                const nb = adjList[ni];
+                if (!r_isLand[nb] && r_oceanLabel[nb] === -1) {
+                    r_oceanLabel[nb] = label;
+                    floodQueue.push(nb);
+                }
+            }
+        }
+        if (size > mainOceanSize) {
+            mainOceanSize = size;
+            mainOceanLabel = label;
+        }
+    }
+
+    // BFS coast distance through land, seeded only from main-ocean coastline
+    const r_coastDist = new Int32Array(numRegions);
+    r_coastDist.fill(-1);
+    const bfsQueue = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (!r_isLand[r]) continue;
+        const end = adjOffset[r + 1];
+        for (let ni = adjOffset[r]; ni < end; ni++) {
+            const nb = adjList[ni];
+            if (!r_isLand[nb] && r_oceanLabel[nb] === mainOceanLabel) {
+                r_coastDist[r] = 0;
+                bfsQueue.push(r);
+                break;
+            }
+        }
+    }
+    let head = 0;
+    while (head < bfsQueue.length) {
+        const r = bfsQueue[head++];
+        const d = r_coastDist[r] + 1;
+        const end = adjOffset[r + 1];
+        for (let ni = adjOffset[r]; ni < end; ni++) {
+            const nb = adjList[ni];
+            if (r_isLand[nb] && r_coastDist[nb] === -1) {
+                r_coastDist[nb] = d;
+                bfsQueue.push(nb);
+            }
+        }
+    }
+
+    // Map BFS distance to continentality [0, 1]
+    const CONT_RANGE_KM = 2000; // distance at which cont reaches ~1.0
     const r_continentality = new Float32Array(numRegions);
-    for (let r = 0; r < numRegions; r++) r_continentality[r] = r_isLand[r];
-    smoothPressure(mesh, r_continentality, 10);
+    for (let r = 0; r < numRegions; r++) {
+        if (r_isLand[r] && r_coastDist[r] >= 0) {
+            const distKm = r_coastDist[r] * avgEdgeKm;
+            r_continentality[r] = smoothstep(0, CONT_RANGE_KM, distKm);
+        }
+        // Ocean cells stay at 0; a few smooth passes below will bleed
+        // small values onto nearshore ocean for thermal gradient.
+    }
+    // Light smoothing (~100 km) to soften BFS stepping artifacts and
+    // bleed a small thermal signal onto nearshore ocean cells.
+    const contSmoothPasses = Math.max(1, Math.round(100 / avgEdgeKm));
+    smoothPressure(mesh, r_continentality, contSmoothPasses);
 
     // Plate-based continentality: uses plate type (continental vs oceanic)
-    // instead of actual land/ocean. Continental plate cells = 1, oceanic = 0.
-    // This means continental shelves (underwater parts of continental plates)
-    // are treated as "continental" for temperature moderation purposes.
+    // instead of actual land/ocean. Same BFS approach for wide gradient.
     const r_plateContinentality = new Float32Array(numRegions);
+    // BFS through continental-plate cells
+    const r_plateDist = new Int32Array(numRegions);
+    r_plateDist.fill(-1);
+    const plateBfsQueue = [];
     for (let r = 0; r < numRegions; r++) {
-        r_plateContinentality[r] = plateIsOcean.has(r_plate[r]) ? 0 : 1;
+        if (plateIsOcean.has(r_plate[r])) continue; // skip oceanic plate cells
+        const end = adjOffset[r + 1];
+        for (let ni = adjOffset[r]; ni < end; ni++) {
+            if (plateIsOcean.has(r_plate[adjList[ni]])) {
+                r_plateDist[r] = 0;
+                plateBfsQueue.push(r);
+                break;
+            }
+        }
     }
-    smoothPressure(mesh, r_plateContinentality, 10);
-    timing.push({ stage: 'Wind: continentality smoothing', ms: performance.now() - t0 });
+    head = 0;
+    while (head < plateBfsQueue.length) {
+        const r = plateBfsQueue[head++];
+        const d = r_plateDist[r] + 1;
+        const end = adjOffset[r + 1];
+        for (let ni = adjOffset[r]; ni < end; ni++) {
+            const nb = adjList[ni];
+            if (!plateIsOcean.has(r_plate[nb]) && r_plateDist[nb] === -1) {
+                r_plateDist[nb] = d;
+                plateBfsQueue.push(nb);
+            }
+        }
+    }
+    for (let r = 0; r < numRegions; r++) {
+        if (!plateIsOcean.has(r_plate[r]) && r_plateDist[r] >= 0) {
+            const distKm = r_plateDist[r] * avgEdgeKm;
+            r_plateContinentality[r] = smoothstep(0, CONT_RANGE_KM, distKm);
+        }
+    }
+    smoothPressure(mesh, r_plateContinentality, contSmoothPasses);
+    timing.push({ stage: 'Wind: continentality BFS', ms: performance.now() - t0 });
 
     // Shared gradient scratch arrays
     const r_gradE = new Float32Array(numRegions);
@@ -498,8 +612,9 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             );
         }
 
-        // Smoothing (3 passes)
-        smoothPressure(mesh, r_pressure, 3);
+        // Smooth pressure field ~75 km (scale-invariant)
+        const pressSmoothPasses = Math.max(1, Math.round(75 / avgEdgeKm));
+        smoothPressure(mesh, r_pressure, pressSmoothPasses);
         timing.push({ stage: `Wind: pressure field (${name})`, ms: performance.now() - t0 });
 
         // Step 3: Gradient

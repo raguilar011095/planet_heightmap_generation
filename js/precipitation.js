@@ -5,7 +5,7 @@
 import { smoothstep } from './wind.js';
 import { computeGradients } from './wind.js';
 import { elevToHeightKm } from './color-map.js';
-import { computeHeuristicPrecipitation } from './heuristic-precip.js';
+import { computeHeuristicPrecipitation, computeHeuristicWindField } from './heuristic-precip.js';
 
 const DEG = Math.PI / 180;
 
@@ -312,6 +312,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     // Average edge length ≈ π / sqrt(numRegions) radians ≈ (π * 6371) / sqrt(N) km
     // hops ≈ 2000 / edgeLengthKm
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
+    const avgEdgeRad = Math.PI / Math.sqrt(numRegions);
     const maxHops = Math.max(8, Math.min(20, Math.round(2000 / avgEdgeKm)));
 
     // Coast distance through land (shared between seasons)
@@ -338,14 +339,26 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     for (const { name, shift } of seasons) {
         t0 = performance.now();
 
-        const r_windE = windResult[`r_wind_east_${name}`];
-        const r_windN = windResult[`r_wind_north_${name}`];
+        const r_windE_raw = windResult[`r_wind_east_${name}`];
+        const r_windN_raw = windResult[`r_wind_north_${name}`];
         const r_windSpeed = windResult[`r_wind_speed_${name}`];
         const r_pressure = windResult[`r_pressure_${name}`];
         const r_oceanWarmth = oceanResult[`r_ocean_warmth_${name}`];
 
         const itczLookup = makeItczLookup(windResult.itczLons,
             name === 'summer' ? windResult.itczLatsSummer : windResult.itczLatsWinter);
+
+        // ── Blend complex wind with heuristic zonal wind (50-50) ──
+        // Smooths out noisy pressure-derived wind patterns, strengthens
+        // zonal consistency for advection and orographic effects.
+        const { hWindE, hWindN } = computeHeuristicWindField(
+            numRegions, r_lat, r_lon, itczLookup);
+        const r_windE = new Float32Array(numRegions);
+        const r_windN = new Float32Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            r_windE[r] = 0.5 * r_windE_raw[r] + 0.5 * hWindE[r];
+            r_windN[r] = 0.5 * r_windN_raw[r] + 0.5 * hWindN[r];
+        }
 
         // ── Step 1a: Wind convergence field ──
         // Compute raw convergence then smooth heavily — real fronts are
@@ -385,6 +398,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // (a) ITCZ uplift: boost moisture within ±15° of ITCZ
             const itczLat = itczLookup(lon);
             const distFromItcz = Math.abs(lat - itczLat) / DEG;
+            const cont = (isLand && r_continentality) ? r_continentality[r] : 0;
             if (distFromItcz < 15) {
                 const itczStrength = smoothstep(15, 0, distFromItcz);
                 // Core ITCZ (within 5°): strong uplift and convective rain
@@ -403,7 +417,9 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                 // strong convergence (opposing air masses) gives large boost.
                 // Only amplifies existing moisture — dry converging air
                 // doesn't produce rain.
-                const convStrength = Math.min(1, conv * 8);
+                // Raw convergence ∝ avgEdgeRad (neighbor displacements shrink
+                // at higher resolution), so normalize to make scale-invariant.
+                const convStrength = Math.min(1, (conv / avgEdgeRad) * 0.055);
                 p = p * (1 + convStrength * 1.2) + convStrength * moisture[r] * 0.4;
             }
 
@@ -439,10 +455,10 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // effect tracks real geography without being too aggressive.
             const pDev = r_pressure[r]; // deviation from 1013 hPa
 
-            // Latitude-based baseline: mild subtropical suppression (~20-35°)
-            const subtropDist = Math.abs(absLatDeg - 28);
-            const latBandSuppression = subtropDist < 12
-                ? smoothstep(12, 0, subtropDist) * 0.25 : 0;
+            // Latitude-based baseline: subtropical suppression (~15-35°)
+            const subtropDist = Math.abs(absLatDeg - 27);
+            const latBandSuppression = subtropDist < 14
+                ? smoothstep(14, 0, subtropDist) * 0.40 : 0;
 
             // Pressure modifier: high pressure adds suppression, low reduces it
             // Kept gentle — pressure nudges the baseline, doesn't overwhelm it.
@@ -481,14 +497,12 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             }
 
             // (f) Continental interior dryness
-            // The advection already depletes moisture with distance; this is
-            // a mild additional penalty for the deepest interiors only,
-            // representing reduced humidity and fewer weather systems reaching
-            // continental hearts far from any coast.
-            if (isLand && r_continentality) {
-                const cont = r_continentality[r];
-                const dryness = smoothstep(0.6, 0.95, cont) * 0.15;
-                p *= Math.max(0.05, 1 - dryness);
+            // Now that continentality is BFS-based (0 at coast, 0.5 at ~1000km,
+            // 1.0 at ~2000km), we can use it directly. Squared curve keeps
+            // near-coast areas gentle while ramping for deep interiors.
+            if (isLand && cont > 0) {
+                const dryness = cont * cont * 0.55;
+                p *= Math.max(0.03, 1 - dryness);
             }
 
             // (g) Lee cyclogenesis: localized wet zone on leeward side of high mountains
@@ -513,6 +527,17 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                 p = Math.max(p, oceanBase);
             }
 
+            // (h) Hard distance-from-coast moisture cutoff
+            // Beyond ~2000 km from any coast, moisture drops off steeply.
+            // By 3000 km almost nothing remains.
+            if (isLand && r_coastDistLand[r] > 0) {
+                const distKm = r_coastDistLand[r] * avgEdgeKm;
+                if (distKm > 2000) {
+                    const fade = 1 - smoothstep(2000, 3000, distKm);
+                    p *= Math.max(0.03, fade);
+                }
+            }
+
             precip[r] = Math.max(0, p);
         }
 
@@ -534,7 +559,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
     // ── Step 4: Blend with heuristic model and normalize ──
     t0 = performance.now();
-    const heuristic = computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN);
+    const heuristic = computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand);
 
     for (const seasonName of ['summer', 'winter']) {
         const complex = result[`r_precip_${seasonName}`];
@@ -551,6 +576,22 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         const maxPrecip = sorted[p95idx] || 1;
         for (let r = 0; r < numRegions; r++) {
             blended[r] = Math.min(1, blended[r] / maxPrecip);
+        }
+
+        // Continental interior cap: interior regions can't exceed steppe-level
+        // precipitation.  At cont=1.0, cap is 0.20 per season (≈ 200mm
+        // half-year → 400mm annual — solidly in steppe territory).  Fades in
+        // from cont 0.5 so the transition is gradual.  Other factors (desert
+        // factory, rain shadows, distance cutoff) can still push lower.
+        const r_continentality = windResult.r_continentality;
+        if (r_continentality) {
+            for (let r = 0; r < numRegions; r++) {
+                if (r_isLand[r] && r_continentality[r] > 0.5) {
+                    const t = smoothstep(0.5, 1.0, r_continentality[r]);
+                    const cap = 1.0 - t * 0.80;  // 1.0 at cont=0.5, 0.20 at cont=1.0
+                    blended[r] = Math.min(blended[r], cap);
+                }
+            }
         }
 
         result[`r_precip_${seasonName}`] = blended;

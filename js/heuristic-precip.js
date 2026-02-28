@@ -54,18 +54,16 @@ function zonalBase(distDeg) {
     if (distDeg < 5) {
         // ITCZ core: 1.0
         return 1.0;
-    } else if (distDeg < 12) {
-        // Outer ITCZ / trades: 1.0 → 0.4 (falloff starts earlier)
-        return 1.0 - 0.6 * smoothstep(5, 12, distDeg);
-    } else if (distDeg < 30) {
-        // Subtropical highs (desert factory): 0.4 → 0.03
-        // Aggressive minimum — when blended 50-50 with advection model,
-        // even a wet-from-advection region (0.6) averages to ~0.32,
-        // which normalizes well below the desert threshold.
-        return 0.4 - 0.37 * smoothstep(12, 28, distDeg);
+    } else if (distDeg < 10) {
+        // Outer ITCZ / trades: 1.0 → 0.35 (faster falloff)
+        return 1.0 - 0.65 * smoothstep(5, 10, distDeg);
+    } else if (distDeg < 33) {
+        // Subtropical highs (desert factory): 0.35 → 0.02
+        // Very aggressive minimum — core of the desert belt.
+        return 0.35 - 0.33 * smoothstep(10, 28, distDeg);
     } else if (distDeg < 55) {
-        // Mid-lat westerlies recovery: 0.03 → 0.5
-        return 0.03 + 0.47 * smoothstep(30, 55, distDeg);
+        // Mid-lat westerlies recovery: 0.02 → 0.5
+        return 0.02 + 0.48 * smoothstep(33, 55, distDeg);
     } else if (distDeg < 70) {
         // Subpolar: 0.5 → 0.3
         return 0.5 - 0.2 * smoothstep(55, 70, distDeg);
@@ -119,6 +117,27 @@ function heuristicWind(distFromItczDeg, isNorthOfItcz) {
     return { we, wn };
 }
 
+// ── Heuristic wind field for a full season ──────────────────────────────────
+// Computes idealized zonal wind E/N arrays for all regions.
+
+export function computeHeuristicWindField(numRegions, r_lat, r_lon, itczLookup) {
+    const hWindE = new Float32Array(numRegions);
+    const hWindN = new Float32Array(numRegions);
+
+    for (let r = 0; r < numRegions; r++) {
+        const lat = r_lat[r];
+        const itczLat = itczLookup(r_lon[r]) * 0.3; // dampened ITCZ, same as precip
+        const signedDist = lat - itczLat;
+        const distDeg = Math.abs(signedDist) / DEG;
+        const northOfItcz = signedDist > 0;
+        const { we, wn } = heuristicWind(distDeg, northOfItcz);
+        hWindE[r] = we;
+        hWindN[r] = wn;
+    }
+
+    return { hWindE, hWindN };
+}
+
 // ── Main entry point ─────────────────────────────────────────────────────────
 
 /**
@@ -131,9 +150,10 @@ function heuristicWind(distFromItczDeg, isNorthOfItcz) {
  * @param {object} windResult - output from computeWind()
  * @param {Float32Array} r_elevGradE - pre-computed east elevation gradient
  * @param {Float32Array} r_elevGradN - pre-computed north elevation gradient
+ * @param {Int32Array} r_coastDistLand - BFS hop distance from coast through land
  * @returns {{ r_precip_summer, r_precip_winter }}
  */
-export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN) {
+export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand) {
     const numRegions = mesh.numRegions;
     const { r_lat, r_lon, r_isLand, r_continentality } = windResult;
 
@@ -176,9 +196,9 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
 
             // ── C. Continental dryness ──
             let contMod = 1.0;
-            if (r_isLand[r] && r_continentality) {
-                const cont = r_continentality[r];
-                contMod = 1.0 - 0.5 * smoothstep(0.3, 0.9, cont);
+            const cont = (r_isLand[r] && r_continentality) ? r_continentality[r] : 0;
+            if (cont > 0) {
+                contMod = 1.0 - cont * cont * 0.65;
             }
 
             // ── D. Orographic rain shadow (using heuristic zonal wind) ──
@@ -201,8 +221,18 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
                 }
             }
 
+            // ── E. Hard distance-from-coast cutoff ──
+            // Fixed 2000-3000km cutoff regardless of latitude.
+            let distMod = 1.0;
+            if (r_isLand[r] && r_coastDistLand[r] > 0) {
+                const distKm = r_coastDistLand[r] * avgEdgeKm;
+                if (distKm > 2000) {
+                    distMod = Math.max(0.03, 1 - smoothstep(2000, 3000, distKm));
+                }
+            }
+
             // ── Final ──
-            precip[r] = Math.max(0.05, zonal * seasonMod * contMod * oroMod);
+            precip[r] = Math.max(0.05, zonal * seasonMod * contMod * oroMod * distMod);
         }
 
         // Light smoothing ~100km

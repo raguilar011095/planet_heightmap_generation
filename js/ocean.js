@@ -220,6 +220,7 @@ function smoothOcean(mesh, field, r_isOcean, passes) {
 export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
     console.log('[ocean.js] computeOceanCurrents called, numRegions:', mesh.numRegions);
     const numRegions = mesh.numRegions;
+    const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const timing = [];
 
     const { r_lat, r_sinLat, r_isLand,
@@ -348,10 +349,11 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
         }
         timing.push({ stage: `Ocean: wind bands + vectors (${name})`, ms: performance.now() - t0 });
 
-        // Step 5: Smooth (5 Laplacian passes)
+        // Step 5: Smooth ~125 km (scale-invariant)
         t0 = performance.now();
-        smoothOcean(mesh, currentE, r_isOcean, 5);
-        smoothOcean(mesh, currentN, r_isOcean, 5);
+        const oceanSmoothPasses = Math.max(2, Math.round(125 / avgEdgeKm));
+        smoothOcean(mesh, currentE, r_isOcean, oceanSmoothPasses);
+        smoothOcean(mesh, currentN, r_isOcean, oceanSmoothPasses);
 
         // Zero out land
         for (let r = 0; r < numRegions; r++) {
