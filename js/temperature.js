@@ -70,7 +70,7 @@ function diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_plateContinentality
         tmp.set(coastal);
         for (let r = 0; r < numRegions; r++) {
             // Skip deep-interior continental cells (plate-based)
-            if (r_plateContinentality && r_plateContinentality[r] >= 0.8) continue;
+            if (r_plateContinentality && r_plateContinentality[r] >= 0.95) continue;
 
             // Ocean cells also participate in diffusion so continental-shelf
             // cells inherit warmth from nearby open-ocean neighbors
@@ -133,7 +133,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
         // Use plate-based continentality for diffusion so warmth crosses
         // continental shelves and reaches further inland
         const plateCont = r_plateContinentality || r_continentality;
-        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, 8);
+        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, 16);
 
         const temp = new Float32Array(numRegions);
 
@@ -152,20 +152,20 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             //  - T_flat: based on distance from a fixed ITCZ at ±5° (ocean default)
             // Near the tropics the real ITCZ matters; at high latitudes the
             // ITCZ position is irrelevant and a stable zonal baseline takes over.
-            const tropicalHW = 11;  // flat plateau half-width (degrees)
+            const tropicalHW = 13;  // flat plateau half-width (degrees)
             const maxDist = 90 - tropicalHW;
 
             // Actual ITCZ curve
             const itczLat = itczLookup(lon);
             const distItcz = Math.abs(lat - itczLat) / DEG;
             const tItcz = Math.max(0, distItcz - tropicalHW) / maxDist;
-            const T_itcz = 27 - 55 * Math.pow(tItcz, 1.5);
+            const T_itcz = 28 - 52 * Math.pow(tItcz, 1.2);
 
             // Flat reference curve (ITCZ at 5° in summer hemisphere)
             const flatItczLat = (name === 'summer' ? 5 : -5) * DEG;
             const distFlat = Math.abs(lat - flatItczLat) / DEG;
             const tFlat = Math.max(0, distFlat - tropicalHW) / maxDist;
-            const T_flat = 27 - 55 * Math.pow(tFlat, 1.5);
+            const T_flat = 28 - 52 * Math.pow(tFlat, 1.2);
 
             // Blend: ITCZ curve dominates tropics, flat curve dominates poles
             const absLatDeg = Math.abs(lat) / DEG;
@@ -184,14 +184,14 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
                 // Direct ocean effect: warm/cold currents shift SST
                 const warmth = r_oceanWarmth[r];
                 const speed = r_oceanSpeed[r];
-                T += warmth * Math.min(1, speed * 2) * 10;
+                T += warmth * Math.min(1, speed * 2) * 16;
             } else if (isLand) {
                 // Coastal land: diffused ocean warmth fades with plate-based
                 // continentality so the effect reaches further inland and
                 // crosses continental shelves naturally
                 const cw = coastalWarmth[r];
                 if (Math.abs(cw) > 0.001) {
-                    T += cw * (1 - smoothstep(0, 0.8, pCont)) * 12;
+                    T += cw * (1 - smoothstep(0, 0.95, pCont)) * 20;
                 }
             }
 
@@ -219,16 +219,22 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             {
                 const distAnn = Math.abs(lat) / DEG; // distance from equator
                 const tAnn = Math.max(0, distAnn - tropicalHW) / maxDist;
-                const T_annual = 27 - 55 * Math.pow(tAnn, 1.5);
+                const T_annual = 28 - 52 * Math.pow(tAnn, 1.2);  // match new curve
                 // Apply same elevation lapse to annual baseline
                 const T_ann_adj = isLand && elev > 0
                     ? T_annual - 6.5 * elevToHeightKm(elev)
                     : T_annual;
                 const deviation = T - T_ann_adj;
-                // Maritime factor: islands (cont≈0) → 0.35, coast (≈0.3) → 0.6,
-                // moderate inland (≈0.6) → 0.9, deep interior (≈1) → 1.2
-                const maritimeFactor = 0.35 + cont * 0.85;
-                T = T_ann_adj + deviation * maritimeFactor;
+                // Latitude-dependent seasonal boost: ITCZ shift alone gives ~5-6°C
+                // swing; real planets have 15-25°C from direct solar heating.
+                // Peaks at 55-75° latitude, zero at equator and poles.
+                const seasonalBoost = 12 * smoothstep(10, 55, distAnn)
+                                         * (1 - smoothstep(75, 90, distAnn));
+                const seasonSign = (name === 'summer') ? 1 : -1;
+                const boostedDeviation = deviation + seasonSign * seasonalBoost;
+                // Maritime: coast damps swing to 50%, deep interior amplifies to 120%
+                const maritimeFactor = 0.50 + cont * 0.70;
+                T = T_ann_adj + boostedDeviation * maritimeFactor;
             }
 
             temp[r] = T;

@@ -190,9 +190,21 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
             const isNorthOfItcz = signedDist > 0;
             const zonal = zonalBase(distFromItczDeg);
 
-            // ── B. Seasonal modifier ──
+            // ── B. Seasonal modifier + Mediterranean subtropical suppression ──
+            const absLatDeg = Math.abs(lat) / DEG;
             const inSummerHemi = isSummer ? (lat >= 0) : (lat < 0);
-            const seasonMod = inSummerHemi ? 1.1 : 0.9;
+            let seasonMod = inSummerHemi ? 1.1 : 0.9;
+
+            // Mediterranean suppression: subtropical highs expand poleward in
+            // local summer, strongly suppressing rainfall at 25-42° latitude.
+            // In local winter the highs retreat equatorward and westerlies
+            // bring rain to these latitudes.  This seasonal contrast is the
+            // primary driver of Mediterranean (Cs) climates.
+            if (inSummerHemi && absLatDeg > 22 && absLatDeg < 45) {
+                const medSuppress = smoothstep(22, 30, absLatDeg)
+                    * (1 - smoothstep(38, 45, absLatDeg));
+                seasonMod *= (1 - medSuppress * 0.55);   // up to 55% summer reduction
+            }
 
             // ── C. Continental dryness ──
             let contMod = 1.0;

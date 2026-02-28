@@ -455,10 +455,16 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // effect tracks real geography without being too aggressive.
             const pDev = r_pressure[r]; // deviation from 1013 hPa
 
-            // Latitude-based baseline: subtropical suppression (~15-35°)
-            const subtropDist = Math.abs(absLatDeg - 27);
-            const latBandSuppression = subtropDist < 14
-                ? smoothstep(14, 0, subtropDist) * 0.40 : 0;
+            // Seasonal subtropical suppression: the subtropical high shifts
+            // poleward in local summer (creating Mediterranean dry summers)
+            // and retreats equatorward in local winter (allowing westerly rain).
+            const inLocalSummer = (name === 'summer') ? (lat >= 0) : (lat < 0);
+            const subtropCenter = inLocalSummer ? 30 : 24;
+            const subtropWidth  = inLocalSummer ? 16 : 12;
+            const subtropPeak   = inLocalSummer ? 0.50 : 0.30;
+            const subtropDist = Math.abs(absLatDeg - subtropCenter);
+            const latBandSuppression = subtropDist < subtropWidth
+                ? smoothstep(subtropWidth, 0, subtropDist) * subtropPeak : 0;
 
             // Pressure modifier: high pressure adds suppression, low reduces it
             // Kept gentle — pressure nudges the baseline, doesn't overwhelm it.
