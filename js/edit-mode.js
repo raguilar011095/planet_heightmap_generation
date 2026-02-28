@@ -15,7 +15,9 @@ const _localRay = new THREE.Ray();
 
 /** Recompute elevation from the (possibly edited) plate data via worker. */
 function recomputeElevation(onDone) {
-    editRecomputeViaWorker(onDone);
+    const chk = document.getElementById('chkAutoClimate');
+    const skipClimate = chk ? !chk.checked : false;
+    editRecomputeViaWorker(onDone, skipClimate);
 }
 
 /** Find nearest region to a unit-sphere direction (max dot product). */

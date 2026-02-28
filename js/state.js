@@ -22,4 +22,5 @@ export const state = {
     isTouchDevice: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0),
     editMode: false,
     oceanCurrentArrowGroup: null,
+    climateComputed: false,
 };

@@ -5,11 +5,13 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom } from './scene.js';
 import { state } from './state.js';
-import { generate, reapplyViaWorker } from './generate.js';
+import { generate, reapplyViaWorker, computeClimateViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, buildMapMesh, rebuildGrids, exportMap, buildWindArrows, buildOceanCurrentArrows } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, buildWindArrows, buildOceanCurrentArrows } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
+import { KOPPEN_CLASSES } from './koppen.js';
+import { elevationToColor } from './color-map.js';
 
 // Slider value displays + stale tracking
 const sliderIds = ['sN','sP','sCn','sJ','sNs'];
@@ -32,10 +34,19 @@ function reapplyPostProcessing() {
     const d = state.curData;
     if (!d || !d.prePostElev) return;
 
+    const skipClimate = !chkAutoClimate.checked;
     reapplyViaWorker(() => {
         reapplyBtn.classList.remove('spinning');
         updatePlanetCode(false);
-    });
+        // If climate invalidated and viewing a climate layer, switch to Terrain
+        if (skipClimate && CLIMATE_LAYERS.has(state.debugLayer)) {
+            state.debugLayer = '';
+            if (debugLayerEl) debugLayerEl.value = '';
+            syncTabsToLayer('');
+            updateMeshColors();
+            updateLegend('');
+        }
+    }, skipClimate);
 }
 
 const reapplyBtn = document.getElementById('reapplyBtn');
@@ -96,6 +107,213 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
     });
 }
 
+// Auto Climate checkbox — default OFF above threshold
+const AUTO_CLIMATE_THRESHOLD = 300000;
+const chkAutoClimate = document.getElementById('chkAutoClimate');
+let autoClimateManuallySet = false;
+
+chkAutoClimate.addEventListener('change', () => { autoClimateManuallySet = true; });
+
+function updateAutoClimateDefault() {
+    if (autoClimateManuallySet) return;
+    const detail = detailFromSlider(+document.getElementById('sN').value);
+    chkAutoClimate.checked = detail <= AUTO_CLIMATE_THRESHOLD;
+}
+
+// Update auto-climate default when detail slider changes
+document.getElementById('sN').addEventListener('input', updateAutoClimateDefault);
+updateAutoClimateDefault();
+
+// Climate layer keys — layers that require climate data
+const CLIMATE_LAYERS = new Set([
+    'pressureSummer', 'pressureWinter',
+    'windSpeedSummer', 'windSpeedWinter',
+    'oceanCurrentSummer', 'oceanCurrentWinter',
+    'precipSummer', 'precipWinter',
+    'tempSummer', 'tempWinter',
+    'koppen', 'biome', 'continentality'
+]);
+
+// Map tabs → tab-layer mapping
+const mapTabs = document.getElementById('mapTabs');
+const vizLegend = document.getElementById('vizLegend');
+
+function switchVisualization(layer) {
+    if (CLIMATE_LAYERS.has(layer) && !state.climateComputed) {
+        // Need to compute climate first
+        showBuildOverlay();
+        computeClimateViaWorker(onProgress, () => {
+            hideBuildOverlay();
+            applyLayer(layer);
+        });
+        return;
+    }
+    applyLayer(layer);
+}
+
+function applyLayer(layer) {
+    state.debugLayer = layer;
+    updateMeshColors();
+    // Show/hide wind/ocean arrows
+    const isWindLayer = layer === 'pressureSummer' || layer === 'pressureWinter' ||
+                        layer === 'windSpeedSummer' || layer === 'windSpeedWinter';
+    const isOceanLayer = layer === 'oceanCurrentSummer' || layer === 'oceanCurrentWinter';
+    if (isOceanLayer) {
+        const season = layer.includes('Winter') ? 'winter' : 'summer';
+        buildWindArrows(null);
+        buildOceanCurrentArrows(season);
+    } else if (isWindLayer) {
+        const season = layer.includes('Winter') ? 'winter' : 'summer';
+        buildOceanCurrentArrows(null);
+        buildWindArrows(season);
+    } else {
+        buildWindArrows(null);
+        buildOceanCurrentArrows(null);
+    }
+    updateLegend(layer);
+}
+
+function syncTabsToLayer(layer) {
+    mapTabs.querySelectorAll('.map-tab').forEach(tab => {
+        tab.classList.toggle('active', tab.dataset.layer === layer);
+    });
+}
+
+mapTabs.addEventListener('click', (e) => {
+    const tab = e.target.closest('.map-tab');
+    if (!tab) return;
+    const layer = tab.dataset.layer;
+    // Update active tab
+    mapTabs.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    // Sync debug dropdown
+    const debugLayerEl = document.getElementById('debugLayer');
+    if (debugLayerEl) debugLayerEl.value = layer;
+    switchVisualization(layer);
+});
+
+// Koppen climate zone descriptions for hover tooltips
+const KOPPEN_DESCRIPTIONS = {
+    Af:  'Tropical rainforest — Hot and wet year-round. Amazon Basin, Congo Basin, Southeast Asia.',
+    Am:  'Tropical monsoon — Brief dry season offset by heavy monsoon rains. Southern India, West Africa, Northern Australia.',
+    Aw:  'Tropical savanna — Distinct wet and dry seasons. Sub-Saharan Africa, Brazilian Cerrado, Northern Australia.',
+    BWh: 'Hot desert — Extremely dry with scorching summers. Sahara, Arabian Desert, Sonoran Desert.',
+    BWk: 'Cold desert — Arid with cold winters. Gobi Desert, Patagonian steppe, Great Basin.',
+    BSh: 'Hot steppe — Semi-arid grassland with hot summers. Sahel, outback Australia, northern Mexico.',
+    BSk: 'Cold steppe — Semi-arid with cold winters. Central Asian steppe, Montana, Anatolian plateau.',
+    Cfa: 'Humid subtropical — Hot humid summers, mild winters. Southeastern US, eastern China, Buenos Aires.',
+    Cfb: 'Oceanic — Mild year-round, cool summers, frequent rain. Western Europe, New Zealand, Pacific Northwest.',
+    Cfc: 'Subpolar oceanic — Cool year-round with short summers. Iceland, southern Chile, Faroe Islands.',
+    Csa: 'Hot-summer Mediterranean — Dry hot summers, mild wet winters. Southern California, Greece, coastal Turkey.',
+    Csb: 'Warm-summer Mediterranean — Dry warm summers, mild wet winters. San Francisco, Porto, Cape Town.',
+    Csc: 'Cold-summer Mediterranean — Cool dry summers, mild wet winters. Rare; high-altitude Mediterranean coasts.',
+    Cwa: 'Humid subtropical monsoon — Warm with dry winters. Hong Kong, northern India, Southeastern Brazil highlands.',
+    Cwb: 'Subtropical highland — Mild with dry winters. Mexico City, Bogota, Ethiopian Highlands.',
+    Cwc: 'Cold subtropical highland — Cool with dry winters. Rare; high-altitude tropical mountains.',
+    Dfa: 'Hot-summer continental — Hot summers, cold snowy winters. Chicago, Kyiv, Beijing.',
+    Dfb: 'Warm-summer continental — Warm summers, cold winters. Moscow, southern Scandinavia, New England.',
+    Dfc: 'Subarctic — Long cold winters, brief cool summers. Siberia, northern Canada, interior Alaska.',
+    Dfd: 'Extremely cold subarctic — Harshest winters on Earth. Yakutsk, Verkhoyansk (eastern Siberia).',
+    Dsa: 'Hot-summer continental, dry summer — Hot dry summers, cold winters. Parts of eastern Turkey, Iran.',
+    Dsb: 'Warm-summer continental, dry summer — Dry warm summers, cold winters. Parts of the western US highlands.',
+    Dsc: 'Subarctic, dry summer — Cool dry summers, very cold winters. Rare; high-altitude inland regions.',
+    Dsd: 'Extremely cold subarctic, dry summer — Very rare; extreme cold with dry summers.',
+    Dwa: 'Hot-summer continental, monsoon — Wet hot summers, dry cold winters. Northern China, Korea.',
+    Dwb: 'Warm-summer continental, monsoon — Wet warm summers, dry cold winters. Parts of northeast China.',
+    Dwc: 'Subarctic monsoon — Brief wet summers, long dry frigid winters. Eastern Siberia, far northeast China.',
+    Dwd: 'Extremely cold subarctic, monsoon — Extreme cold, driest in winter. Interior eastern Siberia.',
+    ET:  'Tundra — Permafrost, only warmest month above 0 C. Arctic coasts, high mountain plateaus.',
+    EF:  'Ice cap — Permanent ice, never above 0 C. Antarctica interior, Greenland ice sheet.',
+};
+
+// Legend rendering
+function updateLegend(layer) {
+    if (!vizLegend) return;
+
+    if (layer === '' || !layer) {
+        // Terrain legend
+        const stops = [
+            { e: -0.50, label: '' },
+            { e: -0.25, label: '' },
+            { e: -0.05, label: '' },
+            { e: 0.00, label: '' },
+            { e: 0.03, label: '' },
+            { e: 0.15, label: '' },
+            { e: 0.35, label: '' },
+            { e: 0.55, label: '' },
+            { e: 0.80, label: '' }
+        ];
+        const colors = stops.map(s => {
+            const [r, g, b] = elevationToColor(s.e);
+            return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+        });
+        const pcts = stops.map((_, i) => Math.round(i / (stops.length - 1) * 100));
+        const gradStr = colors.map((c, i) => `${c} ${pcts[i]}%`).join(', ');
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,${gradStr})"></div>` +
+            `<div class="legend-labels"><span>Deep Ocean</span><span>Sea Level</span><span>Peak</span></div>`;
+    } else if (layer === 'koppen') {
+        // Koppen legend — Wikipedia link + swatches with hover tooltips
+        let html = '<div class="legend-koppen-header"><a href="https://en.wikipedia.org/wiki/K%C3%B6ppen_climate_classification" target="_blank" rel="noopener">K\u00f6ppen climate classification</a></div>';
+        html += '<div class="legend-koppen">';
+        for (let i = 1; i < KOPPEN_CLASSES.length; i++) {
+            const k = KOPPEN_CLASSES[i];
+            const [r, g, b] = k.color;
+            const hex = `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+            const desc = KOPPEN_DESCRIPTIONS[k.code] || k.name;
+            html += `<div class="legend-koppen-item" data-code="${k.code}"><span class="legend-koppen-swatch" style="background:${hex}"></span>${k.code}</div>`;
+        }
+        html += '<div class="legend-koppen-tooltip" id="koppenTip"></div>';
+        html += '</div>';
+        vizLegend.innerHTML = html;
+        // Wire hover tooltips with dynamic positioning
+        const tipEl = document.getElementById('koppenTip');
+        const container = vizLegend.querySelector('.legend-koppen');
+        vizLegend.querySelectorAll('.legend-koppen-item').forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                const code = item.dataset.code;
+                const desc = KOPPEN_DESCRIPTIONS[code] || '';
+                tipEl.textContent = desc;
+                tipEl.classList.add('visible');
+                // Position above the hovered item, clamped within the container
+                const itemRect = item.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const tipWidth = 240;
+                let left = itemRect.left - containerRect.left + itemRect.width / 2 - tipWidth / 2;
+                left = Math.max(0, Math.min(left, containerRect.width - tipWidth));
+                tipEl.style.left = left + 'px';
+                tipEl.style.bottom = (containerRect.bottom - itemRect.top + 6) + 'px';
+            });
+            item.addEventListener('mouseleave', () => {
+                tipEl.classList.remove('visible');
+            });
+        });
+    } else if (layer === 'biome') {
+        // Satellite biome legend — gradient bar of key biome colors
+        const biomeStops = [
+            { color: [0.82,0.72,0.50], label: 'Desert' },
+            { color: [0.72,0.62,0.30], label: 'Steppe' },
+            { color: [0.42,0.50,0.18], label: 'Savanna' },
+            { color: [0.12,0.38,0.10], label: 'Forest' },
+            { color: [0.06,0.22,0.08], label: 'Taiga' },
+            { color: [0.35,0.32,0.22], label: 'Tundra' },
+            { color: [0.78,0.80,0.84], label: 'Ice' },
+        ];
+        const biomeColors = biomeStops.map(s => {
+            const [r, g, b] = s.color;
+            return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+        });
+        const biomePcts = biomeStops.map((_, i) => Math.round(i / (biomeStops.length - 1) * 100));
+        const biomeGrad = biomeColors.map((c, i) => `${c} ${biomePcts[i]}%`).join(', ');
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,${biomeGrad})"></div>` +
+            `<div class="legend-labels"><span>${biomeStops[0].label}</span><span>${biomeStops[3].label}</span><span>${biomeStops[6].label}</span></div>`;
+    } else if (layer === 'landheightmap') {
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
+            `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;
+    } else {
+        vizLegend.innerHTML = '';
+    }
+}
+
 // Build overlay — unified loading / generation overlay
 const buildOverlay  = document.getElementById('buildOverlay');
 const buildBarFill  = document.getElementById('buildBarFill');
@@ -135,13 +353,15 @@ function hideBuildOverlay() {
 const genBtn = document.getElementById('generate');
 genBtn.addEventListener('click', () => {
     clearReapplyPending();
+    autoClimateManuallySet = false; // reset on new generation
+    updateAutoClimateDefault();
     buildWindArrows(null); // dispose previous wind arrows
     buildOceanCurrentArrows(null); // dispose previous ocean arrows
     showBuildOverlay();
     // Collapse bottom sheet on mobile so user can see the planet build
     const ui = document.getElementById('ui');
     if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
-    generate(undefined, [], onProgress);
+    generate(undefined, [], onProgress, !chkAutoClimate.checked);
 });
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);
@@ -212,6 +432,17 @@ function updatePlanetCode(flash) {
 
 genBtn.addEventListener('generate-done', () => updatePlanetCode(false));
 genBtn.addEventListener('generate-done', () => {
+    // If climate not computed and current view is a climate layer, switch to Terrain
+    if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
+        state.debugLayer = '';
+        const debugLayerEl = document.getElementById('debugLayer');
+        if (debugLayerEl) debugLayerEl.value = '';
+        syncTabsToLayer('');
+        updateMeshColors();
+    }
+    syncTabsToLayer(state.debugLayer);
+    updateLegend(state.debugLayer);
+
     // Rebuild wind/ocean arrows if a relevant debug layer is active
     const v = state.debugLayer;
     const isWindLayer = v === 'pressureSummer' || v === 'pressureWinter' ||
@@ -224,7 +455,18 @@ genBtn.addEventListener('generate-done', () => {
     }
 });
 
-document.addEventListener('plates-edited', () => updatePlanetCode(true));
+document.addEventListener('plates-edited', () => {
+    updatePlanetCode(true);
+    // If climate was invalidated and we're viewing a climate layer, switch to Terrain
+    if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
+        state.debugLayer = '';
+        const dl = document.getElementById('debugLayer');
+        if (dl) dl.value = '';
+        syncTabsToLayer('');
+        updateMeshColors();
+        updateLegend('');
+    }
+});
 
 copyBtn.addEventListener('click', () => {
     if (!seedInput.value) return;
@@ -258,8 +500,10 @@ function applyCode(code) {
         el.dispatchEvent(new Event('input'));
     }
     clearReapplyPending();
+    autoClimateManuallySet = false;
+    updateAutoClimateDefault();
     showBuildOverlay();
-    generate(params.seed, params.toggledIndices, onProgress);
+    generate(params.seed, params.toggledIndices, onProgress, !chkAutoClimate.checked);
 }
 
 loadBtn.addEventListener('click', () => {
@@ -271,8 +515,8 @@ seedInput.addEventListener('keydown', (e) => {
 });
 
 // View-mode checkboxes
-for (const id of ['chkWire','chkPlates'])
-    document.getElementById(id).addEventListener('change', buildMesh);
+document.getElementById('chkPlates').addEventListener('change', updateMeshColors);
+document.getElementById('chkWire').addEventListener('change', buildMesh);
 
 // Grid toggle
 const gridSpacingGroup = document.getElementById('gridSpacingGroup');
@@ -363,25 +607,9 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
 const debugLayerEl = document.getElementById('debugLayer');
 if (debugLayerEl) {
     debugLayerEl.addEventListener('change', (e) => {
-        state.debugLayer = e.target.value;
-        buildMesh();
-        // Show/hide wind/ocean arrows based on selected layer
-        const v = e.target.value;
-        const isWindLayer = v === 'pressureSummer' || v === 'pressureWinter' ||
-                            v === 'windSpeedSummer' || v === 'windSpeedWinter';
-        const isOceanLayer = v === 'oceanCurrentSummer' || v === 'oceanCurrentWinter';
-        if (isOceanLayer) {
-            const season = v.includes('Winter') ? 'winter' : 'summer';
-            buildWindArrows(null);
-            buildOceanCurrentArrows(season);
-        } else if (isWindLayer) {
-            const season = v.includes('Winter') ? 'winter' : 'summer';
-            buildOceanCurrentArrows(null);
-            buildWindArrows(season);
-        } else {
-            buildWindArrows(null);
-            buildOceanCurrentArrows(null);
-        }
+        const layer = e.target.value;
+        syncTabsToLayer(layer);
+        switchVisualization(layer);
     });
 }
 
@@ -578,8 +806,10 @@ sidebarToggle.addEventListener('click', () => {
             // Collapse sheet so user sees the planet build
             if (isMobileLayout()) uiPanel.classList.add('collapsed');
             clearReapplyPending();
+            autoClimateManuallySet = false;
+            updateAutoClimateDefault();
             showBuildOverlay();
-            generate(undefined, [], onProgress);
+            generate(undefined, [], onProgress, !chkAutoClimate.checked);
         }
     });
 })();
@@ -780,8 +1010,8 @@ if (hashParams) {
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
-    generate(hashParams.seed, hashParams.toggledIndices, onProgress);
+    generate(hashParams.seed, hashParams.toggledIndices, onProgress, !chkAutoClimate.checked);
 } else {
-    generate(undefined, [], onProgress);
+    generate(undefined, [], onProgress, !chkAutoClimate.checked);
 }
 animate();

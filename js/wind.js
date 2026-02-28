@@ -2,6 +2,7 @@
 // Computes pressure fields and wind vectors for summer and winter seasons.
 
 import { elevToHeightKm } from './color-map.js';
+import { smoothField, percentile } from './climate-util.js';
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -83,23 +84,36 @@ export function smoothstep(edge0, edge1, x) {
  * geographic sampling. Returns a function landFracAndElev(lat, lon, radius)
  * that returns { landFrac, avgElev } by scanning nearby bins.
  */
-function buildGeoIndex(r_xyz, r_elevation, r_isLand, numRegions) {
+function buildGeoIndex(r_lat, r_lon, r_sinLat, r_cosLat, r_elevation, r_isLand, numRegions) {
     const LAT_BINS = 36;   // 5° each
     const LON_BINS = 72;   // 5° each
-    const bins = new Array(LAT_BINS * LON_BINS);
-    for (let i = 0; i < bins.length; i++) bins[i] = [];
+    const numBins = LAT_BINS * LON_BINS;
 
+    // CSR (compressed sparse row) format: count regions per bin, then prefix-sum
+    const binCount = new Uint32Array(numBins);
     for (let r = 0; r < numRegions; r++) {
-        const y = r_xyz[3 * r + 1];
-        const lat = Math.asin(Math.max(-1, Math.min(1, y)));
-        const lon = Math.atan2(r_xyz[3 * r], r_xyz[3 * r + 2]);
-
         const latBin = Math.max(0, Math.min(LAT_BINS - 1,
-            Math.floor((lat + Math.PI / 2) / Math.PI * LAT_BINS)));
+            Math.floor((r_lat[r] + Math.PI / 2) / Math.PI * LAT_BINS)));
         const lonBin = Math.max(0, Math.min(LON_BINS - 1,
-            Math.floor((lon + Math.PI) / (2 * Math.PI) * LON_BINS)));
+            Math.floor((r_lon[r] + Math.PI) / (2 * Math.PI) * LON_BINS)));
+        binCount[latBin * LON_BINS + lonBin]++;
+    }
 
-        bins[latBin * LON_BINS + lonBin].push(r);
+    const binOffset = new Uint32Array(numBins + 1);
+    for (let i = 0; i < numBins; i++) {
+        binOffset[i + 1] = binOffset[i] + binCount[i];
+    }
+
+    const indices = new Uint32Array(numRegions);
+    const fillPos = new Uint32Array(numBins);
+    for (let r = 0; r < numRegions; r++) {
+        const latBin = Math.max(0, Math.min(LAT_BINS - 1,
+            Math.floor((r_lat[r] + Math.PI / 2) / Math.PI * LAT_BINS)));
+        const lonBin = Math.max(0, Math.min(LON_BINS - 1,
+            Math.floor((r_lon[r] + Math.PI) / (2 * Math.PI) * LON_BINS)));
+        const bin = latBin * LON_BINS + lonBin;
+        indices[binOffset[bin] + fillPos[bin]] = r;
+        fillPos[bin]++;
     }
 
     /**
@@ -126,13 +140,14 @@ function buildGeoIndex(r_xyz, r_elevation, r_isLand, numRegions) {
         for (let bi = bMin; bi <= bMax; bi++) {
             for (let li = lMin; li <= lMax; li++) {
                 const lj = ((li % LON_BINS) + LON_BINS) % LON_BINS;
-                const bin = bins[bi * LON_BINS + lj];
-                for (let k = 0; k < bin.length; k++) {
-                    const r = bin[k];
-                    const ry = r_xyz[3 * r + 1];
-                    const sinLat1 = ry;
-                    const cosLat1 = Math.sqrt(1 - ry * ry) || 0.01;
-                    const dlon = Math.atan2(r_xyz[3 * r], r_xyz[3 * r + 2]) - lon;
+                const bin = bi * LON_BINS + lj;
+                const start = binOffset[bin];
+                const end = binOffset[bin + 1];
+                for (let k = start; k < end; k++) {
+                    const r = indices[k];
+                    const sinLat1 = r_sinLat[r];
+                    const cosLat1 = r_cosLat[r];
+                    const dlon = r_lon[r] - lon;
                     const cosDist = sinLat0 * sinLat1 + cosLat0 * cosLat1 * Math.cos(dlon);
                     if (cosDist >= cosRadius) {
                         totalCount++;
@@ -284,26 +299,6 @@ function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noise
     return p;
 }
 
-// ── Laplacian smoothing ──────────────────────────────────────────────────────
-
-function smoothPressure(mesh, r_pressure, passes) {
-    const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
-
-    for (let pass = 0; pass < passes; pass++) {
-        for (let r = 0; r < numRegions; r++) {
-            let sum = r_pressure[r];
-            let count = 1;
-            const end = adjOffset[r + 1];
-            for (let ni = adjOffset[r]; ni < end; ni++) {
-                sum += r_pressure[adjList[ni]];
-                count++;
-            }
-            tmp[r] = sum / count;
-        }
-        r_pressure.set(tmp);
-    }
-}
 
 // ── Pressure gradient on mesh ────────────────────────────────────────────────
 
@@ -408,6 +403,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     const r_lat = new Float32Array(numRegions);
     const r_lon = new Float32Array(numRegions);
     const r_sinLat = new Float32Array(numRegions);
+    const r_cosLat = new Float32Array(numRegions);
     const r_isLand = new Uint8Array(numRegions);
 
     // Tangent frame arrays
@@ -425,6 +421,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
         r_lat[r] = Math.asin(Math.max(-1, Math.min(1, y)));
         r_lon[r] = Math.atan2(x, z);
         r_sinLat[r] = y;
+        r_cosLat[r] = Math.sqrt(1 - y * y) || 0.01;
         r_isLand[r] = r_elevation[r] > 0 ? 1 : 0;
 
         // East = normalize(Ŷ × P) = normalize(z, 0, -x)
@@ -449,7 +446,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     // ── Step 1: Build geographic index + compute ITCZ ──
 
     t0 = performance.now();
-    const geoSample = buildGeoIndex(r_xyz, r_elevation, r_isLand, numRegions);
+    const geoSample = buildGeoIndex(r_lat, r_lon, r_sinLat, r_cosLat, r_elevation, r_isLand, numRegions);
     const itczSummer = computeITCZ(geoSample, 'summer', tiltRad);
     const itczWinter = computeITCZ(geoSample, 'winter', tiltRad);
     timing.push({ stage: 'Wind: ITCZ computation', ms: performance.now() - t0 });
@@ -553,7 +550,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     // Light smoothing (~100 km) to soften BFS stepping artifacts and
     // bleed a small thermal signal onto nearshore ocean cells.
     const contSmoothPasses = Math.max(1, Math.round(100 / avgEdgeKm));
-    smoothPressure(mesh, r_continentality, contSmoothPasses);
+    smoothField(mesh, r_continentality, contSmoothPasses);
 
     // Plate-based continentality: uses plate type (continental vs oceanic)
     // instead of actual land/ocean. Same BFS approach for wide gradient.
@@ -592,7 +589,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             r_plateContinentality[r] = smoothstep(0, CONT_RANGE_KM, distKm);
         }
     }
-    smoothPressure(mesh, r_plateContinentality, contSmoothPasses);
+    smoothField(mesh, r_plateContinentality, contSmoothPasses);
     timing.push({ stage: 'Wind: continentality BFS', ms: performance.now() - t0 });
 
     // Shared gradient scratch arrays
@@ -614,7 +611,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
 
         // Smooth pressure field ~75 km (scale-invariant)
         const pressSmoothPasses = Math.max(1, Math.round(75 / avgEdgeKm));
-        smoothPressure(mesh, r_pressure, pressSmoothPasses);
+        smoothField(mesh, r_pressure, pressSmoothPasses);
         timing.push({ stage: `Wind: pressure field (${name})`, ms: performance.now() - t0 });
 
         // Step 3: Gradient
@@ -635,10 +632,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             r_windE, r_windN, r_windSpeed, numRegions);
 
         // Step 5: Normalize wind speed to 0-1
-        const speeds = new Float32Array(r_windSpeed);
-        speeds.sort();
-        const p95idx = Math.floor(numRegions * 0.95);
-        const maxSpeed = speeds[p95idx] || 1;
+        const maxSpeed = percentile(r_windSpeed, 0.95);
         for (let r = 0; r < numRegions; r++) {
             r_windSpeed[r] = Math.min(1, r_windSpeed[r] / maxSpeed);
         }
@@ -678,6 +672,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     result.r_sinLat = r_sinLat;
     result.r_isLand = r_isLand;
     result.r_continentality = r_continentality;
+    result.r_coastDistLand = r_coastDist;
     result.r_plateContinentality = r_plateContinentality;
     result.r_eastX = r_eastX;
     result.r_eastY = r_eastY;

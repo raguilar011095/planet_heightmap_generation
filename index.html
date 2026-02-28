@@ -67,6 +67,11 @@
                 </div>
             </div>
         </details>
+        <label class="auto-climate-label">
+            <input type="checkbox" id="chkAutoClimate" checked>
+            Auto Climate
+            <span class="tip" data-tip="Automatically compute climate (wind, precipitation, temperature, K&ouml;ppen) during generation. Uncheck to skip climate and compute it on demand when switching to the Climate view. Defaults off above 300K regions.">?</span>
+        </label>
         <button id="generate">Build New World</button>
         <div id="seedRow">
             <input type="text" id="seedCode" placeholder="Planet code">
@@ -115,6 +120,13 @@
                         <option value="map">Map</option>
                     </select>
                 </div>
+                <div class="map-tabs" id="mapTabs">
+                    <button class="map-tab active" data-layer="">Terrain</button>
+                    <button class="map-tab" data-layer="biome">Satellite</button>
+                    <button class="map-tab" data-layer="koppen">Climate</button>
+                    <button class="map-tab" data-layer="landheightmap">Heightmap</button>
+                </div>
+                <div id="vizLegend" class="viz-legend"></div>
                 <div class="tg">
                     <label><input type="checkbox" id="chkWire"> Wireframe</label>
                     <label><input type="checkbox" id="chkPlates"> Show Plates</label>
@@ -163,6 +175,7 @@
                         <option value="tempSummer">Temperature (Summer)</option>
                         <option value="tempWinter">Temperature (Winter)</option>
                         <option value="koppen">Köppen Climate</option>
+                        <option value="biome">Satellite</option>
                         <option value="continentality">Continentality</option>
                         <option value="heightmap">Heightmap</option>
                         <option value="landheightmap">Land Heightmap</option>
@@ -190,6 +203,7 @@
             <div class="tutorial-step" data-step="1">
                 <h3>Shape Your World</h3>
                 <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, and <strong>Heightmap</strong> views using the tabs under Visual Options. At high detail, uncheck <strong>Auto Climate</strong> to speed up generation &mdash; climate will compute on demand when you switch to a climate-dependent tab.</p>
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>

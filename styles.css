@@ -156,6 +156,82 @@ button#generate.generating {
     display: none;
 }
 #seedError.visible { display: block; }
+/* Auto Climate label */
+.auto-climate-label {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 13px; color: #99b; cursor: pointer;
+    margin-bottom: 4px; margin-top: 8px;
+}
+
+/* Map type tabs */
+.map-tabs {
+    display: flex; gap: 3px;
+    background: rgba(255,255,255,0.06);
+    border-radius: 8px; padding: 3px;
+    margin-bottom: 10px;
+}
+.map-tab {
+    flex: 1; padding: 8px 0; border: none;
+    background: transparent; color: #889;
+    font-size: 12px; font-weight: 500; font-family: inherit;
+    border-radius: 6px; cursor: pointer;
+    transition: background 0.2s, color 0.2s;
+}
+.map-tab:hover { color: #bcd; }
+.map-tab.active {
+    background: rgba(68,136,255,0.18); color: #8bf;
+}
+
+/* Legend container */
+.viz-legend {
+    font-size: 11px; color: #9ab; line-height: 1.5;
+    margin-bottom: 8px;
+}
+.viz-legend:empty { display: none; }
+
+.legend-gradient {
+    height: 10px; border-radius: 4px;
+    margin-bottom: 4px;
+}
+.legend-labels {
+    display: flex; justify-content: space-between;
+    font-size: 10px; color: #667;
+}
+
+.legend-koppen {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(56px, 1fr));
+    gap: 3px 6px;
+    position: relative;
+}
+.legend-koppen-item {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 10px; color: #9ab; white-space: nowrap;
+    position: relative; cursor: help;
+}
+.legend-koppen-item:hover { color: #def; }
+.legend-koppen-header {
+    font-size: 11px; margin-bottom: 4px;
+}
+.legend-koppen-header a {
+    color: #8ab8ff; text-decoration: none;
+}
+.legend-koppen-header a:hover { text-decoration: underline; color: #aad0ff; }
+.legend-koppen-tooltip {
+    position: absolute;
+    background: rgba(8,8,28,0.96); backdrop-filter: blur(8px);
+    border: 1px solid rgba(255,255,255,0.1); border-radius: 6px;
+    padding: 6px 10px; font-size: 12px; color: #cde;
+    width: 240px; white-space: normal; line-height: 1.4;
+    z-index: 200; pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    display: none;
+}
+.legend-koppen-tooltip.visible { display: block; }
+.legend-koppen-swatch {
+    width: 10px; height: 10px; border-radius: 2px; flex-shrink: 0;
+}
+
 .tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .tg label { font-size: 13px; color: #99b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
 #stats {
@@ -593,6 +669,9 @@ button#generate.generating {
     }
 
     /* Touch targets */
+    .map-tab { padding: 12px 0; font-size: 13px; min-height: 44px; }
+    .auto-climate-label { font-size: 14px; min-height: 44px; }
+    .auto-climate-label input[type="checkbox"] { width: 20px; height: 20px; }
     #helpBtn { width: 44px; height: 44px; font-size: 20px; }
     .tg label input[type="checkbox"] { width: 20px; height: 20px; }
     button#generate { padding: 14px; font-size: 16px; }

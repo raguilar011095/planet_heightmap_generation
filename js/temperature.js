@@ -1,50 +1,14 @@
 // Temperature simulation: computes per-region surface temperature for summer
-// and winter seasons based on ITCZ position, continentality, elevation lapse
-// rate, ocean current warmth, and precipitation/cloud cover moderation.
+// and winter seasons based on ITCZ position, continentality, moisture-dependent
+// elevation lapse rate (dry adiabatic 9.3 C/km to moist adiabatic 4.5 C/km),
+// ocean current warmth, and precipitation/cloud cover moderation.
 // Returns normalized 0-1 values mapped to a fixed -45 to +45 C range.
 
 import { smoothstep } from './wind.js';
 import { elevToHeightKm } from './color-map.js';
+import { smoothField, makeItczLookup } from './climate-util.js';
 
 const DEG = Math.PI / 180;
-
-// ── ITCZ latitude lookup (same pattern as precipitation.js) ─────────────────
-
-function makeItczLookup(itczLons, itczLats) {
-    const n = itczLons.length;
-    const step = (2 * Math.PI) / n;
-    const lonStart = -Math.PI + step * 0.5;
-
-    return function (lon) {
-        let fi = (lon - lonStart) / step;
-        fi = ((fi % n) + n) % n;
-        const i0 = Math.floor(fi);
-        const i1 = (i0 + 1) % n;
-        const frac = fi - i0;
-        return itczLats[i0] * (1 - frac) + itczLats[i1] * frac;
-    };
-}
-
-// ── Laplacian smoothing (same pattern as precipitation.js) ──────────────────
-
-function smoothField(mesh, field, passes) {
-    const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
-
-    for (let pass = 0; pass < passes; pass++) {
-        for (let r = 0; r < numRegions; r++) {
-            let sum = field[r];
-            let count = 1;
-            const end = adjOffset[r + 1];
-            for (let ni = adjOffset[r]; ni < end; ni++) {
-                sum += field[adjList[ni]];
-                count++;
-            }
-            tmp[r] = sum / count;
-        }
-        field.set(tmp);
-    }
-}
 
 // ── Diffuse ocean warmth onto nearby coastal land ───────────────────────────
 // Uses plate-based continentality so that warmth spreads freely across
@@ -159,13 +123,13 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             const itczLat = itczLookup(lon);
             const distItcz = Math.abs(lat - itczLat) / DEG;
             const tItcz = Math.max(0, distItcz - tropicalHW) / maxDist;
-            const T_itcz = 28 - 52 * Math.pow(tItcz, 1.2);
+            const T_itcz = 28 - 47 * Math.pow(tItcz, 1.4);
 
             // Flat reference curve (ITCZ at 5° in summer hemisphere)
             const flatItczLat = (name === 'summer' ? 5 : -5) * DEG;
             const distFlat = Math.abs(lat - flatItczLat) / DEG;
             const tFlat = Math.max(0, distFlat - tropicalHW) / maxDist;
-            const T_flat = 28 - 52 * Math.pow(tFlat, 1.2);
+            const T_flat = 28 - 47 * Math.pow(tFlat, 1.4);
 
             // Blend: ITCZ curve dominates tropics, flat curve dominates poles
             const absLatDeg = Math.abs(lat) / DEG;
@@ -173,10 +137,13 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             let T = T_itcz * (1 - blend) + T_flat * blend;
 
             // ── 2. Elevation lapse rate ──
-            // 6.5 C/km standard environmental lapse rate, using the
-            // shared nonlinear elevation-to-physical-height mapping.
+            // Moisture-dependent: dry air cools at ~9.8 C/km (dry adiabatic),
+            // saturated air at ~5 C/km (moist adiabatic) due to latent heat
+            // release. Use precipitation as a moisture proxy to interpolate.
+            const moisture = r_precip ? r_precip[r] : 0.5;
+            const lapse = 4.5 + 4.8 * (1 - moisture); // 4.5 C/km (wet) to 9.3 C/km (dry)
             if (isLand && elev > 0) {
-                T -= 6.5 * elevToHeightKm(elev);
+                T -= lapse * elevToHeightKm(elev);
             }
 
             // ── 5. Ocean current temperature influence ──
@@ -219,10 +186,10 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             {
                 const distAnn = Math.abs(lat) / DEG; // distance from equator
                 const tAnn = Math.max(0, distAnn - tropicalHW) / maxDist;
-                const T_annual = 28 - 52 * Math.pow(tAnn, 1.2);  // match new curve
-                // Apply same elevation lapse to annual baseline
+                const T_annual = 28 - 47 * Math.pow(tAnn, 1.4);  // match new curve
+                // Apply same moisture-dependent lapse to annual baseline
                 const T_ann_adj = isLand && elev > 0
-                    ? T_annual - 6.5 * elevToHeightKm(elev)
+                    ? T_annual - lapse * elevToHeightKm(elev)
                     : T_annual;
                 const deviation = T - T_ann_adj;
                 // Latitude-dependent seasonal boost: ITCZ shift alone gives ~5-6°C

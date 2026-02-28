@@ -6,85 +6,9 @@ import { smoothstep } from './wind.js';
 import { computeGradients } from './wind.js';
 import { elevToHeightKm } from './color-map.js';
 import { computeHeuristicPrecipitation, computeHeuristicWindField } from './heuristic-precip.js';
+import { smoothField, makeItczLookup, percentile } from './climate-util.js';
 
 const DEG = Math.PI / 180;
-
-// ── ITCZ latitude lookup (linear interpolation with wrapping) ───────────────
-
-function makeItczLookup(itczLons, itczLats) {
-    const n = itczLons.length;
-    const step = (2 * Math.PI) / n;
-    const lonStart = -Math.PI + step * 0.5;
-
-    return function (lon) {
-        let fi = (lon - lonStart) / step;
-        fi = ((fi % n) + n) % n;
-        const i0 = Math.floor(fi);
-        const i1 = (i0 + 1) % n;
-        const frac = fi - i0;
-        return itczLats[i0] * (1 - frac) + itczLats[i1] * frac;
-    };
-}
-
-// ── Laplacian smoothing (land+ocean) ─────────────────────────────────────────
-
-function smoothField(mesh, field, passes) {
-    const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
-
-    for (let pass = 0; pass < passes; pass++) {
-        for (let r = 0; r < numRegions; r++) {
-            let sum = field[r];
-            let count = 1;
-            const end = adjOffset[r + 1];
-            for (let ni = adjOffset[r]; ni < end; ni++) {
-                sum += field[adjList[ni]];
-                count++;
-            }
-            tmp[r] = sum / count;
-        }
-        field.set(tmp);
-    }
-}
-
-// ── Coast BFS distance (through land only) ───────────────────────────────────
-
-function bfsCoastDistanceLand(mesh, r_isLand) {
-    const { adjOffset, adjList, numRegions } = mesh;
-    const dist = new Int32Array(numRegions);
-    dist.fill(-1);
-    const queue = [];
-
-    // Seeds: land cells adjacent to ocean
-    for (let r = 0; r < numRegions; r++) {
-        if (!r_isLand[r]) continue;
-        const end = adjOffset[r + 1];
-        for (let ni = adjOffset[r]; ni < end; ni++) {
-            if (!r_isLand[adjList[ni]]) {
-                dist[r] = 0;
-                queue.push(r);
-                break;
-            }
-        }
-    }
-
-    // BFS through land
-    let head = 0;
-    while (head < queue.length) {
-        const r = queue[head++];
-        const d = dist[r] + 1;
-        const end = adjOffset[r + 1];
-        for (let ni = adjOffset[r]; ni < end; ni++) {
-            const nb = adjList[ni];
-            if (r_isLand[nb] && dist[nb] === -1) {
-                dist[nb] = d;
-                queue.push(nb);
-            }
-        }
-    }
-
-    return dist;
-}
 
 // ── Wind convergence ─────────────────────────────────────────────────────────
 // Compute per-region convergence of the wind field. Negative divergence means
@@ -93,18 +17,15 @@ function bfsCoastDistanceLand(mesh, r_isLand) {
 // wind point toward us vs. our wind point toward the neighbor?
 
 function computeWindConvergence(mesh, r_xyz,
-    r_windE, r_windN,
-    r_eastX, r_eastY, r_eastZ,
-    r_northX, r_northY, r_northZ) {
+    r_wind3dX, r_wind3dY, r_wind3dZ) {
     const { adjOffset, adjList, numRegions } = mesh;
     const convergence = new Float32Array(numRegions);
 
     for (let r = 0; r < numRegions; r++) {
-        const we = r_windE[r], wn = r_windN[r];
-        // Wind at r in 3D
-        const wdx = we * r_eastX[r] + wn * r_northX[r];
-        const wdy = we * r_eastY[r] + wn * r_northY[r];
-        const wdz = we * r_eastZ[r] + wn * r_northZ[r];
+        // Wind at r in 3D (pre-computed)
+        const wdx = r_wind3dX[r];
+        const wdy = r_wind3dY[r];
+        const wdz = r_wind3dZ[r];
 
         let conv = 0;
         let count = 0;
@@ -116,11 +37,10 @@ function computeWindConvergence(mesh, r_xyz,
             const dy = r_xyz[3 * nb + 1] - r_xyz[3 * r + 1];
             const dz = r_xyz[3 * nb + 2] - r_xyz[3 * r + 2];
 
-            // Wind at nb in 3D
-            const nwe = r_windE[nb], nwn = r_windN[nb];
-            const nwdx = nwe * r_eastX[nb] + nwn * r_northX[nb];
-            const nwdy = nwe * r_eastY[nb] + nwn * r_northY[nb];
-            const nwdz = nwe * r_eastZ[nb] + nwn * r_northZ[nb];
+            // Wind at nb in 3D (pre-computed)
+            const nwdx = r_wind3dX[nb];
+            const nwdy = r_wind3dY[nb];
+            const nwdz = r_wind3dZ[nb];
 
             // Our wind points toward nb (outward flux)
             const outFlux = wdx * dx + wdy * dy + wdz * dz;
@@ -144,10 +64,9 @@ function computeWindConvergence(mesh, r_xyz,
 // Moisture originates at coast cells proportional to ocean warmth and
 // depletes with distance and elevation gain.
 
-function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
+function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
     r_windE, r_windN,
-    r_eastX, r_eastY, r_eastZ,
-    r_northX, r_northY, r_northZ,
+    r_wind3dX, r_wind3dY, r_wind3dZ,
     r_oceanWarmth, r_coastDistLand, maxHops, avgEdgeKm) {
     const { adjOffset, adjList, numRegions } = mesh;
 
@@ -178,11 +97,10 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
 
         const avgWarmth = warmthSum / oceanCount;
 
-        // Wind direction in 3D
-        const we = r_windE[r], wn = r_windN[r];
-        const wdx = we * r_eastX[r] + wn * r_northX[r];
-        const wdy = we * r_eastY[r] + wn * r_northY[r];
-        const wdz = we * r_eastZ[r] + wn * r_northZ[r];
+        // Wind direction in 3D (pre-computed)
+        const wdx = r_wind3dX[r];
+        const wdy = r_wind3dY[r];
+        const wdz = r_wind3dZ[r];
 
         // Onshore = wind blows FROM ocean toward land = wind dot (ocean→region) < 0
         // i.e. wind direction points away from ocean = wind dot oceanDir < 0
@@ -206,10 +124,15 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
         moisture[r] = 0.4 + 0.35 * Math.max(0, warmth);
     }
 
-    // Iterative downwind propagation
-    const tmp = new Float32Array(numRegions);
+    // Base friction: ~78% moisture survives the full maxHops
+    // distance over flat terrain. Per-hop retention = 0.78^(1/maxHops).
+    const depletionBase = 1 - Math.pow(0.78, 1 / maxHops);
+
+    // Iterative downwind propagation (ping-pong double-buffering)
+    let src = moisture;
+    let dst = new Float32Array(numRegions);
     for (let iter = 0; iter < maxHops; iter++) {
-        tmp.set(moisture);
+        dst.set(src);
 
         for (let r = 0; r < numRegions; r++) {
             if (!r_isLand[r]) continue;
@@ -218,18 +141,17 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
             const speed = Math.sqrt(we * we + wn * wn);
             if (speed < 0.001) continue;
 
-            // Wind direction in 3D
-            const wdx = we * r_eastX[r] + wn * r_northX[r];
-            const wdy = we * r_eastY[r] + wn * r_northY[r];
-            const wdz = we * r_eastZ[r] + wn * r_northZ[r];
-            const wlen = Math.sqrt(wdx * wdx + wdy * wdy + wdz * wdz) || 1;
+            // Wind direction in 3D (pre-computed)
+            const wdx = r_wind3dX[r];
+            const wdy = r_wind3dY[r];
+            const wdz = r_wind3dZ[r];
 
             // Find upwind neighbors (those where wind at neighbor points toward us)
             // Track weighted-average upwind elevation for gradient-based depletion
             let upwindMoisture = 0;
             let upwindWeight = 0;
             let upwindHeightSum = 0;
-            const heightHere = elevToHeightKm(Math.max(0, r_elevation[r]));
+            const heightHere = r_heightKm[r];
             const end = adjOffset[r + 1];
             for (let ni = adjOffset[r]; ni < end; ni++) {
                 const nb = adjList[ni];
@@ -238,18 +160,17 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
                 const dy = r_xyz[3 * r + 1] - r_xyz[3 * nb + 1];
                 const dz = r_xyz[3 * r + 2] - r_xyz[3 * nb + 2];
 
-                // Wind at nb in 3D
-                const nwe = r_windE[nb], nwn = r_windN[nb];
-                const nwdx = nwe * r_eastX[nb] + nwn * r_northX[nb];
-                const nwdy = nwe * r_eastY[nb] + nwn * r_northY[nb];
-                const nwdz = nwe * r_eastZ[nb] + nwn * r_northZ[nb];
+                // Wind at nb in 3D (pre-computed)
+                const nwdx = r_wind3dX[nb];
+                const nwdy = r_wind3dY[nb];
+                const nwdz = r_wind3dZ[nb];
 
                 // Alignment: how much does wind at nb point toward r?
                 const dot = nwdx * dx + nwdy * dy + nwdz * dz;
                 if (dot > 0) {
                     const w = dot; // weight by alignment
-                    upwindMoisture += moisture[nb] * w;
-                    upwindHeightSum += elevToHeightKm(Math.max(0, r_elevation[nb])) * w;
+                    upwindMoisture += src[nb] * w;
+                    upwindHeightSum += r_heightKm[nb] * w;
                     upwindWeight += w;
                 }
             }
@@ -264,10 +185,6 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
                 // total depletion regardless of cell count.
                 const heightGain = Math.max(0, heightHere - upwindHeight);
 
-                // Base friction: ~78% moisture survives the full maxHops
-                // distance over flat terrain. Per-hop retention = 0.78^(1/maxHops).
-                const depletionBase = 1 - Math.pow(0.78, 1 / maxHops);
-
                 // Height gain per hop (km) shrinks at higher resolution.
                 // Multiply by maxHops to get total rise over the advection
                 // distance. A ~1 km total rise dumps significant moisture,
@@ -277,14 +194,17 @@ function advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
                 const depletion = depletionBase + elevDepletion;
 
                 const carried = incoming * Math.max(0, 1 - depletion);
-                tmp[r] = Math.max(tmp[r], carried);
+                dst[r] = Math.max(dst[r], carried);
             }
         }
 
-        moisture.set(tmp);
+        // Swap buffers (O(1) pointer swap instead of full array copy)
+        const swap = src;
+        src = dst;
+        dst = swap;
     }
 
-    return moisture;
+    return src;
 }
 
 // ── Main entry point ─────────────────────────────────────────────────────────
@@ -315,19 +235,23 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     const avgEdgeRad = Math.PI / Math.sqrt(numRegions);
     const maxHops = Math.max(8, Math.min(20, Math.round(2000 / avgEdgeKm)));
 
-    // Coast distance through land (shared between seasons)
-    let t0 = performance.now();
-    const r_coastDistLand = bfsCoastDistanceLand(mesh, r_isLand);
-    timing.push({ stage: 'Precip: coast BFS (land)', ms: performance.now() - t0 });
+    // Coast distance through land — reuse BFS already computed by wind.js
+    const r_coastDistLand = windResult.r_coastDistLand;
 
     // Elevation gradient for orographic detection (shared)
-    t0 = performance.now();
+    let t0 = performance.now();
     const r_elevGradE = new Float32Array(numRegions);
     const r_elevGradN = new Float32Array(numRegions);
     computeGradients(mesh, r_xyz, r_elevation,
         r_eastX, r_eastY, r_eastZ, r_northX, r_northY, r_northZ,
         r_elevGradE, r_elevGradN);
     timing.push({ stage: 'Precip: elevation gradients', ms: performance.now() - t0 });
+
+    // Pre-compute height in km for advection and mechanisms (elevation is constant across seasons)
+    const r_heightKm = new Float32Array(numRegions);
+    for (let r = 0; r < numRegions; r++) {
+        r_heightKm[r] = elevToHeightKm(Math.max(0, r_elevation[r]));
+    }
 
     const result = {};
 
@@ -360,24 +284,32 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             r_windN[r] = 0.5 * r_windN_raw[r] + 0.5 * hWindN[r];
         }
 
+        // Pre-compute 3D wind vectors for convergence and advection
+        const r_wind3dX = new Float32Array(numRegions);
+        const r_wind3dY = new Float32Array(numRegions);
+        const r_wind3dZ = new Float32Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            const we = r_windE[r], wn = r_windN[r];
+            r_wind3dX[r] = we * r_eastX[r] + wn * r_northX[r];
+            r_wind3dY[r] = we * r_eastY[r] + wn * r_northY[r];
+            r_wind3dZ[r] = we * r_eastZ[r] + wn * r_northZ[r];
+        }
+
         // ── Step 1a: Wind convergence field ──
         // Compute raw convergence then smooth heavily — real fronts are
         // messy, mobile bands, not sharp lines. The smoothing spreads the
         // signal over a wide area representing the zone where frontal
         // weather systems wander over a season.
         const r_convergence = computeWindConvergence(mesh, r_xyz,
-            r_windE, r_windN,
-            r_eastX, r_eastY, r_eastZ,
-            r_northX, r_northY, r_northZ);
-        // Smooth ~600 km worth of hops so frontal zones are broad bands
-        const convSmoothPasses = Math.max(3, Math.round(600 / avgEdgeKm));
+            r_wind3dX, r_wind3dY, r_wind3dZ);
+        // Smooth ~400 km worth of hops so frontal zones are broad bands
+        const convSmoothPasses = Math.max(3, Math.round(400 / avgEdgeKm));
         smoothField(mesh, r_convergence, convSmoothPasses);
 
         // ── Step 1b: Moisture advection from coasts ──
-        const moisture = advectMoisture(mesh, r_xyz, r_elevation, r_isLand,
+        const moisture = advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
             r_windE, r_windN,
-            r_eastX, r_eastY, r_eastZ,
-            r_northX, r_northY, r_northZ,
+            r_wind3dX, r_wind3dY, r_wind3dZ,
             r_oceanWarmth, r_coastDistLand, maxHops, avgEdgeKm);
 
         const tAdvect = performance.now() - t0;
@@ -461,7 +393,22 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             const inLocalSummer = (name === 'summer') ? (lat >= 0) : (lat < 0);
             const subtropCenter = inLocalSummer ? 30 : 24;
             const subtropWidth  = inLocalSummer ? 16 : 12;
-            const subtropPeak   = inLocalSummer ? 0.50 : 0.30;
+            let   subtropPeak   = inLocalSummer ? 0.50 : 0.30;
+
+            // East-coast monsoon relief: reduce summer drying where
+            // poleward winds bring tropical moisture onshore. On Earth
+            // this produces humid subtropical (Cfa) on east coasts
+            // while west coasts keep Mediterranean (Cs) dry summers.
+            if (isLand && inLocalSummer) {
+                const polewardWind = lat >= 0 ? r_windN[r] : -r_windN[r];
+                if (polewardWind > 0) {
+                    const coastDist = r_coastDistLand[r] >= 0 ? r_coastDistLand[r] : maxHops;
+                    const coastProximity = 1 - smoothstep(0, maxHops * 0.4, coastDist);
+                    const monsoonRelief = smoothstep(0, 0.15, polewardWind) * coastProximity;
+                    subtropPeak *= (1 - monsoonRelief * 0.7);
+                }
+            }
+
             const subtropDist = Math.abs(absLatDeg - subtropCenter);
             const latBandSuppression = subtropDist < subtropWidth
                 ? smoothstep(subtropWidth, 0, subtropDist) * subtropPeak : 0;
@@ -513,7 +460,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
             // (g) Lee cyclogenesis: localized wet zone on leeward side of high mountains
             // when ocean is nearby downwind (~200 km)
-            const heightKm = elevToHeightKm(Math.max(0, elev));
+            const heightKm = r_heightKm[r];
             if (isLand && heightKm > 1.5) {
                 const we = r_windE[r], wn = r_windN[r];
                 const windDotGrad = we * r_elevGradE[r] + wn * r_elevGradN[r];
@@ -576,10 +523,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         }
 
         // 95th-percentile normalization on blended result
-        const sorted = new Float32Array(blended);
-        sorted.sort();
-        const p95idx = Math.floor(numRegions * 0.95);
-        const maxPrecip = sorted[p95idx] || 1;
+        const maxPrecip = percentile(blended, 0.95);
         for (let r = 0; r < numRegions; r++) {
             blended[r] = Math.min(1, blended[r] / maxPrecip);
         }

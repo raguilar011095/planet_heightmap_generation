@@ -3,9 +3,53 @@
 import * as THREE from 'three';
 import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
-import { elevationToColor, elevToHeightKm } from './color-map.js';
+import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+
+// Precompute smoothed biome colors: each region blends with its neighbors' average.
+// Uses mesh adjacency (~6 neighbors per region) so it's inherently scale-independent.
+// Cached on state to avoid redundant computation across render paths.
+let _biomeCache = null;
+let _biomeCacheKey = null;
+
+function getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) {
+    if (_biomeCache && _biomeCacheKey === koppenArr) return _biomeCache;
+    _biomeCache = smoothBiomeColors(mesh, koppenArr, r_elevation);
+    _biomeCacheKey = koppenArr;
+    return _biomeCache;
+}
+
+function smoothBiomeColors(mesh, koppenArr, r_elevation) {
+    const n = mesh.numRegions;
+    const raw = new Float32Array(n * 3);
+    for (let r = 0; r < n; r++) {
+        const [cr, cg, cb] = biomeColor(koppenArr[r], r_elevation[r]);
+        raw[r * 3] = cr; raw[r * 3 + 1] = cg; raw[r * 3 + 2] = cb;
+    }
+    const out = new Float32Array(n * 3);
+    const alpha = 0.35;
+    const { adjOffset, adjList } = mesh;
+    for (let r = 0; r < n; r++) {
+        const start = adjOffset[r];
+        const end = adjOffset[r + 1];
+        const count = end - start;
+        if (count === 0) {
+            out[r * 3] = raw[r * 3]; out[r * 3 + 1] = raw[r * 3 + 1]; out[r * 3 + 2] = raw[r * 3 + 2];
+            continue;
+        }
+        let avgR = 0, avgG = 0, avgB = 0;
+        for (let i = start; i < end; i++) {
+            const nr = adjList[i];
+            avgR += raw[nr * 3]; avgG += raw[nr * 3 + 1]; avgB += raw[nr * 3 + 2];
+        }
+        avgR /= count; avgG /= count; avgB /= count;
+        out[r * 3]     = raw[r * 3]     * (1 - alpha) + avgR * alpha;
+        out[r * 3 + 1] = raw[r * 3 + 1] * (1 - alpha) + avgG * alpha;
+        out[r * 3 + 2] = raw[r * 3 + 2] * (1 - alpha) + avgB * alpha;
+    }
+    return out;
+}
 
 // Grayscale heightmap: black (lowest) → white (highest), in physical height space
 function heightmapColor(elevation, minH, maxH) {
@@ -150,10 +194,11 @@ export function buildMapMesh() {
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
-    const koppenArr = isKoppen ? (debugLayers && debugLayers.koppen) : null;
+    const isBiome = debugLayer === 'biome';
+    const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -173,20 +218,13 @@ export function buildMapMesh() {
     const { numSides } = mesh;
     const PI = Math.PI;
 
-    // Pre-count antimeridian-wrapping sides to allocate tight buffers
-    let wrapCount = 0;
-    for (let s = 0; s < numSides; s++) {
-        const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s), br = mesh.s_begin_r(s);
-        const lon0 = Math.atan2(t_xyz[3*it], t_xyz[3*it+2]);
-        const lon1 = Math.atan2(t_xyz[3*ot], t_xyz[3*ot+2]);
-        const lon2 = Math.atan2(r_xyz[3*br], r_xyz[3*br+2]);
-        if (Math.max(lon0, lon1, lon2) - Math.min(lon0, lon1, lon2) > PI) wrapCount++;
-    }
+    const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
-    const totalTris = numSides + wrapCount;
-    const posArr = new Float32Array(totalTris * 9);
-    const colArr = new Float32Array(totalTris * 9);
-    const faceToSide = new Int32Array(totalTris);
+    // Upper-bound allocation: wrapping sides produce 2 triangles, non-wrapping 1.
+    // Wraps are rare, so 2× is a conservative upper bound; trimmed after the loop.
+    const posArr = new Float32Array(numSides * 2 * 9);
+    const colArr = new Float32Array(numSides * 2 * 9);
+    const faceToSide = new Int32Array(numSides * 2);
     let triCount = 0;
 
     for (let s = 0; s < numSides; s++) {
@@ -196,7 +234,9 @@ export function buildMapMesh() {
 
         const re = r_elevation[br] - waterLevel;
         let cr, cg, cb;
-        if (isCont && contArr) {
+        if (isBiome && biomeSmoothed) {
+            cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
+        } else if (isCont && contArr) {
             [cr, cg, cb] = continentalityColor(contArr[br]);
         } else if (isKoppen && koppenArr) {
             [cr, cg, cb] = koppenColor(koppenArr[br]);
@@ -462,10 +502,11 @@ export function buildMesh() {
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
-    const koppenArr = isKoppen ? (debugLayers && debugLayers.koppen) : null;
+    const isBiome = debugLayer === 'biome';
+    const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -490,6 +531,8 @@ export function buildMesh() {
     const pos = new Float32Array(numSides * 9);
     const col = new Float32Array(numSides * 9);
     const nrm = new Float32Array(numSides * 9);
+
+    const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
     for (let s = 0; s < numSides; s++) {
         const it = mesh.s_inner_t(s);
@@ -542,7 +585,9 @@ export function buildMesh() {
         }
 
         let cr, cg, cb;
-        if (isCont && contArr) {
+        if (isBiome && biomeSmoothed) {
+            cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
+        } else if (isCont && contArr) {
             [cr, cg, cb] = continentalityColor(contArr[br]);
         } else if (isKoppen && koppenArr) {
             [cr, cg, cb] = koppenColor(koppenArr[br]);
@@ -619,7 +664,9 @@ export function buildMesh() {
     buildDriftArrows();
     updateHoverHighlight();
 
-    buildMapMesh();
+    // Defer map mesh construction to reduce peak GPU memory — built on demand
+    // when switching to map view (see viewMode handler in main.js).
+    if (state.mapMode) buildMapMesh();
     buildGlobeGrid();
     if (state.mapMode) {
         state.planetMesh.visible = false;
@@ -651,6 +698,134 @@ export function buildMesh() {
             });
         }
     }
+}
+
+// Update only color buffers for globe + map meshes (no geometry rebuild).
+// Use this when switching display modes to avoid GPU memory spikes.
+export function updateMeshColors() {
+    if (!state.curData || !state.planetMesh) return;
+    const { mesh, r_plate, r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers } = state.curData;
+    const showPlates = document.getElementById('chkPlates').checked;
+    const showStress = false;
+    const waterLevel = 0;
+    const debugLayer = state.debugLayer || '';
+
+    // Precompute debug layer state
+    let dbgArr = null, dbgMin = 0, dbgMax = 0;
+    const isHeightmap = debugLayer === 'heightmap';
+    const isLandHeightmap = debugLayer === 'landheightmap';
+    const isOceanCurrent = debugLayer === 'oceanCurrentSummer' || debugLayer === 'oceanCurrentWinter';
+    const oceanSeason = debugLayer === 'oceanCurrentWinter' ? 'winter' : 'summer';
+    const oceanWarmth = isOceanCurrent ? state.curData[`r_ocean_warmth_${oceanSeason}`] : null;
+    const oceanSpeed = isOceanCurrent ? state.curData[`r_ocean_speed_${oceanSeason}`] : null;
+    const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
+    const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
+    const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isKoppen = debugLayer === 'koppen';
+    const isBiome = debugLayer === 'biome';
+    const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isCont = debugLayer === 'continentality';
+    const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+        dbgArr = debugLayers[debugLayer];
+        for (let r = 0; r < mesh.numRegions; r++) {
+            if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
+            if (dbgArr[r] > dbgMax) dbgMax = dbgArr[r];
+        }
+    }
+
+    let elevMin = Infinity, elevMax = -Infinity;
+    if (isHeightmap || isLandHeightmap) {
+        for (let r = 0; r < mesh.numRegions; r++) {
+            const h = elevToHeightKm(r_elevation[r]);
+            if (h < elevMin) elevMin = h;
+            if (h > elevMax) elevMax = h;
+        }
+    }
+
+    // Precompute smoothed biome colors (one-pass neighbor blend)
+    const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
+
+    // Color helper — returns [r,g,b] for a given region
+    const getRegionColor = (br) => {
+        if (isBiome && biomeSmoothed) return [biomeSmoothed[br * 3], biomeSmoothed[br * 3 + 1], biomeSmoothed[br * 3 + 2]];
+        if (isCont && contArr) return continentalityColor(contArr[br]);
+        if (isKoppen && koppenArr) return koppenColor(koppenArr[br]);
+        if (isTemp && tempArr) return temperatureColor(tempArr[br]);
+        if (isPrecip && precipArr) return precipitationColor(precipArr[br]);
+        if (isOceanCurrent && oceanWarmth && oceanSpeed) return oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
+        if (isOceanCurrent) return [0.5, 0, 0.5];
+        if (isLandHeightmap) return landHeightmapColor(r_elevation[br], elevMax);
+        if (isHeightmap) return heightmapColor(r_elevation[br], elevMin, elevMax);
+        if (dbgArr) return debugValueToColor(dbgArr[br], dbgMin, dbgMax);
+        if (showPlates) {
+            const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
+            return [pc.r, pc.g, pc.b];
+        }
+        if (showStress) {
+            const sv = r_stress ? r_stress[br] : 0;
+            if (sv > 0.5)                     return [0.9, 0.1+sv*0.3, 0.1];
+            if (sv > 0.1)                     return [0.9, 0.5+sv*0.5, 0.2];
+            if (mountain_r.has(br))           return [0.8, 0.4, 0.1];
+            if (coastline_r.has(br))          return [0.9, 0.9, 0.2];
+            if (ocean_r.has(br))              return [0.1, 0.2, 0.7];
+            return [0.15, 0.15, 0.18];
+        }
+        return elevationToColor(r_elevation[br] - waterLevel);
+    };
+
+    // Update globe mesh colors in-place
+    const colorAttr = state.planetMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+    const { numSides } = mesh;
+
+    for (let s = 0; s < numSides; s++) {
+        const br = mesh.s_begin_r(s);
+        const [cr, cg, cb] = getRegionColor(br);
+        const off = s * 9;
+        for (let j = 0; j < 3; j++) {
+            colors[off + j*3]     = cr;
+            colors[off + j*3 + 1] = cg;
+            colors[off + j*3 + 2] = cb;
+        }
+    }
+    colorAttr.needsUpdate = true;
+    // Reuse existing backup array if same size to avoid allocation spikes
+    if (!state.baseColors || state.baseColors.length !== colors.length) {
+        state.baseColors = new Float32Array(colors.length);
+    }
+    state.baseColors.set(colors);
+
+    // Update map mesh colors in-place (if map exists)
+    if (state.mapMesh && state.mapFaceToSide) {
+        const mapColorAttr = state.mapMesh.geometry.getAttribute('color');
+        const mapColors = mapColorAttr.array;
+        const fts = state.mapFaceToSide;
+
+        for (let f = 0; f < fts.length; f++) {
+            const s = fts[f];
+            const br = mesh.s_begin_r(s);
+            const [cr, cg, cb] = getRegionColor(br);
+            const off = f * 9;
+            for (let j = 0; j < 3; j++) {
+                mapColors[off + j*3]     = cr;
+                mapColors[off + j*3 + 1] = cg;
+                mapColors[off + j*3 + 2] = cb;
+            }
+        }
+        mapColorAttr.needsUpdate = true;
+        if (!state.mapBaseColors || state.mapBaseColors.length !== mapColors.length) {
+            state.mapBaseColors = new Float32Array(mapColors.length);
+        }
+        state.mapBaseColors.set(mapColors);
+    }
+
+    // Update water visibility
+    waterMesh.visible = !state.mapMode && !showPlates && !showStress && !debugLayer;
+
+    updateHoverHighlight();
+    updateMapHoverHighlight();
 }
 
 // Hover highlight — brighten hovered plate's cells.

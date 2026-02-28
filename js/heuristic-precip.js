@@ -6,46 +6,9 @@
 
 import { smoothstep } from './wind.js';
 import { elevToHeightKm } from './color-map.js';
+import { smoothField, makeItczLookup } from './climate-util.js';
 
 const DEG = Math.PI / 180;
-
-// ── ITCZ latitude lookup (same as precipitation.js) ─────────────────────────
-
-function makeItczLookup(itczLons, itczLats) {
-    const n = itczLons.length;
-    const step = (2 * Math.PI) / n;
-    const lonStart = -Math.PI + step * 0.5;
-
-    return function (lon) {
-        let fi = (lon - lonStart) / step;
-        fi = ((fi % n) + n) % n;
-        const i0 = Math.floor(fi);
-        const i1 = (i0 + 1) % n;
-        const frac = fi - i0;
-        return itczLats[i0] * (1 - frac) + itczLats[i1] * frac;
-    };
-}
-
-// ── Laplacian smoothing ─────────────────────────────────────────────────────
-
-function smoothField(mesh, field, passes) {
-    const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
-
-    for (let pass = 0; pass < passes; pass++) {
-        for (let r = 0; r < numRegions; r++) {
-            let sum = field[r];
-            let count = 1;
-            const end = adjOffset[r + 1];
-            for (let ni = adjOffset[r]; ni < end; ni++) {
-                sum += field[adjList[ni]];
-                count++;
-            }
-            tmp[r] = sum / count;
-        }
-        field.set(tmp);
-    }
-}
 
 // ── Zonal base curve ────────────────────────────────────────────────────────
 // Returns a value in [0.03, 1.0] based on distance from the ITCZ in degrees.

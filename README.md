@@ -30,7 +30,9 @@ All three are considered together; ties are broken in the order above.
 - **Seasonal wind simulation** — pressure-driven wind patterns with a longitude-varying ITCZ that tracks the thermal equator (~5° over ocean, up to 15-20° over continents), Gaussian pressure bands (subtropical highs, subpolar lows, polar highs), land/sea thermal contrast for monsoon-like pressure reversals, elevation barometric effects, and Coriolis-deflected geostrophic wind with natural cross-equatorial flow reversal. Computed for both summer and winter seasons.
 - **Ocean surface currents** — rule-based geographic gyre simulation driven by wind belts (trade winds, westerlies, polar easterlies) with a longitude-varying ITCZ equatorial countercurrent. Continental shelves are classified as western or eastern boundaries via coast-normal BFS, producing subtropical gyres (CW in NH, CCW in SH) with western boundary intensification (Gulf Stream, Kuroshio effect) and weaker eastern boundary return flow. Detects circumpolar channels for unobstructed eastward currents (Antarctic Circumpolar Current). Currents are colored by heat transport: red = warm poleward flow, blue = cold equatorward flow, black = zonal (neutral). Computed for both summer and winter seasons.
 - **Precipitation** — blended dual-model approach: a complex moisture advection simulation is combined 50-50 with a fast heuristic zonal model. The advection model simulates wind-driven moisture transport from coasts with six mechanisms: ITCZ convective uplift, frontal convergence, orographic rain/shadow, lee cyclogenesis, polar-front precipitation, and subtropical high suppression. The heuristic model provides smooth latitude-based patterns (ITCZ wet belt, subtropical dry belt, mid-latitude recovery, polar dryness) modulated by continentality and orographic effects. Blending the two reduces splotchiness while preserving terrain-informed detail and strengthening subtropical desert formation (~20–35°). Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
-- **Detailed visualization** — twenty-one selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, pressure summer/winter, wind speed summer/winter, ocean currents summer/winter, precipitation summer/winter, heightmap, land heightmap) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
+- **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
+- **On-demand climate** — optional deferred climate computation; skip climate during generation for faster terrain iteration, compute it on demand when needed
+- **Detailed visualization** — twenty-two selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, pressure summer/winter, wind speed summer/winter, ocean currents summer/winter, precipitation summer/winter, heightmap, land heightmap) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
 - **Map export** — download high-resolution equirectangular PNGs (color terrain, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
 
 ## Quick Start
@@ -83,8 +85,22 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 | Thermal Erosion | 0 – 1 | 0.10 | Slope-driven material transport — softens ridges and creates natural talus slopes |
 | Ridge Sharpening | 0 – 1 | 0.35 | Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain |
 
+### Auto Climate
+
+The **Auto Climate** checkbox (above the Build button) controls whether climate simulation runs during generation:
+
+- **ON** (default for ≤ 300K regions) — wind, ocean currents, precipitation, temperature, and Köppen classification are computed as part of generation
+- **OFF** (default for > 300K regions) — climate is skipped during generation for faster terrain iteration. Climate is computed on demand when switching to the Climate tab or any climate-related debug layer.
+
+The default is set automatically when the Detail slider changes but can be manually overridden.
+
 ### Visual Options
 
+- **Map Type** — segmented Terrain / Satellite / Climate / Heightmap tabs for quick switching between the four most common visualizations. Each tab shows a color legend:
+  - **Terrain** — elevation color ramp from deep ocean through sea level to mountain peaks
+  - **Satellite** — realistic biome colors based on Köppen climate classification and elevation (lush green rainforests, tan deserts, white ice caps, dark taiga, gray tundra), with ocean using the standard terrain palette. High elevations blend toward snow white based on climate-aware snow lines.
+  - **Climate** — Köppen-Geiger classification with color swatches for all 30 climate types
+  - **Heightmap** — black-to-white gradient (ocean/sea level = black, highest peak = white)
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
 - **Wireframe** — show Voronoi cell edges as a wireframe overlay
 - **Show Plates** — color regions by plate (green shades = land, blue shades = ocean)
@@ -94,7 +110,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Detailed Visualization
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Köppen Climate (standard Köppen-Geiger classification with 31 climate types colored by convention: blue = tropical, red/orange = arid, green/yellow = temperate, cyan/purple = continental, gray = polar; ocean shown as blue-gray), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Köppen Climate (standard Köppen-Geiger classification with 31 climate types colored by convention: blue = tropical, red/orange = arid, green/yellow = temperate, cyan/purple = continental, gray = polar; ocean shown as blue-gray), Satellite (realistic biome colors based on Köppen classification and elevation — deserts tan, forests green, tundra gray, ice white, with climate-aware snow lines), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
 
 ### Export
 
@@ -153,7 +169,7 @@ World Orogen is fully usable on phones and tablets:
 11. **Wind simulation** computes a longitude-varying ITCZ by scanning for the thermal maximum at each longitude (accounting for land/sea heating differential and elevation lapse rate), builds pressure fields from Gaussian zonal bands centered on the ITCZ plus land/sea thermal modifiers and elevation barometric effects, then derives wind vectors from pressure gradients with latitude-dependent Coriolis deflection and surface friction. Computed for both NH summer and winter.
 12. **Ocean currents** uses a rule-based geographic approach: classifies ocean cells by wind belt (trades, westerlies, polar easterlies) to set base zonal flow, runs three BFS passes from coastal seeds to compute distance to western and eastern coastlines (classified by coast-normal direction), deflects currents poleward near western boundaries (warm, intensified ×2) and equatorward near eastern boundaries (cold, weaker ×0.8), detects circumpolar channels at ±60° latitude for unobstructed eastward flow, smooths with 5 Laplacian passes, and classifies heat transport by meridional flow direction. Computed for both seasons.
 13. **Precipitation** uses a blended dual-model approach. The complex model computes moisture advection from coasts using iterative upwind propagation driven by wind vectors, with depletion based on distance and elevation gain, plus six mechanisms: ITCZ convective uplift, frontal convergence at subpolar lows, orographic rain/rain shadow, lee cyclogenesis, polar front diffuse precipitation, and seasonal subtropical high suppression (shifts poleward in local summer to create Mediterranean dry-summer patterns). A heuristic zonal model computes smooth precipitation from ITCZ distance (with aggressive subtropical drying at 15–30°), seasonal hemisphere boost with Mediterranean subtropical suppression (up to 55% summer reduction at 25-42° latitude), continental dryness, and orographic rain shadow. The two models are blended 50-50 then normalized via 95th-percentile scaling. Computed for both seasons.
-14. **Temperature** computes per-cell surface temperature using the ITCZ as the thermal equator (28°C peak, warmest latitude band), with poleward cooling following a power-law curve (exponent 1.2, 13° tropical plateau, 52°C range). Modulated by seasonal hemisphere offset with latitude-dependent seasonal amplitude boost (up to ±12°C peaking at 55-75° latitude), continentality-scaled maritime factor (coast 0.50× to deep interior 1.20× seasonal swing), elevation lapse rate (6.5 C/1000m), ocean current warmth (16-pass diffusion onto coastal land, ±20°C effect with 0.95 continentality gate), and precipitation/cloud cover moderation. Normalized to a fixed -45 to +45 C range. Computed for both seasons.
+14. **Temperature** computes per-cell surface temperature using the ITCZ as the thermal equator (28°C peak, warmest latitude band), with poleward cooling following a power-law curve (exponent 1.2, 13° tropical plateau, 52°C range). Modulated by seasonal hemisphere offset with latitude-dependent seasonal amplitude boost (up to ±12°C peaking at 55-75° latitude), continentality-scaled maritime factor (coast 0.50× to deep interior 1.20× seasonal swing), moisture-dependent elevation lapse rate (4.5 C/km in wet regions to 9.3 C/km in dry regions, interpolated by precipitation), ocean current warmth (16-pass diffusion onto coastal land, ±20°C effect with 0.95 continentality gate), and precipitation/cloud cover moderation. Normalized to a fixed -45 to +45 C range. Computed for both seasons.
 15. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
@@ -179,12 +195,13 @@ js/
   planet-code.js        Planet code encode/decode (seed + sliders → base36)
   rng.js                Seeded PRNG (Park-Miller LCG)
   simplex-noise.js      3D Simplex noise with fBm and ridged fBm
-  color-map.js          Elevation → RGB colour mapping
+  color-map.js          Elevation → RGB colour mapping + satellite biome colors
   sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
   plates.js             Tectonic plate generation (farthest-point seeding, round-robin flood fill, compactness constraints)
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   terrain-post.js       Bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
+  climate-util.js       Shared climate utilities — smoothing, ITCZ lookup, percentile selection
   wind.js               Seasonal wind simulation — pressure fields, ITCZ tracking, Coriolis wind
   ocean.js              Ocean surface currents — rule-based wind-belt gyres, coast BFS, circumpolar detection
   precipitation.js      Precipitation simulation — moisture advection, ITCZ/frontal/orographic effects, blended with heuristic

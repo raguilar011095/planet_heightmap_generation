@@ -4,25 +4,9 @@
 
 console.log('[ocean.js] Module loaded');
 import { smoothstep } from './wind.js';
+import { makeItczLookup, percentile } from './climate-util.js';
 
 const DEG = Math.PI / 180;
-
-// ── ITCZ latitude lookup (linear interpolation with wrapping) ───────────────
-
-function makeItczLookup(itczLons, itczLats) {
-    const n = itczLons.length;
-    const step = (2 * Math.PI) / n;
-    const lonStart = -Math.PI + step * 0.5;
-
-    return function (lon) {
-        let fi = (lon - lonStart) / step;
-        fi = ((fi % n) + n) % n;
-        const i0 = Math.floor(fi);
-        const i1 = (i0 + 1) % n;
-        const frac = fi - i0;
-        return itczLats[i0] * (1 - frac) + itczLats[i1] * frac;
-    };
-}
 
 // ── Coast distance & classification via BFS ─────────────────────────────────
 
@@ -371,19 +355,19 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
 
         // Step 7: Normalize speed (95th percentile)
         const r_speed = new Float32Array(numRegions);
-        const oceanSpeeds = [];
+        const oceanSpeeds = new Float32Array(numRegions);
+        let oceanCount = 0;
         for (let r = 0; r < numRegions; r++) {
             const spd = Math.sqrt(currentE[r] * currentE[r] + currentN[r] * currentN[r]);
             r_speed[r] = spd;
-            if (r_isOcean[r] && spd > 0) oceanSpeeds.push(spd);
+            if (r_isOcean[r] && spd > 0) oceanSpeeds[oceanCount++] = spd;
         }
-        oceanSpeeds.sort((a, b) => a - b);
-        const p95 = oceanSpeeds[Math.floor(oceanSpeeds.length * 0.95)] || 1;
+        const p95 = percentile(oceanSpeeds.subarray(0, oceanCount), 0.95);
         for (let r = 0; r < numRegions; r++) {
             r_speed[r] = Math.min(1, r_speed[r] / p95);
         }
 
-        console.log(`[Ocean ${name}] coastThreshold=${coastThreshold}, warmthRange=${warmthRange}, p95=${p95.toExponential(3)}, oceanCells=${oceanSpeeds.length}`);
+        console.log(`[Ocean ${name}] coastThreshold=${coastThreshold}, warmthRange=${warmthRange}, p95=${p95.toExponential(3)}, oceanCells=${oceanCount}`);
         timing.push({ stage: `Ocean: warmth + normalize (${name})`, ms: performance.now() - t0 });
 
         result[`r_ocean_current_east_${name}`] = currentE;
