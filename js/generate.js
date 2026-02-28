@@ -228,6 +228,8 @@ if (worker) {
                         if (d.debugLayers) {
                             d.debugLayers.precipSummer = precipResult.r_precip_summer;
                             d.debugLayers.precipWinter = precipResult.r_precip_winter;
+                            d.debugLayers.rainShadowSummer = precipResult.r_rainshadow_summer;
+                            d.debugLayers.rainShadowWinter = precipResult.r_rainshadow_winter;
                         }
                         console.log(`[generate.js] Precipitation computed on main thread in ${(performance.now() - t0Precip).toFixed(0)} ms`);
                     }
@@ -649,6 +651,8 @@ function generateFallback(overrideSeed, toggledIndices, onProgress) {
             ctx.precipResult = precipResult;
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
+            debugLayers.rainShadowSummer = precipResult.r_rainshadow_summer;
+            debugLayers.rainShadowWinter = precipResult.r_rainshadow_winter;
             // Temperature (fallback path)
             const tempResult = m.temp.computeTemperature(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult, precipResult);
             ctx.tempResult = tempResult;

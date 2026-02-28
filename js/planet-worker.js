@@ -193,6 +193,8 @@ function handleGenerate(data) {
             if (precipResult._precipTiming) timing.push(...precipResult._precipTiming);
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
+            debugLayers.rainShadowSummer = precipResult.r_rainshadow_summer;
+            debugLayers.rainShadowWinter = precipResult.r_rainshadow_winter;
 
             progress(86, 'Computing temperature\u2026');
             t0 = performance.now();
@@ -380,6 +382,8 @@ function handleReapply(data) {
                 windSpeedWinter: windResult.r_wind_speed_winter,
                 precipSummer: precipResult.r_precip_summer,
                 precipWinter: precipResult.r_precip_winter,
+                rainShadowSummer: precipResult.r_rainshadow_summer,
+                rainShadowWinter: precipResult.r_rainshadow_winter,
                 tempSummer: tempResult.r_temperature_summer,
                 tempWinter: tempResult.r_temperature_winter,
                 koppen: classifyKoppen(W.mesh, r_elevation, tempResult, precipResult)
@@ -463,6 +467,8 @@ function handleEditRecompute(data) {
             tPrecip = performance.now() - t0;
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
+            debugLayers.rainShadowSummer = precipResult.r_rainshadow_summer;
+            debugLayers.rainShadowWinter = precipResult.r_rainshadow_winter;
 
             progress(86, 'Computing temperature\u2026');
             t0 = performance.now();
@@ -586,6 +592,8 @@ function handleComputeClimate() {
             continentality: windResult.r_continentality,
             precipSummer: precipResult.r_precip_summer,
             precipWinter: precipResult.r_precip_winter,
+            rainShadowSummer: precipResult.r_rainshadow_summer,
+            rainShadowWinter: precipResult.r_rainshadow_winter,
             tempSummer: tempResult.r_temperature_summer,
             tempWinter: tempResult.r_temperature_winter,
             koppen

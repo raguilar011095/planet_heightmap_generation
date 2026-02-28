@@ -80,11 +80,11 @@ function updateDetailWarning(detail) {
     if (detail > WARN_RED) {
         cg.classList.add('detail-red');
         warn.classList.add('red');
-        warn.textContent = '\u26A0 Very high \u2014 generation will be slow';
+        warn.textContent = '\u26A0 Very high \u2014 generation may be slow and unstable';
     } else if (detail > WARN_ORANGE) {
         cg.classList.add('detail-orange');
         warn.classList.add('orange');
-        warn.textContent = '\u26A0 High detail \u2014 may slow generation';
+        warn.textContent = '\u26A0 High detail \u2014 generation may be slow and unstable';
     } else {
         warn.textContent = '';
     }
@@ -130,6 +130,7 @@ const CLIMATE_LAYERS = new Set([
     'windSpeedSummer', 'windSpeedWinter',
     'oceanCurrentSummer', 'oceanCurrentWinter',
     'precipSummer', 'precipWinter',
+    'rainShadowSummer', 'rainShadowWinter',
     'tempSummer', 'tempWinter',
     'koppen', 'biome', 'continentality'
 ]);
@@ -306,6 +307,10 @@ function updateLegend(layer) {
         const biomeGrad = biomeColors.map((c, i) => `${c} ${biomePcts[i]}%`).join(', ');
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,${biomeGrad})"></div>` +
             `<div class="legend-labels"><span>${biomeStops[0].label}</span><span>${biomeStops[3].label}</span><span>${biomeStops[6].label}</span></div>`;
+    } else if (layer === 'rainShadowSummer' || layer === 'rainShadowWinter') {
+        // Rain shadow diverging legend: leeward shadow ↔ neutral ↔ windward boost
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,rgb(230,51,33) 0%,rgb(140,140,148) 50%,rgb(38,102,243) 100%)"></div>` +
+            `<div class="legend-labels"><span>Rain Shadow</span><span>Neutral</span><span>Windward</span></div>`;
     } else if (layer === 'landheightmap') {
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
             `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;

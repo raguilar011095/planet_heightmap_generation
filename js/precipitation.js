@@ -317,6 +317,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         // ── Step 2: Apply precipitation mechanisms ──
         t0 = performance.now();
         const precip = new Float32Array(numRegions);
+        const rainShadow = new Float32Array(numRegions);
 
         for (let r = 0; r < numRegions; r++) {
             const lat = r_lat[r];
@@ -371,13 +372,13 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                     // the wind is pushing up, the more rain wrung out.
                     // gradient strength matters more than absolute height.
                     const uplift = Math.min(1, windDotGrad * 15);
-                    p += uplift * 0.6;
+                    p += uplift * 1.0;
                 } else {
                     // Leeward: rain shadow. The advection step already depleted
                     // moisture crossing the ridge; this is the *extra* suppression
                     // from descending/warming air (foehn drying) on the lee side.
                     const shadow = Math.min(1, -windDotGrad * 18);
-                    p *= Math.max(0.05, 1 - shadow * 0.85);
+                    p *= Math.max(0.02, 1 - shadow * 0.95);
                 }
             }
 
@@ -496,6 +497,142 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
         const tMechanisms = performance.now() - t0;
 
+        // ── Step 2b: Rain shadow diagnostic — local source + bidirectional propagation ──
+        // Seed leeward slopes with negative shadow strength and windward slopes
+        // with positive orographic rain. Then propagate each in the correct
+        // direction: shadow travels DOWNWIND (foehn drying), windward rain
+        // extends UPWIND (rising air condenses approaching the mountains).
+        {
+            const { adjOffset, adjList } = mesh;
+            // Seed: local orographic effect at each cell
+            // Only significant terrain (≥0.8 km) seeds shadows — small hills
+            // shouldn't cast continent-scale rain shadows.
+            for (let r = 0; r < numRegions; r++) {
+                if (!r_isLand[r] || r_elevation[r] <= 0) continue;
+                const we = r_windE[r], wn = r_windN[r];
+                const windDotGrad = we * r_elevGradE[r] + wn * r_elevGradN[r];
+                const heightKm = r_heightKm[r];
+                if (heightKm < 0.8) continue; // skip low terrain
+                const heightScale = Math.min(1, (heightKm - 0.5) / 2.5);
+                if (windDotGrad > 0) {
+                    rainShadow[r] = Math.min(1, windDotGrad * 20) * heightScale;
+                } else if (windDotGrad < 0) {
+                    rainShadow[r] = -Math.min(1, -windDotGrad * 18) * heightScale;
+                }
+            }
+
+            // Pre-compute wind-aligned neighbor lists once — avoids
+            // redundant dot-product calculations inside every propagation
+            // iteration.  Two sets: "upwind" (nb's wind points toward r,
+            // for shadow propagation) and "downwind" (r's wind points
+            // toward nb, for windward propagation).
+            const maxNbTotal = adjList.length;
+            const upNb = new Int32Array(maxNbTotal);
+            const upWt = new Float32Array(maxNbTotal);
+            const upOff = new Int32Array(numRegions + 1);
+            const dnNb = new Int32Array(maxNbTotal);
+            const dnWt = new Float32Array(maxNbTotal);
+            const dnOff = new Int32Array(numRegions + 1);
+            let upCount = 0, dnCount = 0;
+            for (let r = 0; r < numRegions; r++) {
+                upOff[r] = upCount;
+                dnOff[r] = dnCount;
+                if (!r_isLand[r]) continue;
+                const end = adjOffset[r + 1];
+                for (let ni = adjOffset[r]; ni < end; ni++) {
+                    const nb = adjList[ni];
+                    const dx = r_xyz[3 * r] - r_xyz[3 * nb];
+                    const dy = r_xyz[3 * r + 1] - r_xyz[3 * nb + 1];
+                    const dz = r_xyz[3 * r + 2] - r_xyz[3 * nb + 2];
+                    // Upwind: wind at nb points toward r
+                    const upDot = r_wind3dX[nb] * dx + r_wind3dY[nb] * dy + r_wind3dZ[nb] * dz;
+                    if (upDot > 0) { upNb[upCount] = nb; upWt[upCount] = upDot; upCount++; }
+                    // Downwind: wind at r points toward nb (direction is -dx,-dy,-dz)
+                    const dnDot = -(r_wind3dX[r] * dx + r_wind3dY[r] * dy + r_wind3dZ[r] * dz);
+                    if (dnDot > 0) { dnNb[dnCount] = nb; dnWt[dnCount] = dnDot; dnCount++; }
+                }
+            }
+            upOff[numRegions] = upCount;
+            dnOff[numRegions] = dnCount;
+
+            // --- Pass 1: Propagate shadow DOWNWIND (~2500 km, 15% survives) ---
+            const shadowHops = Math.max(8, Math.round(2500 / avgEdgeKm));
+            const shadowDecay = 1 - Math.pow(0.15, 1 / shadowHops);
+            const shadowField = new Float32Array(rainShadow);
+            let src = new Float32Array(shadowField);
+            let dst = new Float32Array(numRegions);
+            for (let iter = 0; iter < shadowHops; iter++) {
+                dst.set(src);
+                for (let r = 0; r < numRegions; r++) {
+                    let upVal = 0, upW = 0;
+                    const uEnd = upOff[r + 1];
+                    for (let ui = upOff[r]; ui < uEnd; ui++) {
+                        const val = src[upNb[ui]];
+                        if (val < 0) { upVal += val * upWt[ui]; upW += upWt[ui]; }
+                    }
+                    if (upW > 0) {
+                        const carried = (upVal / upW) * (1 - shadowDecay);
+                        if (carried < dst[r]) dst[r] = carried;
+                    }
+                }
+                const swap = src; src = dst; dst = swap;
+            }
+            for (let r = 0; r < numRegions; r++) {
+                if (src[r] < shadowField[r]) shadowField[r] = src[r];
+            }
+
+            // --- Pass 2: Propagate windward rain UPWIND (~1500 km, 25% survives) ---
+            const windwardHops = Math.max(6, Math.round(1500 / avgEdgeKm));
+            const windwardDecay = 1 - Math.pow(0.25, 1 / windwardHops);
+            const windwardField = new Float32Array(rainShadow);
+            src = new Float32Array(windwardField);
+            dst = new Float32Array(numRegions);
+            for (let iter = 0; iter < windwardHops; iter++) {
+                dst.set(src);
+                for (let r = 0; r < numRegions; r++) {
+                    let dnVal = 0, dnW = 0;
+                    const dEnd = dnOff[r + 1];
+                    for (let di = dnOff[r]; di < dEnd; di++) {
+                        const val = src[dnNb[di]];
+                        if (val > 0) { dnVal += val * dnWt[di]; dnW += dnWt[di]; }
+                    }
+                    if (dnW > 0) {
+                        const carried = (dnVal / dnW) * (1 - windwardDecay);
+                        if (carried > dst[r]) dst[r] = carried;
+                    }
+                }
+                const swap = src; src = dst; dst = swap;
+            }
+            for (let r = 0; r < numRegions; r++) {
+                if (src[r] > windwardField[r]) windwardField[r] = src[r];
+            }
+
+            // Merge: shadow dominates if present, otherwise take windward
+            for (let r = 0; r < numRegions; r++) {
+                rainShadow[r] = shadowField[r] < 0 ? shadowField[r] : windwardField[r];
+            }
+        }
+        // Smooth ~150 km so the zones read clearly
+        const rsSmoothPasses = Math.max(2, Math.round(150 / avgEdgeKm));
+        smoothField(mesh, rainShadow, rsSmoothPasses);
+
+        // ── Step 2c: Apply propagated rain shadow to actual precipitation ──
+        // The local orographic effect in (c) only touches the mountain slopes
+        // themselves. This step extends the shadow hundreds of km downwind and
+        // boosts windward rain upwind, using the propagated field from 2b.
+        for (let r = 0; r < numRegions; r++) {
+            if (!r_isLand[r]) continue;
+            const rs = rainShadow[r];
+            if (rs < -0.01) {
+                // Shadow zone: precipitation suppression behind mountains
+                const strength = Math.min(1, -rs * 2.25);
+                precip[r] *= Math.max(0.02, 1 - strength * 0.92);
+            } else if (rs > 0.01) {
+                // Windward zone: strong orographic precipitation enhancement
+                precip[r] += rs * 1.2;
+            }
+        }
+
         // ── Step 3: Smooth (normalization deferred to blending step) ──
         t0 = performance.now();
         // Light smoothing ~100 km to blend cell-to-cell noise
@@ -508,6 +645,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         timing.push({ stage: `Precip: smooth (${name})`, ms: tSmooth });
 
         result[`r_precip_${name}`] = precip;
+        result[`r_rainshadow_${name}`] = rainShadow;
     }
 
     // ── Step 4: Blend with heuristic model and normalize ──

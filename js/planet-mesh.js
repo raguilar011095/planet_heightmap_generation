@@ -102,6 +102,21 @@ function precipitationColor(value) {
     }
 }
 
+// Rain shadow diverging color: blue (windward boost) ↔ neutral gray ↔ red-brown (leeward shadow)
+// Input is signed: positive = windward, negative = leeward shadow (propagated downwind)
+function rainShadowColor(value) {
+    if (value > 0.01) {
+        // Windward: gray → blue (saturates at 0.5)
+        const t = Math.min(1, value / 0.5);
+        return [0.55 - t * 0.40, 0.55 - t * 0.10, 0.58 + t * 0.37];
+    } else if (value < -0.01) {
+        // Leeward shadow: gray → red-brown (saturates at -0.5)
+        const t = Math.min(1, -value / 0.5);
+        return [0.55 + t * 0.35, 0.55 - t * 0.35, 0.58 - t * 0.45];
+    }
+    return [0.55, 0.55, 0.58]; // neutral gray (ocean / flat)
+}
+
 // Continentality debug color: ocean (blue) → coast (green) → interior (orange/red)
 // Input is 0–1: 0 = open ocean, ~0.3-0.5 = coast, 0.95+ = deep interior.
 function continentalityColor(value) {
@@ -191,6 +206,8 @@ export function buildMapMesh() {
     }
     const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isRainShadow = debugLayer === 'rainShadowSummer' || debugLayer === 'rainShadowWinter';
+    const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
@@ -198,7 +215,7 @@ export function buildMapMesh() {
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -244,6 +261,8 @@ export function buildMapMesh() {
             [cr, cg, cb] = temperatureColor(tempArr[br]);
         } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);
+        } else if (isRainShadow && rainShadowArr) {
+            [cr, cg, cb] = rainShadowColor(rainShadowArr[br]);
         } else if (isOceanCurrent && oceanWarmth && oceanSpeed) {
             [cr, cg, cb] = oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
         } else if (isOceanCurrent) {
@@ -499,6 +518,8 @@ export function buildMesh() {
     }
     const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isRainShadow = debugLayer === 'rainShadowSummer' || debugLayer === 'rainShadowWinter';
+    const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
@@ -506,7 +527,7 @@ export function buildMesh() {
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -595,6 +616,8 @@ export function buildMesh() {
             [cr, cg, cb] = temperatureColor(tempArr[br]);
         } else if (isPrecip && precipArr) {
             [cr, cg, cb] = precipitationColor(precipArr[br]);
+        } else if (isRainShadow && rainShadowArr) {
+            [cr, cg, cb] = rainShadowColor(rainShadowArr[br]);
         } else if (isOceanCurrent && oceanWarmth && oceanSpeed) {
             [cr, cg, cb] = oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
         } else if (isOceanCurrent) {
@@ -720,6 +743,8 @@ export function updateMeshColors() {
     const oceanSpeed = isOceanCurrent ? state.curData[`r_ocean_speed_${oceanSeason}`] : null;
     const isPrecip = debugLayer === 'precipSummer' || debugLayer === 'precipWinter';
     const precipArr = isPrecip ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isRainShadow = debugLayer === 'rainShadowSummer' || debugLayer === 'rainShadowWinter';
+    const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
@@ -727,7 +752,7 @@ export function updateMeshColors() {
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -754,6 +779,7 @@ export function updateMeshColors() {
         if (isKoppen && koppenArr) return koppenColor(koppenArr[br]);
         if (isTemp && tempArr) return temperatureColor(tempArr[br]);
         if (isPrecip && precipArr) return precipitationColor(precipArr[br]);
+        if (isRainShadow && rainShadowArr) return rainShadowColor(rainShadowArr[br]);
         if (isOceanCurrent && oceanWarmth && oceanSpeed) return oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
         if (isOceanCurrent) return [0.5, 0, 0.5];
         if (isLandHeightmap) return landHeightmapColor(r_elevation[br], elevMax);
