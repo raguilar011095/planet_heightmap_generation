@@ -102,6 +102,11 @@
                     <input type="range" id="sRs" min="0" max="1" value="0.35" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Jagged</span></div>
                 </div>
+                <label class="auto-climate-label">
+                    <input type="checkbox" id="chkAutoClimate" checked>
+                    Auto Climate
+                    <span class="tip" data-tip="Automatically compute climate (wind, precipitation, temperature, K&ouml;ppen) during generation. Uncheck to skip climate and compute it on demand when switching to the Climate view. Defaults off above 300K regions.">?</span>
+                </label>
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
@@ -115,6 +120,57 @@
                         <option value="map">Map</option>
                     </select>
                 </div>
+                <div class="map-tabs" id="mapTabs">
+                    <button class="map-tab active" data-layer="">Terrain</button>
+                    <button class="map-tab" data-layer="biome">Satellite</button>
+                    <button class="map-tab" data-layer="koppen">Climate</button>
+                    <button class="map-tab" data-layer="landheightmap">Heightmap</button>
+                </div>
+                <div class="cg">
+                    <label>Inspect</label>
+                    <select id="debugLayer">
+                        <option value="">Terrain</option>
+                        <option value="biome">Satellite</option>
+                        <option value="koppen">K&ouml;ppen Climate</option>
+                        <option value="landheightmap">Land Heightmap</option>
+                        <optgroup label="Geology">
+                            <option value="base">Base</option>
+                            <option value="tectonic">Tectonic</option>
+                            <option value="noise">Noise</option>
+                            <option value="interior">Interior</option>
+                            <option value="coastal">Coastal</option>
+                            <option value="ocean">Ocean Floor</option>
+                            <option value="hotspot">Hotspot</option>
+                            <option value="tecActivity">Tectonic Activity</option>
+                            <option value="margins">Margins</option>
+                            <option value="backArc">Back-Arc</option>
+                            <option value="erosionDelta">Erosion Delta</option>
+                        </optgroup>
+                        <optgroup label="Atmosphere">
+                            <option value="pressureSummer">Pressure (Summer)</option>
+                            <option value="pressureWinter">Pressure (Winter)</option>
+                            <option value="windSpeedSummer">Wind Speed (Summer)</option>
+                            <option value="windSpeedWinter">Wind Speed (Winter)</option>
+                        </optgroup>
+                        <optgroup label="Ocean">
+                            <option value="oceanCurrentSummer">Currents (Summer)</option>
+                            <option value="oceanCurrentWinter">Currents (Winter)</option>
+                        </optgroup>
+                        <optgroup label="Climate">
+                            <option value="precipSummer">Precipitation (Summer)</option>
+                            <option value="precipWinter">Precipitation (Winter)</option>
+                            <option value="rainShadowSummer">Rain Shadow (Summer)</option>
+                            <option value="rainShadowWinter">Rain Shadow (Winter)</option>
+                            <option value="tempSummer">Temperature (Summer)</option>
+                            <option value="tempWinter">Temperature (Winter)</option>
+                            <option value="continentality">Continentality</option>
+                        </optgroup>
+                        <optgroup label="Elevation">
+                            <option value="heightmap">Full Heightmap</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div id="vizLegend" class="viz-legend"></div>
                 <div class="tg">
                     <label><input type="checkbox" id="chkWire"> Wireframe</label>
                     <label><input type="checkbox" id="chkPlates"> Show Plates</label>
@@ -131,34 +187,10 @@
                         <option value="2.5">2.5°</option>
                     </select>
                 </div>
-            </div>
-        </details>
-        <button id="exportBtn" class="export-btn">Export Map</button>
-        <details class="section">
-            <summary>Detailed Visualization</summary>
-            <div class="section-body">
-                <div class="cg">
-                    <label>Inspect</label>
-                    <select id="debugLayer">
-                        <option value="">Terrain</option>
-                        <option value="base">Base</option>
-                        <option value="tectonic">Tectonic</option>
-                        <option value="noise">Noise</option>
-                        <option value="interior">Interior</option>
-                        <option value="coastal">Coastal</option>
-                        <option value="ocean">Ocean</option>
-                        <option value="hotspot">Hotspot</option>
-                        <option value="tecActivity">Tectonic Activity</option>
-                        <option value="margins">Margins</option>
-                        <option value="backArc">Back-Arc</option>
-                        <option value="erosionDelta">Erosion Delta</option>
-                        <option value="heightmap">Heightmap</option>
-                        <option value="landheightmap">Land Heightmap</option>
-                    </select>
-                </div>
                 <div id="stats"></div>
             </div>
         </details>
+        <button id="exportBtn" class="export-btn">Export Map</button>
         <a id="repoLink" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.64 7.64 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
             GitHub
@@ -184,15 +216,21 @@
                 <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean.</p>
             </div>
             <div class="tutorial-step" data-step="3">
+                <h3>Visualize Your World</h3>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, and <strong>Heightmap</strong> views using the tabs under Visual Options. Use the <strong>Inspect</strong> dropdown for detailed layers like pressure, wind, and precipitation.</p>
+                <p>At high detail, uncheck <strong>Auto Climate</strong> in Terrain Sculpting to speed up generation &mdash; climate will compute on demand when you switch to a climate-dependent view.</p>
+            </div>
+            <div class="tutorial-step" data-step="4">
                 <h3>Save &amp; Share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
-                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; full-color terrain or black-and-white heightmaps.</p>
+                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; terrain, satellite, climate, or black-and-white heightmaps.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
                 <span class="dot" data-dot="1"></span>
                 <span class="dot" data-dot="2"></span>
                 <span class="dot" data-dot="3"></span>
+                <span class="dot" data-dot="4"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>
@@ -209,6 +247,8 @@
                 <label>Type</label>
                 <select id="exportType">
                     <option value="color">Color Map</option>
+                    <option value="biome">Satellite</option>
+                    <option value="koppen">Climate (K&ouml;ppen)</option>
                     <option value="heightmap">Heightmap (B&amp;W)</option>
                     <option value="landheightmap">Land Heightmap (B&amp;W)</option>
                 </select>
