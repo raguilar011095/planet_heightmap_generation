@@ -634,7 +634,17 @@ if (debugLayerEl) {
         dimsEl.textContent = w + ' \u00D7 ' + (w / 2);
     }
 
-    function openModal() { overlay.classList.remove('hidden'); updateDims(); }
+    function openModal() {
+        overlay.classList.remove('hidden');
+        updateDims();
+        // Disable climate-dependent export types when climate isn't computed
+        for (const opt of typeEl.options) {
+            if (opt.value === 'biome' || opt.value === 'koppen') {
+                opt.disabled = !state.climateComputed;
+                if (opt.disabled && typeEl.value === opt.value) typeEl.value = 'color';
+            }
+        }
+    }
     function closeModal() { overlay.classList.add('hidden'); }
 
     openBtn.addEventListener('click', openModal);

@@ -32,8 +32,8 @@ All three are considered together; ties are broken in the order above.
 - **Precipitation** — blended dual-model approach: a complex moisture advection simulation is combined 50-50 with a fast heuristic zonal model. The advection model simulates wind-driven moisture transport from coasts with six mechanisms: ITCZ convective uplift, frontal convergence, orographic rain/shadow, lee cyclogenesis, polar-front precipitation, and subtropical high suppression. The heuristic model provides smooth latitude-based patterns (ITCZ wet belt, subtropical dry belt, mid-latitude recovery, polar dryness) modulated by continentality and orographic effects. Blending the two reduces splotchiness while preserving terrain-informed detail and strengthening subtropical desert formation (~20–35°). Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
 - **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
 - **On-demand climate** — optional deferred climate computation; skip climate during generation for faster terrain iteration, compute it on demand when needed
-- **Detailed visualization** — twenty-four selectable inspection layers (base, tectonic, noise, interior, coastal, ocean, hotspot, tectonic activity, margins, back-arc, erosion delta, pressure summer/winter, wind speed summer/winter, ocean currents summer/winter, precipitation summer/winter, heightmap, land heightmap) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
-- **Map export** — download high-resolution equirectangular PNGs (color terrain, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
+- **Detailed visualization** — twenty-six selectable inspection layers organized by category (Geology, Atmosphere, Ocean, Climate, Elevation) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
+- **Map export** — download high-resolution equirectangular PNGs (color terrain, satellite biome, climate/Köppen, B&W heightmap, or land-only heightmap) at configurable widths up to 65536px with tiled rendering
 
 ## Quick Start
 
@@ -87,10 +87,10 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Auto Climate
 
-The **Auto Climate** checkbox (above the Build button) controls whether climate simulation runs during generation:
+The **Auto Climate** checkbox (in the Terrain Sculpting section) controls whether climate simulation runs during generation:
 
 - **ON** (default for ≤ 300K regions) — wind, ocean currents, precipitation, temperature, and Köppen classification are computed as part of generation
-- **OFF** (default for > 300K regions) — climate is skipped during generation for faster terrain iteration. Climate is computed on demand when switching to the Climate tab or any climate-related debug layer.
+- **OFF** (default for > 300K regions) — climate is skipped during generation for faster terrain iteration. Climate is computed on demand when switching to a climate-dependent view.
 
 The default is set automatically when the Detail slider changes but can be manually overridden.
 
@@ -108,15 +108,22 @@ The default is set automatically when the Detail slider changes but can be manua
 - **Grid Lines** — toggle latitude/longitude grid overlay on both globe and map views
 - **Grid Spacing** — choose the interval between grid lines: 30°, 15°, 10°, 5°, or 2.5°
 
-### Detailed Visualization
+### Inspect Dropdown
 
-- **Inspect** dropdown — select an elevation component to visualize in isolation: Terrain, Base, Tectonic, Noise, Interior, Coastal, Ocean, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited), Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map), Ocean Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows on ocean regions), Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Rain Shadow Summer/Winter (diverging blue = windward orographic boost, gray = neutral, red-brown = leeward rain shadow; leeward effects are seeded at downslope faces scaled by mountain height, then propagated ~1500 km downwind to show extended shadow zones like the foehn drying effect), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Köppen Climate (standard Köppen-Geiger classification with 31 climate types colored by convention: blue = tropical, red/orange = arid, green/yellow = temperate, cyan/purple = continental, gray = polar; ocean shown as blue-gray), Satellite (realistic biome colors based on Köppen classification and elevation — deserts tan, forests green, tundra gray, ice white, with climate-aware snow lines), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior), Heightmap (full-range B&W), or Land Heightmap (sea level = black, highest peak = white)
+The **Inspect** dropdown (in Visual Options, below the map tabs) selects a detailed visualization layer. Options are organized into groups:
+
+- **Main views** (ungrouped at top) — Terrain, Satellite, Köppen Climate, Land Heightmap
+- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited)
+- **Atmosphere** — Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map)
+- **Ocean** — Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows)
+- **Climate** — Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Rain Shadow Summer/Winter (diverging blue = windward orographic boost, gray = neutral, red-brown = leeward rain shadow; leeward effects are seeded at downslope faces scaled by mountain height, then propagated ~1500 km downwind to show extended shadow zones like the foehn drying effect), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior)
+- **Elevation** — Full Heightmap (full-range B&W)
 
 ### Export
 
 Click **Export Map** (below Visual Options) to open the export modal:
 
-- **Type** — Color Map (terrain colors), Heightmap (B&W full range, black = deepest, white = highest), or Land Heightmap (B&W, sea level = black, highest peak = white, ocean is black)
+- **Type** — Color Map (terrain colors), Satellite (biome colors from Köppen classification), Climate (Köppen classification colors), Heightmap (B&W full range, black = deepest, white = highest), or Land Heightmap (B&W, sea level = black, highest peak = white, ocean is black). Satellite and Climate options are disabled when climate hasn't been computed.
 - **Width** slider — 1024 to 65536 pixels (height is always width/2 for equirectangular). Large exports use tiled rendering to handle GPU texture limits.
 - Downloads an equirectangular PNG with no grid overlay
 - A progress overlay shows rendering and PNG encoding status during export

@@ -1427,6 +1427,11 @@ export async function exportMap(type, width, onProgress) {
         }
     }
 
+    // Climate-dependent export types (Satellite / Köppen)
+    const debugLayers = state.curData.debugLayers;
+    const koppenArr = (type === 'biome' || type === 'koppen') ? (debugLayers && debugLayers.koppen) : null;
+    const biomeSmoothed = (type === 'biome' && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
+
     // Build map triangles (same projection as buildMapMesh, chosen coloring, no grid)
     const { numSides } = mesh;
     const PI = Math.PI;
@@ -1446,6 +1451,10 @@ export async function exportMap(type, width, onProgress) {
             [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
         } else if (type === 'heightmap') {
             [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+        } else if (type === 'biome' && biomeSmoothed) {
+            cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
+        } else if (type === 'koppen' && koppenArr) {
+            [cr, cg, cb] = koppenColor(koppenArr[br]);
         } else {
             [cr, cg, cb] = elevationToColor(r_elevation[br]);
         }

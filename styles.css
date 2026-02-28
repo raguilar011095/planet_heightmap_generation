@@ -91,6 +91,7 @@ select {
 select:hover { border-color: rgba(255,255,255,0.18); }
 select:focus { outline: none; border-color: #48f; }
 select option { background: #12122a; color: #cde; }
+select optgroup { font-style: normal; font-weight: 600; color: #78a; background: #12122a; }
 button#generate {
     width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 12px;
     background: linear-gradient(135deg, #2255cc, #3366ee);
