@@ -351,7 +351,8 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
         t0 = performance.now();
         const r_warmth = classifyWarmth(r_isOcean, r_lat, numRegions,
             r_westCoastDist, r_eastCoastDist, warmthRange, seasonalShiftDeg);
-        smoothOcean(mesh, r_warmth, r_isOcean, 10);
+        const warmthSmoothPasses = Math.max(3, Math.round(900 / avgEdgeKm));
+        smoothOcean(mesh, r_warmth, r_isOcean, warmthSmoothPasses);
 
         // Step 7: Normalize speed (95th percentile)
         const r_speed = new Float32Array(numRegions);

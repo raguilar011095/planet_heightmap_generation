@@ -54,6 +54,7 @@ function floydRivest(arr, left, right, k) {
         }
 
         const t = arr[k];
+        if (t !== t) return; // NaN pivot — cannot partition, bail out
         let i = left;
         let j = right;
 

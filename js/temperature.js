@@ -97,7 +97,9 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
         // Use plate-based continentality for diffusion so warmth crosses
         // continental shelves and reaches further inland
         const plateCont = r_plateContinentality || r_continentality;
-        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, 16);
+        const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
+        const oceanWarmthPasses = Math.max(4, Math.round(1400 / avgEdgeKm));
+        const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, oceanWarmthPasses);
 
         const temp = new Float32Array(numRegions);
 
