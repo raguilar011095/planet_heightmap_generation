@@ -1,0 +1,16 @@
+{
+    "name": "World Orogen",
+    "short_name": "Orogen",
+    "description": "Procedural planet generator with tectonic plates, erosion, and climate simulation",
+    "start_url": "/",
+    "display": "browser",
+    "background_color": "#030308",
+    "theme_color": "#0a0e17",
+    "icons": [
+        {
+            "src": "preview.png",
+            "sizes": "1200x630",
+            "type": "image/png"
+        }
+    ]
+}

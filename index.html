@@ -61,6 +61,51 @@
     }
     </script>
 
+    <!-- FAQ Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What is World Orogen?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "World Orogen is a free, browser-based procedural planet generator. It creates realistic terrestrial planets with tectonic plate simulation, multiple erosion types, climate modeling, and volcanic features. No download or account required — it runs entirely in your browser."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I use the exported maps in my own projects?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. World Orogen exports high-resolution equirectangular maps (up to 65,536px wide) in multiple formats: color terrain, satellite biome, Köppen climate, heightmap, and land mask. These can be used in game engines like Unity or Unreal, tabletop RPG campaigns, worldbuilding projects, or any creative work."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What browsers does World Orogen support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "World Orogen works in any modern browser with WebGL support, including Chrome, Firefox, Safari, and Edge. It works on both desktop and mobile devices."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How do I share a planet with someone?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Every generated planet has a unique planet code shown below the Build button. Copy the code or share the URL directly — anyone can paste the code or open the link to recreate your exact planet, including any plates you've edited."
+                }
+            }
+        ]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="author" href="humans.txt">
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
     <link rel="stylesheet" href="styles.css">
 </head>
@@ -85,6 +130,8 @@
         </ul>
         <h2>Use Cases</h2>
         <p>World Orogen is used by worldbuilders, game developers, tabletop RPG players, fantasy authors, and anyone who needs realistic terrain. Export heightmaps for use in game engines like Unity or Unreal, or download satellite-style maps for your D&amp;D campaign setting. The climate simulation produces realistic biome distributions for believable fantasy worlds.</p>
+        <h2>Share Your World</h2>
+        <p>Every planet has a unique planet code. Share the URL (e.g. orogen.studio/#CODE) to let anyone recreate your exact world — including any tectonic plates you've edited by hand.</p>
     </main>
     <div id="buildOverlay" class="build-overlay initial">
         <div class="build-overlay-inner">
