@@ -230,6 +230,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_tecActivity = new Float32Array(numRegions);
     const dl_margins = new Float32Array(numRegions);
     const dl_backArc = new Float32Array(numRegions);
+    const dl_foldRidge = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -515,6 +516,9 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
     _timing.push({ stage: 'Ridge/fracture/back-arc BFS', ms: performance.now() - _t0 }); _t0 = performance.now();
 
+    // Separate noise instance for fold ridges (decorrelated from main noise)
+    const foldNoise = new SimplexNoise(seed + 557);
+
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
 
@@ -636,6 +640,39 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const tectonicActivity = Math.max(stressNorm, rawProximity * rawProximity);
             dl_tecActivity[r] = tectonicActivity;
 
+            // Fold ridge noise: directional ridges parallel to plate boundaries.
+            // Uses dot(pos, Euler pole) as fold coordinate — creates concentric
+            // arcs around the pole, perpendicular to plate motion.
+            let foldContrib = 0;
+            {
+                const pid = r_plate[r];
+                const pv = plateVec[pid];
+                const foldActivity = tectonicActivity * tectonicActivity; // sharper falloff
+                if (pv && foldActivity > 0.01) {
+                    const ppx = pv.pole[0], ppy = pv.pole[1], ppz = pv.pole[2];
+                    // Fold coordinate: dot(pos, pole) = cosine of angular distance from pole
+                    // Contours are great circles perpendicular to plate motion
+                    const u = x * ppx + y * ppy + z * ppz;
+                    // Mild phase warp for natural irregularity
+                    const phaseWarp = foldNoise.fbm(x * 3 + 55.3, y * 3 + 33.7, z * 3 + 17.2, 2) * 0.08;
+                    const FOLD_FREQ = 30;
+                    const phase = (u + phaseWarp) * FOLD_FREQ * Math.PI;
+                    // Sharp ridges with valleys: 1-|sin| peaks at zero-crossings
+                    const ridge = 1 - Math.abs(Math.sin(phase));
+                    // Center around zero (mean of 1-|sin| ≈ 0.36)
+                    const foldCentered = ridge - 0.36;
+                    // Amplitude varies along ridges to break uniformity
+                    const ampMod = 0.6 + 0.4 * foldNoise.fbm(x * 4 + 88.1, y * 4 + 62.3, z * 4 + 41.7, 2);
+                    // Scale strongly by current elevation — tall mountains get deep folds
+                    const elevBoost = 1 + 4 * Math.max(0, r_elevation[r]);
+                    // Strong near orogeny (squared falloff), suppressed on subducting side
+                    const foldAmp = foldActivity * Math.max(0, 1 - sf * 1.5) * noiseMag * 0.8 * elevBoost;
+                    foldContrib = foldCentered * foldAmp * ampMod;
+                    r_elevation[r] += foldContrib;
+                    dl_foldRidge[r] = foldContrib;
+                }
+            }
+
             // Plateau zone: overriding side, behind collision front, with tectonic influence
             const isPlateauZone = sf < 0.45 && dMtn !== Infinity && dMtn > plateauStart;
 
@@ -651,7 +688,9 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const plateauSuppress = isPlateauZone
                 ? Math.max(0.30, 1 - tectonicActivity * 0.60)
                 : 1.0;
-            const noiseScale = (0.25 + 0.75 * noiseActivity) * plateauSuppress;
+            // Suppress general noise on tall orogenic terrain so fold ridges dominate
+            const foldSuppress = 1 - 0.6 * Math.min(1, Math.max(0, r_elevation[r]) * 3) * tectonicActivity;
+            const noiseScale = (0.30 + 0.70 * noiseActivity) * plateauSuppress * foldSuppress;
             // Fine detail layer: 8x frequency, quarter strength, half-dampened.
             // Uses sqrt of noiseScale so it retains texture in quiet interiors where other noise is suppressed.
             const fineNoise = noise.fbm(wx * 8 + 41.7, wy * 8 + 13.2, wz * 8 + 27.9, 3, 0.5) * noiseMag * 0.25;
@@ -659,6 +698,26 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const totalNoise = (noiseVal + detailNoise) * noiseScale + fineNoise * fineScale;
             r_elevation[r] += totalNoise;
             dl_noise[r] = totalNoise;
+
+            // Mountain dissection: high-frequency zero-mean noise on tall terrain.
+            // Carves valleys and sharpens ridges in large mountain masses.
+            // Activates based on accumulated elevation — only genuinely tall terrain.
+            {
+                const currentElev = r_elevation[r];
+                if (currentElev > 0.12) {
+                    const elevExcess = currentElev - 0.12;
+                    const dissectVal = noise.fbm(
+                        wx * 16 + 71.3, wy * 16 + 44.8, wz * 16 + 29.1, 3, 0.5
+                    );
+                    const dissectAmp = Math.sqrt(elevExcess) * stressNorm * noiseMag * 0.4;
+                    const dissectContrib = dissectVal * dissectAmp;
+                    r_elevation[r] += dissectContrib;
+                    dl_noise[r] += dissectContrib;
+                }
+            }
+
+            // Include fold ridge contribution in noise debug layer
+            dl_noise[r] += foldContrib;
 
             // Continental interior uplift: tectonic-aware.
             // Collision-backed interiors (plateaus) get higher uplift than quiet cratons.
@@ -1179,6 +1238,6 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
     _timing.push({ stage: 'Peak compression', ms: performance.now() - _t0 });
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing };
 }
