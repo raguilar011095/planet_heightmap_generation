@@ -4,8 +4,7 @@
 import { makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';
 import { setDelaunator, buildSphere, generateTriangleCenters, SphereMesh, computeNeighborDist } from './sphere-mesh.js';
-import { generatePlates } from './plates.js';
-import { assignOceanLand } from './ocean-land.js';
+import { generateCoarsePlates, projectCoarsePlates, smoothProjectedPlates } from './coarse-plates.js';
 import { assignElevation } from './elevation.js';
 import { warpTerrain, smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { computeWind } from './wind.js';
@@ -124,15 +123,25 @@ function handleGenerate(data) {
         const t_xyz = generateTriangleCenters(mesh, r_xyz);
         timing.push({ stage: 'Triangle centers', ms: performance.now() - t0 });
 
-        progress(15, 'Forming tectonic plates\u2026');
+        progress(10, 'Generating coarse plates\u2026');
         t0 = performance.now();
-        const { r_plate, plateSeeds, plateVec } = generatePlates(mesh, r_xyz, P, seed);
-        timing.push({ stage: `Plates (${P} plates)`, ms: performance.now() - t0 });
+        const { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds, coarsePlateVec, coarsePlateIsOcean } =
+            generateCoarsePlates(seed, P, numContinents);
+        timing.push({ stage: `Coarse plates (${P} plates, ${numContinents} continents)`, ms: performance.now() - t0 });
 
-        progress(25, 'Carving oceans\u2026');
+        progress(20, 'Projecting plates\u2026');
         t0 = performance.now();
-        const plateIsOcean = assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents);
-        timing.push({ stage: `Ocean/land (${numContinents} continents)`, ms: performance.now() - t0 });
+        const r_plate = projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_r_plate, seed);
+        timing.push({ stage: 'Project coarse → hi-res', ms: performance.now() - t0 });
+
+        progress(25, 'Smoothing boundaries\u2026');
+        t0 = performance.now();
+        smoothProjectedPlates(mesh, r_plate, coarsePlateSeeds);
+        timing.push({ stage: 'Smooth projected plates', ms: performance.now() - t0 });
+
+        const plateSeeds = coarsePlateSeeds;
+        const plateVec = coarsePlateVec;
+        const plateIsOcean = coarsePlateIsOcean;
 
         const originalPlateIsOcean = new Set(plateIsOcean);
 

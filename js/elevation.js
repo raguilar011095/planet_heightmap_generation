@@ -245,9 +245,23 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
     _timing.push({ stage: 'Stress propagation', ms: performance.now() - _t0 }); _t0 = performance.now();
 
-    // Plate centres are also seeds
-    for (const r of plateSeeds) {
-        (plateIsOcean.has(r) ? ocean_r : coastline_r).add(r);
+    // Plate interiors are also seeds — find a representative hi-res region
+    // per plate (plate seed IDs are coarse mesh indices that may not correspond
+    // to regions of that plate on the hi-res mesh).
+    {
+        const plateRep = {};
+        for (let r = 0; r < numRegions; r++) {
+            const pid = r_plate[r];
+            if (plateRep[pid] === undefined && !mountain_r.has(r) && !coastline_r.has(r) && !ocean_r.has(r)) {
+                plateRep[pid] = r;
+            }
+        }
+        for (const pid of plateSeeds) {
+            const rep = plateRep[pid];
+            if (rep !== undefined) {
+                (plateIsOcean.has(pid) ? ocean_r : coastline_r).add(rep);
+            }
+        }
     }
 
     const stress_mountain_r = new Set();

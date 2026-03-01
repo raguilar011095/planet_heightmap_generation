@@ -656,7 +656,7 @@ if (worker) {
 let _fallbackModules = null;
 async function loadFallback() {
     if (_fallbackModules) return _fallbackModules;
-    const [rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp] = await Promise.all([
+    const [rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp, coarsePlates] = await Promise.all([
         import('./rng.js'),
         import('./simplex-noise.js'),
         import('./sphere-mesh.js'),
@@ -667,9 +667,10 @@ async function loadFallback() {
         import('./wind.js'),
         import('./ocean.js'),
         import('./precipitation.js'),
-        import('./temperature.js')
+        import('./temperature.js'),
+        import('./coarse-plates.js')
     ]);
-    _fallbackModules = { rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp };
+    _fallbackModules = { rng, simplex, sphere, plates, ocean, elev, post, wind, oceanCurrents, precip, temp, coarsePlates };
     return _fallbackModules;
 }
 
@@ -699,12 +700,20 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
             ctx.mesh = mesh; ctx.r_xyz = r_xyz;
             ctx.t_xyz = m.sphere.generateTriangleCenters(mesh, r_xyz);
         }},
-        { pct: 15, label: 'Forming tectonic plates\u2026', work() {
-            const { r_plate, plateSeeds, plateVec } = m.plates.generatePlates(ctx.mesh, ctx.r_xyz, P, ctx.seed);
-            ctx.r_plate = r_plate; ctx.plateSeeds = plateSeeds; ctx.plateVec = plateVec;
+        { pct: 10, label: 'Generating coarse plates\u2026', work() {
+            const { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds, coarsePlateVec, coarsePlateIsOcean } =
+                m.coarsePlates.generateCoarsePlates(ctx.seed, P, numContinents);
+            ctx.coarseMesh = coarseMesh; ctx.coarse_xyz = coarse_xyz;
+            ctx.coarse_r_plate = coarse_r_plate;
+            ctx.plateSeeds = coarsePlateSeeds; ctx.plateVec = coarsePlateVec;
+            ctx.coarsePlateIsOcean = coarsePlateIsOcean;
+        }},
+        { pct: 18, label: 'Projecting plates\u2026', work() {
+            ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed);
+            m.coarsePlates.smoothProjectedPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds);
         }},
         { pct: 25, label: 'Carving oceans\u2026', work() {
-            const plateIsOcean = m.ocean.assignOceanLand(ctx.mesh, ctx.r_plate, ctx.plateSeeds, ctx.r_xyz, ctx.seed, numContinents);
+            const plateIsOcean = ctx.coarsePlateIsOcean;
             ctx.originalPlateIsOcean = new Set(plateIsOcean);
             if (toggledIndices.length > 0) {
                 const seedArr = Array.from(ctx.plateSeeds);

@@ -377,7 +377,11 @@ genBtn.addEventListener('click', () => {
     // Collapse bottom sheet on mobile so user can see the planet build
     const ui = document.getElementById('ui');
     if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
-    generate(undefined, [], onProgress, !chkAutoClimate.checked);
+    // Rebuild: reuse seed + plate edits so only resolution/params change
+    const isRebuild = genBtn.classList.contains('stale') && state.curData;
+    const seed = isRebuild ? state.curData.seed : undefined;
+    const toggles = isRebuild ? getToggledIndices() : [];
+    generate(seed, toggles, onProgress, !chkAutoClimate.checked);
 });
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);

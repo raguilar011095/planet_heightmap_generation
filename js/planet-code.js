@@ -3,7 +3,7 @@
 
 // Slider quantization tables
 const SLIDERS = [
-    { min: 2000,  step: 1000, count: 2559 }, // Detail (N)
+    { min: 5000,  step: 1000, count: 2556 }, // Detail (N)
     { min: 0,     step: 0.05, count: 21  }, // Irregularity (jitter)
     { min: 4,     step: 1,    count: 117 }, // Plates (P)
     { min: 1,     step: 1,    count: 10  }, // Continents
@@ -18,7 +18,7 @@ const SLIDERS = [
 ];
 
 // Mixed-radix bases (right-to-left): twIdx, scIdx, rsIdx, teIdx, heIdx, glIdx, smIdx, nsIdx, cnIdx, pIdx, jIdx, nIdx, seed
-const RADICES = [21, 21, 21, 21, 21, 21, 21, 51, 10, 117, 21, 2559];
+const RADICES = [21, 21, 21, 21, 21, 21, 21, 51, 10, 117, 21, 2556];
 const SEED_MAX = 16777216; // 2^24
 const BASE_LEN = 18; // base code length (no toggles)
 const PREV3_LEN = 17; // previous 17-char codes (before terrain warp)
@@ -62,7 +62,7 @@ function parseBase36(str) {
 /**
  * Encode planet parameters into a base36 planet code.
  * @param {number} seed - Integer seed 0–16777215
- * @param {number} N - Detail (2000–2560000, step 1000)
+ * @param {number} N - Detail (5000–2560000, step 1000)
  * @param {number} jitter - Irregularity (0–1, step 0.05)
  * @param {number} P - Plates (4–120, step 1)
  * @param {number} numContinents - Continents (1–10, step 1)

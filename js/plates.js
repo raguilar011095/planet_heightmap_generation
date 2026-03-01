@@ -204,9 +204,45 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
     }
 
+    smoothAndReconnectPlates(mesh, r_plate, plateSeeds, 3);
+
+    // Assign an Euler pole + angular velocity per plate
+    const plateVec = {};
+    for (const center of plateSeeds) {
+        // Random Euler pole uniformly distributed on the sphere
+        const theta = rng() * 2 * Math.PI;
+        const cosP = 2 * rng() - 1;
+        const sinP = Math.sqrt(1 - cosP * cosP);
+        const pole = [sinP * Math.cos(theta), sinP * Math.sin(theta), cosP];
+        // Angular velocity: magnitude 0.5–2.0, random sign
+        const omega = (0.5 + rng() * 1.5) * (rng() < 0.5 ? -1 : 1);
+        plateVec[center] = { pole, omega };
+    }
+
+    return { r_plate, plateSeeds, plateVec };
+}
+
+/**
+ * Smooth plate boundaries via majority-vote, then reconnect severed plates.
+ * @param {SphereMesh} mesh
+ * @param {Int32Array} r_plate — mutated in place
+ * @param {Set|Array} plateSeeds — seed region IDs (used for connectivity roots & protection)
+ * @param {number} numPasses — number of majority-vote smoothing passes
+ */
+export function smoothAndReconnectPlates(mesh, r_plate, plateSeeds, numPasses) {
+    const { numRegions, adjOffset, adjList } = mesh;
+    const plateIds = Array.from(plateSeeds);
+
+    // Build seed lookup for protection during smoothing.
+    // Only protect regions that actually belong to the plate they seed —
+    // when called after projection, coarse seed IDs may not map to regions
+    // of their plate on the high-res mesh.
+    const isSeed = new Uint8Array(numRegions);
+    for (const pid of plateIds) {
+        if (pid < numRegions && r_plate[pid] === pid) isSeed[pid] = 1;
+    }
+
     // Smooth boundaries: majority-vote removes thin tendrils
-    // Uses inline plate-count arrays instead of Map for performance.
-    const SMOOTH_PASSES = 3;
     let maxDeg = 0;
     for (let r = 0; r < numRegions; r++) {
         const deg = adjOffset[r + 1] - adjOffset[r];
@@ -214,7 +250,7 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
     }
     const cntPlates = new Int32Array(maxDeg);
     const cntValues = new Uint8Array(maxDeg);
-    for (let pass = 0; pass < SMOOTH_PASSES; pass++) {
+    for (let pass = 0; pass < numPasses; pass++) {
         const threshold = pass === 0 ? 0.4 : 0.5;
         for (let r = 0; r < numRegions; r++) {
             const rStart = adjOffset[r], rEnd = adjOffset[r + 1];
@@ -238,12 +274,19 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
     }
 
-    // Reconnect: smoothing may sever narrow isthmuses
+    // Reconnect: smoothing or projection may create disconnected plate fragments.
+    // For each plate, keep the LARGEST connected component and mark the rest
+    // for reassignment. This is stable across resolutions (unlike first-found).
     {
         const visited = new Uint8Array(numRegions);
-        for (const pid of plateIds) {
-            const bfs = [pid];
-            visited[pid] = 1;
+        // Per-plate: track the largest component's BFS list
+        const bestComponent = {}; // pid → [region indices]
+
+        for (let r = 0; r < numRegions; r++) {
+            if (visited[r]) continue;
+            const pid = r_plate[r];
+            const bfs = [r];
+            visited[r] = 1;
             for (let qi = 0; qi < bfs.length; qi++) {
                 for (let ni = adjOffset[bfs[qi]], niEnd = adjOffset[bfs[qi] + 1]; ni < niEnd; ni++) {
                     const nb = adjList[ni];
@@ -253,14 +296,26 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
                     }
                 }
             }
+            if (!bestComponent[pid] || bfs.length > bestComponent[pid].length) {
+                bestComponent[pid] = bfs;
+            }
         }
+
+        // Mark regions in the largest component per plate
+        const inMain = new Uint8Array(numRegions);
+        for (const pid of Object.keys(bestComponent)) {
+            for (const r of bestComponent[pid]) inMain[r] = 1;
+        }
+
+        // Reassign orphaned regions (not in their plate's largest component)
+        // via BFS from the main-component boundary
         const queue = [];
         for (let r = 0; r < numRegions; r++) {
-            if (!visited[r]) {
+            if (!inMain[r]) {
                 for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
-                    if (visited[adjList[ni]]) {
+                    if (inMain[adjList[ni]]) {
                         r_plate[r] = r_plate[adjList[ni]];
-                        visited[r] = 1;
+                        inMain[r] = 1;
                         queue.push(r);
                         break;
                     }
@@ -271,27 +326,12 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
             const r = queue[qi];
             for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
                 const nb = adjList[ni];
-                if (!visited[nb]) {
+                if (!inMain[nb]) {
                     r_plate[nb] = r_plate[r];
-                    visited[nb] = 1;
+                    inMain[nb] = 1;
                     queue.push(nb);
                 }
             }
         }
     }
-
-    // Assign an Euler pole + angular velocity per plate
-    const plateVec = {};
-    for (const center of plateSeeds) {
-        // Random Euler pole uniformly distributed on the sphere
-        const theta = rng() * 2 * Math.PI;
-        const cosP = 2 * rng() - 1;
-        const sinP = Math.sqrt(1 - cosP * cosP);
-        const pole = [sinP * Math.cos(theta), sinP * Math.sin(theta), cosP];
-        // Angular velocity: magnitude 0.5–2.0, random sign
-        const omega = (0.5 + rng() * 1.5) * (rng() < 0.5 ? -1 : 1);
-        plateVec[center] = { pole, omega };
-    }
-
-    return { r_plate, plateSeeds, plateVec };
 }
