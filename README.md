@@ -49,7 +49,10 @@ npx serve .
 
 Then open **http://localhost:8000** in your browser. No dependencies to install, no build step.
 
-Click **Build New World** to create a new random planet.
+Click **Build New World** to create a new random planet. The button changes color and label based on what you've adjusted:
+- **Build New World** (blue) — generates a fresh planet with a new random seed
+- **Rebuild** (amber) — re-renders the current planet at a new detail/roughness level without changing continent shapes
+- **Regenerate** (red) — creates new tectonic plates when the Plates or Continents slider has changed
 
 ### Sharing Planets
 
@@ -67,7 +70,7 @@ Core world parameters that control the planet's structure (changing these requir
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Detail | 2,000 – 2,560,000 | 200,000 | Number of Voronoi cells on the sphere |
+| Detail | 5,000 – 2,560,000 | 204,000 | Number of Voronoi cells on the sphere. Only affects rendering resolution — continent shapes are stable across detail levels (generated on a fixed ~20K reference grid) |
 | Irregularity | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
@@ -88,12 +91,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Auto Climate
 
-The **Auto Climate** checkbox (in the Terrain Sculpting section) controls whether climate simulation runs during generation:
-
-- **ON** (default for ≤ 300K regions) — wind, ocean currents, precipitation, temperature, and Köppen classification are computed as part of generation
-- **OFF** (default for > 300K regions) — climate is skipped during generation for faster terrain iteration. Climate is computed on demand when switching to a climate-dependent view.
-
-The default is set automatically when the Detail slider changes but can be manually overridden.
+Climate simulation (wind, ocean currents, precipitation, temperature, Köppen classification) runs automatically during generation when detail is ≤ 300K regions. Above 300K, climate is skipped for faster terrain iteration and computed on demand when switching to a climate-dependent view.
 
 ### Visual Options
 
@@ -103,10 +101,10 @@ The default is set automatically when the Detail slider changes but can be manua
   - **Climate** — Köppen-Geiger classification with color swatches for all 30 climate types
   - **Heightmap** — black-to-white gradient on a fixed absolute scale (-5 km ocean floor to 6 km peaks), so the same physical height always maps to the same shade
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
-- **Wireframe** — show Voronoi cell edges as a wireframe overlay
-- **Show Plates** — color regions by plate (green shades = land, blue shades = ocean)
-- **Auto-Rotate** — spin the globe continuously
-- **Grid Lines** — toggle latitude/longitude grid overlay on both globe and map views
+- **Wireframe** — toggle switch to show Voronoi cell edges as a wireframe overlay
+- **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean)
+- **Auto-Rotate** — toggle switch to spin the globe continuously
+- **Grid Lines** — toggle switch for latitude/longitude grid overlay on both globe and map views
 - **Grid Spacing** — choose the interval between grid lines: 30°, 15°, 10°, 5°, or 2.5°
 
 ### Inspect Dropdown
@@ -114,7 +112,7 @@ The default is set automatically when the Detail slider changes but can be manua
 The **Inspect** dropdown (in Visual Options, below the map tabs) selects a detailed visualization layer. Options are organized into groups:
 
 - **Main views** (ungrouped at top) — Terrain, Satellite, Köppen Climate, Land Heightmap
-- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited)
+- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Fold Ridge, Erosion Delta (blue = eroded, red = deposited)
 - **Atmosphere** — Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map)
 - **Ocean** — Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows)
 - **Climate** — Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Rain Shadow Summer/Winter (diverging blue = windward orographic boost, gray = neutral, red-brown = leeward rain shadow; leeward effects are seeded at downslope faces scaled by mountain height, then propagated ~1500 km downwind to show extended shadow zones like the foehn drying effect), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior)
@@ -169,17 +167,18 @@ World Orogen is fully usable on phones and tablets:
 2. **Stereographic projection** maps the sphere points to 2D
 3. **Delaunator** computes Delaunay triangulation in projected space
 4. **Pole closure** connects convex hull edges to a pole point, creating a watertight mesh
-5. **Plate generation** via farthest-point seed placement (with top-3 jitter for variety), round-robin flood fill with per-plate growth rates, directional bias coupled inversely to growth rate, growth-rate governor, and compactness penalty
-6. **Ocean/land assignment** using farthest-point continent seeding with area budgeting
-7. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
-8. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
-9. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
-10. **Terrain post-processing** applies domain warping (controlled by Terrain Warp slider) using FBM simplex noise to deform the elevation field for organic coastlines and mountain ridges via greedy mesh walk, then bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, glacial erosion (controlled by Glacial Erosion slider) carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes, priority-flood pit resolution carves canyons through mountain saddle points to ensure all land drains to the ocean, iterative implicit stream power hydraulic erosion with sediment deposition (controlled by Hydraulic Erosion slider) carves self-reinforcing river valleys, thermal erosion (controlled by Thermal Erosion slider) softens ridges via talus-angle material transport, ridge sharpening (controlled by Ridge Sharpening slider) accentuates mountain ridgelines, and always-on soil creep gently rounds off hillslopes
-11. **Wind simulation** computes a longitude-varying ITCZ by scanning for the thermal maximum at each longitude (accounting for land/sea heating differential and elevation lapse rate), builds pressure fields from Gaussian zonal bands centered on the ITCZ plus land/sea thermal modifiers and elevation barometric effects, then derives wind vectors from pressure gradients with latitude-dependent Coriolis deflection and surface friction. Computed for both NH summer and winter.
-12. **Ocean currents** uses a rule-based geographic approach: classifies ocean cells by wind belt (trades, westerlies, polar easterlies) to set base zonal flow, runs three BFS passes from coastal seeds to compute distance to western and eastern coastlines (classified by coast-normal direction), deflects currents poleward near western boundaries (warm, intensified ×2) and equatorward near eastern boundaries (cold, weaker ×0.8), detects circumpolar channels at ±60° latitude for unobstructed eastward flow, smooths with 5 Laplacian passes, and classifies heat transport by meridional flow direction. Computed for both seasons.
-13. **Precipitation** uses a blended dual-model approach. The complex model computes moisture advection from coasts using iterative upwind propagation driven by wind vectors, with depletion based on distance and elevation gain, plus six mechanisms: ITCZ convective uplift, frontal convergence at subpolar lows, orographic rain/rain shadow, lee cyclogenesis, polar front diffuse precipitation, and seasonal subtropical high suppression (shifts poleward in local summer to create Mediterranean dry-summer patterns). A heuristic zonal model computes smooth precipitation from ITCZ distance (with aggressive subtropical drying at 15–30°), seasonal hemisphere boost with Mediterranean subtropical suppression (up to 55% summer reduction at 25-42° latitude), continental dryness, and orographic rain shadow. The two models are blended 50-50 then normalized via 95th-percentile scaling. Computed for both seasons.
-14. **Temperature** computes per-cell surface temperature using the ITCZ as the thermal equator (28°C peak, warmest latitude band), with poleward cooling following a power-law curve (exponent 1.2, 13° tropical plateau, 52°C range). Modulated by seasonal hemisphere offset with latitude-dependent seasonal amplitude boost (up to ±12°C peaking at 55-75° latitude), continentality-scaled maritime factor (coast 0.50× to deep interior 1.20× seasonal swing), moisture-dependent elevation lapse rate (4.5 C/km in wet regions to 9.3 C/km in dry regions, interpolated by precipitation), ocean current warmth (16-pass diffusion onto coastal land, ±20°C effect with 0.95 continentality gate), and precipitation/cloud cover moderation. Normalized to a fixed -45 to +45 C range. Computed for both seasons.
-15. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
+5. **Coarse plate generation** on a fixed ~20,000-region reference mesh (resolution-independent), via farthest-point seed placement (with top-3 jitter for variety), round-robin flood fill with per-plate growth rates, directional bias coupled inversely to growth rate, growth-rate governor, and compactness penalty
+6. **Ocean/land assignment** on the coarse mesh using farthest-point continent seeding with area budgeting
+7. **Plate projection** maps coarse plate assignments onto the high-res mesh via nearest-neighbor adjacency walk, then smooths boundaries with resolution-scaled majority-vote passes
+8. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries
+9. **Stress propagation** diffuses collision stress inward through continental plates via frontier BFS
+10. **Elevation assignment** combines distance fields, stress-driven uplift, ocean floor profiles, rift valleys, back-arc basins, hotspot volcanism, island arcs, coastal roughening, and multi-layered noise
+11. **Terrain post-processing** applies domain warping (controlled by Terrain Warp slider) using FBM simplex noise to deform the elevation field for organic coastlines and mountain ridges via greedy mesh walk, then bilateral smoothing (controlled by Smoothing slider) to blend BFS banding artefacts, glacial erosion (controlled by Glacial Erosion slider) carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes, priority-flood pit resolution carves canyons through mountain saddle points to ensure all land drains to the ocean, iterative implicit stream power hydraulic erosion with sediment deposition (controlled by Hydraulic Erosion slider) carves self-reinforcing river valleys, thermal erosion (controlled by Thermal Erosion slider) softens ridges via talus-angle material transport, ridge sharpening (controlled by Ridge Sharpening slider) accentuates mountain ridgelines, and always-on soil creep gently rounds off hillslopes
+12. **Wind simulation** computes a longitude-varying ITCZ by scanning for the thermal maximum at each longitude (accounting for land/sea heating differential and elevation lapse rate), builds pressure fields from Gaussian zonal bands centered on the ITCZ plus land/sea thermal modifiers and elevation barometric effects, then derives wind vectors from pressure gradients with latitude-dependent Coriolis deflection and surface friction. Computed for both NH summer and winter.
+13. **Ocean currents** uses a rule-based geographic approach: classifies ocean cells by wind belt (trades, westerlies, polar easterlies) to set base zonal flow, runs three BFS passes from coastal seeds to compute distance to western and eastern coastlines (classified by coast-normal direction), deflects currents poleward near western boundaries (warm, intensified ×2) and equatorward near eastern boundaries (cold, weaker ×0.8), detects circumpolar channels at ±60° latitude for unobstructed eastward flow, smooths with 5 Laplacian passes, and classifies heat transport by meridional flow direction. Computed for both seasons.
+14. **Precipitation** uses a blended dual-model approach. The complex model computes moisture advection from coasts using iterative upwind propagation driven by wind vectors, with depletion based on distance and elevation gain, plus six mechanisms: ITCZ convective uplift, frontal convergence at subpolar lows, orographic rain/rain shadow, lee cyclogenesis, polar front diffuse precipitation, and seasonal subtropical high suppression (shifts poleward in local summer to create Mediterranean dry-summer patterns). A heuristic zonal model computes smooth precipitation from ITCZ distance (with aggressive subtropical drying at 15–30°), seasonal hemisphere boost with Mediterranean subtropical suppression (up to 55% summer reduction at 25-42° latitude), continental dryness, and orographic rain shadow. The two models are blended 50-50 then normalized via 95th-percentile scaling. Computed for both seasons.
+15. **Temperature** computes per-cell surface temperature using the ITCZ as the thermal equator (28°C peak, warmest latitude band), with poleward cooling following a power-law curve (exponent 1.2, 13° tropical plateau, 52°C range). Modulated by seasonal hemisphere offset with latitude-dependent seasonal amplitude boost (up to ±12°C peaking at 55-75° latitude), continentality-scaled maritime factor (coast 0.50× to deep interior 1.20× seasonal swing), moisture-dependent elevation lapse rate (4.5 C/km in wet regions to 9.3 C/km in dry regions, interpolated by precipitation), ocean current warmth (16-pass diffusion onto coastal land, ±20°C effect with 0.95 continentality gate), and precipitation/cloud cover moderation. Normalized to a fixed -45 to +45 C range. Computed for both seasons.
+16. **Rendering** builds a Voronoi cell mesh with per-vertex colors and terrain displacement
 
 ### Key Algorithms
 
@@ -207,6 +206,7 @@ js/
   color-map.js          Elevation → RGB colour mapping + satellite biome colors
   sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
   plates.js             Tectonic plate generation (farthest-point seeding, round-robin flood fill, compactness constraints)
+  coarse-plates.js      Resolution-independent plate pipeline — coarse reference grid, projection, boundary smoothing
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   terrain-post.js       Domain warping, bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
@@ -219,7 +219,7 @@ js/
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
   edit-mode.js          Ctrl-click plate toggle + hover info
-  detail-scale.js       Non-linear (quadratic) detail slider mapping
+  detail-scale.js       Non-linear (power-curve) detail slider mapping
 ```
 
 ## Dependencies

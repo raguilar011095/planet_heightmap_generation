@@ -40,7 +40,7 @@
             <summary>Shape Your World</summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">201,000</span></label>
+                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">204,000</span></label>
                     <input type="range" id="sN" min="0" max="1000" step="1" value="600">
                     <div class="slider-hint"><span>Coarse</span><span>Fine</span></div>
                     <div class="detail-warn" id="detailWarn"></div>
@@ -107,11 +107,6 @@
                     <input type="range" id="sRs" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Jagged</span></div>
                 </div>
-                <label class="auto-climate-label">
-                    <input type="checkbox" id="chkAutoClimate" checked>
-                    Auto Climate
-                    <span class="tip" data-tip="Automatically compute climate (wind, precipitation, temperature, K&ouml;ppen) during generation. Uncheck to skip climate and compute it on demand when switching to the Climate view. Defaults off above 300K regions.">?</span>
-                </label>
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
@@ -149,6 +144,7 @@
                             <option value="tecActivity">Tectonic Activity</option>
                             <option value="margins">Margins</option>
                             <option value="backArc">Back-Arc</option>
+                            <option value="foldRidge">Fold Ridge</option>
                             <option value="erosionDelta">Erosion Delta</option>
                         </optgroup>
                         <optgroup label="Atmosphere">
@@ -177,10 +173,10 @@
                 </div>
                 <div id="vizLegend" class="viz-legend"></div>
                 <div class="tg">
-                    <label><input type="checkbox" id="chkWire"> Wireframe</label>
-                    <label><input type="checkbox" id="chkPlates"> Show Plates</label>
-                    <label><input type="checkbox" id="chkRotate"> Auto-Rotate</label>
-                    <label><input type="checkbox" id="chkGrid" checked> Grid Lines</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkWire"><span class="toggle-track"><span class="toggle-thumb"></span></span>Wireframe</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkPlates"><span class="toggle-track"><span class="toggle-thumb"></span></span>Show Plates</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
                 </div>
                 <div class="cg" id="gridSpacingGroup">
                     <label>Grid Spacing</label>
@@ -192,7 +188,10 @@
                         <option value="2.5">2.5°</option>
                     </select>
                 </div>
-                <div id="stats"></div>
+                <details id="statsDetails" class="stats-toggle">
+                    <summary>Stats</summary>
+                    <div id="stats"></div>
+                </details>
             </div>
         </details>
         <button id="exportBtn" class="export-btn">Export Map</button>
@@ -214,7 +213,7 @@
             </div>
             <div class="tutorial-step" data-step="1">
                 <h3>Shape Your World</h3>
-                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
@@ -223,7 +222,7 @@
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>
                 <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, and <strong>Heightmap</strong> views using the tabs under Visual Options. Use the <strong>Inspect</strong> dropdown for detailed layers like pressure, wind, and precipitation.</p>
-                <p>At high detail, uncheck <strong>Auto Climate</strong> in Terrain Sculpting to speed up generation &mdash; climate will compute on demand when you switch to a climate-dependent view.</p>
+                <p>At high detail, climate is skipped automatically for faster generation &mdash; it computes on demand when you switch to a climate view.</p>
             </div>
             <div class="tutorial-step" data-step="4">
                 <h3>Save &amp; Share</h3>

@@ -13,7 +13,7 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     max-height: calc(100vh - 32px);
 }
 #sidebarContent {
-    overflow-y: auto; flex: 1; min-height: 0;
+    overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
 }
 #sidebarContent::-webkit-scrollbar { width: 10px; }
 #sidebarContent::-webkit-scrollbar-track { background: transparent; margin: 2px 0; }
@@ -80,6 +80,24 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     box-shadow: 0 4px 12px rgba(0,0,0,0.4);
 }
 input[type="range"] { width: 100%; accent-color: #48f; cursor: pointer; }
+
+/* Slider thumb tooltip */
+.slider-tooltip {
+    position: absolute; top: -30px;
+    background: rgba(8,8,28,0.94);
+    border: 1px solid rgba(255,255,255,0.15);
+    border-radius: 5px;
+    padding: 2px 7px;
+    font-size: 11px; color: #6af;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    pointer-events: none;
+    transform: translateX(-50%);
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+}
+.slider-tooltip.visible { opacity: 1; }
 select {
     width: 100%; padding: 7px 10px; font-size: 14px; font-family: inherit;
     background: rgba(255,255,255,0.06); color: #cde;
@@ -104,6 +122,10 @@ button#generate.stale {
     background: linear-gradient(135deg, #b87a1a, #d4922a);
 }
 button#generate.stale:hover { filter: brightness(1.15); }
+button#generate.regen {
+    background: linear-gradient(135deg, #993322, #bb4433);
+}
+button#generate.regen:hover { filter: brightness(1.15); }
 button#generate.generating {
     background: linear-gradient(135deg, #333, #444);
     cursor: wait; opacity: 0.8;
@@ -157,12 +179,6 @@ button#generate.generating {
     display: none;
 }
 #seedError.visible { display: block; }
-/* Auto Climate label */
-.auto-climate-label {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 13px; color: #99b; cursor: pointer;
-    margin-bottom: 4px; margin-top: 8px;
-}
 
 /* Map type tabs */
 .map-tabs {
@@ -235,13 +251,55 @@ button#generate.generating {
 
 .tg { margin-top: 14px; display: flex; gap: 10px; flex-wrap: wrap; }
 .tg label { font-size: 13px; color: #99b; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+
+/* Custom toggle switches */
+.toggle-label { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.toggle-label input[type="checkbox"] {
+    position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none;
+}
+.toggle-track {
+    position: relative; display: inline-block;
+    width: 32px; height: 18px; flex-shrink: 0;
+    background: rgba(255,255,255,0.1);
+    border-radius: 9px;
+    transition: background 0.2s ease;
+}
+.toggle-thumb {
+    position: absolute; top: 2px; left: 2px;
+    width: 14px; height: 14px;
+    background: #667; border-radius: 50%;
+    transition: transform 0.2s ease, background 0.2s ease;
+}
+.toggle-label input:checked + .toggle-track {
+    background: rgba(68,136,255,0.35);
+}
+.toggle-label input:checked + .toggle-track .toggle-thumb {
+    transform: translateX(14px);
+    background: #48f;
+}
+.toggle-label:hover .toggle-track { background: rgba(255,255,255,0.15); }
+.toggle-label input:checked:hover + .toggle-track { background: rgba(68,136,255,0.45); }
+.stats-toggle {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+}
+.stats-toggle summary {
+    font-size: 11px; color: #556; cursor: pointer;
+    list-style: none; display: flex; align-items: center; gap: 4px;
+}
+.stats-toggle summary::-webkit-details-marker { display: none; }
+.stats-toggle summary::before {
+    content: '\25B6'; font-size: 7px; color: #445;
+    transition: transform 0.2s ease; display: inline-block;
+}
+.stats-toggle[open] > summary::before { transform: rotate(90deg); }
+.stats-toggle summary:hover { color: #889; }
 #stats {
     font-size: 11px;
     color: #556;
     line-height: 1.6;
-    margin-top: 8px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(255,255,255,0.06);
+    margin-top: 4px;
 }
 #repoLink {
     display: flex; align-items: center; gap: 6px;
@@ -671,10 +729,10 @@ button#generate.generating {
 
     /* Touch targets */
     .map-tab { padding: 12px 0; font-size: 13px; min-height: 44px; }
-    .auto-climate-label { font-size: 14px; min-height: 44px; }
-    .auto-climate-label input[type="checkbox"] { width: 20px; height: 20px; }
     #helpBtn { width: 44px; height: 44px; font-size: 20px; }
-    .tg label input[type="checkbox"] { width: 20px; height: 20px; }
+    .toggle-track { width: 38px; height: 22px; border-radius: 11px; }
+    .toggle-thumb { width: 18px; height: 18px; }
+    .toggle-label input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
     button#generate { padding: 14px; font-size: 16px; }
     select { padding: 10px 12px; }
     #seedRow button { padding: 8px 12px; }
