@@ -299,7 +299,7 @@ if (worker) {
                 console.log(`%c[World Orogen] Generation complete`, 'color:#6cf;font-weight:bold');
                 if (msg._params) {
                     console.log(`  Params: N=${msg._params.N.toLocaleString()} P=${msg._params.P} jitter=${msg._params.jitter} noise=${msg._params.nMag} continents=${msg._params.numContinents} seed=${msg._params.seed}`);
-                    console.log(`  Sculpting: smooth=${msg._params.smoothing} glacial=${msg._params.glacialErosion} hydraulic=${msg._params.hydraulicErosion} thermal=${msg._params.thermalErosion} ridge=${msg._params.ridgeSharpening}`);
+                    console.log(`  Sculpting: warp=${msg._params.terrainWarp} smooth=${msg._params.smoothing} glacial=${msg._params.glacialErosion} hydraulic=${msg._params.hydraulicErosion} thermal=${msg._params.thermalErosion} ridge=${msg._params.ridgeSharpening}`);
                 }
                 console.log(`  Regions: ${mesh.numRegions.toLocaleString()}  Triangles: ${mesh.numTriangles.toLocaleString()}  Sides: ${mesh.numSides.toLocaleString()}`);
 
@@ -682,6 +682,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
     const jitter = +document.getElementById('sJ').value;
     const nMag = +document.getElementById('sNs').value;
     const numContinents = +document.getElementById('sCn').value;
+    const terrainWarp = +document.getElementById('sTw').value;
     const smoothing = +document.getElementById('sS').value;
     const hydraulicErosion = +document.getElementById('sHEr').value;
     const thermalErosion = +document.getElementById('sTEr').value;
@@ -733,6 +734,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
             ctx.r_elevation = r_elevation; ctx.mountain_r = mountain_r; ctx.coastline_r = coastline_r;
             ctx.ocean_r = ocean_r; ctx.r_stress = r_stress; ctx.debugLayers = debugLayers;
             ctx.prePostElev = new Float32Array(r_elevation);
+            if (terrainWarp > 0) m.post.warpTerrain(ctx.mesh, r_elevation, ctx.r_xyz, ctx.seed, terrainWarp);
             const r_isOcean = new Uint8Array(ctx.mesh.numRegions);
             for (let r = 0; r < ctx.mesh.numRegions; r++) { if (r_elevation[r] <= 0) r_isOcean[r] = 1; }
             const preErosion = new Float32Array(r_elevation);
@@ -844,6 +846,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress, skipClim
     const jitter = +document.getElementById('sJ').value;
     const nMag = +document.getElementById('sNs').value;
     const numContinents = +document.getElementById('sCn').value;
+    const terrainWarp = +document.getElementById('sTw').value;
     const smoothing = +document.getElementById('sS').value;
     const hydraulicErosion = +document.getElementById('sHEr').value;
     const thermalErosion = +document.getElementById('sTEr').value;
@@ -853,7 +856,7 @@ export function generate(overrideSeed, toggledIndices = [], onProgress, skipClim
     worker.postMessage({
         cmd: 'generate',
         N, P, jitter, nMag, numContinents,
-        smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion,
+        terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion,
         seed: overrideSeed,
         toggledIndices,
         skipClimate
@@ -871,6 +874,7 @@ export function reapplyViaWorker(onDone, skipClimate = false) {
 
     worker.postMessage({
         cmd: 'reapply',
+        terrainWarp: +document.getElementById('sTw').value,
         smoothing: +document.getElementById('sS').value,
         glacialErosion: +document.getElementById('sGl').value,
         hydraulicErosion: +document.getElementById('sHEr').value,
@@ -893,6 +897,7 @@ export function editRecomputeViaWorker(onDone, skipClimate = false) {
         plateIsOcean: Array.from(d.plateIsOcean),
         plateDensity: d.plateDensity,
         nMag: +document.getElementById('sNs').value,
+        terrainWarp: +document.getElementById('sTw').value,
         smoothing: +document.getElementById('sS').value,
         glacialErosion: +document.getElementById('sGl').value,
         hydraulicErosion: +document.getElementById('sHEr').value,

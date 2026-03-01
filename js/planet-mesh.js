@@ -52,18 +52,24 @@ function smoothBiomeColors(mesh, koppenArr, r_elevation) {
 }
 
 // Grayscale heightmap: black (lowest) → white (highest), in physical height space
-function heightmapColor(elevation, minH, maxH) {
+// Absolute-scale heightmap: fixed range -5 km (deep ocean) → 6 km (tallest peak)
+// so the same physical height always maps to the same shade regardless of planet.
+function heightmapColor(elevation) {
     const h = elevToHeightKm(elevation);
-    const range = maxH - minH || 1;
-    const t = Math.max(0, Math.min(1, (h - minH) / range));
+    const t = Math.max(0, Math.min(1, (h + 5) / 11)); // -5 → 0, 6 → 1
     return [t, t, t];
 }
 
-// Land heightmap: ocean = black, land = black (sea level) → white (highest peak), in physical height space
-function landHeightmapColor(elevation, maxH) {
+// Land heightmap: ocean = black, land = 0 → 6 km absolute scale
+function landHeightmapColor(elevation) {
     if (elevation <= 0) return [0, 0, 0];
-    const t = Math.max(0, Math.min(1, elevToHeightKm(elevation) / (maxH || 1)));
+    const t = Math.max(0, Math.min(1, elevToHeightKm(elevation) / 6));
     return [t, t, t];
+}
+
+// Land mask: white = land, black = ocean
+function landMaskColor(elevation) {
+    return elevation > 0 ? [1, 1, 1] : [0, 0, 0];
 }
 
 // Diverging color map: blue (negative) → white (zero) → red (positive)
@@ -223,15 +229,6 @@ export function buildMapMesh() {
         }
     }
 
-    let elevMin = Infinity, elevMax = -Infinity;
-    if (isHeightmap || isLandHeightmap) {
-        for (let r = 0; r < mesh.numRegions; r++) {
-            const h = elevToHeightKm(r_elevation[r]);
-            if (h < elevMin) elevMin = h;
-            if (h > elevMax) elevMax = h;
-        }
-    }
-
     const { numSides } = mesh;
     const PI = Math.PI;
 
@@ -269,9 +266,9 @@ export function buildMapMesh() {
             // Ocean layer selected but data missing — show magenta so it's obvious
             cr = 0.5; cg = 0; cb = 0.5;
         } else if (isLandHeightmap) {
-            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br]);
         } else if (isHeightmap) {
-            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+            [cr, cg, cb] = heightmapColor(r_elevation[br]);
         } else if (dbgArr) {
             [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         } else if (showPlates) {
@@ -353,7 +350,8 @@ export function buildMapMesh() {
     state.mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
     state.mapMesh.visible = state.mapMode;
     state.mapFaceToSide = faceToSide.subarray(0, triCount);
-    state.mapBaseColors = new Float32Array(finalCol);
+    state._mapHoverBackup = null;
+    state._mapKoppenHoverBackup = null;
     scene.add(state.mapMesh);
 
     buildMapGrid();
@@ -535,15 +533,6 @@ export function buildMesh() {
         }
     }
 
-    let elevMin = Infinity, elevMax = -Infinity;
-    if (isHeightmap || isLandHeightmap) {
-        for (let r = 0; r < mesh.numRegions; r++) {
-            const h = elevToHeightKm(r_elevation[r]);
-            if (h < elevMin) elevMin = h;
-            if (h > elevMax) elevMax = h;
-        }
-    }
-
     if (state.planetMesh) { scene.remove(state.planetMesh); state.planetMesh.geometry.dispose(); state.planetMesh.material.dispose(); }
     if (state.wireMesh)   { scene.remove(state.wireMesh);   state.wireMesh.geometry.dispose();   state.wireMesh.material.dispose(); }
 
@@ -551,7 +540,6 @@ export function buildMesh() {
     const V = 0.04;
     const pos = new Float32Array(numSides * 9);
     const col = new Float32Array(numSides * 9);
-    const nrm = new Float32Array(numSides * 9);
 
     const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
@@ -597,14 +585,6 @@ export function buildMesh() {
         pos[off+3] = v1x; pos[off+4] = v1y; pos[off+5] = v1z;
         pos[off+6] = v2x; pos[off+7] = v2y; pos[off+8] = v2z;
 
-        for (let j = 0; j < 3; j++) {
-            const px = pos[off+j*3], py = pos[off+j*3+1], pz = pos[off+j*3+2];
-            const len = Math.sqrt(px*px+py*py+pz*pz) || 1;
-            nrm[off+j*3]   = px/len;
-            nrm[off+j*3+1] = py/len;
-            nrm[off+j*3+2] = pz/len;
-        }
-
         let cr, cg, cb;
         if (isBiome && biomeSmoothed) {
             cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
@@ -624,9 +604,9 @@ export function buildMesh() {
             // Ocean layer selected but data missing — show magenta so it's obvious
             cr = 0.5; cg = 0; cb = 0.5;
         } else if (isLandHeightmap) {
-            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br]);
         } else if (isHeightmap) {
-            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+            [cr, cg, cb] = heightmapColor(r_elevation[br]);
         } else if (dbgArr) {
             [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         } else if (showPlates) {
@@ -653,11 +633,18 @@ export function buildMesh() {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color',    new THREE.BufferAttribute(col, 3));
-    geo.setAttribute('normal',   new THREE.BufferAttribute(nrm, 3));
 
-    state.baseColors = new Float32Array(col);
+    state._hoverBackup = null;
+    state._koppenHoverBackup = null;
 
-    state.planetMesh = new THREE.Mesh(geo, new THREE.MeshLambertMaterial({ vertexColors: true }));
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <beginnormal_vertex>',
+            'vec3 objectNormal = normalize(position);'
+        );
+    };
+    state.planetMesh = new THREE.Mesh(geo, mat);
     scene.add(state.planetMesh);
 
     waterMesh.visible = !state.mapMode && !showPlates && !showStress && !debugLayer;
@@ -760,15 +747,6 @@ export function updateMeshColors() {
         }
     }
 
-    let elevMin = Infinity, elevMax = -Infinity;
-    if (isHeightmap || isLandHeightmap) {
-        for (let r = 0; r < mesh.numRegions; r++) {
-            const h = elevToHeightKm(r_elevation[r]);
-            if (h < elevMin) elevMin = h;
-            if (h > elevMax) elevMax = h;
-        }
-    }
-
     // Precompute smoothed biome colors (one-pass neighbor blend)
     const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
@@ -782,8 +760,8 @@ export function updateMeshColors() {
         if (isRainShadow && rainShadowArr) return rainShadowColor(rainShadowArr[br]);
         if (isOceanCurrent && oceanWarmth && oceanSpeed) return oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);
         if (isOceanCurrent) return [0.5, 0, 0.5];
-        if (isLandHeightmap) return landHeightmapColor(r_elevation[br], elevMax);
-        if (isHeightmap) return heightmapColor(r_elevation[br], elevMin, elevMax);
+        if (isLandHeightmap) return landHeightmapColor(r_elevation[br]);
+        if (isHeightmap) return heightmapColor(r_elevation[br]);
         if (dbgArr) return debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
@@ -817,11 +795,8 @@ export function updateMeshColors() {
         }
     }
     colorAttr.needsUpdate = true;
-    // Reuse existing backup array if same size to avoid allocation spikes
-    if (!state.baseColors || state.baseColors.length !== colors.length) {
-        state.baseColors = new Float32Array(colors.length);
-    }
-    state.baseColors.set(colors);
+    state._hoverBackup = null;
+    state._koppenHoverBackup = null;
 
     // Update map mesh colors in-place (if map exists)
     if (state.mapMesh && state.mapFaceToSide) {
@@ -841,10 +816,8 @@ export function updateMeshColors() {
             }
         }
         mapColorAttr.needsUpdate = true;
-        if (!state.mapBaseColors || state.mapBaseColors.length !== mapColors.length) {
-            state.mapBaseColors = new Float32Array(mapColors.length);
-        }
-        state.mapBaseColors.set(mapColors);
+        state._mapHoverBackup = null;
+        state._mapKoppenHoverBackup = null;
     }
 
     // Update water visibility
@@ -854,52 +827,184 @@ export function updateMeshColors() {
     updateMapHoverHighlight();
 }
 
-// Hover highlight — brighten hovered plate's cells.
+// Hover highlight — brighten hovered plate's cells (surgical save/restore).
 export function updateHoverHighlight() {
-    if (!state.planetMesh || !state.curData || !state.baseColors) return;
+    if (!state.planetMesh || !state.curData) return;
     const colorAttr = state.planetMesh.geometry.getAttribute('color');
     const colors = colorAttr.array;
-    colors.set(state.baseColors);
 
+    // Restore previously highlighted cells
+    if (state._hoverBackup) {
+        const { offsets, saved } = state._hoverBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._hoverBackup = null;
+    }
+
+    // Apply new highlight
     if (state.hoveredPlate >= 0) {
         const { mesh, r_plate } = state.curData;
+        // Count cells for this plate
+        let count = 0;
         for (let s = 0; s < mesh.numSides; s++) {
-            const br = mesh.s_begin_r(s);
-            if (r_plate[br] === state.hoveredPlate) {
+            if (r_plate[mesh.s_begin_r(s)] === state.hoveredPlate) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let s = 0; s < mesh.numSides; s++) {
+            if (r_plate[mesh.s_begin_r(s)] === state.hoveredPlate) {
+                offsets[idx] = s;
                 const off = s * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
                 for (let j = 0; j < 3; j++) {
                     colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
                     colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
                     colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
                 }
+                idx++;
             }
         }
+        state._hoverBackup = { offsets, saved };
     }
     colorAttr.needsUpdate = true;
 }
 
-// Hover highlight for map mesh.
+// Hover highlight for map mesh (surgical save/restore).
 export function updateMapHoverHighlight() {
-    if (!state.mapMesh || !state.curData || !state.mapBaseColors || !state.mapFaceToSide) return;
+    if (!state.mapMesh || !state.curData || !state.mapFaceToSide) return;
     const colorAttr = state.mapMesh.geometry.getAttribute('color');
     const colors = colorAttr.array;
-    colors.set(state.mapBaseColors);
 
+    // Restore previously highlighted cells
+    if (state._mapHoverBackup) {
+        const { offsets, saved } = state._mapHoverBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._mapHoverBackup = null;
+    }
+
+    // Apply new highlight
     if (state.hoveredPlate >= 0) {
         const { mesh, r_plate } = state.curData;
         const fts = state.mapFaceToSide;
+        // Count faces for this plate
+        let count = 0;
         for (let f = 0; f < fts.length; f++) {
-            const s = fts[f];
-            const br = mesh.s_begin_r(s);
-            if (r_plate[br] === state.hoveredPlate) {
+            if (r_plate[mesh.s_begin_r(fts[f])] === state.hoveredPlate) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let f = 0; f < fts.length; f++) {
+            if (r_plate[mesh.s_begin_r(fts[f])] === state.hoveredPlate) {
+                offsets[idx] = f;
                 const off = f * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
                 for (let j = 0; j < 3; j++) {
                     colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
                     colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
                     colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
                 }
+                idx++;
             }
         }
+        state._mapHoverBackup = { offsets, saved };
+    }
+    colorAttr.needsUpdate = true;
+}
+
+// Köppen legend hover highlight — brighten cells matching hovered climate class (globe).
+export function updateKoppenHoverHighlight() {
+    if (!state.planetMesh || !state.curData) return;
+    const colorAttr = state.planetMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+
+    // Restore previously highlighted cells
+    if (state._koppenHoverBackup) {
+        const { offsets, saved } = state._koppenHoverBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._koppenHoverBackup = null;
+    }
+
+    if (state.hoveredKoppen >= 0) {
+        const { mesh, debugLayers } = state.curData;
+        const koppenArr = debugLayers && debugLayers.koppen;
+        if (!koppenArr) { colorAttr.needsUpdate = true; return; }
+        let count = 0;
+        for (let s = 0; s < mesh.numSides; s++) {
+            if (koppenArr[mesh.s_begin_r(s)] === state.hoveredKoppen) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let s = 0; s < mesh.numSides; s++) {
+            if (koppenArr[mesh.s_begin_r(s)] === state.hoveredKoppen) {
+                offsets[idx] = s;
+                const off = s * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
+                for (let j = 0; j < 3; j++) {
+                    colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
+                    colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
+                    colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
+                }
+                idx++;
+            }
+        }
+        state._koppenHoverBackup = { offsets, saved };
+    }
+    colorAttr.needsUpdate = true;
+}
+
+// Köppen legend hover highlight for map mesh (surgical save/restore).
+export function updateMapKoppenHoverHighlight() {
+    if (!state.mapMesh || !state.curData || !state.mapFaceToSide) return;
+    const colorAttr = state.mapMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+
+    // Restore previously highlighted cells
+    if (state._mapKoppenHoverBackup) {
+        const { offsets, saved } = state._mapKoppenHoverBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._mapKoppenHoverBackup = null;
+    }
+
+    if (state.hoveredKoppen >= 0) {
+        const { mesh, debugLayers } = state.curData;
+        const koppenArr = debugLayers && debugLayers.koppen;
+        if (!koppenArr) { colorAttr.needsUpdate = true; return; }
+        const fts = state.mapFaceToSide;
+        let count = 0;
+        for (let f = 0; f < fts.length; f++) {
+            if (koppenArr[mesh.s_begin_r(fts[f])] === state.hoveredKoppen) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let f = 0; f < fts.length; f++) {
+            if (koppenArr[mesh.s_begin_r(fts[f])] === state.hoveredKoppen) {
+                offsets[idx] = f;
+                const off = f * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
+                for (let j = 0; j < 3; j++) {
+                    colors[off + j*3]     = Math.min(1, colors[off + j*3]     + 0.22);
+                    colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.22);
+                    colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.22);
+                }
+                idx++;
+            }
+        }
+        state._mapKoppenHoverBackup = { offsets, saved };
     }
     colorAttr.needsUpdate = true;
 }
@@ -1416,16 +1521,7 @@ export async function exportMap(type, width, onProgress) {
 
     const height = width / 2;
     const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
-    const isBW = type === 'heightmap' || type === 'landheightmap';
-
-    // Compute elevation range
-    let elevMin = Infinity, elevMax = -Infinity;
-    if (isBW) {
-        for (let r = 0; r < mesh.numRegions; r++) {
-            if (r_elevation[r] < elevMin) elevMin = r_elevation[r];
-            if (r_elevation[r] > elevMax) elevMax = r_elevation[r];
-        }
-    }
+    const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask';
 
     // Climate-dependent export types (Satellite / Köppen)
     const debugLayers = state.curData.debugLayers;
@@ -1447,10 +1543,12 @@ export async function exportMap(type, width, onProgress) {
         const br = mesh.s_begin_r(s);
 
         let cr, cg, cb;
-        if (type === 'landheightmap') {
-            [cr, cg, cb] = landHeightmapColor(r_elevation[br], elevMax);
+        if (type === 'landmask') {
+            [cr, cg, cb] = landMaskColor(r_elevation[br]);
+        } else if (type === 'landheightmap') {
+            [cr, cg, cb] = landHeightmapColor(r_elevation[br]);
         } else if (type === 'heightmap') {
-            [cr, cg, cb] = heightmapColor(r_elevation[br], elevMin, elevMax);
+            [cr, cg, cb] = heightmapColor(r_elevation[br]);
         } else if (type === 'biome' && biomeSmoothed) {
             cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
         } else if (type === 'koppen' && koppenArr) {
@@ -1518,10 +1616,13 @@ export async function exportMap(type, width, onProgress) {
     offScene.background = isBW ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
     offScene.add(mapMesh);
 
-    // Tiled rendering — split into GPU-sized tiles if image exceeds max texture size
+    // Tiled rendering — split into small tiles to stay within GPU/CPU memory limits.
+    // Cap at 2048 regardless of GPU maxTextureSize to keep render-target + pixel-
+    // readback + ImageData under ~48 MB per tile (2048×2048×4 × 3 buffers).
     const maxTex = renderer.capabilities.maxTextureSize;
-    const tileW = Math.min(width, maxTex);
-    const tileH = Math.min(height, maxTex);
+    const MAX_TILE = 2048;
+    const tileW = Math.min(width, maxTex, MAX_TILE);
+    const tileH = Math.min(height, maxTex, MAX_TILE);
     const tilesX = Math.ceil(width / tileW);
     const tilesY = Math.ceil(height / tileH);
     const totalTiles = tilesX * tilesY;
@@ -1591,19 +1692,253 @@ export async function exportMap(type, width, onProgress) {
     if (onProgress) onProgress(85, 'Encoding PNG...');
     await new Promise(r => setTimeout(r, 0));
 
-    const seed = state.curData ? state.curData.seed : '';
-    const filename = type === 'landheightmap' ? `atlas-land-heightmap-${seed}.png`
-        : type === 'heightmap' ? `atlas-heightmap-${seed}.png` : `atlas-colormap-${seed}.png`;
+    const code = location.hash.replace(/^#/, '').trim() || (state.curData ? state.curData.seed : '');
+    const filename = exportFilename(type, code);
 
     await new Promise(resolve => {
         cvs.toBlob(blob => {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
+            if (blob) {
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = filename;
+                a.click();
+                setTimeout(() => URL.revokeObjectURL(url), 5000);
+            }
+            // Release canvas bitmap memory so sequential exports don't accumulate
+            cvs.width = 0;
+            cvs.height = 0;
             resolve();
         }, 'image/png');
     });
+}
+
+function exportFilename(type, seed) {
+    switch (type) {
+        case 'landmask':       return `orogen-landmask-${seed}.png`;
+        case 'landheightmap':  return `orogen-land-heightmap-${seed}.png`;
+        case 'heightmap':      return `orogen-heightmap-${seed}.png`;
+        case 'biome':          return `orogen-satellite-${seed}.png`;
+        case 'koppen':         return `orogen-climate-${seed}.png`;
+        default:               return `orogen-colormap-${seed}.png`;
+    }
+}
+
+// Batch export — builds geometry once, recolors per type. Avoids GPU memory
+// exhaustion that occurs when exportMap is called multiple times in sequence.
+export async function exportMapBatch(types, width, onProgress) {
+    if (!state.curData) return;
+
+    await new Promise(r => setTimeout(r, 50));
+
+    const height = width / 2;
+    const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
+    const debugLayers = state.curData.debugLayers;
+    const koppenArr = debugLayers && debugLayers.koppen;
+    const biomeSmoothed = koppenArr ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
+    const { numSides } = mesh;
+    const PI = Math.PI;
+    const sx = 2 / PI;
+
+    // Build positions once and record per-triangle region indices.
+    // Positions are reused across all export types — only colors change.
+    const posArr = new Float32Array(numSides * 18);
+    const triRegions = new Uint32Array(numSides * 2); // max 2 tris per side (wrapping)
+    let triCount = 0;
+
+    for (let s = 0; s < numSides; s++) {
+        const it = mesh.s_inner_t(s);
+        const ot = mesh.s_outer_t(s);
+        const br = mesh.s_begin_r(s);
+
+        const x0 = t_xyz[3*it], y0 = t_xyz[3*it+1], z0 = t_xyz[3*it+2];
+        const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
+        const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
+
+        let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
+        let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
+        let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
+
+        const clx = (v) => Math.max(-2, Math.min(2, v));
+        const cly = (v) => Math.max(-1, Math.min(1, v));
+
+        const maxLon = Math.max(lon0, lon1, lon2);
+        const minLon = Math.min(lon0, lon1, lon2);
+        const wraps = (maxLon - minLon) > PI;
+
+        if (wraps) {
+            if (lon0 < 0) lon0 += 2 * PI;
+            if (lon1 < 0) lon1 += 2 * PI;
+            if (lon2 < 0) lon2 += 2 * PI;
+
+            let off = triCount * 9;
+            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            triRegions[triCount] = br;
+            triCount++;
+
+            off = triCount * 9;
+            posArr[off]   = clx((lon0-2*PI)*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx((lon1-2*PI)*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx((lon2-2*PI)*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            triRegions[triCount] = br;
+            triCount++;
+        } else {
+            const off = triCount * 9;
+            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
+            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
+            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
+            triRegions[triCount] = br;
+            triCount++;
+        }
+    }
+
+    // Trim position array to actual triangle count
+    const posData = new Float32Array(posArr.buffer, 0, triCount * 9);
+
+    const offScene = new THREE.Scene();
+
+    // Tiled rendering setup (shared across all types).
+    // Cap at 2048 to keep render-target + readback + ImageData under ~48 MB per tile.
+    const maxTex = renderer.capabilities.maxTextureSize;
+    const MAX_TILE = 2048;
+    const tileW = Math.min(width, maxTex, MAX_TILE);
+    const tileH = Math.min(height, maxTex, MAX_TILE);
+    const tilesX = Math.ceil(width / tileW);
+    const tilesY = Math.ceil(height / tileH);
+    const totalTiles = tilesX * tilesY;
+
+    const code = location.hash.replace(/^#/, '').trim() || (state.curData ? state.curData.seed : '');
+    const total = types.length;
+
+    // Pre-allocate pixel readback buffer (reused across all tiles and types)
+    const pixelBuf = new Uint8Array(tileW * tileH * 4);
+
+    // Single canvas reused across all export types (avoids repeated bitmap allocation)
+    const cvs = document.createElement('canvas');
+    cvs.width = width;
+    cvs.height = height;
+    const ctx = cvs.getContext('2d');
+
+    for (let ti = 0; ti < total; ti++) {
+        const { type, label } = types[ti];
+        const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask';
+        offScene.background = isBW ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
+
+        // Build fresh color array for this type
+        const colData = new Float32Array(triCount * 9);
+        for (let i = 0; i < triCount; i++) {
+            const br = triRegions[i];
+            let cr, cg, cb;
+            if (type === 'landmask') {
+                [cr, cg, cb] = landMaskColor(r_elevation[br]);
+            } else if (type === 'landheightmap') {
+                [cr, cg, cb] = landHeightmapColor(r_elevation[br]);
+            } else if (type === 'heightmap') {
+                [cr, cg, cb] = heightmapColor(r_elevation[br]);
+            } else if (type === 'biome' && biomeSmoothed) {
+                cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
+            } else if (type === 'koppen' && koppenArr) {
+                [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else {
+                [cr, cg, cb] = elevationToColor(r_elevation[br]);
+            }
+            const off = i * 9;
+            colData[off] = colData[off+3] = colData[off+6] = cr;
+            colData[off+1] = colData[off+4] = colData[off+7] = cg;
+            colData[off+2] = colData[off+5] = colData[off+8] = cb;
+        }
+
+        // Fresh geometry + mesh per type — avoids stale GPU buffer issues
+        // when the same renderer interleaves with the main animation loop.
+        const geo = new THREE.BufferGeometry();
+        geo.setAttribute('position', new THREE.BufferAttribute(posData, 3));
+        geo.setAttribute('color', new THREE.BufferAttribute(colData, 3));
+        const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
+        const mapMesh = new THREE.Mesh(geo, mat);
+        offScene.add(mapMesh);
+
+        // Render tiles to canvas
+        let tilesDone = 0;
+        for (let ty = 0; ty < tilesY; ty++) {
+            for (let tx = 0; tx < tilesX; tx++) {
+                const px0 = tx * tileW;
+                const py0 = ty * tileH;
+                const pw = Math.min(tileW, width - px0);
+                const ph = Math.min(tileH, height - py0);
+
+                const left   = -2 + 4 * px0 / width;
+                const right  = -2 + 4 * (px0 + pw) / width;
+                const top    =  1 - 2 * py0 / height;
+                const bottom =  1 - 2 * (py0 + ph) / height;
+
+                const cam = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 10);
+                cam.position.set(0, 0, 5);
+                cam.lookAt(0, 0, 0);
+
+                const renderTarget = new THREE.WebGLRenderTarget(pw, ph);
+                renderer.setRenderTarget(renderTarget);
+                renderer.render(offScene, cam);
+
+                // Reuse pre-allocated buffer (always large enough for any tile)
+                renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, pixelBuf);
+                renderer.setRenderTarget(null);
+                renderTarget.dispose();
+
+                const imageData = ctx.createImageData(pw, ph);
+                const out = imageData.data;
+                for (let y = 0; y < ph; y++) {
+                    const src = (ph - 1 - y) * pw * 4;
+                    const dst = y * pw * 4;
+                    for (let x = 0; x < pw; x++) {
+                        const si = src + x * 4, di = dst + x * 4;
+                        for (let c = 0; c < 3; c++) {
+                            const v = pixelBuf[si + c] / 255;
+                            out[di + c] = (v <= 0.0031308
+                                ? v * 12.92
+                                : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255 + 0.5 | 0;
+                        }
+                        out[di + 3] = pixelBuf[si + 3];
+                    }
+                }
+                ctx.putImageData(imageData, px0, py0);
+
+                tilesDone++;
+                if (onProgress) onProgress(tilesDone / totalTiles * 80, `Exporting ${label} (${ti+1}/${total}): Rendering...`);
+                await new Promise(r => setTimeout(r, 0));
+            }
+        }
+
+        // Free GPU resources before PNG encode
+        offScene.remove(mapMesh);
+        geo.dispose();
+        mat.dispose();
+
+        // Encode & download
+        if (onProgress) onProgress(85, `Exporting ${label} (${ti+1}/${total}): Encoding PNG...`);
+        await new Promise(r => setTimeout(r, 0));
+
+        const filename = exportFilename(type, code);
+        await new Promise(resolve => {
+            cvs.toBlob(blob => {
+                if (blob) {
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = filename;
+                    a.click();
+                    setTimeout(() => URL.revokeObjectURL(url), 5000);
+                }
+                resolve();
+            }, 'image/png');
+        });
+
+        // Pause between exports to let the browser reclaim memory
+        await new Promise(r => setTimeout(r, 100));
+    }
+
+    // Release canvas bitmap after all exports
+    cvs.width = 0;
+    cvs.height = 0;
 }

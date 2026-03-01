@@ -5,20 +5,23 @@
 export function smoothField(mesh, field, passes) {
     const { adjOffset, adjList, numRegions } = mesh;
     const tmp = new Float32Array(numRegions);
+    let src = field, dst = tmp;
 
     for (let pass = 0; pass < passes; pass++) {
         for (let r = 0; r < numRegions; r++) {
-            let sum = field[r];
+            let sum = src[r];
             let count = 1;
             const end = adjOffset[r + 1];
             for (let ni = adjOffset[r]; ni < end; ni++) {
-                sum += field[adjList[ni]];
+                sum += src[adjList[ni]];
                 count++;
             }
-            tmp[r] = sum / count;
+            dst[r] = sum / count;
         }
-        field.set(tmp);
+        const swap = src; src = dst; dst = swap;
     }
+    // If result ended up in tmp, copy back to field
+    if (src !== field) field.set(src);
 }
 
 // ── ITCZ latitude lookup (linear interpolation with wrapping) ────────────────

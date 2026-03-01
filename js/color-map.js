@@ -1,20 +1,13 @@
 // Elevation → RGB colour mapping.
 
 // Convert raw mesh elevation (nonlinear, 0-~1 for land) to physical height
-// in kilometres.  The color ramp bands imply a nonlinear scale:
-//   0-0.03  beach/sand   →   0-50 m
-//   0.03-0.25  lowland   →  50-500 m
-//   0.25-0.50  mid       → 500-2000 m
-//   0.50-0.75  highland  → 2000-4500 m
-//   0.75+      peaks     → 4500-8500 m
-// Ocean (elev < 0) is mapped with a simpler linear scale (~5 km at -0.5).
+// in kilometres.  Smooth power curve: ramps slowly through lowlands,
+// accelerates into highlands, caps at 6 km.
+// Ocean (elev < 0) is mapped with a linear scale (~5 km at -0.5).
 export function elevToHeightKm(elev) {
     if (elev <= 0) return elev * 10;  // ocean: -0.5 → -5 km
-    if (elev < 0.03) return (elev / 0.03) * 0.05;
-    if (elev < 0.25) return 0.05 + ((elev - 0.03) / 0.22) * 0.45;
-    if (elev < 0.50) return 0.5 + ((elev - 0.25) / 0.25) * 1.5;
-    if (elev < 0.75) return 2.0 + ((elev - 0.50) / 0.25) * 2.5;
-    return 4.5 + ((elev - 0.75) / 0.25) * 4.0;
+    const t = Math.min(elev, 1);
+    return 6 * t * t;  // 0→0, 0.25→0.375, 0.5→1.5, 0.75→3.375, 1.0→6
 }
 
 // Biome base colors indexed by Köppen class ID (satellite-view palette).

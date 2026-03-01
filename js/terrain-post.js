@@ -1,6 +1,9 @@
-// Terrain post-processing: bilateral smoothing and flow-based erosion.
-// Runs after elevation assignment to soften harsh boundaries and carve
-// natural drainage patterns.
+// Terrain post-processing: domain warping, bilateral smoothing, and
+// flow-based erosion. Runs after elevation assignment to deform terrain
+// for organic shapes, soften harsh boundaries, and carve natural
+// drainage patterns.
+
+import { SimplexNoise } from './simplex-noise.js';
 
 /**
  * Inline binary min-heap keyed on an external Float32Array of priorities.
@@ -207,6 +210,94 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
         const targetElev = r_isOcean[target] ? 0 : r_elevation[target];
         if (r_elevation[r] <= targetElev) {
             r_elevation[r] = targetElev + EPS;
+        }
+    }
+}
+
+/**
+ * Domain warping — displaces each region's elevation lookup by FBM simplex
+ * noise in the tangent plane, producing organic, squiggly coastlines and
+ * mountain ridges. Scale-invariant: noise is evaluated in 3D coordinate
+ * space and amplitude is in radians (physical distance on the sphere).
+ *
+ * For each region:
+ *  1. Compute a tangent-plane frame (east/north) at its position on the unit sphere
+ *  2. Use FBM simplex noise (4 octaves, frequency 6) to generate two
+ *     displacement values in the tangent plane
+ *  3. Displace the region's 3D position along the tangent frame by the noise
+ *     offsets, then re-project onto the unit sphere
+ *  4. Walk the mesh graph (greedy nearest-neighbor) from the original region
+ *     toward the displaced point to find the closest region
+ *  5. Copy that source region's elevation to the output
+ */
+export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength) {
+    if (strength <= 0) return;
+
+    const N = mesh.numRegions;
+    const { adjOffset, adjList } = mesh;
+    const noise = new SimplexNoise(seed + 9999);
+    const freq = 4;
+    const octaves = 5;
+    const maxAmp = 0.12 * strength; // radians (~760 km at Earth scale when strength=1)
+
+    const out = new Float32Array(r_elevation);
+
+    for (let r = 0; r < N; r++) {
+        const px = r_xyz[3 * r], py = r_xyz[3 * r + 1], pz = r_xyz[3 * r + 2];
+
+        // Tangent frame: east = normalize(cross(up, pos)), north = cross(pos, east)
+        let ex = -pz, ey = 0, ez = px; // cross([0,1,0], pos) = [-pz, 0, px]
+        const elen = Math.sqrt(ex * ex + ez * ez);
+        if (elen > 1e-10) { ex /= elen; ez /= elen; }
+        else { ex = 1; ez = 0; } // poles
+
+        const nx = py * ez;
+        const ny = pz * ex - px * ez;
+        const nz = -py * ex;
+        const nlen = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+        const nnx = nx / nlen, nny = ny / nlen, nnz = nz / nlen;
+
+        // FBM noise → two displacement values
+        const d1 = noise.fbm(px * freq, py * freq, pz * freq, octaves) * maxAmp;
+        const d2 = noise.fbm(px * freq + 31.7, py * freq + 47.3, pz * freq + 19.1, octaves) * maxAmp;
+
+        // Displace position along tangent frame and re-project onto unit sphere
+        let wx = px + ex * d1 + nnx * d2;
+        let wy = py + ey * d1 + nny * d2;
+        let wz = pz + ez * d1 + nnz * d2;
+        const wlen = Math.sqrt(wx * wx + wy * wy + wz * wz) || 1;
+        wx /= wlen; wy /= wlen; wz /= wlen;
+
+        // Greedy mesh walk from r toward the displaced point
+        let cur = r;
+        let bestDot = wx * px + wy * py + wz * pz;
+        for (;;) {
+            let moved = false;
+            for (let i = adjOffset[cur], iEnd = adjOffset[cur + 1]; i < iEnd; i++) {
+                const nb = adjList[i];
+                const dot = wx * r_xyz[3 * nb] + wy * r_xyz[3 * nb + 1] + wz * r_xyz[3 * nb + 2];
+                if (dot > bestDot) {
+                    bestDot = dot;
+                    cur = nb;
+                    moved = true;
+                }
+            }
+            if (!moved) break;
+        }
+
+        out[r] = r_elevation[cur];
+    }
+
+    // Weighted max: pick whichever is larger, biased by strength
+    // At strength≈0 → 75% original, at strength=1 → 75% warped
+    const warpBias = 0.25 + 0.5 * strength;
+    for (let r = 0; r < N; r++) {
+        const orig = r_elevation[r];
+        const warped = out[r];
+        if (warped > orig) {
+            r_elevation[r] = orig + (warped - orig) * warpBias;
+        } else {
+            r_elevation[r] = warped + (orig - warped) * (1 - warpBias);
         }
     }
 }

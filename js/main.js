@@ -7,7 +7,7 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
 import { state } from './state.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, buildWindArrows, buildOceanCurrentArrows } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
@@ -90,7 +90,7 @@ function updateDetailWarning(detail) {
     }
 }
 
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs']]) {
     document.getElementById(s).addEventListener('input', e => {
         if (s === 'sN') {
             const detail = detailFromSlider(+e.target.value);
@@ -99,7 +99,7 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
         } else {
             document.getElementById(v).textContent = e.target.value;
         }
-        if (s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
+        if (s === 'sTw' || s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
             markReapplyPending();
         } else {
             checkStale();
@@ -154,6 +154,7 @@ function switchVisualization(layer) {
 
 function applyLayer(layer) {
     state.debugLayer = layer;
+    state.hoveredKoppen = -1;
     updateMeshColors();
     // Show/hide wind/ocean arrows
     const isWindLayer = layer === 'pressureSummer' || layer === 'pressureWinter' ||
@@ -283,9 +284,19 @@ function updateLegend(layer) {
                 left = Math.max(0, Math.min(left, containerRect.width - tipWidth));
                 tipEl.style.left = left + 'px';
                 tipEl.style.bottom = (containerRect.bottom - itemRect.top + 6) + 'px';
+                // Highlight matching cells on the mesh
+                const classId = KOPPEN_CLASSES.findIndex(c => c.code === code);
+                if (classId >= 0) {
+                    state.hoveredKoppen = classId;
+                    updateKoppenHoverHighlight();
+                    updateMapKoppenHoverHighlight();
+                }
             });
             item.addEventListener('mouseleave', () => {
                 tipEl.classList.remove('visible');
+                state.hoveredKoppen = -1;
+                updateKoppenHoverHighlight();
+                updateMapKoppenHoverHighlight();
             });
         });
     } else if (layer === 'biome') {
@@ -417,6 +428,7 @@ function updatePlanetCode(flash) {
         +document.getElementById('sP').value,
         +document.getElementById('sCn').value,
         +document.getElementById('sNs').value,
+        +document.getElementById('sTw').value,
         +document.getElementById('sS').value,
         +document.getElementById('sGl').value,
         +document.getElementById('sHEr').value,
@@ -498,7 +510,7 @@ function applyCode(code) {
     }
     seedError.classList.remove('visible');
     // Set slider values + fire input events to update displays
-    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sS: params.smoothing, sGl: params.glacialErosion, sHEr: params.hydraulicErosion, sTEr: params.thermalErosion, sRs: params.ridgeSharpening };
+    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sTw: params.terrainWarp, sS: params.smoothing, sGl: params.glacialErosion, sHEr: params.hydraulicErosion, sTEr: params.thermalErosion, sRs: params.ridgeSharpening };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;
@@ -663,6 +675,30 @@ if (debugLayerEl) {
         showBuildOverlay();
         onProgress(0, 'Preparing export...');
         await exportMap(type, w, onProgress);
+        hideBuildOverlay();
+    });
+
+    // Export All — downloads Satellite, Climate, Heightmap, and Land Mask
+    const exportAllBtn = document.getElementById('exportAllGo');
+    const EXPORT_ALL_TYPES = [
+        { type: 'biome',          label: 'Satellite' },
+        { type: 'koppen',         label: 'Climate' },
+        { type: 'landheightmap',  label: 'Heightmap' },
+        { type: 'landmask',       label: 'Land Mask' },
+    ];
+
+    exportAllBtn.addEventListener('click', async () => {
+        const w = +widthEl.value;
+        closeModal();
+        showBuildOverlay();
+
+        // Compute climate first if needed (Satellite & Climate require it)
+        if (!state.climateComputed) {
+            onProgress(0, 'Computing climate...');
+            await new Promise(resolve => computeClimateViaWorker(onProgress, resolve));
+        }
+
+        await exportMapBatch(EXPORT_ALL_TYPES, w, onProgress);
         hideBuildOverlay();
     });
 })();
@@ -1019,7 +1055,7 @@ window.addEventListener('resize', () => {
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
 if (hashParams) {
-    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sS: hashParams.smoothing, sGl: hashParams.glacialErosion, sHEr: hashParams.hydraulicErosion, sTEr: hashParams.thermalErosion, sRs: hashParams.ridgeSharpening };
+    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sTw: hashParams.terrainWarp, sS: hashParams.smoothing, sGl: hashParams.glacialErosion, sHEr: hashParams.hydraulicErosion, sTEr: hashParams.thermalErosion, sRs: hashParams.ridgeSharpening };
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;

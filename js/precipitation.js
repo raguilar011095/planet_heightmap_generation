@@ -37,18 +37,10 @@ function computeWindConvergence(mesh, r_xyz,
             const dy = r_xyz[3 * nb + 1] - r_xyz[3 * r + 1];
             const dz = r_xyz[3 * nb + 2] - r_xyz[3 * r + 2];
 
-            // Wind at nb in 3D (pre-computed)
-            const nwdx = r_wind3dX[nb];
-            const nwdy = r_wind3dY[nb];
-            const nwdz = r_wind3dZ[nb];
-
-            // Our wind points toward nb (outward flux)
-            const outFlux = wdx * dx + wdy * dy + wdz * dz;
-            // Neighbor wind points toward us (inward flux)
-            const inFlux = -(nwdx * dx + nwdy * dy + nwdz * dz);
-
-            // Net convergence contribution: inward minus outward
-            conv += (inFlux - outFlux);
+            // inFlux - outFlux = -(nw·d) - (w·d) = -((nw + w)·d)
+            conv -= (r_wind3dX[nb] + wdx) * dx
+                  + (r_wind3dY[nb] + wdy) * dy
+                  + (r_wind3dZ[nb] + wdz) * dz;
             count++;
         }
 
@@ -72,13 +64,18 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
 
     const moisture = new Float32Array(numRegions);
 
-    // Initialize coastal land cells with moisture from adjacent ocean warmth
+    // Initialize moisture: coastal land cells from adjacent ocean warmth,
+    // ocean cells from their own warmth
     for (let r = 0; r < numRegions; r++) {
-        if (!r_isLand[r]) continue;
+        if (!r_isLand[r]) {
+            // Ocean cells: base moisture proportional to warmth
+            const warmth = r_oceanWarmth ? r_oceanWarmth[r] : 0;
+            moisture[r] = 0.4 + 0.35 * Math.max(0, warmth);
+            continue;
+        }
         if (r_coastDistLand[r] !== 0) continue; // not a coast cell
 
-        // Check for onshore wind: wind points inland (away from ocean)
-        // Get average ocean warmth from ocean neighbors
+        // Coastal land cell — check for onshore wind
         let warmthSum = 0;
         let oceanCount = 0;
         let oceanDirX = 0, oceanDirY = 0, oceanDirZ = 0;
@@ -103,25 +100,12 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
         const wdz = r_wind3dZ[r];
 
         // Onshore = wind blows FROM ocean toward land = wind dot (ocean→region) < 0
-        // i.e. wind direction points away from ocean = wind dot oceanDir < 0
         const windDotOcean = wdx * oceanDirX + wdy * oceanDirY + wdz * oceanDirZ;
-
-        // Onshore wind: wind blows away from ocean direction (into land)
-        const onshore = windDotOcean < 0 ? 1.0 : 0.25; // baseline even for offshore (sea breeze/evaporation)
+        const onshore = windDotOcean < 0 ? 1.0 : 0.25;
 
         // Base moisture: warm currents provide more, cold currents less
-        // avgWarmth ranges ~ [-1, 1]; warm > 0 boosts, cold < 0 reduces
         const warmthFactor = 0.5 + 0.5 * Math.max(-0.8, Math.min(1, avgWarmth));
         moisture[r] = onshore * warmthFactor;
-    }
-
-    // Also seed ocean cells near coast with their warmth (for orographic effects
-    // where mountains are right at the coast)
-    for (let r = 0; r < numRegions; r++) {
-        if (r_isLand[r]) continue;
-        // Give ocean cells a base moisture proportional to warmth (for polar/ITCZ effects)
-        const warmth = r_oceanWarmth ? r_oceanWarmth[r] : 0;
-        moisture[r] = 0.4 + 0.35 * Math.max(0, warmth);
     }
 
     // Base friction: ~78% moisture survives the full maxHops
@@ -132,14 +116,11 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
     let src = moisture;
     let dst = new Float32Array(numRegions);
     for (let iter = 0; iter < maxHops; iter++) {
-        dst.set(src);
-
         for (let r = 0; r < numRegions; r++) {
-            if (!r_isLand[r]) continue;
+            if (!r_isLand[r]) { dst[r] = src[r]; continue; }
 
             const we = r_windE[r], wn = r_windN[r];
-            const speed = Math.sqrt(we * we + wn * wn);
-            if (speed < 0.001) continue;
+            if (we * we + wn * wn < 1e-6) { dst[r] = src[r]; continue; }
 
             // Wind direction in 3D (pre-computed)
             const wdx = r_wind3dX[r];
@@ -160,18 +141,12 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
                 const dy = r_xyz[3 * r + 1] - r_xyz[3 * nb + 1];
                 const dz = r_xyz[3 * r + 2] - r_xyz[3 * nb + 2];
 
-                // Wind at nb in 3D (pre-computed)
-                const nwdx = r_wind3dX[nb];
-                const nwdy = r_wind3dY[nb];
-                const nwdz = r_wind3dZ[nb];
-
                 // Alignment: how much does wind at nb point toward r?
-                const dot = nwdx * dx + nwdy * dy + nwdz * dz;
+                const dot = r_wind3dX[nb] * dx + r_wind3dY[nb] * dy + r_wind3dZ[nb] * dz;
                 if (dot > 0) {
-                    const w = dot; // weight by alignment
-                    upwindMoisture += src[nb] * w;
-                    upwindHeightSum += r_heightKm[nb] * w;
-                    upwindWeight += w;
+                    upwindMoisture += src[nb] * dot;
+                    upwindHeightSum += r_heightKm[nb] * dot;
+                    upwindWeight += dot;
                 }
             }
 
@@ -180,9 +155,6 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
                 const upwindHeight = upwindHeightSum / upwindWeight;
 
                 // Depletion depends on physical height GAIN (km) from upwind.
-                // All rates scale with maxHops so behavior is resolution-
-                // invariant: the same physical distance yields the same
-                // total depletion regardless of cell count.
                 const heightGain = Math.max(0, heightHere - upwindHeight);
 
                 // Height gain per hop (km) shrinks at higher resolution.
@@ -194,11 +166,13 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
                 const depletion = depletionBase + elevDepletion;
 
                 const carried = incoming * Math.max(0, 1 - depletion);
-                dst[r] = Math.max(dst[r], carried);
+                dst[r] = Math.max(src[r], carried);
+            } else {
+                dst[r] = src[r];
             }
         }
 
-        // Swap buffers (O(1) pointer swap instead of full array copy)
+        // Swap buffers
         const swap = src;
         src = dst;
         dst = swap;
@@ -562,7 +536,6 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             let src = new Float32Array(shadowField);
             let dst = new Float32Array(numRegions);
             for (let iter = 0; iter < shadowHops; iter++) {
-                dst.set(src);
                 for (let r = 0; r < numRegions; r++) {
                     let upVal = 0, upW = 0;
                     const uEnd = upOff[r + 1];
@@ -572,7 +545,9 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                     }
                     if (upW > 0) {
                         const carried = (upVal / upW) * (1 - shadowDecay);
-                        if (carried < dst[r]) dst[r] = carried;
+                        dst[r] = Math.min(src[r], carried);
+                    } else {
+                        dst[r] = src[r];
                     }
                 }
                 const swap = src; src = dst; dst = swap;
@@ -588,7 +563,6 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             src = new Float32Array(windwardField);
             dst = new Float32Array(numRegions);
             for (let iter = 0; iter < windwardHops; iter++) {
-                dst.set(src);
                 for (let r = 0; r < numRegions; r++) {
                     let dnVal = 0, dnW = 0;
                     const dEnd = dnOff[r + 1];
@@ -598,7 +572,9 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                     }
                     if (dnW > 0) {
                         const carried = (dnVal / dnW) * (1 - windwardDecay);
-                        if (carried > dst[r]) dst[r] = carried;
+                        dst[r] = Math.max(src[r], carried);
+                    } else {
+                        dst[r] = src[r];
                     }
                 }
                 const swap = src; src = dst; dst = swap;

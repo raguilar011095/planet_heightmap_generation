@@ -78,18 +78,23 @@
             <summary>Terrain Sculpting <span class="tip" data-tip="Erosion and smoothing passes that refine the raw terrain. Adjust sliders and click Reapply — no full rebuild needed.">?</span></summary>
             <div class="section-body">
                 <div class="cg">
+                    <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field on the sphere using noise, producing more organic, squiggly coastlines and mountain ridges">?</span> <span class="v" id="vTw">1.00</span></label>
+                    <input type="range" id="sTw" min="0" max="1" value="1" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
                     <label>Smoothing <span class="tip" data-tip="Blends harsh terrain boundaries from tectonic generation — smooths banded ridges and abrupt transitions">?</span> <span class="v" id="vS">0.10</span></label>
                     <input type="range" id="sS" min="0" max="1" value="0.10" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Heavy</span></div>
                 </div>
                 <div class="cg">
-                    <label>Glacial Erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.35</span></label>
-                    <input type="range" id="sGl" min="0" max="1" value="0.35" step="0.05">
+                    <label>Glacial Erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.50</span></label>
+                    <input type="range" id="sGl" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Ice Age</span></div>
                 </div>
                 <div class="cg">
-                    <label>Hydraulic Erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.35</span></label>
-                    <input type="range" id="sHEr" min="0" max="1" value="0.35" step="0.05">
+                    <label>Hydraulic Erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.50</span></label>
+                    <input type="range" id="sHEr" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Deep</span></div>
                 </div>
                 <div class="cg">
@@ -98,8 +103,8 @@
                     <div class="slider-hint"><span>None</span><span>Heavy</span></div>
                 </div>
                 <div class="cg">
-                    <label>Ridge Sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain">?</span> <span class="v" id="vRs">0.35</span></label>
-                    <input type="range" id="sRs" min="0" max="1" value="0.35" step="0.05">
+                    <label>Ridge Sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain">?</span> <span class="v" id="vRs">0.50</span></label>
+                    <input type="range" id="sRs" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Jagged</span></div>
                 </div>
                 <label class="auto-climate-label">
@@ -223,7 +228,7 @@
             <div class="tutorial-step" data-step="4">
                 <h3>Save &amp; Share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
-                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; terrain, satellite, climate, or black-and-white heightmaps.</p>
+                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; terrain, satellite, climate, heightmaps, or land masks. <strong>Export All</strong> downloads satellite, climate, heightmap, and land mask in one click.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
@@ -251,6 +256,7 @@
                     <option value="koppen">Climate (K&ouml;ppen)</option>
                     <option value="heightmap">Heightmap (B&amp;W)</option>
                     <option value="landheightmap">Land Heightmap (B&amp;W)</option>
+                    <option value="landmask">Land Mask (B&amp;W)</option>
                 </select>
             </div>
             <div class="cg">
@@ -268,6 +274,7 @@
             <div class="export-actions">
                 <button id="exportCancel" class="btn-ghost">Cancel</button>
                 <button id="exportGo" class="btn-primary">Export</button>
+                <button id="exportAllGo" class="btn-primary">Export All</button>
             </div>
         </div>
     </div>
