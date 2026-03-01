@@ -212,14 +212,25 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     // Coast distance through land — reuse BFS already computed by wind.js
     const r_coastDistLand = windResult.r_coastDistLand;
 
-    // Elevation gradient for orographic detection (shared)
+    // Elevation gradient for orographic detection (shared).
+    // Use a smoothed copy of elevation so local noise/crags don't fragment
+    // the large-scale windward/leeward signal at high resolutions.
+    // Target ~200 km smoothing radius — enough to average out terrain noise
+    // while preserving the broad mountain-range slope.
     let t0 = performance.now();
+    const elevSmoothPasses = Math.max(2, Math.round(200 / avgEdgeKm));
+    const r_elevSmoothed = new Float32Array(r_elevation);
+    smoothField(mesh, r_elevSmoothed, elevSmoothPasses);
+    // Blend smoothed with actual: keeps broad slope signal but retains some local detail
+    for (let r = 0; r < numRegions; r++) {
+        r_elevSmoothed[r] = r_elevSmoothed[r] * 0.6 + r_elevation[r] * 0.4;
+    }
     const r_elevGradE = new Float32Array(numRegions);
     const r_elevGradN = new Float32Array(numRegions);
-    computeGradients(mesh, r_xyz, r_elevation,
+    computeGradients(mesh, r_xyz, r_elevSmoothed,
         r_eastX, r_eastY, r_eastZ, r_northX, r_northY, r_northZ,
         r_elevGradE, r_elevGradN);
-    timing.push({ stage: 'Precip: elevation gradients', ms: performance.now() - t0 });
+    timing.push({ stage: 'Precip: elevation gradients (smoothed)', ms: performance.now() - t0 });
 
     // Pre-compute height in km for advection and mechanisms (elevation is constant across seasons)
     const r_heightKm = new Float32Array(numRegions);

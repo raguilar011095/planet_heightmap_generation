@@ -688,9 +688,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             const plateauSuppress = isPlateauZone
                 ? Math.max(0.30, 1 - tectonicActivity * 0.60)
                 : 1.0;
-            // Suppress general noise on tall orogenic terrain so fold ridges dominate
-            const foldSuppress = 1 - 0.6 * Math.min(1, Math.max(0, r_elevation[r]) * 3) * tectonicActivity;
-            const noiseScale = (0.30 + 0.70 * noiseActivity) * plateauSuppress * foldSuppress;
+            const noiseScale = (0.25 + 0.75 * noiseActivity) * plateauSuppress;
             // Fine detail layer: 8x frequency, quarter strength, half-dampened.
             // Uses sqrt of noiseScale so it retains texture in quiet interiors where other noise is suppressed.
             const fineNoise = noise.fbm(wx * 8 + 41.7, wy * 8 + 13.2, wz * 8 + 27.9, 3, 0.5) * noiseMag * 0.25;
