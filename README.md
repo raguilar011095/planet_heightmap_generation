@@ -101,6 +101,7 @@ Climate simulation (wind, ocean currents, precipitation, temperature, Köppen cl
   - **Climate** — Köppen-Geiger classification with color swatches for all 30 climate types
   - **Heightmap** — black-to-white gradient on a fixed absolute scale (-5 km ocean floor to 6 km peaks), so the same physical height always maps to the same shade
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
+- **Center Longitude** slider (map mode only) — shifts the map projection's central meridian to any longitude from 180°W to 180°E, scrolling the equirectangular projection so the chosen longitude is centered. Exports are unaffected (always centered on 0°).
 - **Wireframe** — toggle switch to show Voronoi cell edges as a wireframe overlay
 - **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean)
 - **Auto-Rotate** — toggle switch to spin the globe continuously
@@ -144,8 +145,10 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 |--------|---------|--------|
 | Rotate globe / pan map | Drag | Drag (one finger) |
 | Zoom | Scroll wheel | Pinch with two fingers |
-| Highlight plate | Hover | — |
+| Highlight plate + info card | Hover | — |
 | Reshape continents | Ctrl-click a plate | Tap the edit button (pencil), then tap a plate |
+
+Hovering over a region shows an info card with plate type, elevation, coordinates, and (when climate has been computed) temperature, precipitation, and K&ouml;ppen classification.
 
 ### Mobile Support
 
@@ -153,6 +156,7 @@ World Orogen is fully usable on phones and tablets:
 
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map, using the same smooth lerp as desktop scroll-zoom.
+- **View switcher** — a dropdown in the top-right lets you switch between Terrain, Satellite, Climate, and Heightmap views without opening the bottom sheet.
 - **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap any plate to reshape.
 - **Touch-friendly targets** — buttons, checkboxes, and sliders are enlarged for comfortable finger input.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K). Export widths above 8192px are disabled on mobile.

@@ -8,6 +8,8 @@ import { state } from './state.js';
 import { editRecomputeViaWorker } from './generate.js';
 import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
 import { detailFromSlider } from './detail-scale.js';
+import { KOPPEN_CLASSES } from './koppen.js';
+import { elevToHeightKm } from './color-map.js';
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -84,9 +86,12 @@ function getHitInfoMap(event) {
     // Inverse equirectangular: map coords → lon/lat → unit sphere xyz
     const PI = Math.PI;
     const sx = 2 / PI;
-    const lon = wx / sx;
+    let lon = wx / sx + (state.mapCenterLon || 0);
     const lat = wy / sx;
-    if (lat < -PI / 2 || lat > PI / 2 || lon < -PI || lon > PI) return null;
+    if (lat < -PI / 2 || lat > PI / 2) return null;
+    // Wrap lon back to [-PI, PI]
+    if (lon > PI) lon -= 2 * PI;
+    else if (lon < -PI) lon += 2 * PI;
 
     const cosLat = Math.cos(lat);
     return findNearestRegion(
@@ -99,6 +104,65 @@ function getHitInfoMap(event) {
 function getHitInfo(event) {
     if (!state.curData) return null;
     return state.mapMode ? getHitInfoMap(event) : getHitInfoGlobe(event);
+}
+
+/** Build multi-line hover HTML for a region. */
+function buildHoverHTML(region, plate) {
+    const d = state.curData;
+    const isOcean = d.plateIsOcean.has(plate);
+    const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">●</span>`;
+    const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
+    const lines = [];
+
+    // Line 1: plate type + edit hint
+    lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
+
+    // Elevation
+    const elev = d.r_elevation[region];
+    const elevKm = elevToHeightKm(elev).toFixed(1);
+    lines.push(`<span class="hi-label">Elev</span> ${elevKm} km`);
+
+    // Lat/Lon from r_xyz
+    const x = d.r_xyz[3 * region];
+    const y = d.r_xyz[3 * region + 1];
+    const z = d.r_xyz[3 * region + 2];
+    const lat = Math.asin(Math.max(-1, Math.min(1, y))) * (180 / Math.PI);
+    const lon = Math.atan2(x, z) * (180 / Math.PI);
+    const latStr = Math.abs(lat).toFixed(1) + '°' + (lat >= 0 ? 'N' : 'S');
+    const lonStr = Math.abs(lon).toFixed(1) + '°' + (lon >= 0 ? 'E' : 'W');
+    lines.push(`<span class="hi-label">Coord</span> ${latStr}, ${lonStr}`);
+
+    // Climate data (only if computed)
+    if (state.climateComputed && d.r_temperature_summer) {
+        const tS = -45 + Math.max(0, Math.min(1, d.r_temperature_summer[region])) * 90;
+        const tW = -45 + Math.max(0, Math.min(1, d.r_temperature_winter[region])) * 90;
+        if (elev <= 0) {
+            // Ocean: show as SST
+            lines.push(`<span class="hi-label">SST</span> ${tS.toFixed(0)}°C / ${tW.toFixed(0)}°C`);
+        } else {
+            lines.push(`<span class="hi-label">Temp</span> ${tS.toFixed(0)}°C / ${tW.toFixed(0)}°C`);
+
+            // Precipitation (land only)
+            if (d.r_precip_summer) {
+                const pS = (Math.max(0, Math.min(1, d.r_precip_summer[region])) * 1000).toFixed(0);
+                const pW = (Math.max(0, Math.min(1, d.r_precip_winter[region])) * 1000).toFixed(0);
+                lines.push(`<span class="hi-label">Precip</span> ${pS} / ${pW} mm`);
+            }
+
+            // Köppen (land only)
+            if (d.debugLayers && d.debugLayers.koppen) {
+                const kIdx = d.debugLayers.koppen[region];
+                const kc = KOPPEN_CLASSES[kIdx];
+                if (kc && kc.code !== 'Ocean') {
+                    const [r, g, b] = kc.color;
+                    const hex = '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+                    lines.push(`<span class="hi-label">Clima</span> <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${hex};vertical-align:middle;margin-right:4px"></span>${kc.code} — ${kc.name}`);
+                }
+            }
+        }
+    }
+
+    return lines.join('<br>');
 }
 
 /** Set up hover and ctrl-click event listeners. */
@@ -155,11 +219,8 @@ export function setupEditMode() {
                 btn.textContent = 'Build New World';
                 btn.classList.remove('generating');
                 // Update hover info to reflect the new state
-                if (state.hoveredPlate >= 0 && state.curData) {
-                    const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
-                    const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
-                    const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
-                    hoverEl.innerHTML = `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate &middot; ${action} to ${isOcean ? 'raise land' : 'flood'}`;
+                if (state.hoveredRegion >= 0 && state.curData) {
+                    hoverEl.innerHTML = buildHoverHTML(state.hoveredRegion, state.hoveredPlate);
                 }
                 // Notify main.js to update the planet code
                 document.dispatchEvent(new CustomEvent('plates-edited'));
@@ -170,8 +231,9 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointermove', (e) => {
         if (!state.curData) {
-            if (state.hoveredPlate >= 0) {
+            if (state.hoveredPlate >= 0 || state.hoveredRegion >= 0) {
                 state.hoveredPlate = -1;
+                state.hoveredRegion = -1;
                 document.getElementById('hoverInfo').style.display = 'none';
             }
             return;
@@ -187,17 +249,21 @@ export function setupEditMode() {
 
         const hit = getHitInfo(e);
         const newPlate = hit ? hit.plate : -1;
+        const newRegion = hit ? hit.region : -1;
+
+        // Update plate highlight only when plate changes
         if (newPlate !== state.hoveredPlate) {
             state.hoveredPlate = newPlate;
             if (state.mapMode) updateMapHoverHighlight();
             else updateHoverHighlight();
+        }
+
+        // Update info text when region changes
+        if (newRegion !== state.hoveredRegion) {
+            state.hoveredRegion = newRegion;
             const hoverEl = document.getElementById('hoverInfo');
-            if (state.hoveredPlate >= 0) {
-                const isOcean = state.curData.plateIsOcean.has(state.hoveredPlate);
-                const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">\u25CF</span>`;
-                const typeStr = isOcean ? 'Ocean' : 'Land';
-                const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
-                hoverEl.innerHTML = `${dot} <b>${typeStr}</b> plate &middot; ${action} to ${isOcean ? 'raise land' : 'flood'}`;
+            if (newRegion >= 0) {
+                hoverEl.innerHTML = buildHoverHTML(newRegion, newPlate);
                 hoverEl.style.display = 'block';
             } else {
                 hoverEl.style.display = 'none';
