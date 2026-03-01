@@ -2,7 +2,7 @@
 
 A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, elevation modeling, and interactive editing. Uses native ES modules with no build step required.
 
-![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
+[![Live Site](https://img.shields.io/badge/Try_it-orogen.studio-brightgreen)](https://orogen.studio/) ![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
 
 ## Guiding Principles
 
@@ -197,8 +197,16 @@ World Orogen is fully usable on phones and tablets:
 ## Project Structure
 
 ```
-index.html              HTML markup + import map
+index.html              HTML markup + import map + structured data (JSON-LD)
 styles.css              All CSS
+robots.txt              Search engine crawler directives
+sitemap.xml             Sitemap for search engine indexing
+site.webmanifest        Web app manifest (metadata + theming)
+llms.txt                AI/LLM-readable site description (AISEO)
+humans.txt              Project credits
+CNAME                   Custom domain config (orogen.studio)
+404.html                Custom 404 page
+preview.png             Social preview image (og:image / Twitter card)
 js/
   main.js               Entry point — UI wiring, animation loop
   state.js              Shared mutable application state

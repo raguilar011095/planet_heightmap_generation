@@ -1,0 +1,13 @@
+/* TEAM */
+Project: World Orogen
+Site: https://orogen.studio
+Contact: https://github.com/raguilar011095/planet_heightmap_generation
+
+/* THANKS */
+Red Blob Games — Fibonacci sphere meshing and planet generation inspiration
+Three.js — 3D rendering
+Delaunator — Delaunay triangulation
+
+/* SITE */
+Standards: HTML5, ES Modules, WebGL
+Software: Three.js 0.160.0, Delaunator 5.0.1

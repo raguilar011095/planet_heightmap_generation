@@ -1142,6 +1142,60 @@ window.addEventListener('resize', () => {
     }
 })();
 
+// Screenshot helper — call window.takePreview() from the browser console
+// Hides UI, centers camera, renders at 1200×630, downloads preview.png
+window.takePreview = function(width = 1200, height = 630) {
+    // Save current state
+    const savedW = renderer.domElement.width;
+    const savedH = renderer.domElement.height;
+    const savedAspect = camera.aspect;
+    const savedPos = camera.position.clone();
+    const savedTarget = ctrl.target.clone();
+    const savedPixelRatio = renderer.getPixelRatio();
+
+    // Hide all UI elements
+    const hiddenEls = [];
+    for (const sel of ['#ui', '#topInfo', '#info', '#hoverInfo', '#helpBtn',
+                        '#editToggle', '#refreshFab', '#mobileViewSwitch',
+                        '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay']) {
+        const el = document.querySelector(sel);
+        if (el && el.style.display !== 'none') {
+            hiddenEls.push({ el, prev: el.style.display });
+            el.style.display = 'none';
+        }
+    }
+
+    // Center camera perfectly on the globe
+    camera.position.set(0, 0, 2.8);
+    ctrl.target.set(0, 0, 0);
+    camera.aspect = width / height;
+    camera.updateProjectionMatrix();
+    ctrl.update();
+
+    // Render at exact target size
+    renderer.setPixelRatio(1);
+    renderer.setSize(width, height);
+    renderer.render(scene, camera);
+
+    // Download
+    const link = document.createElement('a');
+    link.download = 'preview.png';
+    link.href = renderer.domElement.toDataURL('image/png');
+    link.click();
+
+    // Restore everything
+    renderer.setPixelRatio(savedPixelRatio);
+    renderer.setSize(savedW / savedPixelRatio, savedH / savedPixelRatio);
+    camera.position.copy(savedPos);
+    ctrl.target.copy(savedTarget);
+    camera.aspect = savedAspect;
+    camera.updateProjectionMatrix();
+    ctrl.update();
+    for (const { el, prev } of hiddenEls) el.style.display = prev;
+    renderer.render(scene, state.mapMode ? mapCamera : camera);
+    console.log('preview.png downloaded!');
+};
+
 // Go! Check URL hash for a planet code, otherwise random generation.
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
