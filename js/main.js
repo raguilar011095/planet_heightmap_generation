@@ -213,6 +213,11 @@ function syncTabsToLayer(layer) {
     mapTabs.querySelectorAll('.map-tab').forEach(tab => {
         tab.classList.toggle('active', tab.dataset.layer === layer);
     });
+    // Sync mobile view switcher (only for main views it knows about)
+    const mvs = document.getElementById('mobileViewSwitch');
+    if (mvs && [...mvs.options].some(o => o.value === layer)) {
+        mvs.value = layer;
+    }
 }
 
 mapTabs.addEventListener('click', (e) => {
@@ -222,7 +227,17 @@ mapTabs.addEventListener('click', (e) => {
     // Update active tab
     mapTabs.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
-    // Sync debug dropdown
+    // Sync debug dropdown + mobile switcher
+    if (debugLayerEl) debugLayerEl.value = layer;
+    mobileViewSwitch.value = layer;
+    switchVisualization(layer);
+});
+
+// Mobile view switcher
+const mobileViewSwitch = document.getElementById('mobileViewSwitch');
+mobileViewSwitch.addEventListener('change', (e) => {
+    const layer = e.target.value;
+    syncTabsToLayer(layer);
     if (debugLayerEl) debugLayerEl.value = layer;
     switchVisualization(layer);
 });
@@ -591,6 +606,38 @@ document.getElementById('gridSpacing').addEventListener('change', (e) => {
     rebuildGrids();
 });
 
+// Map center longitude slider — translate on drag (instant), rebuild on release
+const mapCenterLonGroup = document.getElementById('mapCenterLonGroup');
+const sMapCenterLon = document.getElementById('sMapCenterLon');
+const vMapCenterLon = document.getElementById('vMapCenterLon');
+
+sMapCenterLon.addEventListener('input', () => {
+    const lon = +sMapCenterLon.value;
+    const suffix = lon > 0 ? 'E' : lon < 0 ? 'W' : '';
+    vMapCenterLon.textContent = Math.abs(lon) + '\u00B0' + suffix;
+    state.mapCenterLon = lon * Math.PI / 180;
+    if (state.mapMode && state.mapMesh) {
+        // Instant GPU translation — wrap clones (children at ±4) fill edges
+        const builtLon = state.mapMesh._builtCenterLon || 0;
+        const dx = (builtLon - state.mapCenterLon) * (2 / Math.PI);
+        state.mapMesh.position.x = dx;
+        if (state.mapGridMesh) state.mapGridMesh.position.x = dx;
+    }
+});
+
+sMapCenterLon.addEventListener('change', () => {
+    if (state.mapMode) {
+        buildMapMesh();
+        // Rebuild arrows if a wind/ocean layer is active
+        const layer = state.debugLayer;
+        const isWind = layer === 'pressureSummer' || layer === 'pressureWinter' ||
+                       layer === 'windSpeedSummer' || layer === 'windSpeedWinter';
+        const isOcean = layer === 'oceanCurrentSummer' || layer === 'oceanCurrentWinter';
+        if (isWind) buildWindArrows(layer.includes('Winter') ? 'winter' : 'summer');
+        if (isOcean) buildOceanCurrentArrows(layer.includes('Winter') ? 'winter' : 'summer');
+    }
+});
+
 // View mode dropdown (Globe / Map)
 document.getElementById('viewMode').addEventListener('change', (e) => {
     state.mapMode = e.target.value === 'map';
@@ -635,6 +682,7 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         updateMapCameraFrustum();
         mapCtrl.target.set(0, 0, 0);
         mapCtrl.update();
+        mapCenterLonGroup.style.display = '';
     } else {
         if (state.planetMesh) state.planetMesh.visible = true;
         atmosMesh.visible = true;
@@ -662,6 +710,7 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
         ctrl.enabled = true;
+        mapCenterLonGroup.style.display = 'none';
     }
 });
 

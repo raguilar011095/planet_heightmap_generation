@@ -350,9 +350,14 @@ button#generate.generating {
 #hoverInfo {
     position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
     font-size: 14px; color: #cde; background: rgba(8,8,28,0.85);
-    backdrop-filter: blur(8px); padding: 6px 14px; border-radius: 8px;
-    border: 1px solid rgba(255,255,255,0.08); white-space: nowrap;
-    pointer-events: none; display: none; line-height: 1.5;
+    backdrop-filter: blur(8px); padding: 8px 16px; border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.08);
+    pointer-events: none; display: none; line-height: 1.6;
+    max-width: 360px; text-align: left;
+}
+.hi-label {
+    display: inline-block; width: 52px; font-size: 11px;
+    color: #889; text-transform: uppercase;
 }
 
 /* Help button */
@@ -608,6 +613,9 @@ button#generate.generating {
     display: inline-flex; align-items: center;
 }
 
+/* Mobile view switcher — hidden on desktop */
+.mobile-view-switch { display: none; }
+
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
@@ -682,6 +690,24 @@ button#generate.generating {
     /* Hide desktop sidebar toggle */
     #sidebarToggle { display: none; }
 
+    /* Mobile view switcher — to the left of the help button */
+    .mobile-view-switch {
+        display: block;
+        position: fixed; top: 16px; left: 16px;
+        width: calc(100vw - 16px - 44px - 16px - 12px);
+        background: rgba(40,60,120,0.7); backdrop-filter: blur(12px);
+        border: 1px solid rgba(100,160,255,0.25);
+        color: #8bf; font-size: 13px; font-family: inherit; font-weight: 500;
+        padding: 8px 28px 8px 12px; border-radius: 18px;
+        min-height: 44px;
+        appearance: none; cursor: pointer;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2388bbff'/%3E%3C/svg%3E");
+        background-repeat: no-repeat; background-position: right 10px center;
+        z-index: 50;
+    }
+    .mobile-view-switch:focus { outline: none; border-color: #48f; }
+    .mobile-view-switch option { background: #12122a; color: #cde; }
+
     /* Edit toggle button */
     .edit-toggle {
         display: flex;
@@ -753,7 +779,7 @@ button#generate.generating {
 
     /* Info bars: shift up above collapsed sheet */
     #info { bottom: 68px; }
-    #hoverInfo { bottom: 92px; }
+    #hoverInfo { bottom: 92px; max-width: calc(100vw - 32px); font-size: 13px; }
 
     /* Tutorial card — tighter padding */
     #tutorialCard { padding: 24px 20px 18px; }

@@ -120,6 +120,10 @@
                         <option value="map">Map</option>
                     </select>
                 </div>
+                <div class="cg" id="mapCenterLonGroup" style="display:none">
+                    <label>Center Longitude <span class="v" id="vMapCenterLon">0°</span></label>
+                    <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5">
+                </div>
                 <div class="map-tabs" id="mapTabs">
                     <button class="map-tab active" data-layer="">Terrain</button>
                     <button class="map-tab" data-layer="biome">Satellite</button>
@@ -201,6 +205,12 @@
         </a>
         </div>
     </div>
+    <select id="mobileViewSwitch" class="mobile-view-switch">
+        <option value="">Terrain</option>
+        <option value="biome">Satellite</option>
+        <option value="koppen">Climate</option>
+        <option value="landheightmap">Heightmap</option>
+    </select>
     <button id="helpBtn" title="Tutorial">?</button>
 
     <div id="tutorialOverlay" class="hidden">
@@ -217,7 +227,7 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
-                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean.</p>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>

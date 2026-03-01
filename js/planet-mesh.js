@@ -7,6 +7,13 @@ import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 
+// Clipping planes for map wrap — keep everything within x ∈ [-2, 2]
+renderer.localClippingEnabled = true;
+const MAP_CLIP_PLANES = [
+    new THREE.Plane(new THREE.Vector3(1, 0, 0), 2),   // x >= -2
+    new THREE.Plane(new THREE.Vector3(-1, 0, 0), 2),   // x <= 2
+];
+
 // Precompute smoothed biome colors: each region blends with its neighbors' average.
 // Uses mesh adjacency (~6 neighbors per region) so it's inherently scale-independent.
 // Cached on state to avoid redundant computation across render paths.
@@ -231,6 +238,15 @@ export function buildMapMesh() {
 
     const { numSides } = mesh;
     const PI = Math.PI;
+    const centerLon = state.mapCenterLon || 0;
+
+    // Offset longitude by center meridian and wrap to [-PI, PI]
+    function wrapLon(lon) {
+        let l = lon - centerLon;
+        if (l > PI) l -= 2 * PI;
+        else if (l < -PI) l += 2 * PI;
+        return l;
+    }
 
     const biomeSmoothed = (isBiome && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
@@ -290,9 +306,9 @@ export function buildMapMesh() {
         const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
         const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
 
-        let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
-        let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
-        let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
+        let lon0 = wrapLon(Math.atan2(x0, z0)), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
+        let lon1 = wrapLon(Math.atan2(x1, z1)), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
+        let lon2 = wrapLon(Math.atan2(x2, z2)), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
 
         const sx = 2 / PI;
         const maxLon = Math.max(lon0, lon1, lon2);
@@ -347,11 +363,17 @@ export function buildMapMesh() {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(finalPos), 3));
     geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(finalCol), 3));
 
-    state.mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide, clippingPlanes: MAP_CLIP_PLANES });
+    state.mapMesh = new THREE.Mesh(geo, mat);
     state.mapMesh.visible = state.mapMode;
+    state.mapMesh._builtCenterLon = state.mapCenterLon || 0;
     state.mapFaceToSide = faceToSide.subarray(0, triCount);
     state._mapHoverBackup = null;
     state._mapKoppenHoverBackup = null;
+    // Wrap clones: children inherit parent visibility + transform
+    const cloneL = new THREE.Mesh(geo, mat); cloneL.position.x = -4;
+    const cloneR = new THREE.Mesh(geo, mat); cloneR.position.x = 4;
+    state.mapMesh.add(cloneL, cloneR);
     scene.add(state.mapMesh);
 
     buildMapGrid();
@@ -369,6 +391,8 @@ function buildMapGrid() {
     const spacing = state.gridSpacing;
     const sx = 2 / Math.PI;
     const Z = 0.001;
+    const PI = Math.PI;
+    const centerLonDeg = (state.mapCenterLon || 0) * 180 / PI;
     const positions = [];
 
     for (let deg = -90; deg <= 90; deg += spacing) {
@@ -377,15 +401,23 @@ function buildMapGrid() {
     }
 
     for (let deg = -180; deg <= 180; deg += spacing) {
-        const x = (deg * Math.PI / 180) * sx;
+        let offsetDeg = deg - centerLonDeg;
+        // Wrap to [-180, 180]
+        if (offsetDeg > 180) offsetDeg -= 360;
+        else if (offsetDeg < -180) offsetDeg += 360;
+        const x = (offsetDeg * Math.PI / 180) * sx;
         positions.push(x, -1, Z, x, 1, Z);
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    state.mapGridMesh = new THREE.LineSegments(geo,
-        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12 }));
+    const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, clippingPlanes: MAP_CLIP_PLANES });
+    state.mapGridMesh = new THREE.LineSegments(geo, gridMat);
     state.mapGridMesh.visible = state.mapMode && state.gridEnabled;
+    // Wrap clones for smooth longitude scrolling
+    const gCloneL = new THREE.LineSegments(geo, gridMat); gCloneL.position.x = -4;
+    const gCloneR = new THREE.LineSegments(geo, gridMat); gCloneR.position.x = 4;
+    state.mapGridMesh.add(gCloneL, gCloneR);
     scene.add(state.mapGridMesh);
 }
 
@@ -1197,7 +1229,8 @@ export function buildWindArrows(season) {
 
         // ── Map arrows: 2D with arrowhead ──
         {
-            const lon = Math.atan2(x, z);
+            let lon = Math.atan2(x, z) - (state.mapCenterLon || 0);
+            if (lon > PI) lon -= 2 * PI; else if (lon < -PI) lon += 2 * PI;
             const lat = Math.asin(Math.max(-1, Math.min(1, y)));
             const mx = lon * sx;
             const my = lat * sx;
@@ -1453,7 +1486,8 @@ export function buildOceanCurrentArrows(season) {
 
         // ── Map arrows: 2D with arrowhead ──
         {
-            const lon = Math.atan2(x, z);
+            let lon = Math.atan2(x, z) - (state.mapCenterLon || 0);
+            if (lon > PI) lon -= 2 * PI; else if (lon < -PI) lon += 2 * PI;
             const lat = Math.asin(Math.max(-1, Math.min(1, y)));
             const mx = lon * sx;
             const my = lat * sx;
