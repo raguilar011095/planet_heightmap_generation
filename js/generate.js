@@ -710,7 +710,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
         }},
         { pct: 18, label: 'Projecting plates\u2026', work() {
             ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed);
-            m.coarsePlates.smoothProjectedPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds);
+            m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, 3);
         }},
         { pct: 25, label: 'Carving oceans\u2026', work() {
             const plateIsOcean = ctx.coarsePlateIsOcean;

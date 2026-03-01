@@ -49,7 +49,10 @@ npx serve .
 
 Then open **http://localhost:8000** in your browser. No dependencies to install, no build step.
 
-Click **Build New World** to create a new random planet.
+Click **Build New World** to create a new random planet. The button changes color and label based on what you've adjusted:
+- **Build New World** (blue) — generates a fresh planet with a new random seed
+- **Rebuild** (amber) — re-renders the current planet at a new detail/roughness level without changing continent shapes
+- **Regenerate** (red) — creates new tectonic plates when the Plates or Continents slider has changed
 
 ### Sharing Planets
 
@@ -67,7 +70,7 @@ Core world parameters that control the planet's structure (changing these requir
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Detail | 5,000 – 2,560,000 | 204,000 | Number of Voronoi cells on the sphere. Only affects rendering resolution — continent shapes are stable across detail levels (generated on a fixed ~5K reference grid) |
+| Detail | 5,000 – 2,560,000 | 204,000 | Number of Voronoi cells on the sphere. Only affects rendering resolution — continent shapes are stable across detail levels (generated on a fixed ~20K reference grid) |
 | Irregularity | 0 – 1 | 0.75 | Randomization of Fibonacci point positions |
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
@@ -88,12 +91,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Auto Climate
 
-The **Auto Climate** checkbox (in the Terrain Sculpting section) controls whether climate simulation runs during generation:
-
-- **ON** (default for ≤ 300K regions) — wind, ocean currents, precipitation, temperature, and Köppen classification are computed as part of generation
-- **OFF** (default for > 300K regions) — climate is skipped during generation for faster terrain iteration. Climate is computed on demand when switching to a climate-dependent view.
-
-The default is set automatically when the Detail slider changes but can be manually overridden.
+Climate simulation (wind, ocean currents, precipitation, temperature, Köppen classification) runs automatically during generation when detail is ≤ 300K regions. Above 300K, climate is skipped for faster terrain iteration and computed on demand when switching to a climate-dependent view.
 
 ### Visual Options
 
@@ -103,10 +101,10 @@ The default is set automatically when the Detail slider changes but can be manua
   - **Climate** — Köppen-Geiger classification with color swatches for all 30 climate types
   - **Heightmap** — black-to-white gradient on a fixed absolute scale (-5 km ocean floor to 6 km peaks), so the same physical height always maps to the same shade
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
-- **Wireframe** — show Voronoi cell edges as a wireframe overlay
-- **Show Plates** — color regions by plate (green shades = land, blue shades = ocean)
-- **Auto-Rotate** — spin the globe continuously
-- **Grid Lines** — toggle latitude/longitude grid overlay on both globe and map views
+- **Wireframe** — toggle switch to show Voronoi cell edges as a wireframe overlay
+- **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean)
+- **Auto-Rotate** — toggle switch to spin the globe continuously
+- **Grid Lines** — toggle switch for latitude/longitude grid overlay on both globe and map views
 - **Grid Spacing** — choose the interval between grid lines: 30°, 15°, 10°, 5°, or 2.5°
 
 ### Inspect Dropdown
@@ -114,7 +112,7 @@ The default is set automatically when the Detail slider changes but can be manua
 The **Inspect** dropdown (in Visual Options, below the map tabs) selects a detailed visualization layer. Options are organized into groups:
 
 - **Main views** (ungrouped at top) — Terrain, Satellite, Köppen Climate, Land Heightmap
-- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Erosion Delta (blue = eroded, red = deposited)
+- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Fold Ridge, Erosion Delta (blue = eroded, red = deposited)
 - **Atmosphere** — Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map)
 - **Ocean** — Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows)
 - **Climate** — Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Rain Shadow Summer/Winter (diverging blue = windward orographic boost, gray = neutral, red-brown = leeward rain shadow; leeward effects are seeded at downslope faces scaled by mountain height, then propagated ~1500 km downwind to show extended shadow zones like the foehn drying effect), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior)
@@ -169,7 +167,7 @@ World Orogen is fully usable on phones and tablets:
 2. **Stereographic projection** maps the sphere points to 2D
 3. **Delaunator** computes Delaunay triangulation in projected space
 4. **Pole closure** connects convex hull edges to a pole point, creating a watertight mesh
-5. **Coarse plate generation** on a fixed ~5,000-region reference mesh (resolution-independent), via farthest-point seed placement (with top-3 jitter for variety), round-robin flood fill with per-plate growth rates, directional bias coupled inversely to growth rate, growth-rate governor, and compactness penalty
+5. **Coarse plate generation** on a fixed ~20,000-region reference mesh (resolution-independent), via farthest-point seed placement (with top-3 jitter for variety), round-robin flood fill with per-plate growth rates, directional bias coupled inversely to growth rate, growth-rate governor, and compactness penalty
 6. **Ocean/land assignment** on the coarse mesh using farthest-point continent seeding with area budgeting
 7. **Plate projection** maps coarse plate assignments onto the high-res mesh via nearest-neighbor adjacency walk, then smooths boundaries with resolution-scaled majority-vote passes
 8. **Collision detection** simulates plate drift to classify convergent/divergent/transform boundaries

@@ -24,9 +24,20 @@ function snapshotSliders() {
 function checkStale() {
     const btn = document.getElementById('generate');
     if (btn.classList.contains('generating')) return;
-    const stale = sliderIds.some(id => document.getElementById(id).value !== lastGenValues[id]);
-    btn.classList.toggle('stale', stale);
-    btn.textContent = stale ? 'Rebuild' : 'Build New World';
+    const plateSliders = ['sP', 'sCn'];
+    const detailSliders = ['sN', 'sJ', 'sNs'];
+    const plateChanged = plateSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    const detailChanged = detailSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    btn.classList.remove('stale', 'regen');
+    if (plateChanged) {
+        btn.classList.add('regen');
+        btn.textContent = 'Regenerate';
+    } else if (detailChanged) {
+        btn.classList.add('stale');
+        btn.textContent = 'Rebuild';
+    } else {
+        btn.textContent = 'Build New World';
+    }
 }
 
 // Reapply smoothing + erosion without full rebuild (via worker)
@@ -34,7 +45,7 @@ function reapplyPostProcessing() {
     const d = state.curData;
     if (!d || !d.prePostElev) return;
 
-    const skipClimate = !chkAutoClimate.checked;
+    const skipClimate = shouldSkipClimate();
     reapplyViaWorker(() => {
         reapplyBtn.classList.remove('spinning');
         updatePlanetCode(false);
@@ -68,6 +79,9 @@ reapplyBtn.addEventListener('click', () => {
     reapplyPostProcessing();
 });
 
+// Auto Climate checkbox — default OFF above threshold
+const AUTO_CLIMATE_THRESHOLD = 300000;
+
 // Detail slider warning update (lower thresholds on touch devices)
 const WARN_ORANGE = state.isTouchDevice ? 200000 : 640000;
 const WARN_RED    = state.isTouchDevice ? 500000 : 1280000;
@@ -90,8 +104,39 @@ function updateDetailWarning(detail) {
     }
 }
 
+// Slider thumb tooltip — floating value bubble near the thumb during drag
+function initSliderTooltip(slider) {
+    const cg = slider.closest('.cg');
+    if (!cg) return;
+    cg.style.position = 'relative';
+    const tip = document.createElement('div');
+    tip.className = 'slider-tooltip';
+    cg.appendChild(tip);
+
+    function positionTip() {
+        const pct = (+slider.value - +slider.min) / (+slider.max - +slider.min);
+        const thumbOffset = pct * slider.offsetWidth;
+        tip.style.left = thumbOffset + 'px';
+    }
+
+    slider.addEventListener('pointerdown', () => {
+        tip.textContent = document.getElementById(slider.id.replace('s', 'v')).textContent;
+        positionTip();
+        tip.classList.add('visible');
+    });
+    slider.addEventListener('input', () => {
+        tip.textContent = document.getElementById(slider.id.replace('s', 'v')).textContent;
+        positionTip();
+    });
+    const hide = () => tip.classList.remove('visible');
+    slider.addEventListener('pointerup', hide);
+    slider.addEventListener('pointercancel', hide);
+}
+
 for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs']]) {
-    document.getElementById(s).addEventListener('input', e => {
+    const slider = document.getElementById(s);
+    initSliderTooltip(slider);
+    slider.addEventListener('input', e => {
         if (s === 'sN') {
             const detail = detailFromSlider(+e.target.value);
             document.getElementById(v).textContent = detail.toLocaleString();
@@ -107,22 +152,10 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
     });
 }
 
-// Auto Climate checkbox — default OFF above threshold
-const AUTO_CLIMATE_THRESHOLD = 300000;
-const chkAutoClimate = document.getElementById('chkAutoClimate');
-let autoClimateManuallySet = false;
-
-chkAutoClimate.addEventListener('change', () => { autoClimateManuallySet = true; });
-
-function updateAutoClimateDefault() {
-    if (autoClimateManuallySet) return;
-    const detail = detailFromSlider(+document.getElementById('sN').value);
-    chkAutoClimate.checked = detail <= AUTO_CLIMATE_THRESHOLD;
+/** Returns true if climate should be skipped (detail above threshold). */
+function shouldSkipClimate() {
+    return detailFromSlider(+document.getElementById('sN').value) > AUTO_CLIMATE_THRESHOLD;
 }
-
-// Update auto-climate default when detail slider changes
-document.getElementById('sN').addEventListener('input', updateAutoClimateDefault);
-updateAutoClimateDefault();
 
 // Climate layer keys — layers that require climate data
 const CLIMATE_LAYERS = new Set([
@@ -138,6 +171,7 @@ const CLIMATE_LAYERS = new Set([
 // Map tabs → tab-layer mapping
 const mapTabs = document.getElementById('mapTabs');
 const vizLegend = document.getElementById('vizLegend');
+const debugLayerEl = document.getElementById('debugLayer');
 
 function switchVisualization(layer) {
     if (CLIMATE_LAYERS.has(layer) && !state.climateComputed) {
@@ -189,7 +223,6 @@ mapTabs.addEventListener('click', (e) => {
     mapTabs.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
     tab.classList.add('active');
     // Sync debug dropdown
-    const debugLayerEl = document.getElementById('debugLayer');
     if (debugLayerEl) debugLayerEl.value = layer;
     switchVisualization(layer);
 });
@@ -369,19 +402,21 @@ function hideBuildOverlay() {
 const genBtn = document.getElementById('generate');
 genBtn.addEventListener('click', () => {
     clearReapplyPending();
-    autoClimateManuallySet = false; // reset on new generation
-    updateAutoClimateDefault();
     buildWindArrows(null); // dispose previous wind arrows
     buildOceanCurrentArrows(null); // dispose previous ocean arrows
     showBuildOverlay();
     // Collapse bottom sheet on mobile so user can see the planet build
     const ui = document.getElementById('ui');
     if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
-    // Rebuild: reuse seed + plate edits so only resolution/params change
-    const isRebuild = genBtn.classList.contains('stale') && state.curData;
+    // Rebuild: reuse seed + plate edits so only resolution/params change.
+    // If plate-affecting sliders (Plates, Continents) changed, force a fresh
+    // generation — the coarse plate grid is fully determined by seed + P + Cn.
+    const plateSliders = ['sP', 'sCn'];
+    const plateChanged = plateSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    const isRebuild = genBtn.classList.contains('stale') && state.curData && !plateChanged;
     const seed = isRebuild ? state.curData.seed : undefined;
     const toggles = isRebuild ? getToggledIndices() : [];
-    generate(seed, toggles, onProgress, !chkAutoClimate.checked);
+    generate(seed, toggles, onProgress, shouldSkipClimate());
 });
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);
@@ -456,12 +491,12 @@ genBtn.addEventListener('generate-done', () => {
     // If climate not computed and current view is a climate layer, switch to Terrain
     if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
         state.debugLayer = '';
-        const debugLayerEl = document.getElementById('debugLayer');
         if (debugLayerEl) debugLayerEl.value = '';
         syncTabsToLayer('');
         updateMeshColors();
     }
     syncTabsToLayer(state.debugLayer);
+    if (debugLayerEl) debugLayerEl.value = state.debugLayer;
     updateLegend(state.debugLayer);
 
     // Rebuild wind/ocean arrows if a relevant debug layer is active
@@ -481,8 +516,7 @@ document.addEventListener('plates-edited', () => {
     // If climate was invalidated and we're viewing a climate layer, switch to Terrain
     if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
         state.debugLayer = '';
-        const dl = document.getElementById('debugLayer');
-        if (dl) dl.value = '';
+        if (debugLayerEl) debugLayerEl.value = '';
         syncTabsToLayer('');
         updateMeshColors();
         updateLegend('');
@@ -521,10 +555,8 @@ function applyCode(code) {
         el.dispatchEvent(new Event('input'));
     }
     clearReapplyPending();
-    autoClimateManuallySet = false;
-    updateAutoClimateDefault();
     showBuildOverlay();
-    generate(params.seed, params.toggledIndices, onProgress, !chkAutoClimate.checked);
+    generate(params.seed, params.toggledIndices, onProgress, shouldSkipClimate());
 }
 
 loadBtn.addEventListener('click', () => {
@@ -569,7 +601,16 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         starsMesh.visible = false;
         if (state.wireMesh) state.wireMesh.visible = false;
         if (state.arrowGroup) state.arrowGroup.visible = false;
-        if (!state.mapMesh) buildMapMesh();
+        if (!state.mapMesh) {
+            showBuildOverlay();
+            onProgress(0, 'Building map mesh\u2026');
+            // Yield to let the overlay paint, then build the mesh
+            setTimeout(() => {
+                buildMapMesh();
+                if (state.mapMesh) state.mapMesh.visible = true;
+                hideBuildOverlay();
+            }, 50);
+        }
         if (state.mapMesh) state.mapMesh.visible = true;
         if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
         if (state.globeGridMesh) state.globeGridMesh.visible = false;
@@ -625,7 +666,6 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
 });
 
 // Debug layer dropdown
-const debugLayerEl = document.getElementById('debugLayer');
 if (debugLayerEl) {
     debugLayerEl.addEventListener('change', (e) => {
         const layer = e.target.value;
@@ -861,10 +901,8 @@ sidebarToggle.addEventListener('click', () => {
             // Collapse sheet so user sees the planet build
             if (isMobileLayout()) uiPanel.classList.add('collapsed');
             clearReapplyPending();
-            autoClimateManuallySet = false;
-            updateAutoClimateDefault();
             showBuildOverlay();
-            generate(undefined, [], onProgress, !chkAutoClimate.checked);
+            generate(undefined, [], onProgress, shouldSkipClimate());
         }
     });
 })();
@@ -1065,8 +1103,8 @@ if (hashParams) {
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
-    generate(hashParams.seed, hashParams.toggledIndices, onProgress, !chkAutoClimate.checked);
+    generate(hashParams.seed, hashParams.toggledIndices, onProgress, shouldSkipClimate());
 } else {
-    generate(undefined, [], onProgress, !chkAutoClimate.checked);
+    generate(undefined, [], onProgress, shouldSkipClimate());
 }
 animate();

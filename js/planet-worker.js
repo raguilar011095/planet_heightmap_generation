@@ -4,7 +4,8 @@
 import { makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';
 import { setDelaunator, buildSphere, generateTriangleCenters, SphereMesh, computeNeighborDist } from './sphere-mesh.js';
-import { generateCoarsePlates, projectCoarsePlates, smoothProjectedPlates } from './coarse-plates.js';
+import { generateCoarsePlates, projectCoarsePlates } from './coarse-plates.js';
+import { smoothAndReconnectPlates } from './plates.js';
 import { assignElevation } from './elevation.js';
 import { warpTerrain, smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { computeWind } from './wind.js';
@@ -136,7 +137,7 @@ function handleGenerate(data) {
 
         progress(25, 'Smoothing boundaries\u2026');
         t0 = performance.now();
-        smoothProjectedPlates(mesh, r_plate, coarsePlateSeeds);
+        smoothAndReconnectPlates(mesh, r_plate, coarsePlateSeeds, 3);
         timing.push({ stage: 'Smooth projected plates', ms: performance.now() - t0 });
 
         const plateSeeds = coarsePlateSeeds;

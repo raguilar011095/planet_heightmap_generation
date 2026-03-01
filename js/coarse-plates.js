@@ -5,7 +5,7 @@
 import { makeRng } from './rng.js';
 import { buildSphere } from './sphere-mesh.js';
 import { SimplexNoise } from './simplex-noise.js';
-import { generatePlates, smoothAndReconnectPlates } from './plates.js';
+import { generatePlates } from './plates.js';
 import { assignOceanLand } from './ocean-land.js';
 
 const N_COARSE = 20000;
@@ -59,6 +59,8 @@ export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_
     const perturbAmp = coarseEdgeRad * 1.5; // wobble by ~1.5 coarse cells
     const BASE_FREQ = 8; // ~8 features per sphere diameter → ~16 around equator
 
+    const NC = coarseMesh.numRegions;
+    const MAX_WALK = Math.ceil(Math.sqrt(NC)); // safety cap for greedy walk
     let cur = 0; // current best coarse region — warm-started across iterations
 
     for (let r = 0; r < N; r++) {
@@ -84,8 +86,10 @@ export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_
         let bestDot = px * coarse_xyz[3 * cur] + py * coarse_xyz[3 * cur + 1] + pz * coarse_xyz[3 * cur + 2];
 
         let improved = true;
-        while (improved) {
+        let steps = 0;
+        while (improved && steps < MAX_WALK) {
             improved = false;
+            steps++;
             for (let i = cOff[cur], iEnd = cOff[cur + 1]; i < iEnd; i++) {
                 const nb = cAdj[i];
                 const d = px * coarse_xyz[3 * nb] + py * coarse_xyz[3 * nb + 1] + pz * coarse_xyz[3 * nb + 2];
@@ -97,19 +101,17 @@ export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_
             }
         }
 
+        // Fallback: if greedy walk hit the step limit, brute-force search
+        if (steps >= MAX_WALK) {
+            for (let c = 0; c < NC; c++) {
+                const d = px * coarse_xyz[3 * c] + py * coarse_xyz[3 * c + 1] + pz * coarse_xyz[3 * c + 2];
+                if (d > bestDot) { bestDot = d; cur = c; }
+            }
+        }
+
         r_plate[r] = coarse_r_plate[cur];
     }
 
     return r_plate;
 }
 
-/**
- * Smooth projected plate boundaries with majority-vote passes, then reconnect.
- * Uses a fixed pass count so plate shapes are stable across resolutions.
- * With noise perturbation the boundaries are already fractal — smoothing just
- * cleans up single-cell artifacts from the projection.
- * Mutates r_plate in place.
- */
-export function smoothProjectedPlates(mesh, r_plate, plateSeeds) {
-    smoothAndReconnectPlates(mesh, r_plate, plateSeeds, 3);
-}

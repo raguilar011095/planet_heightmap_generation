@@ -7,6 +7,7 @@ import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
 import { editRecomputeViaWorker } from './generate.js';
 import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
+import { detailFromSlider } from './detail-scale.js';
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -15,8 +16,8 @@ const _localRay = new THREE.Ray();
 
 /** Recompute elevation from the (possibly edited) plate data via worker. */
 function recomputeElevation(onDone) {
-    const chk = document.getElementById('chkAutoClimate');
-    const skipClimate = chk ? !chk.checked : false;
+    const detail = detailFromSlider(+document.getElementById('sN').value);
+    const skipClimate = detail > 300000;
     editRecomputeViaWorker(onDone, skipClimate);
 }
 

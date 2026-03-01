@@ -654,6 +654,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                     // Contours are great circles perpendicular to plate motion
                     const u = x * ppx + y * ppy + z * ppz;
                     // Mild phase warp for natural irregularity
+                    // (arbitrary domain-shift offsets decorrelate from other noise channels)
                     const phaseWarp = foldNoise.fbm(x * 3 + 55.3, y * 3 + 33.7, z * 3 + 17.2, 2) * 0.08;
                     const FOLD_FREQ = 30;
                     const phase = (u + phaseWarp) * FOLD_FREQ * Math.PI;
@@ -699,11 +700,13 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
             // Mountain dissection: high-frequency zero-mean noise on tall terrain.
             // Carves valleys and sharpens ridges in large mountain masses.
-            // Activates based on accumulated elevation — only genuinely tall terrain.
+            // Activates above ~1.2 km equivalent (0.12 in normalized elevation,
+            // where 1.0 ≈ 10 km Everest-scale).
             {
+                const DISSECT_THRESHOLD = 0.12;
                 const currentElev = r_elevation[r];
-                if (currentElev > 0.12) {
-                    const elevExcess = currentElev - 0.12;
+                if (currentElev > DISSECT_THRESHOLD) {
+                    const elevExcess = currentElev - DISSECT_THRESHOLD;
                     const dissectVal = noise.fbm(
                         wx * 16 + 71.3, wy * 16 + 44.8, wz * 16 + 29.1, 3, 0.5
                     );
@@ -714,8 +717,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                 }
             }
 
-            // Include fold ridge contribution in noise debug layer
-            dl_noise[r] += foldContrib;
+
 
             // Continental interior uplift: tectonic-aware.
             // Collision-backed interiors (plateaus) get higher uplift than quiet cratons.

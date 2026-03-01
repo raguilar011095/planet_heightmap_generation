@@ -234,9 +234,11 @@ export function smoothAndReconnectPlates(mesh, r_plate, plateSeeds, numPasses) {
     const plateIds = Array.from(plateSeeds);
 
     // Build seed lookup for protection during smoothing.
-    // Only protect regions that actually belong to the plate they seed —
-    // when called after projection, coarse seed IDs may not map to regions
-    // of their plate on the high-res mesh.
+    // Protects plate seed regions from being reassigned by majority-vote.
+    // After coarse→hi-res projection the seed IDs are coarse-mesh indices
+    // that won't satisfy r_plate[pid] === pid on the hi-res mesh, so the
+    // array stays all-zeros and protection is effectively skipped — this is
+    // intentional since projected boundaries don't need seed anchoring.
     const isSeed = new Uint8Array(numRegions);
     for (const pid of plateIds) {
         if (pid < numRegions && r_plate[pid] === pid) isSeed[pid] = 1;
