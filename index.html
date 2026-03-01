@@ -3,18 +3,89 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>World Orogen</title>
-    <meta name="description" content="Generate planets shaped by tectonics, erosion, and volcanism - free, in your browser.">
+    <title>World Orogen — Procedural Planet Generator</title>
+    <meta name="description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta name="keywords" content="procedural planet generator, world generator, heightmap generator, tectonic simulation, worldbuilding tool, fantasy map maker, terrain generator, planet builder, procedural generation, Three.js, tabletop RPG map, D&D world map, game dev heightmap">
+    <meta name="author" content="World Orogen">
+    <meta name="theme-color" content="#0a0e17">
+    <link rel="canonical" href="https://orogen.studio/">
+
+    <!-- Open Graph -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="World Orogen">
-    <meta property="og:description" content="Generate planets shaped by tectonics, erosion, and volcanism - free, in your browser.">
-    <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="World Orogen">
-    <meta name="twitter:description" content="Generate planets shaped by tectonics, erosion, and volcanism - free, in your browser.">
+    <meta property="og:url" content="https://orogen.studio/">
+    <meta property="og:title" content="World Orogen — Procedural Planet Generator">
+    <meta property="og:description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta property="og:image" content="https://orogen.studio/preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="World Orogen">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="World Orogen — Procedural Planet Generator">
+    <meta name="twitter:description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser.">
+    <meta name="twitter:image" content="https://orogen.studio/preview.png">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "World Orogen",
+        "url": "https://orogen.studio/",
+        "description": "A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, erosion, climate modeling, and interactive editing. Export heightmaps, satellite views, and climate maps for worldbuilding, game development, and tabletop RPGs.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires a modern browser with WebGL support",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "featureList": [
+            "Tectonic plate simulation with collision detection",
+            "Glacial, hydraulic, and thermal erosion",
+            "Climate simulation with wind, precipitation, and ocean currents",
+            "Hotspot volcanism with island chains",
+            "Interactive plate editing",
+            "Equirectangular map export up to 65536px",
+            "Multiple visualization modes (terrain, satellite, climate, heightmap)",
+            "Shareable planet codes"
+        ],
+        "screenshot": "https://orogen.studio/preview.png",
+        "softwareVersion": "1.0",
+        "creator": {
+            "@type": "Organization",
+            "name": "World Orogen"
+        }
+    }
+    </script>
+
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <!-- Semantic content for search engines and AI crawlers (visually hidden) -->
+    <main aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">
+        <h1>World Orogen — Procedural Planet Generator</h1>
+        <p>World Orogen is a free, browser-based procedural planet generator. Build realistic terrestrial planets shaped by tectonic plates, erosion, and volcanism — no download or account required.</p>
+        <h2>How It Works</h2>
+        <p>Start by adjusting sliders for detail level, number of tectonic plates, continents, and terrain roughness. Click "Build New World" to generate a unique planet with realistic continental shapes, mountain ranges, ocean trenches, volcanic island chains, and hotspot volcanism. Every planet is procedurally generated and completely unique.</p>
+        <h2>Key Features</h2>
+        <ul>
+            <li>Tectonic plate simulation with convergent, divergent, and transform boundaries</li>
+            <li>Multiple erosion types: glacial (fjords, U-shaped valleys), hydraulic (river valleys), and thermal (talus slopes)</li>
+            <li>Climate simulation with seasonal wind patterns, ocean currents, precipitation, and K&ouml;ppen climate classification</li>
+            <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
+            <li>Interactive plate editing — click any plate to toggle between land and ocean</li>
+            <li>Multiple visualization modes: terrain, satellite biome, climate, and heightmap</li>
+            <li>26 detailed inspection layers for geology, atmosphere, ocean, and climate</li>
+            <li>High-resolution equirectangular map export up to 65,536px wide</li>
+            <li>Shareable planet codes — copy a code to share your exact planet with others</li>
+        </ul>
+        <h2>Use Cases</h2>
+        <p>World Orogen is used by worldbuilders, game developers, tabletop RPG players, fantasy authors, and anyone who needs realistic terrain. Export heightmaps for use in game engines like Unity or Unreal, or download satellite-style maps for your D&amp;D campaign setting. The climate simulation produces realistic biome distributions for believable fantasy worlds.</p>
+    </main>
     <div id="buildOverlay" class="build-overlay initial">
         <div class="build-overlay-inner">
             <div class="build-overlay-spinner"></div>

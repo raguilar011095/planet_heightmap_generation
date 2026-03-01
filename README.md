@@ -197,8 +197,13 @@ World Orogen is fully usable on phones and tablets:
 ## Project Structure
 
 ```
-index.html              HTML markup + import map
+index.html              HTML markup + import map + structured data
 styles.css              All CSS
+robots.txt              Search engine crawler directives
+sitemap.xml             Sitemap for search engine indexing
+llms.txt                AI/LLM-readable site description (AISEO)
+CNAME                   Custom domain config (orogen.studio)
+preview.png             Social preview image (og:image / Twitter card)
 js/
   main.js               Entry point — UI wiring, animation loop
   state.js              Shared mutable application state

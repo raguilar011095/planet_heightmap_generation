@@ -1,0 +1,44 @@
+# World Orogen
+
+> Procedural planet generator — free, browser-based, no signup required.
+
+World Orogen generates realistic procedural planets shaped by tectonic plate simulation, erosion, and climate modeling. It runs entirely in the browser using Three.js and requires no installation, account, or payment.
+
+## What it does
+
+- Generates unique terrestrial planets with realistic continents, mountains, ocean trenches, and volcanic islands
+- Simulates tectonic plates with convergent, divergent, and transform boundaries
+- Applies glacial, hydraulic, and thermal erosion to carve fjords, river valleys, and talus slopes
+- Simulates seasonal climate: wind patterns, ocean currents, precipitation, and Köppen classification
+- Creates hotspot volcanism with drift-trail island chains (like Hawaii)
+- Allows interactive editing — click any tectonic plate to reshape continents in real time
+
+## Who it's for
+
+- Worldbuilders creating fantasy or sci-fi settings
+- Game developers who need heightmaps for Unity, Unreal, or other engines
+- Tabletop RPG players building campaign worlds (D&D, Pathfinder, etc.)
+- Fantasy/sci-fi authors designing believable planets
+- Artists and hobbyists who enjoy procedural generation
+- Educators teaching plate tectonics and planetary science
+
+## Key capabilities
+
+- Multiple views: terrain, satellite biome, Köppen climate, heightmap
+- 26 detailed inspection layers (geology, atmosphere, ocean, climate)
+- Export high-resolution equirectangular maps up to 65,536px wide
+- Shareable planet codes — copy a compact code to reproduce any planet exactly
+- Works on desktop and mobile browsers
+- No build step, no dependencies to install — pure ES modules
+
+## URL
+
+https://orogen.studio/
+
+## Technical details
+
+- Built with Three.js (WebGL), vanilla JavaScript ES modules
+- Fibonacci sphere meshing with Voronoi tessellation
+- Braun-Willett stream power erosion, Barnes et al. pit-filling algorithm
+- Dual-model precipitation (advection simulation + zonal heuristic)
+- Fully client-side — no server, no data collection
