@@ -5,9 +5,9 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom } from './scene.js';
 import { state } from './state.js';
-import { generate, reapplyViaWorker, computeClimateViaWorker } from './generate.js';
+import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
@@ -570,6 +570,8 @@ function applyCode(code) {
         el.dispatchEvent(new Event('input'));
     }
     clearReapplyPending();
+    state.pendingToggles.clear();
+    document.getElementById('rebuildFab').style.display = 'none';
     showBuildOverlay();
     generate(params.seed, params.toggledIndices, onProgress, shouldSkipClimate());
 }
@@ -798,6 +800,80 @@ if (debugLayerEl) {
 
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();
+
+// Rebuild FAB — batch-apply pending plate toggles
+(function initRebuildFab() {
+    const rebuildBtn = document.getElementById('rebuildFab');
+    const rebuildLabel = rebuildBtn.querySelector('span');
+
+    function clearPending() {
+        state.pendingToggles.clear();
+        rebuildBtn.style.display = 'none';
+        state._pendingBackup = null;
+        state._mapPendingBackup = null;
+        updatePendingHighlight();
+        updateMapPendingHighlight();
+    }
+
+    // Show/hide rebuild button when pending set changes
+    document.addEventListener('pending-edits-changed', () => {
+        const count = state.pendingToggles.size;
+        if (count > 0) {
+            rebuildLabel.textContent = `Rebuild (${count})`;
+            rebuildBtn.style.display = '';
+        } else {
+            rebuildBtn.style.display = 'none';
+        }
+    });
+
+    // Click: apply all pending toggles, then recompute once
+    rebuildBtn.addEventListener('click', () => {
+        if (state.pendingToggles.size === 0) return;
+        const { plateIsOcean, plateDensity, plateDensityLand, plateDensityOcean } = state.curData;
+
+        // Apply all pending toggles
+        for (const pid of state.pendingToggles) {
+            if (plateIsOcean.has(pid)) {
+                plateIsOcean.delete(pid);
+                plateDensity[pid] = plateDensityLand[pid];
+            } else {
+                plateIsOcean.add(pid);
+                plateDensity[pid] = plateDensityOcean[pid];
+            }
+        }
+
+        clearPending();
+
+        // Show building state
+        const btn = document.getElementById('generate');
+        btn.disabled = true;
+        btn.textContent = 'Building\u2026';
+        btn.classList.add('generating');
+
+        const hoverEl = document.getElementById('hoverInfo');
+        hoverEl.innerHTML = '\u23F3 Rebuilding\u2026';
+        hoverEl.style.display = 'block';
+
+        const skipClimate = shouldSkipClimate();
+        editRecomputeViaWorker(() => {
+            btn.disabled = false;
+            btn.textContent = 'Build New World';
+            btn.classList.remove('generating');
+            hoverEl.style.display = 'none';
+            document.dispatchEvent(new CustomEvent('plates-edited'));
+        }, skipClimate);
+    });
+
+    // Escape clears all pending edits
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && state.pendingToggles.size > 0) {
+            clearPending();
+        }
+    });
+
+    // Clear pending on new generation
+    genBtn.addEventListener('generate-done', clearPending);
+})();
 
 // Sidebar toggle (desktop) + bottom sheet (mobile)
 const sidebarToggle = document.getElementById('sidebarToggle');
@@ -1068,7 +1144,7 @@ window.addEventListener('resize', () => {
         const step2 = card.querySelector('.tutorial-step[data-step="2"]');
         if (step2) {
             const p = step2.querySelector('p');
-            if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean.';
+            if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.';
         }
     }
 
@@ -1154,7 +1230,7 @@ window.takePreview = function(width = 1200, height = 630) {
     // Hide all UI elements
     const hiddenEls = [];
     for (const sel of ['#ui', '#topInfo', '#info', '#hoverInfo', '#helpBtn',
-                        '#editToggle', '#refreshFab', '#mobileViewSwitch',
+                        '#editToggle', '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
                         '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay']) {
         const el = document.querySelector(sel);
         if (el && el.style.display !== 'none') {

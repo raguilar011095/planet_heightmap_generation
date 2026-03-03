@@ -122,7 +122,7 @@
             <li>Multiple erosion types: glacial (fjords, U-shaped valleys), hydraulic (river valleys), and thermal (talus slopes)</li>
             <li>Climate simulation with seasonal wind patterns, ocean currents, precipitation, and K&ouml;ppen climate classification</li>
             <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
-            <li>Interactive plate editing — click any plate to toggle between land and ocean</li>
+            <li>Interactive plate editing — select multiple plates for batch land/ocean toggling with visual preview before rebuild</li>
             <li>Multiple visualization modes: terrain, satellite biome, climate, and heightmap</li>
             <li>26 detailed inspection layers for geology, atmosphere, ocean, and climate</li>
             <li>High-resolution equirectangular map export up to 65,536px wide</li>
@@ -345,7 +345,7 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
-                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> any plate to reshape continents &mdash; ocean rises into land, land floods into ocean. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>
@@ -431,6 +431,12 @@
         </svg>
     </button>
     <div id="hoverInfo"></div>
+    <button id="rebuildFab" class="rebuild-fab" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="2 8 6 12 14 4"/>
+        </svg>
+        <span>Rebuild (0)</span>
+    </button>
     <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
 
     <script type="importmap">

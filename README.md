@@ -26,7 +26,7 @@ All three are considered together; ties are broken in the order above.
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
-- **Interactive editing** — Ctrl-click any plate to toggle between land and ocean, with live elevation recomputation
+- **Interactive editing** — Ctrl-click plates to mark them for reshaping (multi-select with visual tinting), then click Rebuild to apply all changes at once. Ctrl-click again to undo a pending selection. Press Escape to cancel all pending edits
 - **Seasonal wind simulation** — pressure-driven wind patterns with a longitude-varying ITCZ that tracks the thermal equator (~5° over ocean, up to 15-20° over continents), Gaussian pressure bands (subtropical highs, subpolar lows, polar highs), land/sea thermal contrast for monsoon-like pressure reversals, elevation barometric effects, and Coriolis-deflected geostrophic wind with natural cross-equatorial flow reversal. Computed for both summer and winter seasons.
 - **Ocean surface currents** — rule-based geographic gyre simulation driven by wind belts (trade winds, westerlies, polar easterlies) with a longitude-varying ITCZ equatorial countercurrent. Continental shelves are classified as western or eastern boundaries via coast-normal BFS, producing subtropical gyres (CW in NH, CCW in SH) with western boundary intensification (Gulf Stream, Kuroshio effect) and weaker eastern boundary return flow. Detects circumpolar channels for unobstructed eastward currents (Antarctic Circumpolar Current). Currents are colored by heat transport: red = warm poleward flow, blue = cold equatorward flow, black = zonal (neutral). Computed for both summer and winter seasons.
 - **Precipitation** — blended dual-model approach: a complex moisture advection simulation is combined 50-50 with a fast heuristic zonal model. The advection model simulates wind-driven moisture transport from coasts with six mechanisms: ITCZ convective uplift, frontal convergence, orographic rain/shadow, lee cyclogenesis, polar-front precipitation, and subtropical high suppression. The heuristic model provides smooth latitude-based patterns (ITCZ wet belt, subtropical dry belt, mid-latitude recovery, polar dryness) modulated by continentality and orographic effects. Blending the two reduces splotchiness while preserving terrain-informed detail and strengthening subtropical desert formation (~20–35°). Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
@@ -56,7 +56,7 @@ Click **Build New World** to create a new random planet. The button changes colo
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 18 characters; Ctrl-click edits extend the code to include the toggled plates. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 18 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -146,9 +146,12 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 | Rotate globe / pan map | Drag | Drag (one finger) |
 | Zoom | Scroll wheel | Pinch with two fingers |
 | Highlight plate + info card | Hover | — |
-| Reshape continents | Ctrl-click a plate | Tap the edit button (pencil), then tap a plate |
+| Mark plate for reshaping | Ctrl-click a plate (multi-select) | Tap the edit button (pencil), then tap plates |
+| Undo pending plate | Ctrl-click the same plate again | Tap the same plate again |
+| Apply pending edits | Click the Rebuild button | Tap the Rebuild button |
+| Cancel all pending edits | Press Escape | — |
 
-Hovering over a region shows an info card with plate type, elevation, coordinates, and (when climate has been computed) temperature, precipitation, and K&ouml;ppen classification.
+Hovering over a region shows an info card with plate type, elevation, coordinates, and (when climate has been computed) temperature, precipitation, and K&ouml;ppen classification. Pending plates show a colored tint (green = ocean→land, blue = land→ocean) and hover text indicates "(pending)".
 
 ### Mobile Support
 
@@ -157,7 +160,7 @@ World Orogen is fully usable on phones and tablets:
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map, using the same smooth lerp as desktop scroll-zoom.
 - **View switcher** — a dropdown in the top-right lets you switch between Terrain, Satellite, Climate, and Heightmap views without opening the bottom sheet.
-- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap any plate to reshape.
+- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap plates to mark them. Tap the Rebuild button to apply all changes at once.
 - **Touch-friendly targets** — buttons, checkboxes, and sliders are enlarged for comfortable finger input.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K). Export widths above 8192px are disabled on mobile.
 - **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.
@@ -230,7 +233,7 @@ js/
   temperature.js        Temperature simulation — ITCZ thermal equator, lapse rate, continentality, ocean currents
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
-  edit-mode.js          Ctrl-click plate toggle + hover info
+  edit-mode.js          Ctrl-click plate multi-select + hover info
   detail-scale.js       Non-linear (power-curve) detail slider mapping
 ```
 
