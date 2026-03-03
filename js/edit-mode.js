@@ -5,9 +5,7 @@
 import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
-import { editRecomputeViaWorker } from './generate.js';
-import { computePlateColors, buildMesh, updateHoverHighlight, updateMapHoverHighlight } from './planet-mesh.js';
-import { detailFromSlider } from './detail-scale.js';
+import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevToHeightKm } from './color-map.js';
 
@@ -15,13 +13,6 @@ const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 const _inverseMatrix = new THREE.Matrix4();
 const _localRay = new THREE.Ray();
-
-/** Recompute elevation from the (possibly edited) plate data via worker. */
-function recomputeElevation(onDone) {
-    const detail = detailFromSlider(+document.getElementById('sN').value);
-    const skipClimate = detail > 300000;
-    editRecomputeViaWorker(onDone, skipClimate);
-}
 
 /** Find nearest region to a unit-sphere direction (max dot product). */
 function findNearestRegion(nx, ny, nz) {
@@ -110,12 +101,18 @@ function getHitInfo(event) {
 function buildHoverHTML(region, plate) {
     const d = state.curData;
     const isOcean = d.plateIsOcean.has(plate);
+    const isPending = state.pendingToggles.has(plate);
     const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">●</span>`;
     const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
     const lines = [];
 
     // Line 1: plate type + edit hint
-    lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
+    if (isPending) {
+        const target = isOcean ? 'Land' : 'Ocean';
+        lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${target}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`);
+    } else {
+        lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
+    }
 
     // Elevation
     const elev = d.r_elevation[region];
@@ -196,35 +193,33 @@ export function setupEditMode() {
 
         if (dx * dx + dy * dy < 36) {
             const pid = downInfo.plate;
-            const { plateIsOcean, plateDensity, plateDensityLand, plateDensityOcean } = state.curData;
-            if (plateIsOcean.has(pid)) {
-                plateIsOcean.delete(pid);
-                plateDensity[pid] = plateDensityLand[pid];
+            // Toggle pending: add if absent, remove if present (undo)
+            if (state.pendingToggles.has(pid)) {
+                state.pendingToggles.delete(pid);
             } else {
-                plateIsOcean.add(pid);
-                plateDensity[pid] = plateDensityOcean[pid];
+                state.pendingToggles.add(pid);
             }
-
+            // Remove hover highlight first so pending tint applies to base colors.
+            // Hover saves its backup from pre-pending colors; if we don't strip it,
+            // the hover restore in updateHoverHighlight wipes out the pending tint.
+            const savedHover = state.hoveredPlate;
+            state.hoveredPlate = -1;
+            if (state.mapMode) updateMapHoverHighlight();
+            else updateHoverHighlight();
+            state.hoveredPlate = savedHover;
+            // Apply pending tint to the now-clean base colors
+            updatePendingHighlight();
+            updateMapPendingHighlight();
+            // Re-apply hover on top of pending-tinted colors
+            if (state.mapMode) updateMapHoverHighlight();
+            else updateHoverHighlight();
+            // Update hover text to reflect pending state
             const hoverEl = document.getElementById('hoverInfo');
-            hoverEl.innerHTML = '\u23F3 Rebuilding\u2026';
-            hoverEl.style.display = 'block';
-
-            const btn = document.getElementById('generate');
-            btn.disabled = true;
-            btn.textContent = 'Building\u2026';
-            btn.classList.add('generating');
-
-            recomputeElevation(() => {
-                btn.disabled = false;
-                btn.textContent = 'Build New World';
-                btn.classList.remove('generating');
-                // Update hover info to reflect the new state
-                if (state.hoveredRegion >= 0 && state.curData) {
-                    hoverEl.innerHTML = buildHoverHTML(state.hoveredRegion, state.hoveredPlate);
-                }
-                // Notify main.js to update the planet code
-                document.dispatchEvent(new CustomEvent('plates-edited'));
-            });
+            if (state.hoveredRegion >= 0 && state.curData) {
+                hoverEl.innerHTML = buildHoverHTML(state.hoveredRegion, state.hoveredPlate);
+            }
+            // Notify main.js to show/hide rebuild button
+            document.dispatchEvent(new CustomEvent('pending-edits-changed'));
         }
         downInfo = null;
     });
@@ -248,8 +243,10 @@ export function setupEditMode() {
         lastHoverTime = now;
 
         const hit = getHitInfo(e);
-        const newPlate = hit ? hit.plate : -1;
         const newRegion = hit ? hit.region : -1;
+        // Only highlight the plate when in edit mode (Ctrl held or mobile edit toggle)
+        const inEditMode = e.ctrlKey || (state.isTouchDevice && state.editMode);
+        const newPlate = (hit && inEditMode) ? hit.plate : -1;
 
         // Update plate highlight only when plate changes
         if (newPlate !== state.hoveredPlate) {
@@ -261,9 +258,10 @@ export function setupEditMode() {
         // Update info text when region changes
         if (newRegion !== state.hoveredRegion) {
             state.hoveredRegion = newRegion;
+            state.hoveredPlate = (hit && inEditMode) ? hit.plate : -1;
             const hoverEl = document.getElementById('hoverInfo');
             if (newRegion >= 0) {
-                hoverEl.innerHTML = buildHoverHTML(newRegion, newPlate);
+                hoverEl.innerHTML = buildHoverHTML(newRegion, hit.plate);
                 hoverEl.style.display = 'block';
             } else {
                 hoverEl.style.display = 'none';

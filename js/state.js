@@ -28,4 +28,7 @@ export const state = {
     editMode: false,
     oceanCurrentArrowGroup: null,
     climateComputed: false,
+    pendingToggles: new Set(),
+    _pendingBackup: null,
+    _mapPendingBackup: null,
 };

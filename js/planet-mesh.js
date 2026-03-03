@@ -370,6 +370,7 @@ export function buildMapMesh() {
     state.mapFaceToSide = faceToSide.subarray(0, triCount);
     state._mapHoverBackup = null;
     state._mapKoppenHoverBackup = null;
+    state._mapPendingBackup = null;
     // Wrap clones: children inherit parent visibility + transform
     const cloneL = new THREE.Mesh(geo, mat); cloneL.position.x = -4;
     const cloneR = new THREE.Mesh(geo, mat); cloneR.position.x = 4;
@@ -704,6 +705,7 @@ export function buildMesh() {
     }
 
     buildDriftArrows();
+    updatePendingHighlight();
     updateHoverHighlight();
 
     // Defer map mesh construction to reduce peak GPU memory — built on demand
@@ -829,6 +831,7 @@ export function updateMeshColors() {
     colorAttr.needsUpdate = true;
     state._hoverBackup = null;
     state._koppenHoverBackup = null;
+    state._pendingBackup = null;
 
     // Update map mesh colors in-place (if map exists)
     if (state.mapMesh && state.mapFaceToSide) {
@@ -850,11 +853,14 @@ export function updateMeshColors() {
         mapColorAttr.needsUpdate = true;
         state._mapHoverBackup = null;
         state._mapKoppenHoverBackup = null;
+        state._mapPendingBackup = null;
     }
 
     // Update water visibility
     waterMesh.visible = !state.mapMode && !showPlates && !showStress && !debugLayer;
 
+    updatePendingHighlight();
+    updateMapPendingHighlight();
     updateHoverHighlight();
     updateMapHoverHighlight();
 }
@@ -1037,6 +1043,111 @@ export function updateMapKoppenHoverHighlight() {
             }
         }
         state._mapKoppenHoverBackup = { offsets, saved };
+    }
+    colorAttr.needsUpdate = true;
+}
+
+// Pending-toggle highlight — tint plates queued for rebuild (surgical save/restore).
+// Runs BEFORE hover highlight so hover saves/restores the already-tinted colors.
+export function updatePendingHighlight() {
+    if (!state.planetMesh || !state.curData) return;
+    const colorAttr = state.planetMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+
+    // Restore previously highlighted cells
+    if (state._pendingBackup) {
+        const { offsets, saved } = state._pendingBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._pendingBackup = null;
+    }
+
+    if (state.pendingToggles.size > 0) {
+        const { mesh, r_plate, plateIsOcean } = state.curData;
+        let count = 0;
+        for (let s = 0; s < mesh.numSides; s++) {
+            if (state.pendingToggles.has(r_plate[mesh.s_begin_r(s)])) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let s = 0; s < mesh.numSides; s++) {
+            const pid = r_plate[mesh.s_begin_r(s)];
+            if (state.pendingToggles.has(pid)) {
+                offsets[idx] = s;
+                const off = s * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
+                const isOcean = plateIsOcean.has(pid);
+                for (let j = 0; j < 3; j++) {
+                    if (isOcean) {
+                        // Ocean → Land pending: strong green tint
+                        colors[off + j*3]     = colors[off + j*3]     * 0.7;
+                        colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.25);
+                        colors[off + j*3 + 2] = colors[off + j*3 + 2] * 0.7;
+                    } else {
+                        // Land → Ocean pending: strong blue tint
+                        colors[off + j*3]     = colors[off + j*3]     * 0.7;
+                        colors[off + j*3 + 1] = colors[off + j*3 + 1] * 0.7;
+                        colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.25);
+                    }
+                }
+                idx++;
+            }
+        }
+        state._pendingBackup = { offsets, saved };
+    }
+    colorAttr.needsUpdate = true;
+}
+
+// Pending-toggle highlight for map mesh (surgical save/restore).
+export function updateMapPendingHighlight() {
+    if (!state.mapMesh || !state.curData || !state.mapFaceToSide) return;
+    const colorAttr = state.mapMesh.geometry.getAttribute('color');
+    const colors = colorAttr.array;
+
+    if (state._mapPendingBackup) {
+        const { offsets, saved } = state._mapPendingBackup;
+        for (let i = 0; i < offsets.length; i++) {
+            const off = offsets[i] * 9;
+            for (let j = 0; j < 9; j++) colors[off + j] = saved[i * 9 + j];
+        }
+        state._mapPendingBackup = null;
+    }
+
+    if (state.pendingToggles.size > 0) {
+        const { mesh, r_plate, plateIsOcean } = state.curData;
+        const fts = state.mapFaceToSide;
+        let count = 0;
+        for (let f = 0; f < fts.length; f++) {
+            if (state.pendingToggles.has(r_plate[mesh.s_begin_r(fts[f])])) count++;
+        }
+        const offsets = new Int32Array(count);
+        const saved = new Float32Array(count * 9);
+        let idx = 0;
+        for (let f = 0; f < fts.length; f++) {
+            const pid = r_plate[mesh.s_begin_r(fts[f])];
+            if (state.pendingToggles.has(pid)) {
+                offsets[idx] = f;
+                const off = f * 9;
+                for (let j = 0; j < 9; j++) saved[idx * 9 + j] = colors[off + j];
+                const isOcean = plateIsOcean.has(pid);
+                for (let j = 0; j < 3; j++) {
+                    if (isOcean) {
+                        colors[off + j*3]     = colors[off + j*3]     * 0.7;
+                        colors[off + j*3 + 1] = Math.min(1, colors[off + j*3 + 1] + 0.25);
+                        colors[off + j*3 + 2] = colors[off + j*3 + 2] * 0.7;
+                    } else {
+                        colors[off + j*3]     = colors[off + j*3]     * 0.7;
+                        colors[off + j*3 + 1] = colors[off + j*3 + 1] * 0.7;
+                        colors[off + j*3 + 2] = Math.min(1, colors[off + j*3 + 2] + 0.25);
+                    }
+                }
+                idx++;
+            }
+        }
+        state._mapPendingBackup = { offsets, saved };
     }
     colorAttr.needsUpdate = true;
 }

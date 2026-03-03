@@ -625,6 +625,25 @@ button#generate.generating {
 /* Refresh FAB — hidden on desktop */
 .refresh-fab { display: none; }
 
+/* Rebuild FAB — appears when pending plate edits exist */
+.rebuild-fab {
+    position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
+    background: linear-gradient(135deg, #1a7a4a, #22aa5a);
+    color: #fff; border: none; border-radius: 24px;
+    padding: 10px 22px;
+    font-size: 15px; font-weight: 500; font-family: inherit;
+    cursor: pointer; z-index: 25;
+    display: flex; align-items: center; gap: 8px;
+    box-shadow: 0 4px 16px rgba(34,170,90,0.35);
+    transition: filter 0.2s, box-shadow 0.2s;
+    animation: rebuildPulse 2s ease-in-out infinite;
+}
+.rebuild-fab:hover { filter: brightness(1.15); box-shadow: 0 4px 20px rgba(34,170,90,0.5); }
+@keyframes rebuildPulse {
+    0%, 100% { box-shadow: 0 4px 16px rgba(34,170,90,0.35); }
+    50% { box-shadow: 0 4px 24px rgba(34,170,90,0.55); }
+}
+
 /* ───── Mobile: tablets + phones ───── */
 @media (max-width: 768px) {
     #topInfo { display: none; }
@@ -751,6 +770,14 @@ button#generate.generating {
         border-color: rgba(34,170,90,0.5);
         color: #fff;
         box-shadow: 0 0 12px rgba(34,170,90,0.4);
+    }
+
+    /* Rebuild FAB — above bottom sheet */
+    .rebuild-fab {
+        bottom: 130px;
+        min-height: 48px;
+        padding: 12px 24px;
+        font-size: 16px;
     }
 
     /* Touch targets */
