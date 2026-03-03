@@ -199,7 +199,8 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
                 // Peaks at 55-75° latitude, zero at equator and poles.
                 const seasonalBoost = 12 * smoothstep(10, 55, distAnn)
                                          * (1 - smoothstep(75, 90, distAnn));
-                const seasonSign = (name === 'summer') ? 1 : -1;
+                const isLocalSummer = (name === 'summer') ? (lat >= 0) : (lat < 0);
+                const seasonSign = isLocalSummer ? 1 : -1;
                 const boostedDeviation = deviation + seasonSign * seasonalBoost;
                 // Maritime: coast damps swing to 50%, deep interior amplifies to 120%
                 const maritimeFactor = 0.50 + cont * 0.70;

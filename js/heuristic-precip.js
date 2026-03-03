@@ -122,6 +122,49 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
 
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
 
+    // Precompute west-coast proximity: positive = west coast, negative = east coast.
+    // Coastal land cells check which side ocean is on relative to the local east
+    // direction, then the signal is smoothed ~300 km inland through land only.
+    const { r_eastX, r_eastY, r_eastZ } = windResult;
+    const { adjOffset, adjList } = mesh;
+    const r_westCoast = new Float32Array(numRegions);
+    for (let r = 0; r < numRegions; r++) {
+        if (!r_isLand[r] || r_coastDistLand[r] !== 0) continue;
+        let oceanDotEast = 0;
+        let count = 0;
+        const end = adjOffset[r + 1];
+        for (let ni = adjOffset[r]; ni < end; ni++) {
+            const nb = adjList[ni];
+            if (!r_isLand[nb]) {
+                const dx = r_xyz[3 * nb] - r_xyz[3 * r];
+                const dy = r_xyz[3 * nb + 1] - r_xyz[3 * r + 1];
+                const dz = r_xyz[3 * nb + 2] - r_xyz[3 * r + 2];
+                oceanDotEast += dx * r_eastX[r] + dy * r_eastY[r] + dz * r_eastZ[r];
+                count++;
+            }
+        }
+        if (count > 0) {
+            // Negative dot = ocean is to the west = west coast
+            r_westCoast[r] = oceanDotEast < 0 ? 1 : -1;
+        }
+    }
+    // Smooth through land only (~300 km) so the signal bleeds inland
+    const wcPasses = Math.max(2, Math.round(300 / avgEdgeKm));
+    const wcTmp = new Float32Array(numRegions);
+    for (let pass = 0; pass < wcPasses; pass++) {
+        for (let r = 0; r < numRegions; r++) {
+            if (!r_isLand[r]) { wcTmp[r] = 0; continue; }
+            let sum = r_westCoast[r], count = 1;
+            const end = adjOffset[r + 1];
+            for (let ni = adjOffset[r]; ni < end; ni++) {
+                const nb = adjList[ni];
+                if (r_isLand[nb]) { sum += r_westCoast[nb]; count++; }
+            }
+            wcTmp[r] = sum / count;
+        }
+        r_westCoast.set(wcTmp);
+    }
+
     const result = {};
 
     const seasons = [
@@ -163,10 +206,15 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
             // In local winter the highs retreat equatorward and westerlies
             // bring rain to these latitudes.  This seasonal contrast is the
             // primary driver of Mediterranean (Cs) climates.
+            // Stronger on west coasts (subtropical highs sit over eastern ocean
+            // basins, drying the adjacent western continental margins) and
+            // weaker on east coasts (onshore tropical moisture counters drying).
             if (inSummerHemi && absLatDeg > 22 && absLatDeg < 45) {
                 const medSuppress = smoothstep(22, 30, absLatDeg)
                     * (1 - smoothstep(38, 45, absLatDeg));
-                seasonMod *= (1 - medSuppress * 0.55);   // up to 55% summer reduction
+                const wc = r_westCoast[r]; // +1 west coast, -1 east coast, 0 inland
+                const strength = 0.15 + wc * 0.20; // 0.35 west coast, 0.15 inland, ~0 east coast
+                seasonMod *= (1 - medSuppress * Math.max(0, strength));
             }
 
             // ── C. Continental dryness ──
