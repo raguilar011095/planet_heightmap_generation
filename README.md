@@ -82,7 +82,7 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
-| Terrain Warp | 0 – 1 | 1.00 | Domain warping — deforms the elevation field using noise to produce organic, squiggly coastlines and mountain ridges |
+| Terrain Warp | 0 – 1 | 0.75 | Domain warping — deforms the elevation field using noise to produce organic, squiggly coastlines and mountain ridges |
 | Smoothing | 0 – 1 | 0.10 | Blends harsh terrain boundaries from tectonic generation |
 | Glacial Erosion | 0 – 1 | 0.50 | Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes via latitude-driven ice flow |
 | Hydraulic Erosion | 0 – 1 | 0.50 | Iterative stream-power erosion — resolves endorheic basins via priority-flood canyon carving, then carves river valleys and dendritic drainage networks, with automatic sediment deposition in flat receivers |
@@ -248,3 +248,9 @@ This project is licensed under the GNU General Public License v3.0 — see [LICE
 ## Acknowledgments
 
 Inspired by [Red Blob Games' planet generation](https://www.redblobgames.com/x/1843-planet-generation/) — Fibonacci sphere meshing, dual-mesh traversal, and distance-field elevation approach.
+
+Additional inspiration and reference from:
+- [Worldbuilding Pasta](https://worldbuildingpasta.blogspot.com/) — worldbuilding science and climate reference
+- [Artifexian](https://www.youtube.com/@Artifexian) — worldbuilding tutorials and planetary science inspiration
+- [Madeline James](https://www.youtube.com/@MadelineJamesWorldbuilds) ([website](https://www.madelinejameswrites.com/)) — worldbuilding methodology and climate design reference
+- [Fractal Philosophy](https://www.youtube.com/watch?v=7xL0udlhnqI) — procedural terrain generation inspiration

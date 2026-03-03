@@ -1143,14 +1143,12 @@ window.addEventListener('resize', () => {
 })();
 
 // Screenshot helper — call window.takePreview() from the browser console
-// Hides UI, centers camera, renders at 1200×630, downloads preview.png
+// Hides UI, renders at 1200×630 from the current camera angle, downloads preview.png
 window.takePreview = function(width = 1200, height = 630) {
     // Save current state
     const savedW = renderer.domElement.width;
     const savedH = renderer.domElement.height;
     const savedAspect = camera.aspect;
-    const savedPos = camera.position.clone();
-    const savedTarget = ctrl.target.clone();
     const savedPixelRatio = renderer.getPixelRatio();
 
     // Hide all UI elements
@@ -1165,12 +1163,9 @@ window.takePreview = function(width = 1200, height = 630) {
         }
     }
 
-    // Center camera perfectly on the globe
-    camera.position.set(0, 0, 2.8);
-    ctrl.target.set(0, 0, 0);
+    // Keep the current camera angle, just adjust aspect ratio for the output size
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
-    ctrl.update();
 
     // Render at exact target size
     renderer.setPixelRatio(1);
@@ -1186,11 +1181,8 @@ window.takePreview = function(width = 1200, height = 630) {
     // Restore everything
     renderer.setPixelRatio(savedPixelRatio);
     renderer.setSize(savedW / savedPixelRatio, savedH / savedPixelRatio);
-    camera.position.copy(savedPos);
-    ctrl.target.copy(savedTarget);
     camera.aspect = savedAspect;
     camera.updateProjectionMatrix();
-    ctrl.update();
     for (const { el, prev } of hiddenEls) el.style.display = prev;
     renderer.render(scene, state.mapMode ? mapCamera : camera);
     console.log('preview.png downloaded!');

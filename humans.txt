@@ -7,6 +7,10 @@ Contact: https://github.com/raguilar011095/planet_heightmap_generation
 Red Blob Games — Fibonacci sphere meshing and planet generation inspiration
 Three.js — 3D rendering
 Delaunator — Delaunay triangulation
+Worldbuilding Pasta (https://worldbuildingpasta.blogspot.com/) — worldbuilding science and climate reference
+Artifexian (https://www.youtube.com/@Artifexian) — worldbuilding tutorials and planetary science inspiration
+Madeline James (https://www.youtube.com/@MadelineJamesWorldbuilds, https://www.madelinejameswrites.com/) — worldbuilding methodology and climate design reference
+Fractal Philosophy (https://www.youtube.com/watch?v=7xL0udlhnqI) — procedural terrain generation inspiration
 
 /* SITE */
 Standards: HTML5, ES Modules, WebGL
