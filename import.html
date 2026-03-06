@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Orogen — Import Heightmap</title>
+    <meta name="description" content="Import your own equirectangular heightmap onto a 3D globe with automatic climate simulation — wind, precipitation, temperature, and K&ouml;ppen classification. Free, in your browser.">
+    <meta name="keywords" content="heightmap import, equirectangular projection, climate simulation, world generator, terrain viewer, planet builder, Three.js, worldbuilding tool">
+    <meta name="author" content="World Orogen">
+    <meta name="theme-color" content="#0a0e17">
+    <link rel="canonical" href="https://orogen.studio/import">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://orogen.studio/import">
+    <meta property="og:title" content="World Orogen — Import Heightmap">
+    <meta property="og:description" content="Import your own equirectangular heightmap onto a 3D globe with automatic climate simulation. Free, in your browser.">
+    <meta property="og:image" content="https://orogen.studio/preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="World Orogen">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="World Orogen — Import Heightmap">
+    <meta name="twitter:description" content="Import your own equirectangular heightmap onto a 3D globe with automatic climate simulation. Free, in your browser.">
+    <meta name="twitter:image" content="https://orogen.studio/preview.png">
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="author" href="humans.txt">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <nav id="topNav">
+        <a href="/" class="nav-tab">Generate</a>
+        <a href="/import" class="nav-tab active">Import Heightmap</a>
+    </nav>
+    <div id="buildOverlay" class="build-overlay hidden">
+        <div class="build-overlay-inner">
+            <div class="build-overlay-spinner"></div>
+            <div class="build-overlay-title">Importing heightmap</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="buildBarFill"></div>
+            </div>
+            <div class="progress-label" id="buildBarLabel"></div>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <div id="sheetHandle" class="sheet-handle"><span></span></div>
+        <div id="sidebarHeader">
+            <div>
+                <h2>World Orogen</h2>
+                <div class="sub">Import your own heightmap</div>
+            </div>
+            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+        </div>
+        <div id="sidebarContent">
+        <details class="section" open>
+            <summary>Import Your Heightmap</summary>
+            <div class="section-body">
+                <div class="import-upload-area">
+                    <label class="import-file-label" for="heightmapFile">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                        Choose Image
+                    </label>
+                    <input type="file" id="heightmapFile" accept="image/png,image/jpeg,image/webp" style="display:none">
+                    <div id="importFileName" class="import-file-name"></div>
+                </div>
+                <canvas id="importPreview" class="import-preview" style="display:none"></canvas>
+                <div id="importDims" class="import-dims" style="display:none"></div>
+                <div class="import-hint">Black (0) = ocean. Brighter = higher elevation. Use a 2:1 equirectangular image.</div>
+                <div id="importExpect" class="import-expect" style="display:none">Your heightmap will be projected onto a 3D sphere with full climate simulation — wind patterns, precipitation, temperature, and biome classification — computed automatically.</div>
+                <div class="cg">
+                    <label>Detail <span class="tip" data-tip="Resolution of the sphere mesh — more detail means finer coastlines but takes longer to process">?</span> <span class="v" id="vN">204,000</span></label>
+                    <input type="range" id="sN" min="0" max="1000" step="1" value="600">
+                    <div class="slider-hint"><span>Coarse</span><span>Fine</span></div>
+                    <div class="detail-warn" id="detailWarn"></div>
+                </div>
+                <button id="importBtn" class="import-btn" disabled>Import</button>
+            </div>
+        </details>
+        <details class="section">
+            <summary>Terrain Sculpting <span class="tip" data-tip="Post-processing passes to refine the imported terrain. All default to 0 (no effect). Adjust sliders and click Reapply.">?</span></summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field using noise for more organic coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.00</span></label>
+                    <input type="range" id="sTw" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Smoothing <span class="tip" data-tip="Blends harsh terrain edges and pixelation from the source image">?</span> <span class="v" id="vS">0.00</span></label>
+                    <input type="range" id="sS" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Glacial Erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.00</span></label>
+                    <input type="range" id="sGl" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Ice Age</span></div>
+                </div>
+                <div class="cg">
+                    <label>Hydraulic Erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.00</span></label>
+                    <input type="range" id="sHEr" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Deep</span></div>
+                </div>
+                <div class="cg">
+                    <label>Thermal Erosion <span class="tip" data-tip="Slope-driven material transport — softens ridges and creates natural talus slopes">?</span> <span class="v" id="vTEr">0.00</span></label>
+                    <input type="range" id="sTEr" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Ridge Sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings">?</span> <span class="v" id="vRs">0.00</span></label>
+                    <input type="range" id="sRs" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Jagged</span></div>
+                </div>
+                <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
+            </div>
+        </details>
+        <details class="section" open>
+            <summary>Visual Options</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>View</label>
+                    <select id="viewMode">
+                        <option value="globe">Globe</option>
+                        <option value="map">Map</option>
+                    </select>
+                </div>
+                <div class="cg" id="mapCenterLonGroup" style="display:none">
+                    <label>Center Longitude <span class="v" id="vMapCenterLon">0&deg;</span></label>
+                    <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5">
+                </div>
+                <div class="map-tabs" id="mapTabs">
+                    <button class="map-tab active" data-layer="">Terrain</button>
+                    <button class="map-tab" data-layer="biome">Satellite</button>
+                    <button class="map-tab" data-layer="koppen">Climate</button>
+                    <button class="map-tab" data-layer="landheightmap">Heightmap</button>
+                </div>
+                <div class="cg">
+                    <label>Inspect</label>
+                    <select id="debugLayer">
+                        <option value="">Terrain</option>
+                        <option value="biome">Satellite</option>
+                        <option value="koppen">K&ouml;ppen Climate</option>
+                        <option value="landheightmap">Land Heightmap</option>
+                        <optgroup label="Atmosphere">
+                            <option value="pressureSummer">Pressure (Summer)</option>
+                            <option value="pressureWinter">Pressure (Winter)</option>
+                            <option value="windSpeedSummer">Wind Speed (Summer)</option>
+                            <option value="windSpeedWinter">Wind Speed (Winter)</option>
+                        </optgroup>
+                        <optgroup label="Ocean">
+                            <option value="oceanCurrentSummer">Currents (Summer)</option>
+                            <option value="oceanCurrentWinter">Currents (Winter)</option>
+                        </optgroup>
+                        <optgroup label="Climate">
+                            <option value="precipSummer">Precipitation (Summer)</option>
+                            <option value="precipWinter">Precipitation (Winter)</option>
+                            <option value="rainShadowSummer">Rain Shadow (Summer)</option>
+                            <option value="rainShadowWinter">Rain Shadow (Winter)</option>
+                            <option value="tempSummer">Temperature (Summer)</option>
+                            <option value="tempWinter">Temperature (Winter)</option>
+                            <option value="continentality">Continentality</option>
+                        </optgroup>
+                        <optgroup label="Elevation">
+                            <option value="heightmap">Full Heightmap</option>
+                            <option value="erosionDelta">Erosion Delta</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div id="vizLegend" class="viz-legend"></div>
+                <div class="tg">
+                    <label class="toggle-label"><input type="checkbox" id="chkWire"><span class="toggle-track"><span class="toggle-thumb"></span></span>Wireframe</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+                </div>
+                <div class="cg" id="gridSpacingGroup">
+                    <label>Grid Spacing</label>
+                    <select id="gridSpacing">
+                        <option value="30">30&deg;</option>
+                        <option value="15" selected>15&deg;</option>
+                        <option value="10">10&deg;</option>
+                        <option value="5">5&deg;</option>
+                        <option value="2.5">2.5&deg;</option>
+                    </select>
+                </div>
+                <details id="statsDetails" class="stats-toggle">
+                    <summary>Stats</summary>
+                    <div id="stats"></div>
+                </details>
+            </div>
+        </details>
+        <button id="exportBtn" class="export-btn">Export Map</button>
+        <a id="repoLink" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.64 7.64 0 0 1 4 0c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>
+            GitHub
+        </a>
+        </div>
+    </div>
+    <select id="mobileViewSwitch" class="mobile-view-switch">
+        <option value="">Terrain</option>
+        <option value="biome">Satellite</option>
+        <option value="koppen">Climate</option>
+        <option value="landheightmap">Heightmap</option>
+    </select>
+
+    <div id="exportOverlay" class="hidden">
+        <div id="exportCard">
+            <button id="exportClose">&times;</button>
+            <h3>Export Map</h3>
+            <div class="cg">
+                <label>Type</label>
+                <select id="exportType">
+                    <option value="color">Color Map</option>
+                    <option value="biome">Satellite</option>
+                    <option value="koppen">Climate (K&ouml;ppen)</option>
+                    <option value="heightmap">Heightmap (B&amp;W)</option>
+                    <option value="landheightmap">Land Heightmap (B&amp;W)</option>
+                    <option value="landmask">Land Mask (B&amp;W)</option>
+                </select>
+            </div>
+            <div class="cg">
+                <label>Width <span class="v" id="exportDims">4096 &times; 2048</span></label>
+                <select id="exportWidth">
+                    <option value="1024">1024</option>
+                    <option value="2048">2048</option>
+                    <option value="4096" selected>4096</option>
+                    <option value="8192">8192</option>
+                    <option value="16384">16384</option>
+                    <option value="32768">32768</option>
+                    <option value="65536">65536</option>
+                </select>
+            </div>
+            <div class="export-actions">
+                <button id="exportCancel" class="btn-ghost">Cancel</button>
+                <button id="exportGo" class="btn-primary">Export</button>
+                <button id="exportAllGo" class="btn-primary">Export All</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden checkbox for planet-mesh.js compatibility (no plate view on import page) -->
+    <input type="checkbox" id="chkPlates" style="display:none">
+    <div id="topInfo">Import an equirectangular heightmap to visualize it on a globe</div>
+    <div id="hoverInfo"></div>
+    <div id="info">Import an equirectangular B&amp;W heightmap to get started</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "delaunator": "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm"
+        }
+    }
+    </script>
+
+    <script type="module" src="js/import-main.js"></script>
+</body>
+</html>

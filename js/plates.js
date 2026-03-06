@@ -86,13 +86,21 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
     }
 
+    // Interpolation factor: more cragginess at low plate counts
+    const lowPlateT = Math.max(0, Math.min(1, (80 - numPlates) / 60));
+
     // Per-plate growth properties
     const plateGrowthRate = {};
     const plateGrowthDir = {};
     const plateDirStrength = {};
 
+    const rateMin = 0.7 - 0.4 * lowPlateT;   // 0.7 → 0.3
+    const rateRange = 2.3 + 2.4 * lowPlateT;  // 2.3 → 4.7
+    const dirBase = 0.15 + 0.25 * lowPlateT;  // 0.15 → 0.4
+    const dirScale = 0.25 + 0.25 * lowPlateT; // 0.25 → 0.5
+
     for (const center of plateSeeds) {
-        plateGrowthRate[center] = 0.7 + rng() * rng() * 2.3;
+        plateGrowthRate[center] = rateMin + rng() * rng() * rateRange;
 
         const px = r_xyz[3*center], py = r_xyz[3*center+1], pz = r_xyz[3*center+2];
         const pLen = Math.sqrt(px*px + py*py + pz*pz) || 1;
@@ -103,7 +111,7 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         const tLen = Math.sqrt(tx*tx + ty*ty + tz*tz) || 1;
         plateGrowthDir[center] = [tx/tLen, ty/tLen, tz/tLen];
 
-        plateDirStrength[center] = rng() * (0.15 + 0.25 / plateGrowthRate[center]);
+        plateDirStrength[center] = Math.min(0.85, rng() * (dirBase + dirScale / plateGrowthRate[center]));
     }
 
     // Per-plate frontiers — round-robin ensures every plate advances
@@ -118,8 +126,9 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
 
     const { adjOffset, adjList } = mesh;
     let remaining = numRegions - plateIds.length;
-    const COMPACT_WEIGHT = 0.3;
+    const COMPACT_WEIGHT = 0.3 - 0.22 * lowPlateT; // 0.3 → 0.08
     const expectedArea = Math.max(1, (numRegions - plateIds.length) / numPlates);
+    const areaGovernorMult = 2.0 + 2.0 * lowPlateT; // 2.0 → 4.0
     const invNumRegions = 1 / numRegions;
 
     while (remaining > 0) {
@@ -135,8 +144,8 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
             const dirStrHalf = dirStr * 0.5;
             let steps = Math.max(1, Math.ceil(rate * (0.5 + rng())));
 
-            // Governor: halve steps for plates exceeding 2x expected area
-            if (plateAreaCount[pid] > expectedArea * 2.0) {
+            // Governor: halve steps for plates exceeding threshold
+            if (plateAreaCount[pid] > expectedArea * areaGovernorMult) {
                 steps = Math.max(1, Math.ceil(steps * 0.5));
             }
 
@@ -204,7 +213,7 @@ export function generatePlates(mesh, r_xyz, numPlates, seed) {
         }
     }
 
-    smoothAndReconnectPlates(mesh, r_plate, plateSeeds, 3);
+    smoothAndReconnectPlates(mesh, r_plate, plateSeeds, Math.round(3 - 2 * lowPlateT));
 
     // Assign an Euler pole + angular velocity per plate
     const plateVec = {};
