@@ -230,7 +230,7 @@ function priorityFloodCarve(mesh, r_elevation, r_isOcean, carveStrength) {
  *     toward the displaced point to find the closest region
  *  5. Copy that source region's elevation to the output
  */
-export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength) {
+export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength, r_hotspot) {
     if (strength <= 0) return;
 
     const N = mesh.numRegions;
@@ -290,14 +290,20 @@ export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength) {
 
     // Weighted max: pick whichever is larger, biased by strength
     // At strength≈0 → 75% original, at strength=1 → 75% warped
+    // Dampen near hotspots so volcanic peaks keep their sculpted shape
     const warpBias = 0.25 + 0.5 * strength;
     for (let r = 0; r < N; r++) {
         const orig = r_elevation[r];
         const warped = out[r];
+        let bias = warpBias;
+        if (r_hotspot) {
+            const hotFrac = Math.min(1, Math.abs(r_hotspot[r]) / (Math.abs(orig) || 1));
+            bias *= 1 - 0.8 * hotFrac;
+        }
         if (warped > orig) {
-            r_elevation[r] = orig + (warped - orig) * warpBias;
+            r_elevation[r] = orig + (warped - orig) * bias;
         } else {
-            r_elevation[r] = warped + (orig - warped) * (1 - warpBias);
+            r_elevation[r] = warped + (orig - warped) * (1 - bias);
         }
     }
 }
@@ -625,7 +631,7 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                     if (drainOfTarget >= 0 && cellDist[target] > 0) {
                         receiverSlope = Math.abs(r_elevation[target] - r_elevation[drainOfTarget]) / cellDist[target];
                     }
-                    const depositFrac = 0.3 / (1 + receiverSlope * 50);
+                    const depositFrac = 0.5 / (1 + receiverSlope * 50);
                     const deposit = eroded * depositFrac;
                     r_elevation[target] += deposit;
                     if (r_elevation[target] > h_new) r_elevation[target] = h_new;

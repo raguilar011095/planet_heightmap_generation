@@ -48,6 +48,7 @@
             "Climate simulation with wind, precipitation, and ocean currents",
             "Hotspot volcanism with island chains",
             "Interactive plate editing",
+            "Equirectangular heightmap import with automatic climate simulation",
             "Equirectangular map export up to 65536px",
             "Multiple visualization modes (terrain, satellite, climate, heightmap)",
             "Shareable planet codes"
@@ -110,6 +111,10 @@
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    <nav id="topNav">
+        <a href="/" class="nav-tab active">Generate</a>
+        <a href="/import" class="nav-tab">Import Heightmap</a>
+    </nav>
     <!-- Semantic content for search engines and AI crawlers (visually hidden) -->
     <main aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">
         <h1>World Orogen — Procedural Planet Generator</h1>
@@ -123,6 +128,7 @@
             <li>Climate simulation with seasonal wind patterns, ocean currents, precipitation, and K&ouml;ppen climate classification</li>
             <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
             <li>Interactive plate editing — select multiple plates for batch land/ocean toggling with visual preview before rebuild</li>
+            <li>Heightmap import — bring your own equirectangular B&amp;W heightmap (Earth, Mars, hand-drawn) and run full climate simulation on it</li>
             <li>Multiple visualization modes: terrain, satellite biome, climate, and heightmap</li>
             <li>26 detailed inspection layers for geology, atmosphere, ocean, and climate</li>
             <li>High-resolution equirectangular map export up to 65,536px wide</li>
@@ -183,6 +189,16 @@
                     <input type="range" id="sNs" min="0" max="0.5" value="0.40" step="0.01">
                     <div class="slider-hint"><span>Smooth</span><span>Rugged</span></div>
                 </div>
+                <div class="cg">
+                    <label>Continent Size Variety <span class="tip" data-tip="How much continent sizes vary — at 0 all continents are similar in size, at 1 you get a mix of large and small landmasses">?</span> <span class="v" id="vCsv">0</span></label>
+                    <input type="range" id="sCsv" min="0" max="1" value="0" step="0.05">
+                    <div class="slider-hint"><span>Equal</span><span>Varied</span></div>
+                </div>
+                <div class="cg">
+                    <label>Land Coverage <span class="tip" data-tip="Percentage of the planet covered by land — low values create ocean worlds, high values create desert worlds with reduced precipitation">?</span> <span class="v" id="vLc">30%</span></label>
+                    <input type="range" id="sLc" min="0" max="1" value="0.3" step="0.01">
+                    <div class="slider-hint"><span>Ocean World</span><span>Desert World</span></div>
+                </div>
             </div>
         </details>
         <button id="generate">Build New World</button>
@@ -228,6 +244,22 @@
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
+        <details class="section">
+            <summary>Climate <span class="climate-live-badge">instant</span> <span class="tip" data-tip="Global temperature and precipitation offsets — changes apply instantly on slider release, no rebuild needed">?</span></summary>
+            <div class="section-body">
+                <div class="climate-hint">Changes apply on release — no rebuild needed.</div>
+                <div class="cg">
+                    <label>Temperature <span class="tip" data-tip="Shift global temperature — positive makes the planet warmer, negative makes it colder. Climate zones shift accordingly.">?</span> <span class="v" id="vTmp">±0°C</span></label>
+                    <input type="range" id="sTmp" min="-15" max="15" value="0" step="1">
+                    <div class="slider-hint"><span>Colder</span><span>Warmer</span></div>
+                </div>
+                <div class="cg">
+                    <label>Precipitation <span class="tip" data-tip="Scale global precipitation — positive makes the planet wetter, negative drier. Affects desert and rainforest distribution.">?</span> <span class="v" id="vPrc">±0%</span></label>
+                    <input type="range" id="sPrc" min="-1" max="1" value="0" step="0.1">
+                    <div class="slider-hint"><span>Drier</span><span>Wetter</span></div>
+                </div>
+            </div>
+        </details>
         <details class="section" open>
             <summary>Visual Options</summary>
             <div class="section-body">
@@ -267,6 +299,7 @@
                             <option value="margins">Margins</option>
                             <option value="backArc">Back-Arc</option>
                             <option value="foldRidge">Fold Ridge</option>
+                            <option value="orogenicPower">Orogenic Power</option>
                             <option value="erosionDelta">Erosion Delta</option>
                         </optgroup>
                         <optgroup label="Atmosphere">

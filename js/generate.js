@@ -14,6 +14,41 @@ import { classifyKoppen } from './koppen.js';
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
 
+// Read all slider values from the DOM into a params object
+function readSliders() {
+    return {
+        N: detailFromSlider(+document.getElementById('sN').value),
+        P: +document.getElementById('sP').value,
+        jitter: +document.getElementById('sJ').value,
+        nMag: +document.getElementById('sNs').value,
+        numContinents: +document.getElementById('sCn').value,
+        terrainWarp: +document.getElementById('sTw').value,
+        smoothing: +document.getElementById('sS').value,
+        hydraulicErosion: +document.getElementById('sHEr').value,
+        thermalErosion: +document.getElementById('sTEr').value,
+        ridgeSharpening: +document.getElementById('sRs').value,
+        glacialErosion: +document.getElementById('sGl').value,
+        continentSizeVariety: +document.getElementById('sCsv').value,
+        temperatureOffset: +document.getElementById('sTmp').value,
+        precipitationOffset: +document.getElementById('sPrc').value,
+        landCoverage: +document.getElementById('sLc').value,
+    };
+}
+
+// Read sliders with optional chaining (for import page where some sliders may not exist)
+function readSlidersOptional() {
+    return {
+        N: detailFromSlider(+document.getElementById('sN').value),
+        jitter: +(document.getElementById('sJ')?.value ?? 0.75),
+        terrainWarp: +(document.getElementById('sTw')?.value ?? 0),
+        smoothing: +(document.getElementById('sS')?.value ?? 0),
+        hydraulicErosion: +(document.getElementById('sHEr')?.value ?? 0),
+        thermalErosion: +(document.getElementById('sTEr')?.value ?? 0),
+        ridgeSharpening: +(document.getElementById('sRs')?.value ?? 0),
+        glacialErosion: +(document.getElementById('sGl')?.value ?? 0),
+    };
+}
+
 // --- Worker setup ---
 let worker = null;
 let workerSupported = true;
@@ -678,17 +713,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
     // Dynamic import already resolved — run synchronously via rAF stages
     const m = _fallbackModules;
     const btn = document.getElementById('generate');
-    const N = detailFromSlider(+document.getElementById('sN').value);
-    const P = +document.getElementById('sP').value;
-    const jitter = +document.getElementById('sJ').value;
-    const nMag = +document.getElementById('sNs').value;
-    const numContinents = +document.getElementById('sCn').value;
-    const terrainWarp = +document.getElementById('sTw').value;
-    const smoothing = +document.getElementById('sS').value;
-    const hydraulicErosion = +document.getElementById('sHEr').value;
-    const thermalErosion = +document.getElementById('sTEr').value;
-    const ridgeSharpening = +document.getElementById('sRs').value;
-    const glacialErosion = +document.getElementById('sGl').value;
+    const { N, P, jitter, nMag, numContinents, terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, continentSizeVariety, temperatureOffset, precipitationOffset, landCoverage } = readSliders();
     const progress = onProgress || (() => {});
     const ctx = {};
 
@@ -702,14 +727,14 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
         }},
         { pct: 10, label: 'Generating coarse plates\u2026', work() {
             const { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds, coarsePlateVec, coarsePlateIsOcean } =
-                m.coarsePlates.generateCoarsePlates(ctx.seed, P, numContinents);
+                m.coarsePlates.generateCoarsePlates(ctx.seed, P, numContinents, continentSizeVariety, landCoverage);
             ctx.coarseMesh = coarseMesh; ctx.coarse_xyz = coarse_xyz;
             ctx.coarse_r_plate = coarse_r_plate;
             ctx.plateSeeds = coarsePlateSeeds; ctx.plateVec = coarsePlateVec;
             ctx.coarsePlateIsOcean = coarsePlateIsOcean;
         }},
         { pct: 18, label: 'Projecting plates\u2026', work() {
-            ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed);
+            ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed, P);
             m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, 3);
         }},
         { pct: 25, label: 'Carving oceans\u2026', work() {
@@ -743,13 +768,13 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
             ctx.r_elevation = r_elevation; ctx.mountain_r = mountain_r; ctx.coastline_r = coastline_r;
             ctx.ocean_r = ocean_r; ctx.r_stress = r_stress; ctx.debugLayers = debugLayers;
             ctx.prePostElev = new Float32Array(r_elevation);
-            if (terrainWarp > 0) m.post.warpTerrain(ctx.mesh, r_elevation, ctx.r_xyz, ctx.seed, terrainWarp);
+            if (terrainWarp > 0) m.post.warpTerrain(ctx.mesh, r_elevation, ctx.r_xyz, ctx.seed, terrainWarp, debugLayers.hotspot);
             const r_isOcean = new Uint8Array(ctx.mesh.numRegions);
             for (let r = 0; r < ctx.mesh.numRegions; r++) { if (r_elevation[r] <= 0) r_isOcean[r] = 1; }
             const preErosion = new Float32Array(r_elevation);
             if (smoothing > 0) m.post.smoothElevation(ctx.mesh, r_elevation, r_isOcean, Math.round(1 + smoothing * 4), 0.2 + smoothing * 0.5);
             if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0)
-                m.post.erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, Math.round(hydraulicErosion * 20), hydraulicErosion * 0.001, 0.5, 1.0, Math.round(thermalErosion * 10), 1.2 - thermalErosion * 0.4, thermalErosion * 0.15, Math.round(glacialErosion * 10), glacialErosion);
+                m.post.erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, Math.round(hydraulicErosion * 20), hydraulicErosion * 0.0006, 0.5, 1.0, Math.round(thermalErosion * 10), 1.2 - thermalErosion * 0.4, thermalErosion * 0.15, Math.round(glacialErosion * 10), glacialErosion);
             if (ridgeSharpening > 0) m.post.sharpenRidges(ctx.mesh, r_elevation, r_isOcean, Math.round(1 + ridgeSharpening * 3), ridgeSharpening * 0.08);
             m.post.applySoilCreep(ctx.mesh, r_elevation, r_isOcean, 3, 0.1125);
             const dl_erosionDelta = new Float32Array(ctx.mesh.numRegions);
@@ -764,13 +789,13 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
                 ctx.windResult = windResult;
                 const oceanResult = m.oceanCurrents.computeOceanCurrents(ctx.mesh, ctx.r_xyz, r_elevation, windResult);
                 ctx.oceanResult = oceanResult;
-                const precipResult = m.precip.computePrecipitation(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult);
+                const precipResult = m.precip.computePrecipitation(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage);
                 ctx.precipResult = precipResult;
                 debugLayers.precipSummer = precipResult.r_precip_summer;
                 debugLayers.precipWinter = precipResult.r_precip_winter;
                 debugLayers.rainShadowSummer = precipResult.r_rainshadow_summer;
                 debugLayers.rainShadowWinter = precipResult.r_rainshadow_winter;
-                const tempResult = m.temp.computeTemperature(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult, precipResult);
+                const tempResult = m.temp.computeTemperature(ctx.mesh, ctx.r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
                 ctx.tempResult = tempResult;
                 debugLayers.tempSummer = tempResult.r_temperature_summer;
                 debugLayers.tempWinter = tempResult.r_temperature_winter;
@@ -850,22 +875,11 @@ export function generate(overrideSeed, toggledIndices = [], onProgress, skipClim
         return;
     }
 
-    const N = detailFromSlider(+document.getElementById('sN').value);
-    const P = +document.getElementById('sP').value;
-    const jitter = +document.getElementById('sJ').value;
-    const nMag = +document.getElementById('sNs').value;
-    const numContinents = +document.getElementById('sCn').value;
-    const terrainWarp = +document.getElementById('sTw').value;
-    const smoothing = +document.getElementById('sS').value;
-    const hydraulicErosion = +document.getElementById('sHEr').value;
-    const thermalErosion = +document.getElementById('sTEr').value;
-    const ridgeSharpening = +document.getElementById('sRs').value;
-    const glacialErosion = +document.getElementById('sGl').value;
+    const s = readSliders();
 
     worker.postMessage({
         cmd: 'generate',
-        N, P, jitter, nMag, numContinents,
-        terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion,
+        ...s,
         seed: overrideSeed,
         toggledIndices,
         skipClimate
@@ -881,14 +895,14 @@ export function reapplyViaWorker(onDone, skipClimate = false) {
     _onDone = onDone || null;
     _t0 = performance.now();
 
+    const s = readSlidersOptional();
+    const temperatureOffset = +(document.getElementById('sTmp')?.value ?? 0);
+    const precipitationOffset = +(document.getElementById('sPrc')?.value ?? 0);
+    const landCoverage = +(document.getElementById('sLc')?.value ?? 0.3);
+
     worker.postMessage({
         cmd: 'reapply',
-        terrainWarp: +document.getElementById('sTw').value,
-        smoothing: +document.getElementById('sS').value,
-        glacialErosion: +document.getElementById('sGl').value,
-        hydraulicErosion: +document.getElementById('sHEr').value,
-        thermalErosion: +document.getElementById('sTEr').value,
-        ridgeSharpening: +document.getElementById('sRs').value,
+        ...s, temperatureOffset, precipitationOffset, landCoverage,
         skipClimate
     });
 }
@@ -901,17 +915,14 @@ export function editRecomputeViaWorker(onDone, skipClimate = false) {
     _onDone = onDone || null;
     _t0 = performance.now();
 
+    const { nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, temperatureOffset, precipitationOffset, landCoverage } = readSliders();
+
     worker.postMessage({
         cmd: 'editRecompute',
         plateIsOcean: Array.from(d.plateIsOcean),
         plateDensity: d.plateDensity,
-        nMag: +document.getElementById('sNs').value,
-        terrainWarp: +document.getElementById('sTw').value,
-        smoothing: +document.getElementById('sS').value,
-        glacialErosion: +document.getElementById('sGl').value,
-        hydraulicErosion: +document.getElementById('sHEr').value,
-        thermalErosion: +document.getElementById('sTEr').value,
-        ridgeSharpening: +document.getElementById('sRs').value,
+        nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening,
+        temperatureOffset, precipitationOffset, landCoverage,
         skipClimate
     });
 }
@@ -921,5 +932,29 @@ export function computeClimateViaWorker(onProgress, onDone) {
     _onProgress = onProgress || (() => {});
     _onDone = onDone || null;
     _t0 = performance.now();
-    worker.postMessage({ cmd: 'computeClimate' });
+    const temperatureOffset = +(document.getElementById('sTmp')?.value ?? 0);
+    const precipitationOffset = +(document.getElementById('sPrc')?.value ?? 0);
+    const landCoverage = +(document.getElementById('sLc')?.value ?? 0.3);
+
+    worker.postMessage({
+        cmd: 'computeClimate',
+        temperatureOffset, precipitationOffset, landCoverage
+    });
+}
+
+export function importHeightmap(grayscale, imageWidth, imageHeight, onProgress, skipClimate = false) {
+    if (!worker) return;
+
+    _onProgress = onProgress || (() => {});
+    _t0 = performance.now();
+
+    const { N, jitter, terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion } = readSlidersOptional();
+
+    worker.postMessage({
+        cmd: 'importHeightmap',
+        N, jitter,
+        grayscale, imageWidth, imageHeight,
+        terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion,
+        skipClimate
+    }, [grayscale.buffer]);
 }

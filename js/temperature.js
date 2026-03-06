@@ -66,7 +66,7 @@ function diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, r_plateContinentality
  * @param {object} precipResult - output from computePrecipitation()
  * @returns {{ r_temperature_summer, r_temperature_winter, _tempTiming }}
  */
-export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult) {
+export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset = 0) {
     const numRegions = mesh.numRegions;
     const timing = [];
 
@@ -207,6 +207,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
                 T = T_ann_adj + boostedDeviation * maritimeFactor;
             }
 
+            T += temperatureOffset;
             temp[r] = T;
         }
 

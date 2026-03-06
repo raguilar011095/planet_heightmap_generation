@@ -14,7 +14,8 @@ import { KOPPEN_CLASSES } from './koppen.js';
 import { elevationToColor } from './color-map.js';
 
 // Slider value displays + stale tracking
-const sliderIds = ['sN','sP','sCn','sJ','sNs'];
+const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc'];
+const PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'];
 let lastGenValues = {};
 
 function snapshotSliders() {
@@ -24,9 +25,8 @@ function snapshotSliders() {
 function checkStale() {
     const btn = document.getElementById('generate');
     if (btn.classList.contains('generating')) return;
-    const plateSliders = ['sP', 'sCn'];
     const detailSliders = ['sN', 'sJ', 'sNs'];
-    const plateChanged = plateSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    const plateChanged = PLATE_SLIDERS.some(id => document.getElementById(id).value !== lastGenValues[id]);
     const detailChanged = detailSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
     btn.classList.remove('stale', 'regen');
     if (plateChanged) {
@@ -133,7 +133,7 @@ function initSliderTooltip(slider) {
     slider.addEventListener('pointercancel', hide);
 }
 
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sCsv','vCsv'],['sLc','vLc'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs'],['sTmp','vTmp'],['sPrc','vPrc']]) {
     const slider = document.getElementById(s);
     initSliderTooltip(slider);
     slider.addEventListener('input', e => {
@@ -141,16 +141,52 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
             const detail = detailFromSlider(+e.target.value);
             document.getElementById(v).textContent = detail.toLocaleString();
             updateDetailWarning(detail);
+        } else if (s === 'sTmp') {
+            const val = +e.target.value;
+            document.getElementById(v).textContent = (val > 0 ? '+' : val === 0 ? '\u00b1' : '') + val + '\u00b0C';
+        } else if (s === 'sPrc') {
+            const val = +e.target.value;
+            const pct = Math.round(val * 50);
+            document.getElementById(v).textContent = (pct > 0 ? '+' : pct === 0 ? '\u00b1' : '') + pct + '%';
+        } else if (s === 'sLc') {
+            document.getElementById(v).textContent = Math.round(+e.target.value * 100) + '%';
         } else {
             document.getElementById(v).textContent = e.target.value;
         }
         if (s === 'sTw' || s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
             markReapplyPending();
+        } else if (s === 'sTmp' || s === 'sPrc') {
+            // Display-only update during drag; actual recompute on change (release)
         } else {
             checkStale();
         }
     });
+    // Climate sliders: recompute only on release (change), not every drag tick
+    if (s === 'sTmp' || s === 'sPrc') {
+        slider.addEventListener('change', () => {
+            if (!state.curData) return;
+            updatePlanetCode(false);
+            showBuildOverlay();
+            computeClimateViaWorker(onProgress, () => {
+                hideBuildOverlay();
+                updateMeshColors();
+                updateLegend(state.debugLayer);
+            });
+        });
+    }
 }
+
+// Force range input re-render when <details> sections are opened.
+// Browsers may not update the visual thumb position for sliders that were
+// hidden (inside a closed <details>) when their value was set via JS.
+document.querySelectorAll('details.section').forEach(det => {
+    det.addEventListener('toggle', () => {
+        if (!det.open) return;
+        det.querySelectorAll('input[type="range"]').forEach(s => {
+            const v = s.value; s.value = ''; s.value = v;
+        });
+    });
+});
 
 /** Returns true if climate should be skipped (detail above threshold). */
 function shouldSkipClimate() {
@@ -424,10 +460,9 @@ genBtn.addEventListener('click', () => {
     const ui = document.getElementById('ui');
     if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
     // Rebuild: reuse seed + plate edits so only resolution/params change.
-    // If plate-affecting sliders (Plates, Continents) changed, force a fresh
-    // generation — the coarse plate grid is fully determined by seed + P + Cn.
-    const plateSliders = ['sP', 'sCn'];
-    const plateChanged = plateSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
+    // If plate-affecting sliders (Plates, Continents, Continent Size Variety, Land Coverage) changed,
+    // force a fresh generation — the coarse plate grid is fully determined by seed + P + Cn + Csv + Lc.
+    const plateChanged = PLATE_SLIDERS.some(id => document.getElementById(id).value !== lastGenValues[id]);
     const isRebuild = genBtn.classList.contains('stale') && state.curData && !plateChanged;
     const seed = isRebuild ? state.curData.seed : undefined;
     const toggles = isRebuild ? getToggledIndices() : [];
@@ -489,6 +524,10 @@ function updatePlanetCode(flash) {
         +document.getElementById('sTEr').value,
         +document.getElementById('sRs').value,
         0.75,
+        +document.getElementById('sCsv').value,
+        +document.getElementById('sTmp').value,
+        +document.getElementById('sPrc').value,
+        +document.getElementById('sLc').value,
         getToggledIndices()
     );
     currentCode = code;
@@ -553,6 +592,18 @@ seedInput.addEventListener('input', () => {
 
 const seedError = document.getElementById('seedError');
 
+function paramsToSliderMap(params) {
+    return {
+        sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P,
+        sCn: params.numContinents, sNs: params.roughness,
+        sCsv: params.continentSizeVariety, sLc: params.landCoverage,
+        sTw: params.terrainWarp, sS: params.smoothing, sGl: params.glacialErosion,
+        sHEr: params.hydraulicErosion, sTEr: params.thermalErosion,
+        sRs: params.ridgeSharpening, sTmp: params.temperatureOffset,
+        sPrc: params.precipitationOffset,
+    };
+}
+
 function applyCode(code) {
     const params = decodePlanetCode(code);
     if (!params) {
@@ -563,7 +614,7 @@ function applyCode(code) {
     }
     seedError.classList.remove('visible');
     // Set slider values + fire input events to update displays
-    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sTw: params.terrainWarp, sS: params.smoothing, sGl: params.glacialErosion, sHEr: params.hydraulicErosion, sTEr: params.thermalErosion, sRs: params.ridgeSharpening };
+    const map = paramsToSliderMap(params);
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;
@@ -1268,7 +1319,7 @@ window.takePreview = function(width = 1200, height = 630) {
 const hashCode = location.hash.replace(/^#/, '').trim();
 const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
 if (hashParams) {
-    const map = { sN: sliderFromDetail(hashParams.N), sJ: hashParams.jitter, sP: hashParams.P, sCn: hashParams.numContinents, sNs: hashParams.roughness, sTw: hashParams.terrainWarp, sS: hashParams.smoothing, sGl: hashParams.glacialErosion, sHEr: hashParams.hydraulicErosion, sTEr: hashParams.thermalErosion, sRs: hashParams.ridgeSharpening };
+    const map = paramsToSliderMap(hashParams);
     for (const [id, val] of Object.entries(map)) {
         const el = document.getElementById(id);
         el.value = val;

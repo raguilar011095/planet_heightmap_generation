@@ -4,7 +4,7 @@
 
 import { makeRng } from './rng.js';
 
-export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents) {
+export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numContinents, continentSizeVariety = 0, landCoverage = 0.3) {
     const rng = makeRng(seed + 42);
     const numRegions = mesh.numRegions;
     const plateIds = Array.from(plateSeeds);
@@ -62,7 +62,7 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
         for (const pid of plateIds) plateCompact[pid] /= maxCompact;
     }
 
-    const targetLandArea = 0.3 * numRegions;
+    const targetLandArea = landCoverage * numRegions;
 
     // 3. Pick continent seeds via farthest-point sampling
     const effectiveNum = Math.min(numContinents, numPlates);
@@ -85,7 +85,8 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
                 const d = dx*dx + dy*dy + dz*dz;
                 if (d < minDist) minDist = d;
             }
-            const areaFactor = Math.sqrt(numRegions / numPlates) / Math.sqrt(plateArea[pid] || 1);
+            const rawAreaFactor = Math.sqrt(numRegions / numPlates) / Math.sqrt(plateArea[pid] || 1);
+            const areaFactor = 1 + (rawAreaFactor - 1) * (1 - continentSizeVariety * 0.5);
             const compact = 0.3 + 0.7 * plateCompact[pid];
             candidates.push({ pid, score: minDist * areaFactor * compact });
         }
@@ -117,13 +118,40 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
     }
     let landArea = seedArea;
 
-    // 5. Round-robin growth
+    // 5. Round-robin growth with per-continent targets
     const growTarget = targetLandArea * 0.9;
+    const numC = continentSeeds.length;
+
+    // Per-continent growth targets: at variety=0 all equal, at variety=1 highly skewed
+    const continentTarget = new Float64Array(numC);
+    const continentArea = new Float64Array(numC);
+    for (let c = 0; c < numC; c++) {
+        continentArea[c] = plateArea[continentSeeds[c]];
+    }
+
+    if (continentSizeVariety > 0 && numC > 1) {
+        const weights = [];
+        for (let c = 0; c < numC; c++) {
+            // Log-normal-ish: at variety=1, weights span ~0.3x to ~3.5x (12:1 ratio)
+            const logWeight = (rng() - 0.5) * continentSizeVariety * 2.5;
+            weights.push(Math.exp(logWeight));
+        }
+        const totalWeight = weights.reduce((a, b) => a + b, 0);
+        for (let c = 0; c < numC; c++) {
+            continentTarget[c] = growTarget * weights[c] / totalWeight;
+        }
+    } else {
+        const equal = growTarget / Math.max(numC, 1);
+        for (let c = 0; c < numC; c++) continentTarget[c] = equal;
+    }
 
     let progress = true;
     while (progress && landArea < growTarget) {
         progress = false;
-        for (let c = 0; c < continentSeeds.length && landArea < growTarget; c++) {
+        for (let c = 0; c < numC && landArea < growTarget; c++) {
+            // Skip continents that have reached their individual target
+            if (continentArea[c] >= continentTarget[c]) continue;
+
             const candidates = [];
             for (const pid of plateIds) {
                 if (plateContinent[pid] !== undefined) continue;
@@ -145,6 +173,7 @@ export function assignOceanLand(mesh, r_plate, plateSeeds, r_xyz, seed, numConti
             const pick = candidates[Math.floor(rng() * topK)];
 
             plateContinent[pick.pid] = c;
+            continentArea[c] += plateArea[pick.pid];
             landArea += plateArea[pick.pid];
             progress = true;
         }

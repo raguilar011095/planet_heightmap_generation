@@ -16,7 +16,7 @@ const COARSE_JITTER = 0.75; // fixed — coarse mesh shape is independent of use
  * Uses isolated RNG so it doesn't affect the main mesh's random stream.
  * Jitter is fixed so plate shapes don't change when the user adjusts irregularity.
  */
-export function generateCoarsePlates(seed, numPlates, numContinents) {
+export function generateCoarsePlates(seed, numPlates, numContinents, continentSizeVariety = 0, landCoverage = 0.3) {
     const coarseRng = makeRng(seed + 137);
     const { mesh: coarseMesh, r_xyz: coarse_xyz } = buildSphere(N_COARSE, COARSE_JITTER, coarseRng);
 
@@ -24,7 +24,7 @@ export function generateCoarsePlates(seed, numPlates, numContinents) {
         generatePlates(coarseMesh, coarse_xyz, numPlates, seed);
 
     const coarsePlateIsOcean = assignOceanLand(
-        coarseMesh, coarse_r_plate, coarsePlateSeeds, coarse_xyz, seed, numContinents
+        coarseMesh, coarse_r_plate, coarsePlateSeeds, coarse_xyz, seed, numContinents, continentSizeVariety, landCoverage
     );
 
     return {
@@ -48,7 +48,7 @@ export function generateCoarsePlates(seed, numPlates, numContinents) {
  * Uses adjacency-walk on the coarse mesh with warm-starting for O(1)
  * amortized cost per region.
  */
-export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_r_plate, seed) {
+export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_r_plate, seed, numPlates) {
     const N = mesh.numRegions;
     const r_plate = new Int32Array(N);
     const { adjOffset: cOff, adjList: cAdj } = coarseMesh;
@@ -56,7 +56,8 @@ export function projectCoarsePlates(mesh, r_xyz, coarseMesh, coarse_xyz, coarse_
     // FBM noise for fractal boundary perturbation
     const noise = new SimplexNoise(seed + 999);
     const coarseEdgeRad = Math.PI / Math.sqrt(coarseMesh.numRegions);
-    const perturbAmp = coarseEdgeRad * 1.5; // wobble by ~1.5 coarse cells
+    const lowPlateT = numPlates != null ? Math.max(0, Math.min(1, (80 - numPlates) / 60)) : 0;
+    const perturbAmp = coarseEdgeRad * (1.5 + 1.0 * lowPlateT); // 1.5 → 2.5 coarse cells
     const BASE_FREQ = 8; // ~8 features per sphere diameter → ~16 around equator
 
     const NC = coarseMesh.numRegions;

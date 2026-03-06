@@ -31,4 +31,5 @@ export const state = {
     pendingToggles: new Set(),
     _pendingBackup: null,
     _mapPendingBackup: null,
+    importedHeightmap: false,
 };

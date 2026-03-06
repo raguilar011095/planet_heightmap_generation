@@ -1,8 +1,30 @@
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: #fff; }
 #canvas { display: block; }
+
+/* ─── Top navigation bar ─── */
+#topNav {
+    position: fixed; top: 0; left: 0; right: 0;
+    height: 40px; z-index: 60;
+    background: rgba(8,8,28,0.92); backdrop-filter: blur(12px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+    display: flex; align-items: center;
+    padding: 0 16px; gap: 4px;
+}
+.nav-tab {
+    display: inline-flex; align-items: center;
+    padding: 6px 16px; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    color: #889; text-decoration: none;
+    transition: background 0.2s, color 0.2s;
+}
+.nav-tab:hover { color: #bcd; background: rgba(255,255,255,0.06); }
+.nav-tab.active {
+    color: #8bf; background: rgba(68,136,255,0.15);
+}
+
 #ui {
-    position: absolute; top: 16px; left: 16px;
+    position: absolute; top: 56px; left: 16px;
     background: rgba(8,8,28,0.88); backdrop-filter: blur(12px);
     padding: 20px; border-radius: 12px;
     border: 1px solid rgba(255,255,255,0.08);
@@ -10,7 +32,7 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     transition: min-width 0.25s ease, padding 0.25s ease;
     overflow: visible;
     display: flex; flex-direction: column;
-    max-height: calc(100vh - 32px);
+    max-height: calc(100vh - 72px);
 }
 #sidebarContent {
     overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
@@ -57,6 +79,24 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
 }
 .section[open] > summary::before { transform: rotate(90deg); }
 .section-body { padding: 8px 0 2px; }
+.climate-live-badge {
+    font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+    padding: 1px 5px; border-radius: 4px;
+    background: rgba(100,200,255,0.15); color: #6cf;
+    vertical-align: middle; margin-left: 2px;
+}
+.climate-hint {
+    font-size: 11px; color: #678; line-height: 1.4;
+    margin-bottom: 8px;
+}
+.import-expect {
+    font-size: 11px; color: #8ab; line-height: 1.5;
+    background: rgba(68,136,255,0.08);
+    border: 1px solid rgba(68,136,255,0.15);
+    border-radius: 6px; padding: 8px 10px;
+    margin-bottom: 10px;
+    max-width: 250px;
+}
 .section[open] > summary { border-bottom-color: rgba(255,255,255,0.06); margin-bottom: 2px; }
 .cg { margin-bottom: 10px; }
 .cg label { display: block; font-size: 14px; color: #aab; margin-bottom: 3px; }
@@ -328,7 +368,7 @@ button#generate.generating {
 .detail-warn.orange { color: #e8a020; }
 .detail-warn.red { color: #d04030; }
 #topInfo {
-    position: absolute; top: 16px; left: 50%; transform: translateX(-50%);
+    position: absolute; top: 52px; left: 50%; transform: translateX(-50%);
     font-size: 13px; color: #889;
     background: rgba(8,8,28,0.85); backdrop-filter: blur(8px);
     padding: 6px 14px; border-radius: 8px;
@@ -362,7 +402,7 @@ button#generate.generating {
 
 /* Help button */
 #helpBtn {
-    position: absolute; top: 16px; right: 16px;
+    position: absolute; top: 52px; right: 16px;
     width: 36px; height: 36px; border-radius: 50%;
     background: rgba(40,60,120,0.7); backdrop-filter: blur(12px);
     border: 1px solid rgba(100,160,255,0.25);
@@ -644,8 +684,64 @@ button#generate.generating {
     50% { box-shadow: 0 4px 24px rgba(34,170,90,0.55); }
 }
 
+/* ─── Import page ─── */
+.import-upload-area {
+    display: flex; align-items: center; gap: 8px;
+    margin-bottom: 8px;
+}
+.import-file-label {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 8px 14px; border-radius: 8px;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    color: #9ab; font-size: 13px; font-weight: 500;
+    cursor: pointer; white-space: nowrap;
+    transition: background 0.2s, color 0.2s, border-color 0.2s;
+}
+.import-file-label:hover {
+    background: rgba(255,255,255,0.10);
+    border-color: rgba(255,255,255,0.20);
+    color: #cde;
+}
+.import-file-label svg { flex-shrink: 0; width: 16px; height: 16px; }
+.import-file-name {
+    font-size: 12px; color: #667;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    min-width: 0; flex: 1;
+}
+.import-preview {
+    width: 100%; max-height: 120px;
+    object-fit: contain;
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    margin-bottom: 6px;
+    background: #0a0a1a;
+}
+.import-dims {
+    font-size: 11px; color: #667;
+    text-align: center; margin-bottom: 8px;
+}
+.import-hint {
+    font-size: 11px; color: #556;
+    line-height: 1.4; margin-bottom: 10px;
+}
+.import-btn {
+    width: 100%; padding: 10px; margin-top: 6px;
+    background: linear-gradient(135deg, #2255cc, #3366ee);
+    color: white; border: none; border-radius: 8px;
+    font-size: 15px; font-weight: 500; font-family: inherit; cursor: pointer;
+    transition: background 0.3s ease, opacity 0.3s ease;
+}
+.import-btn:hover:not(:disabled) { filter: brightness(1.15); }
+.import-btn:disabled {
+    background: linear-gradient(135deg, #333, #444);
+    cursor: default; opacity: 0.5;
+}
+
 /* ───── Mobile: tablets + phones ───── */
 @media (max-width: 768px) {
+    #topNav { height: 36px; padding: 0 8px; }
+    .nav-tab { padding: 4px 12px; font-size: 12px; min-height: 32px; }
     #topInfo { display: none; }
 
     /* Bottom sheet */
@@ -712,7 +808,7 @@ button#generate.generating {
     /* Mobile view switcher — to the left of the help button */
     .mobile-view-switch {
         display: block;
-        position: fixed; top: 16px; left: 16px;
+        position: fixed; top: 44px; left: 16px;
         width: calc(100vw - 16px - 44px - 16px - 12px);
         background: rgba(40,60,120,0.7); backdrop-filter: blur(12px);
         border: 1px solid rgba(100,160,255,0.25);
@@ -779,6 +875,11 @@ button#generate.generating {
         padding: 12px 24px;
         font-size: 16px;
     }
+
+    /* Import page touch targets */
+    .import-file-label { padding: 12px 18px; font-size: 14px; min-height: 44px; }
+    .import-btn { padding: 14px; font-size: 16px; min-height: 48px; }
+    .import-hint { font-size: 12px; }
 
     /* Touch targets */
     .map-tab { padding: 12px 0; font-size: 13px; min-height: 44px; }

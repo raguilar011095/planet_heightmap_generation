@@ -231,6 +231,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_margins = new Float32Array(numRegions);
     const dl_backArc = new Float32Array(numRegions);
     const dl_foldRidge = new Float32Array(numRegions);
+    const dl_orogenicPower = new Float32Array(numRegions);
 
     const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
         findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
@@ -547,6 +548,14 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
         const wy = y + warpScale * noise.fbm(x + 8.1, y + 2.9, z + 7.3, warpOctaves);
         const wz = z + warpScale * noise.fbm(x + 1.4, y + 6.2, z + 4.8, warpOctaves);
 
+        // Orogenic power: single-octave noise for blocky, high-contrast
+        // zones.  Computed for ALL regions so the debug layer shows the
+        // full noise field (not skewed by ocean zeros).
+        const rawOro = noise.noise3D(x * 1.5 + 33.7, y * 1.5 + 11.2, z * 1.5 + 22.9);
+        const shaped = rawOro >= 0 ? Math.sqrt(rawOro) : -Math.sqrt(-rawOro);
+        const orogenicPower = Math.max(0, Math.min(1, 0.5 + 0.5 * shaped));
+        dl_orogenicPower[r] = orogenicPower - 0.5;  // center on 0 for diverging debug color scale
+
         if (!isOceanPlate) {
             const sf = r_subductFactor[r];
             const elevBefore = r_elevation[r];
@@ -557,10 +566,10 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
             }
 
             if (stressNorm > 0.01) {
-                const stressMag = stressNorm * stressNorm * 0.55;
+                const stressMag = stressNorm * stressNorm * 0.55 * orogenicPower;
                 const uplift  = stressMag * (1 - sf);
                 const depress = stressMag * 0.4 * sf;
-                const heightVar = 0.75 + 0.5 * noise.fbm(x * 8 + 13.7, y * 8 + 9.2, z * 8 + 4.5, 3);
+                const heightVar = 0.60 + 0.8 * noise.fbm(x * 8 + 13.7, y * 8 + 9.2, z * 8 + 4.5, 3);
                 r_elevation[r] += (uplift - depress) * heightVar;
             }
 
@@ -714,6 +723,27 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
                     const dissectContrib = dissectVal * dissectAmp;
                     r_elevation[r] += dissectContrib;
                     dl_noise[r] += dissectContrib;
+                }
+            }
+
+            // Summit peaks: sparse, sharp spikes along the tallest mountain
+            // ridges.  Uses very high-frequency ridged noise with a high
+            // threshold so only occasional points jut upward.  Base orogeny
+            // caps around 4-5 km; only these peaks can push toward 6 km.
+            {
+                const SUMMIT_THRESHOLD = 0.65;  // ~2.6 km
+                const currentElev = r_elevation[r];
+                if (currentElev > SUMMIT_THRESHOLD && stressNorm > 0.2) {
+                    const excess = currentElev - SUMMIT_THRESHOLD;
+                    // Ridged noise at high frequency — sharp, spiky features
+                    const peakNoise = noise.ridgedFbm(
+                        wx * 24 + 91.3, wy * 24 + 55.7, wz * 24 + 38.2, 3, 0.5
+                    );
+                    // Only the highest peaks of the noise create summits
+                    const spike = Math.max(0, peakNoise - 0.45);
+                    const peakContrib = spike * excess * stressNorm * 1.2;
+                    r_elevation[r] += peakContrib;
+                    dl_noise[r] += peakContrib;
                 }
             }
 
@@ -1232,12 +1262,12 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     // Compress positive elevations to soften tall peaks
     for (let r = 0; r < numRegions; r++) {
         if (r_elevation[r] > 0) {
-            r_elevation[r] = Math.pow(r_elevation[r], 0.9);
+            r_elevation[r] = Math.pow(r_elevation[r], 0.92);
         }
     }
 
     _timing.push({ stage: 'Peak compression', ms: performance.now() - _t0 });
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge, orogenicPower: dl_orogenicPower };
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing };
 }

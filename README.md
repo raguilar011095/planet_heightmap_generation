@@ -33,6 +33,7 @@ All three are considered together; ties are broken in the order above.
 - **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
 - **On-demand climate** — optional deferred climate computation; skip climate during generation for faster terrain iteration, compute it on demand when needed
 - **Detailed visualization** — twenty-six selectable inspection layers organized by category (Geology, Atmosphere, Ocean, Climate, Elevation) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
+- **Heightmap import** — bring your own equirectangular B&W heightmap (Earth, Mars, hand-drawn maps) onto a 3D globe. Black pixels become ocean, brighter pixels become higher land. The import page (`/import`) runs full climate simulation (wind, precipitation, temperature, K&ouml;ppen) on your imported terrain, with optional terrain sculpting (smoothing, erosion, ridge sharpening). Supported formats: PNG, JPEG, WebP.
 - **Map export** — download high-resolution equirectangular PNGs (color terrain, satellite biome, climate/Köppen, B&W heightmap, land-only heightmap, or B&W land mask) at configurable widths up to 65536px with tiled rendering. **Export All** downloads Satellite, Climate, Heightmap, and Land Mask in one click, auto-computing climate if needed.
 
 ## Quick Start
@@ -54,9 +55,15 @@ Click **Build New World** to create a new random planet. The button changes colo
 - **Rebuild** (amber) — re-renders the current planet at a new detail/roughness level without changing continent shapes
 - **Regenerate** (red) — creates new tectonic plates when the Plates or Continents slider has changed
 
+### Navigation
+
+A top navigation bar connects the two pages:
+- **Generate** (`/`) — procedural planet generation with tectonic plates, erosion, and climate
+- **Import** (`/import`) — import your own equirectangular B&W heightmap, view it on a 3D globe, and run climate simulation. Black (0) = ocean, brighter = higher elevation. Supports PNG, JPEG, and WebP.
+
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 18 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 21 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–18 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -75,6 +82,8 @@ Core world parameters that control the planet's structure (changing these requir
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
 | Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
+| Continent Size Variety | 0 – 1 | 0 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
+| Land Coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create desert worlds. Above 40% coverage, precipitation is progressively dampened to simulate reduced oceanic moisture |
 
 ### Terrain Sculpting
 
@@ -88,6 +97,15 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 | Hydraulic Erosion | 0 – 1 | 0.50 | Iterative stream-power erosion — resolves endorheic basins via priority-flood canyon carving, then carves river valleys and dendritic drainage networks, with automatic sediment deposition in flat receivers |
 | Thermal Erosion | 0 – 1 | 0.10 | Slope-driven material transport — softens ridges and creates natural talus slopes |
 | Ridge Sharpening | 0 – 1 | 0.50 | Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain |
+
+### Climate
+
+Global climate offsets that adjust temperature and precipitation without a full rebuild. Changing these triggers a fast climate-only recompute.
+
+| Control | Range | Default | Description |
+|---------|-------|---------|-------------|
+| Temperature | -15 – 15 | 0 | Global temperature offset in °C — positive makes the planet warmer, negative colder. Climate zones shift accordingly |
+| Precipitation | -1 – 1 | 0 | Global precipitation scale — positive makes the planet wetter, negative drier. Affects desert and rainforest distribution |
 
 ### Auto Climate
 
@@ -200,8 +218,9 @@ World Orogen is fully usable on phones and tablets:
 ## Project Structure
 
 ```
-index.html              HTML markup + import map + structured data (JSON-LD)
-styles.css              All CSS
+index.html              Main page — HTML markup + import map + structured data
+import.html             Import page — heightmap upload + climate visualization
+styles.css              All CSS (shared by both pages)
 robots.txt              Search engine crawler directives
 sitemap.xml             Sitemap for search engine indexing
 site.webmanifest        Web app manifest (metadata + theming)
@@ -211,7 +230,8 @@ CNAME                   Custom domain config (orogen.studio)
 404.html                Custom 404 page
 preview.png             Social preview image (og:image / Twitter card)
 js/
-  main.js               Entry point — UI wiring, animation loop
+  main.js               Generator entry point — UI wiring, animation loop
+  import-main.js        Import page entry point — file upload, import dispatch
   state.js              Shared mutable application state
   generate.js           Worker dispatcher — posts jobs, handles results
   planet-worker.js      Web Worker — runs geology pipeline off main thread
