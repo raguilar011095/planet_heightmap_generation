@@ -7,7 +7,7 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
 import { state } from './state.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
@@ -636,7 +636,7 @@ seedInput.addEventListener('keydown', (e) => {
 });
 
 // View-mode checkboxes
-document.getElementById('chkPlates').addEventListener('change', updateMeshColors);
+document.getElementById('chkPlates').addEventListener('change', () => { updateMeshColors(); updateSuperPlateBorders(); });
 document.getElementById('chkWire').addEventListener('change', buildMesh);
 
 // Grid toggle
@@ -1212,6 +1212,61 @@ window.addEventListener('resize', () => {
     }
 })();
 
+// What's New modal — shown once per version for returning users
+(function initWhatsNew() {
+    const VERSION    = '2';
+    const LS_KEY     = 'wo-whatsnew-seen';
+    const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
+    const overlay    = document.getElementById('whatsNewOverlay');
+    const card       = document.getElementById('whatsNewCard');
+    if (!overlay || !card) return;
+
+    const closeBtn = document.getElementById('whatsNewClose');
+    const backBtn  = document.getElementById('whatsNewBack');
+    const nextBtn  = document.getElementById('whatsNewNext');
+    const steps    = card.querySelectorAll('.whatsnew-step');
+    const dots     = card.querySelectorAll('.dot');
+    const TOTAL    = steps.length;
+    let current    = 0;
+
+    function showStep(i) {
+        current = i;
+        steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
+        dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
+        backBtn.disabled = i === 0;
+        nextBtn.textContent = i === TOTAL - 1 ? 'Got It' : 'Next';
+    }
+
+    function closeModal() {
+        overlay.classList.add('hidden');
+        localStorage.setItem(LS_KEY, VERSION);
+    }
+
+    nextBtn.addEventListener('click', () => {
+        if (current < TOTAL - 1) showStep(current + 1);
+        else closeModal();
+    });
+    backBtn.addEventListener('click', () => {
+        if (current > 0) showStep(current - 1);
+    });
+    closeBtn.addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
+    });
+
+    // Only show for returning users (tutorial already seen) who haven't seen this version
+    overlay.classList.add('hidden');
+    const seenVersion = localStorage.getItem(LS_KEY);
+    const isReturningUser = localStorage.getItem(LS_TUTORIAL);
+    if (isReturningUser && seenVersion !== VERSION) {
+        genBtn.addEventListener('generate-done', () => {
+            showStep(0);
+            setTimeout(() => overlay.classList.remove('hidden'), 600);
+        }, { once: true });
+    }
+})();
+
 // Power-user survey — triggers after 3+ distinct hours across 2+ distinct days
 (function initSurveyTracker() {
     const LS = 'wo-usage';
@@ -1282,7 +1337,7 @@ window.takePreview = function(width = 1200, height = 630) {
     const hiddenEls = [];
     for (const sel of ['#ui', '#topInfo', '#info', '#hoverInfo', '#helpBtn',
                         '#editToggle', '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
-                        '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay']) {
+                        '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay', '#whatsNewOverlay']) {
         const el = document.querySelector(sel);
         if (el && el.style.display !== 'none') {
             hiddenEls.push({ el, prev: el.style.display });

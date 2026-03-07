@@ -245,9 +245,9 @@
             </div>
         </details>
         <details class="section">
-            <summary>Climate <span class="climate-live-badge">instant</span> <span class="tip" data-tip="Global temperature and precipitation offsets — changes apply instantly on slider release, no rebuild needed">?</span></summary>
+            <summary>Climate <span class="climate-live-badge">fast</span> <span class="tip" data-tip="Global temperature and precipitation offsets — changes apply on slider release, recomputing only precipitation, temperature, and climate zones">?</span></summary>
             <div class="section-body">
-                <div class="climate-hint">Changes apply on release — no rebuild needed.</div>
+                <div class="climate-hint">Changes apply on release — only climate zones are recomputed.</div>
                 <div class="cg">
                     <label>Temperature <span class="tip" data-tip="Shift global temperature — positive makes the planet warmer, negative makes it colder. Climate zones shift accordingly.">?</span> <span class="v" id="vTmp">±0°C</span></label>
                     <input type="range" id="sTmp" min="-15" max="15" value="0" step="1">
@@ -447,6 +447,48 @@
             <div class="survey-actions">
                 <button id="surveyDismiss" class="btn-ghost">Maybe later</button>
                 <a id="surveyLink" href="https://docs.google.com/forms/d/e/1FAIpQLScFSryT8Uom4jMkpb-YQnyjHMSWqZmDDT3bSOSabHovsjKL7A/viewform?usp=dialog" target="_blank" rel="noopener" class="btn-primary">Take the survey</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="whatsNewOverlay" class="hidden">
+        <div id="whatsNewCard">
+            <button id="whatsNewClose">&times;</button>
+            <div class="whatsnew-step" data-step="0">
+                <h3>What's New in World Orogen</h3>
+                <p>A lot has changed since your last visit. This update brings features many of you asked for &mdash; plus major improvements under the hood.</p>
+                <p class="whatsnew-warn"><strong>Heads up:</strong> Saved planet codes will still load, but your worlds may look different. The terrain, erosion, and climate systems have all been reworked, so elevations, coastlines, and biome placement will shift.</p>
+            </div>
+            <div class="whatsnew-step" data-step="1">
+                <h3>New Controls</h3>
+                <ul class="whatsnew-list">
+                    <li><strong>Land Coverage</strong> &mdash; Control how much of your planet is land vs. ocean. Want a water world with scattered islands? A Pangaea with inland seas? Now you can dial it in.</li>
+                    <li><strong>Continent Size Variety</strong> &mdash; Go from uniform landmasses to a mix of sprawling continents and smaller islands.</li>
+                    <li><strong>Temperature &amp; Precipitation</strong> &mdash; Shift global climate warmer or colder, wetter or drier. No more getting stuck with a generic climate.</li>
+                </ul>
+            </div>
+            <div class="whatsnew-step" data-step="2">
+                <h3>Heightmap Import</h3>
+                <p>You can now <strong>bring your own heightmap</strong> &mdash; upload an equirectangular image and Orogen runs the full climate simulation on it. Wind, currents, precipitation, K&ouml;ppen classification, all of it.</p>
+                <p>Use it to see how your hand-drawn world's climate would actually play out, or import Earth and Mars for reference. Find it under the <strong>Import Heightmap</strong> tab.</p>
+            </div>
+            <div class="whatsnew-step" data-step="3">
+                <h3>Plate Editing &amp; Climate Fixes</h3>
+                <ul class="whatsnew-list">
+                    <li><strong>Multi-select plates</strong> &mdash; Mark several plates at once, then reshape them all in a single rebuild. No more click-wait-repeat.</li>
+                    <li><strong>Southern hemisphere climates fixed</strong> &mdash; Mediterranean and continental climates now appear properly in both hemispheres.</li>
+                    <li><strong>Better terrain at every detail level</strong> &mdash; Mountains, erosion, and coastlines now scale consistently whether you're at 5K or 2.5M regions.</li>
+                </ul>
+            </div>
+            <div class="tutorial-dots">
+                <span class="dot active" data-dot="0"></span>
+                <span class="dot" data-dot="1"></span>
+                <span class="dot" data-dot="2"></span>
+                <span class="dot" data-dot="3"></span>
+            </div>
+            <div class="tutorial-nav">
+                <button id="whatsNewBack" class="btn-ghost" disabled>Back</button>
+                <button id="whatsNewNext" class="btn-primary">Next</button>
             </div>
         </div>
     </div>

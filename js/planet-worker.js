@@ -7,6 +7,7 @@ import { setDelaunator, buildSphere, generateTriangleCenters, SphereMesh, comput
 import { generateCoarsePlates, projectCoarsePlates } from './coarse-plates.js';
 import { smoothAndReconnectPlates } from './plates.js';
 import { assignElevation } from './elevation.js';
+import { buildSuperPlates } from './super-plates.js';
 import { warpTerrain, smoothElevation, erodeComposite, sharpenRidges, applySoilCreep } from './terrain-post.js';
 import { computeWind } from './wind.js';
 import { computeOceanCurrents } from './ocean.js';
@@ -201,10 +202,18 @@ function handleGenerate(data) {
 
         const noise = new SimplexNoise(seed);
 
+        // Build super plates for broad orogenic belts (skip if too few plates)
+        let superPlateData = null;
+        if (P >= 8) {
+            t0 = performance.now();
+            superPlateData = buildSuperPlates(mesh, r_plate, plateSeeds, plateVec, plateIsOcean, plateDensity);
+            timing.push({ stage: `Super plates (${superPlateData.numSuperPlates} groups from ${P} plates)`, ms: performance.now() - t0 });
+        }
+
         progress(35, 'Raising mountains\u2026');
         t0 = performance.now();
         const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity);
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity, superPlateData);
         timing.push({ stage: 'Elevation (collisions + stress + distance fields + assignment)', ms: performance.now() - t0 });
 
         const prePostElev = new Float32Array(r_elevation);
@@ -275,10 +284,11 @@ function handleGenerate(data) {
             plateDensityOcean: Object.assign({}, plateDensityOcean),
             prePostElev: new Float32Array(prePostElev),
             r_elevation_final: new Float32Array(r_elevation),
-            seed, nMag, noise,
+            seed, nMag, noise, P,
             mountain_r: new Set(mountain_r), coastline_r: new Set(coastline_r), ocean_r: new Set(ocean_r),
             r_stress: new Float32Array(r_stress),
-            temperatureOffset, precipitationOffset, landCoverage
+            temperatureOffset, precipitationOffset, landCoverage,
+            cachedWind: windResult, cachedOcean: oceanResult
         };
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });
 
@@ -374,6 +384,12 @@ function handleReapply(data) {
             t0 = performance.now();
             tempResult = computeTemperature(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
             tTemp = performance.now() - t0;
+
+            W.cachedWind = windResult;
+            W.cachedOcean = oceanResult;
+        } else {
+            W.cachedWind = null;
+            W.cachedOcean = null;
         }
 
         progress(skipClimate ? 70 : 90, 'Computing triangle elevations\u2026');
@@ -442,9 +458,15 @@ function handleEditRecompute(data) {
         const nMag = data.nMag;
         const spread = 5;
 
+        // Rebuild super plates from updated plate ocean/density state
+        let superPlateData = null;
+        if ((W.P || 0) >= 8) {
+            superPlateData = buildSuperPlates(mesh, r_plate, plateSeeds, plateVec, plateIsOcean, W.plateDensity);
+        }
+
         let t0 = performance.now();
         const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity);
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity, superPlateData);
         const tElev = performance.now() - t0;
 
         const prePostElev = new Float32Array(r_elevation);
@@ -494,6 +516,12 @@ function handleEditRecompute(data) {
             debugLayers.tempWinter = tempResult.r_temperature_winter;
 
             debugLayers.koppen = classifyKoppen(mesh, r_elevation, tempResult, precipResult);
+
+            W.cachedWind = windResult;
+            W.cachedOcean = oceanResult;
+        } else {
+            W.cachedWind = null;
+            W.cachedOcean = null;
         }
 
         progress(skipClimate ? 75 : 90, 'Computing triangle elevations\u2026');
@@ -557,15 +585,25 @@ function handleComputeClimate(data) {
         const tTotal0 = performance.now();
         const { mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise } = W;
 
-        progress(0, 'Simulating wind patterns\u2026');
-        let t0 = performance.now();
-        const windResult = computeWind(mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise);
-        const tWind = performance.now() - t0;
+        let windResult = W.cachedWind;
+        let oceanResult = W.cachedOcean;
+        let tWind = 0, tOcean = 0;
+        let t0;
 
-        progress(30, 'Computing ocean currents\u2026');
-        t0 = performance.now();
-        const oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation_final, windResult);
-        const tOcean = performance.now() - t0;
+        if (!windResult) {
+            progress(0, 'Simulating wind patterns\u2026');
+            t0 = performance.now();
+            windResult = computeWind(mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise);
+            tWind = performance.now() - t0;
+
+            progress(30, 'Computing ocean currents\u2026');
+            t0 = performance.now();
+            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation_final, windResult);
+            tOcean = performance.now() - t0;
+
+            W.cachedWind = windResult;
+            W.cachedOcean = oceanResult;
+        }
 
         progress(50, 'Computing precipitation\u2026');
         t0 = performance.now();
@@ -854,7 +892,8 @@ function handleImportHeightmap(data) {
             r_elevation_final: new Float32Array(r_elevation),
             seed, nMag, noise: new SimplexNoise(seed),
             mountain_r: new Set(mountain_r), coastline_r: new Set(coastline_r), ocean_r: new Set(ocean_r),
-            r_stress: new Float32Array(r_stress)
+            r_stress: new Float32Array(r_stress),
+            cachedWind: windResult, cachedOcean: oceanResult
         };
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });
 
