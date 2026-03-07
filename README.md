@@ -4,6 +4,12 @@ A browser-based procedural planet generator that creates realistic terrestrial p
 
 [![Live Site](https://img.shields.io/badge/Try_it-orogen.studio-brightgreen)](https://orogen.studio/) ![Three.js](https://img.shields.io/badge/Three.js-0.160.0-blue) ![No Build](https://img.shields.io/badge/build-none-green)
 
+## Philosophy
+
+World Orogen is concept art for planets. It's built for the moment early in a project when you need a world that *looks* real — believable tectonics, organic coastlines, climate patterns that feel right — but you don't need a geophysical simulation to get there. If you glance at the output and think "that could be a real planet," the tool has done its job. If a climate scientist squints and finds inaccuracies, that's fine. Plausibility, not precision.
+
+The core value is creative velocity. Generate a planet in seconds, tweak plates and terrain until it matches your vision, then export high-resolution maps into whatever comes next — Gaea, Wonderdraft, Photoshop, a game engine, a novel outline. Orogen is designed to be the fastest path from a blank page to a world worth building on — the first tool in your worldbuilding pipeline, not the last.
+
 ## Guiding Principles
 
 1. **Artistic appeal** — Visually interesting, scientifically informed output. Aesthetics come first.
