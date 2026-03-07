@@ -4,6 +4,8 @@
 
 World Orogen — a browser-based procedural planet generator using Three.js and ES modules with no build step.
 
+**World Orogen is concept art for planets, not a geophysical simulator.** Every feature should prioritize making the output *look* more believable or helping users iterate faster. Never slow down generation to chase physical accuracy — if a simpler approximation looks just as good, use it. However, the scientific grounding is what makes the output convincing: tectonic models inspired by real geology, pressure-driven wind patterns, and Köppen classification aren't optional polish — they're the reason the output passes the glance test. Preserve and extend this scientific foundation whenever it serves the visuals. The tool's job is to be the fastest path from a blank page to a world worth building on.
+
 ## Guiding Principles
 
 All three tenets should be considered simultaneously. When they conflict, break ties in this order:
@@ -11,6 +13,26 @@ All three tenets should be considered simultaneously. When they conflict, break 
 1. **Artistic appeal** — The output should look visually interesting and compelling, informed by real science but not constrained by it. Aesthetics come first.
 2. **Ease of use and efficiency** — The interface should be approachable and intuitive. Generation should be fast. Don't sacrifice usability for realism.
 3. **Scientific plausibility** — Terrain, tectonics, and geology should be grounded in real planetary science. Results don't need to be physically accurate simulations, but they should be believable.
+
+## What Users Love (Protect These)
+
+User feedback consistently highlights these as World Orogen's core strengths. Any change should preserve or enhance them — never degrade them as a side effect.
+
+1. **Climate simulation depth** — The climate view (wind, ocean currents, precipitation, Köppen) is the single most-cited differentiator. Users call it "the only map generator with this level of detail" and say it's what sets Orogen apart from Azgaar and every other tool. Never simplify or remove climate layers. When adding features, consider whether they can leverage the climate system (e.g. rivers fed by precipitation, settlements placed by climate).
+
+2. **Instant, in-browser, zero-friction** — No install, no account, no build step. Users love that they can open a URL and have a planet in seconds. Never add mandatory sign-up, downloads, or server dependencies. Keep generation fast — if a feature risks slowing generation significantly, make it optional or deferred (like the existing on-demand climate above 300K).
+
+3. **Interactive plate editing** — Users say "haven't seen this functionality anywhere else." The Ctrl-click multi-select → Rebuild workflow is a key differentiator. Don't break this interaction pattern. Extend it (e.g. plate direction editing) rather than replacing it.
+
+4. **True globe with proper wrapping** — Users who came from Azgaar specifically cite the globe as a reason they switched. The globe-first experience, equirectangular map as secondary view, and seamless wrapping matter. Don't make the map view primary or break globe rendering.
+
+5. **Free and open source** — Repeatedly praised. No paywalls, no feature-gating, no "pro" tier. This is a trust signal that drives adoption and contributions.
+
+6. **Works on mobile** — Users are surprised it runs well on phones. Maintain the responsive bottom-sheet layout, touch targets, and pinch-to-zoom. Don't add features that only work on desktop without a mobile equivalent.
+
+7. **Terrain aesthetics** — "Fractal-looking mountains," realistic erosion, organic coastlines. The visual quality of the terrain itself gets specific praise. Protect the artistic output of the erosion and terrain post-processing pipeline.
+
+When proposing a new feature or change, ask: "Does this preserve all seven strengths above?" If it trades one for another, flag the tradeoff explicitly.
 
 ## Key Rules
 
@@ -23,11 +45,13 @@ After any code change, check whether README.md needs updating. The README docume
 - Project file structure (new files, renamed files, removed files)
 - External dependencies
 
-After any code change, check whether the tutorial modal content (in `index.html`, inside `#tutorialOverlay`) needs updating. The tutorial has three steps that describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
+After any code change, check whether the tutorial modal content (in `index.html`, inside `#tutorialOverlay`) needs updating. The tutorial steps describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
 
 - Core workflow (how to generate a planet, what controls to use)
 - Interactive features (navigation, editing, keyboard/mouse actions)
 - What the tool does or its key selling points
+
+After any code change that adds significant user-facing features, ask the developer if they would like to update the What's New modal (in `index.html`, inside `#whatsNewOverlay`). The modal is version-gated by the `VERSION` constant in `initWhatsNew()` in `js/main.js` — bumping this string will show the modal again to returning users on their next visit.
 
 After any code change that affects the UI, ensure it works on mobile. The app uses a responsive bottom-sheet layout on screens ≤ 768px (`styles.css` media queries) and has touch-specific behavior throughout. If a change adds, removes, or modifies any of the following, verify and update the mobile experience:
 
