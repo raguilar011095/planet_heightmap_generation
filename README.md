@@ -17,7 +17,7 @@ All three are considered together; ties are broken in the order above.
 - **Fibonacci sphere meshing** with Voronoi cell tessellation via Delaunay triangulation
 - **Tectonic plate simulation** — farthest-point seed placement with top-3 jitter, round-robin flood fill with directional growth bias, growth-rate governor, compactness penalty to prevent spindly shapes, multi-pass boundary smoothing, and fragment reconnection
 - **Ocean/land assignment** — farthest-point continent seeding, round-robin growth with separation guarantees, trapped sea absorption, targeting ~30% land coverage
-- **Collision detection** — convergent, divergent, and transform boundary classification with density-based subduction modeling
+- **Collision detection** — convergent, divergent, and transform boundary classification with density-based subduction modeling; dual-layer super plate system groups same-type plates into ~20 tectonic units for broad orogenic belts blended 50/50 with fine-grained individual plate orogeny
 - **Elevation generation** — three distance fields (mountain/ocean/coastline) combined via harmonic-mean formula, stress-driven uplift, asymmetric mountain profiles, continental shelf/slope/abyss profiles, foreland basins, plateau formation, and rift valleys with graben profiles
 - **Ocean floor features** — mid-ocean ridges at divergent boundaries, deep trenches at subduction zones, fracture zones at transform boundaries, back-arc basins behind subduction zones
 - **Island arcs** — volcanic island chains at ocean-ocean convergent boundaries with ridged noise shaping
@@ -121,7 +121,7 @@ Climate simulation (wind, ocean currents, precipitation, temperature, Köppen cl
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
 - **Center Longitude** slider (map mode only) — shifts the map projection's central meridian to any longitude from 180°W to 180°E, scrolling the equirectangular projection so the chosen longitude is centered. Exports are unaffected (always centered on 0°).
 - **Wireframe** — toggle switch to show Voronoi cell edges as a wireframe overlay
-- **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean)
+- **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean); also draws black super plate boundary lines showing tectonic super-groups
 - **Auto-Rotate** — toggle switch to spin the globe continuously
 - **Grid Lines** — toggle switch for latitude/longitude grid overlay on both globe and map views
 - **Grid Spacing** — choose the interval between grid lines: 30°, 15°, 10°, 5°, or 2.5°
@@ -131,7 +131,7 @@ Climate simulation (wind, ocean currents, precipitation, temperature, Köppen cl
 The **Inspect** dropdown (in Visual Options, below the map tabs) selects a detailed visualization layer. Options are organized into groups:
 
 - **Main views** (ungrouped at top) — Terrain, Satellite, Köppen Climate, Land Heightmap
-- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Fold Ridge, Erosion Delta (blue = eroded, red = deposited)
+- **Geology** — Base, Tectonic, Noise, Interior, Coastal, Ocean Floor, Hotspot, Tectonic Activity, Margins, Back-Arc, Fold Ridge, Orogenic Power, Erosion Delta (blue = eroded, red = deposited)
 - **Atmosphere** — Pressure Summer/Winter (blue = low, red = high), Wind Speed Summer/Winter (with directional arrows on both globe and map)
 - **Ocean** — Currents Summer/Winter (red = warm poleward, blue = cold equatorward, black = zonal; with directional current arrows)
 - **Climate** — Precipitation Summer/Winter (brown = dry, green = moderate, blue = wet), Rain Shadow Summer/Winter (diverging blue = windward orographic boost, gray = neutral, red-brown = leeward rain shadow; leeward effects are seeded at downslope faces scaled by mountain height, then propagated ~1500 km downwind to show extended shadow zones like the foehn drying effect), Temperature Summer/Winter (purple-blue = cold, white = 0 C, green-yellow = warm, red = hot; fixed -45 to +45 C range), Continentality (blue = ocean, green = coast, yellow = moderate interior, orange/red = deep continental interior)
@@ -153,7 +153,9 @@ The control panel can be collapsed and expanded with the **«** toggle button in
 
 ### Tutorial & Help
 
-A four-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+A five-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, visualization, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+
+A **What's New** modal is shown once per release to returning users (those who have already dismissed the tutorial). It highlights new features, changes, and a heads-up that saved planet codes may produce different-looking worlds due to terrain/climate reworks. The modal uses a versioned `localStorage` flag (`wo-whatsnew-seen`) — bump the `VERSION` constant in `initWhatsNew()` to trigger it again on the next release.
 
 ### Interaction
 
@@ -242,6 +244,7 @@ js/
   sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
   plates.js             Tectonic plate generation (farthest-point seeding, round-robin flood fill, compactness constraints)
   coarse-plates.js      Resolution-independent plate pipeline — coarse reference grid, projection, boundary smoothing
+  super-plates.js       Groups same-type plates into ~20 super plates for broad orogenic belts
   ocean-land.js         Ocean/land assignment with continent seeding
   elevation.js          Collisions, stress propagation, distance fields, elevation
   terrain-post.js       Domain warping, bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep

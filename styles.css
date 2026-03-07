@@ -653,6 +653,85 @@ button#generate.generating {
     display: inline-flex; align-items: center;
 }
 
+/* What's New overlay */
+#whatsNewOverlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.6);
+    z-index: 200;
+    display: flex; align-items: center; justify-content: center;
+    transition: opacity 0.5s ease;
+}
+#whatsNewOverlay.hidden {
+    opacity: 0; pointer-events: none;
+}
+#whatsNewCard {
+    position: relative;
+    max-width: 440px; width: 90%;
+    background: rgba(8,8,28,0.94); backdrop-filter: blur(16px);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    padding: 32px 28px 24px;
+    color: #cde;
+    transition: opacity 0.5s ease, transform 0.5s ease;
+}
+#whatsNewOverlay.hidden #whatsNewCard {
+    opacity: 0; transform: translateY(-16px);
+}
+#whatsNewClose {
+    position: absolute; top: 10px; right: 14px;
+    background: none; border: none;
+    color: #667; font-size: 22px; cursor: pointer;
+    line-height: 1; padding: 4px;
+    transition: color 0.2s;
+}
+#whatsNewClose:hover { color: #fff; }
+.whatsnew-step {
+    display: none;
+}
+.whatsnew-step.active {
+    display: block;
+}
+.whatsnew-step h3 {
+    font-size: 18px; font-weight: 600; color: #fff;
+    margin-bottom: 10px;
+}
+.whatsnew-step p {
+    font-size: 14px; line-height: 1.6; color: #9ab;
+    margin-bottom: 8px;
+}
+.whatsnew-step p:last-of-type {
+    margin-bottom: 0;
+}
+.whatsnew-step p strong {
+    color: #cde;
+}
+.whatsnew-warn {
+    background: rgba(232,160,32,0.10);
+    border: 1px solid rgba(232,160,32,0.25);
+    border-radius: 8px;
+    padding: 10px 12px;
+    color: #c9a44e;
+    font-size: 13px;
+    line-height: 1.5;
+}
+.whatsnew-warn strong {
+    color: #e8a020;
+}
+.whatsnew-list {
+    list-style: none; padding: 0; margin: 0;
+}
+.whatsnew-list li {
+    font-size: 14px; line-height: 1.6; color: #9ab;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.whatsnew-list li:last-child {
+    border-bottom: none;
+}
+.whatsnew-list li strong {
+    color: #cde;
+}
+
 /* Mobile view switcher — hidden on desktop */
 .mobile-view-switch { display: none; }
 
@@ -911,6 +990,7 @@ button#generate.generating {
 
     /* Tutorial card — tighter padding */
     #tutorialCard { padding: 24px 20px 18px; }
+    #whatsNewCard { padding: 24px 20px 18px; }
 }
 
 /* ───── Mobile landscape ───── */
@@ -922,6 +1002,7 @@ button#generate.generating {
 @media (max-width: 480px) {
     #ui { padding: 8px 14px 14px; }
     #tutorialCard { padding: 20px 16px 14px; }
+    #whatsNewCard { padding: 20px 16px 14px; }
     button#generate { padding: 12px; font-size: 15px; }
     .cg label { font-size: 14px; }
     .section summary { font-size: 13px; }

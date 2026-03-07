@@ -213,7 +213,7 @@ export function expandRegions(mesh, regions, steps) {
 // ----------------------------------------------------------------
 //  Elevation assignment — combines distance fields, stress, noise
 // ----------------------------------------------------------------
-export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity) {
+export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity, superPlateData) {
     const { numRegions } = mesh;
     const r_elevation = new Float32Array(numRegions);
     const _timing = [];
@@ -233,9 +233,98 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const dl_foldRidge = new Float32Array(numRegions);
     const dl_orogenicPower = new Float32Array(numRegions);
 
-    const { mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } =
-        findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
-    _timing.push({ stage: 'Collisions', ms: performance.now() - _t0 }); _t0 = performance.now();
+    // --- Small-plate collisions (always computed) ---
+    const smallCol = findCollisions(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateDensity, noise);
+
+    // --- Super-plate collisions (when available) ---
+    const hasSuperPlates = superPlateData != null;
+    let superCol = null;
+    if (hasSuperPlates) {
+        superCol = findCollisions(mesh, r_xyz, superPlateData.superPlateIsOcean,
+            superPlateData.r_superPlate, superPlateData.superPlateVec,
+            superPlateData.superPlateDensity, noise);
+    }
+    _timing.push({ stage: 'Collisions' + (hasSuperPlates ? ' (dual)' : ''), ms: performance.now() - _t0 }); _t0 = performance.now();
+
+    // --- Blend collision results ---
+    let mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean;
+
+    // Blend weights for dual-layer orogeny (small plates vs super plates).
+    // All collision outputs use these same weights for consistency.
+    const SMALL_W = 0.05;
+    const SUPER_W = 0.95;
+
+    if (!hasSuperPlates) {
+        ({ mountain_r, coastline_r, ocean_r, r_stress, r_subductFactor, r_boundaryType, r_bothOcean, r_hasOcean } = smallCol);
+    } else {
+        // Seed sets: union of both layers (small plates add noise everywhere)
+        mountain_r  = new Set([...superCol.mountain_r, ...(SMALL_W > 0 ? smallCol.mountain_r : [])]);
+        ocean_r     = new Set([...superCol.ocean_r,    ...(SMALL_W > 0 ? smallCol.ocean_r : [])]);
+        coastline_r = new Set();
+        for (const r of superCol.coastline_r) {
+            if (!mountain_r.has(r)) coastline_r.add(r);
+        }
+        if (SMALL_W > 0) {
+            for (const r of smallCol.coastline_r) {
+                if (!mountain_r.has(r) && !coastline_r.has(r)) coastline_r.add(r);
+            }
+        }
+
+        // Stress: smooth ramp — small-plate contribution scales up from SMALL_W²
+        // (isolated, far from super plate orogeny) to full SMALL_W (where super
+        // plate stress is strong). This lets small plates add texture everywhere
+        // while keeping super plates as the dominant pattern.
+        r_stress = new Float32Array(numRegions);
+        {
+            let maxSuperStress = 0;
+            for (let r = 0; r < numRegions; r++) {
+                if (superCol.r_stress[r] > maxSuperStress) maxSuperStress = superCol.r_stress[r];
+            }
+            const invMax = maxSuperStress > 1e-6 ? 1 / maxSuperStress : 0;
+            for (let r = 0; r < numRegions; r++) {
+                const sS = smallCol.r_stress[r], sP = superCol.r_stress[r];
+                // proximity: 0 = no super plate stress, 1 = at max super plate stress
+                const proximity = Math.min(1, sP * invMax * 3);
+                // Smooth ramp: SMALL_W² at proximity=0 → SMALL_W at proximity=1
+                const effectiveSmallW = SMALL_W * (SMALL_W + (1 - SMALL_W) * proximity);
+                r_stress[r] = effectiveSmallW * sS + SUPER_W * sP;
+            }
+        }
+
+        // SubductFactor: same blend weights
+        r_subductFactor = new Float32Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            const wS = SMALL_W * smallCol.r_stress[r], wP = SUPER_W * superCol.r_stress[r];
+            const total = wS + wP;
+            if (total > 1e-6) {
+                r_subductFactor[r] = (wS * smallCol.r_subductFactor[r] + wP * superCol.r_subductFactor[r]) / total;
+            } else {
+                r_subductFactor[r] = SMALL_W * smallCol.r_subductFactor[r] + SUPER_W * superCol.r_subductFactor[r];
+            }
+        }
+
+        // BoundaryType: weighted by blended stress
+        r_boundaryType = new Int8Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            const wS = SMALL_W * smallCol.r_stress[r];
+            const wP = SUPER_W * superCol.r_stress[r];
+            r_boundaryType[r] = wS > wP
+                ? smallCol.r_boundaryType[r]
+                : superCol.r_boundaryType[r];
+        }
+
+        // Boolean flags: blend-aware (only include a layer's flags if it has weight)
+        r_bothOcean = new Uint8Array(numRegions);
+        r_hasOcean  = new Uint8Array(numRegions);
+        for (let r = 0; r < numRegions; r++) {
+            const bSmall = SMALL_W > 0 ? smallCol.r_bothOcean[r] : 0;
+            const bSuper = SUPER_W > 0 ? superCol.r_bothOcean[r] : 0;
+            r_bothOcean[r] = bSmall | bSuper;
+            const hSmall = SMALL_W > 0 ? smallCol.r_hasOcean[r] : 0;
+            const hSuper = SUPER_W > 0 ? superCol.r_hasOcean[r] : 0;
+            r_hasOcean[r]  = hSmall | hSuper;
+        }
+    }
 
     // Propagate stress inward
     const scaleFactor = Math.sqrt(numRegions / 10000);
@@ -244,8 +333,34 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     const subductBaseDecay = baseDecay * 0.45;
     const subductDecayFactor = Math.pow(subductBaseDecay, 1 / scaleFactor);
     const numPasses = Math.max(1, Math.round(spread * 3 * scaleFactor));
-    propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
-    _timing.push({ stage: 'Stress propagation', ms: performance.now() - _t0 }); _t0 = performance.now();
+
+    if (!hasSuperPlates) {
+        propagateStress(mesh, r_stress, r_subductFactor, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
+    } else {
+        // Dual stress propagation: propagate each layer within its own plates, then blend
+        const smallStress = new Float32Array(smallCol.r_stress);
+        const smallSubduct = new Float32Array(smallCol.r_subductFactor);
+        propagateStress(mesh, smallStress, smallSubduct, r_plate, plateIsOcean, decayFactor, subductDecayFactor, numPasses);
+
+        const superStress = new Float32Array(superCol.r_stress);
+        const superSubduct = new Float32Array(superCol.r_subductFactor);
+        propagateStress(mesh, superStress, superSubduct, superPlateData.r_superPlate, superPlateData.superPlateIsOcean, decayFactor, subductDecayFactor, numPasses);
+
+        // Blend propagated stress using same SMALL_W / SUPER_W weights
+        for (let r = 0; r < numRegions; r++) {
+            r_stress[r] = SMALL_W * smallStress[r] + SUPER_W * superStress[r];
+        }
+
+        // Update subduct factor from propagated values using same weights
+        for (let r = 0; r < numRegions; r++) {
+            const wS = SMALL_W * smallStress[r], wP = SUPER_W * superStress[r];
+            const total = wS + wP;
+            if (total > 1e-6) {
+                r_subductFactor[r] = (wS * smallSubduct[r] + wP * superSubduct[r]) / total;
+            }
+        }
+    }
+    _timing.push({ stage: 'Stress propagation' + (hasSuperPlates ? ' (dual)' : ''), ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Plate interiors are also seeds — find a representative hi-res region
     // per plate (plate seed IDs are coarse mesh indices that may not correspond
@@ -1269,5 +1384,8 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     _timing.push({ stage: 'Peak compression', ms: performance.now() - _t0 });
 
     const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge, orogenicPower: dl_orogenicPower };
+    if (hasSuperPlates) {
+        debugLayers.superPlates = new Float32Array(superPlateData.r_superPlate);
+    }
     return { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing };
 }

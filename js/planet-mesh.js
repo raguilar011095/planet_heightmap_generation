@@ -377,6 +377,7 @@ export function buildMapMesh() {
     state.mapMesh.add(cloneL, cloneR);
     scene.add(state.mapMesh);
 
+    updateSuperPlateBorders();
     buildMapGrid();
 }
 
@@ -524,6 +525,94 @@ function oceanCurrentColor(warmth, speed, isOcean) {
         // Neutral (zonal) → dark teal-gray
         const t = base + intensity * 0.45;
         return [t * 0.55, t * 0.7, t * 0.65];
+    }
+}
+
+// Build / destroy super plate boundary lines for both globe and map views.
+// Called from buildMesh, buildMapMesh, and the Show Plates checkbox handler.
+export function updateSuperPlateBorders() {
+    // Cleanup existing
+    if (state.superPlateBorderMesh) { scene.remove(state.superPlateBorderMesh); state.superPlateBorderMesh.geometry.dispose(); state.superPlateBorderMesh.material.dispose(); state.superPlateBorderMesh = null; }
+    if (state.mapSuperPlateBorderMesh) { scene.remove(state.mapSuperPlateBorderMesh); state.mapSuperPlateBorderMesh.geometry.dispose(); state.mapSuperPlateBorderMesh.material.dispose(); state.mapSuperPlateBorderMesh = null; }
+
+    if (!state.curData) return;
+    const showPlates = document.getElementById('chkPlates').checked;
+    if (!showPlates) return;
+
+    const { mesh, t_xyz, t_elevation, debugLayers } = state.curData;
+    if (!debugLayers || !debugLayers.superPlates) return;
+    const spArr = debugLayers.superPlates;
+    const { numSides } = mesh;
+    const PI = Math.PI;
+    const V = 0.04;
+
+    // Globe borders
+    if (!state.mapMode) {
+        const bp = [];
+        for (let s = 0; s < numSides; s++) {
+            const opp = mesh.halfedges[s];
+            if (s < opp) {
+                const r1 = mesh.s_begin_r(s);
+                const r2 = mesh.s_begin_r(opp);
+                if (spArr[r1] !== spArr[r2]) {
+                    const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s);
+                    const ite = t_elevation[it], ote = t_elevation[ot];
+                    const d1 = 1.002 + (ite > 0 ? ite*V : ite*V*0.3);
+                    const d2 = 1.002 + (ote > 0 ? ote*V : ote*V*0.3);
+                    bp.push(
+                        t_xyz[3*it]*d1, t_xyz[3*it+1]*d1, t_xyz[3*it+2]*d1,
+                        t_xyz[3*ot]*d2, t_xyz[3*ot+1]*d2, t_xyz[3*ot+2]*d2
+                    );
+                }
+            }
+        }
+        if (bp.length > 0) {
+            const bg = new THREE.BufferGeometry();
+            bg.setAttribute('position', new THREE.Float32BufferAttribute(bp, 3));
+            state.superPlateBorderMesh = new THREE.LineSegments(bg,
+                new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 }));
+            scene.add(state.superPlateBorderMesh);
+        }
+    }
+
+    // Map borders
+    if (state.mapMode) {
+        const centerLon = state.mapCenterLon || 0;
+        function wrapLon(lon) {
+            let l = lon - centerLon;
+            if (l > PI) l -= 2 * PI;
+            else if (l < -PI) l += 2 * PI;
+            return l;
+        }
+        const sx = 2 / PI;
+        const bps = [];
+        for (let s = 0; s < numSides; s++) {
+            const opp = mesh.halfedges[s];
+            if (s < opp) {
+                const r1 = mesh.s_begin_r(s);
+                const r2 = mesh.s_begin_r(opp);
+                if (spArr[r1] !== spArr[r2]) {
+                    const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s);
+                    const lat1 = Math.asin(Math.max(-1, Math.min(1, t_xyz[3*it+1])));
+                    const lon1 = wrapLon(Math.atan2(t_xyz[3*it], t_xyz[3*it+2]));
+                    const lat2 = Math.asin(Math.max(-1, Math.min(1, t_xyz[3*ot+1])));
+                    const lon2 = wrapLon(Math.atan2(t_xyz[3*ot], t_xyz[3*ot+2]));
+                    if (Math.abs(lon1 - lon2) < PI * 0.5) {
+                        bps.push(lon1 * sx, lat1 * sx, 0.002, lon2 * sx, lat2 * sx, 0.002);
+                    }
+                }
+            }
+        }
+        if (bps.length > 0) {
+            const bg = new THREE.BufferGeometry();
+            bg.setAttribute('position', new THREE.Float32BufferAttribute(bps, 3));
+            const bMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55, clippingPlanes: MAP_CLIP_PLANES });
+            state.mapSuperPlateBorderMesh = new THREE.LineSegments(bg, bMat);
+            const bcL = new THREE.LineSegments(bg, bMat); bcL.position.x = -4;
+            const bcR = new THREE.LineSegments(bg, bMat); bcR.position.x = 4;
+            state.mapSuperPlateBorderMesh.add(bcL, bcR);
+            scene.add(state.mapSuperPlateBorderMesh);
+        }
     }
 }
 
@@ -703,6 +792,8 @@ export function buildMesh() {
             new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.12 }));
         scene.add(state.wireMesh);
     }
+
+    updateSuperPlateBorders();
 
     buildDriftArrows();
     updatePendingHighlight();
