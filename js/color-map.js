@@ -123,3 +123,20 @@ export function elevationToColor(e) {
     if (e <  0.75) { const t=(e-0.50)/0.25;  return [0.44+t*0.16,0.28+t*0.12,0.14+t*0.18]; }
     { const t=Math.min(1,(e-0.75)/0.20);      return [0.60+t*0.35,0.40+t*0.50,0.32+t*0.60]; }
 }
+
+// Rock type → RGB colour.
+// Indexed by ROCK_TYPES enum from geology.js (7 types).
+const ROCK_COLORS = [
+    [0.502, 0.612, 0.478],  // 0 Metamorphic  — #809C7A green
+    [0.910, 0.722, 0.773],  // 1 Granitic     — #E8B8C5 pink
+    [0.694, 0.576, 0.718],  // 2 Andesitic    — #B193B7 purple
+    [0.290, 0.290, 0.290],  // 3 Basaltic     — #4A4A4A dark gray
+    [0.961, 0.820, 0.553],  // 4 Sandstone    — #F5D18D orange/yellow
+    [0.992, 0.949, 0.820],  // 5 Carbonate    — #FDF2D1 light yellow
+    [0.992, 0.973, 0.902],  // 6 Sediments    — #FDF8E6 pale yellow/white
+    [0.150, 0.300, 0.550],  // 7 Ocean        — #264D8C blue
+];
+
+export function rockTypeColor(typeId) {
+    return ROCK_COLORS[typeId] || [0.5, 0.5, 0.5];
+}

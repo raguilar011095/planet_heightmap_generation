@@ -257,6 +257,7 @@ export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength, r_hotspot)
     const maxAmp = WARP_MAX_AMP_MULT * strength; // radians (~760 km at Earth scale when strength=1)
 
     const out = new Float32Array(r_elevation);
+    const warpMap = new Int32Array(N);  // warpMap[r] = source region for r after warp
 
     for (let r = 0; r < N; r++) {
         const px = r_xyz[3 * r], py = r_xyz[3 * r + 1], pz = r_xyz[3 * r + 2];
@@ -303,6 +304,7 @@ export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength, r_hotspot)
         }
 
         out[r] = r_elevation[cur];
+        warpMap[r] = cur;
     }
 
     // Weighted max: pick whichever is larger, biased by strength
@@ -323,6 +325,8 @@ export function warpTerrain(mesh, r_elevation, r_xyz, seed, strength, r_hotspot)
             r_elevation[r] = warped + (orig - warped) * (1 - bias);
         }
     }
+
+    return warpMap;
 }
 
 /**
