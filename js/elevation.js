@@ -2274,7 +2274,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
 
     _timing.push({ stage: 'Fill interior seas', ms: performance.now() - _t0 });
 
-    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, lip: dl_lip, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge, orogenicPower: dl_orogenicPower, basin: r_basinFactor, uniformNoise: dl_uniformNoise, dynamicTopo: dl_dynamicTopo };
+    const debugLayers = { base: dl_base, tectonic: dl_tectonic, noise: dl_noise, interior: dl_interior, coastal: dl_coastal, ocean: dl_ocean, hotspot: dl_hotspot, lip: dl_lip, tecActivity: dl_tecActivity, margins: dl_margins, backArc: dl_backArc, foldRidge: dl_foldRidge, orogenicPower: dl_orogenicPower, basin: r_basinFactor, uniformNoise: dl_uniformNoise, dynamicTopo: dl_dynamicTopo, boundaryType: r_boundaryType, subductFactor: r_subductFactor, bothOcean: r_bothOcean, hasOcean: r_hasOcean };
     if (hasSuperPlates) {
         debugLayers.superPlates = new Float32Array(superPlateData.r_superPlate);
     }

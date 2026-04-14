@@ -10,6 +10,9 @@ import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
+import { assignRockTypes } from './geology.js';
+import { assignDeposits } from './deposits.js';
+import { SimplexNoise } from './simplex-noise.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -306,6 +309,23 @@ if (worker) {
                         d.debugLayers.koppen = classifyKoppen(mesh, d.r_elevation,
                             { r_temperature_summer: d.r_temperature_summer, r_temperature_winter: d.r_temperature_winter },
                             { r_precip_summer: d.r_precip_summer, r_precip_winter: d.r_precip_winter });
+                    }
+                    // Re-classify rock types with Köppen data for climate-dependent types (evaporite)
+                    if (state.curData.debugLayers && state.curData.debugLayers.koppen && state.curData.debugLayers.rockType) {
+                        const d = state.curData;
+                        const dl = d.debugLayers;
+                        const noise = new SimplexNoise(d.seed);
+                        const { r_rockType } = assignRockTypes(
+                            mesh, d.r_xyz, d.r_elevation, d.r_plate, d.plateIsOcean,
+                            dl.boundaryType, d.r_stress, dl.subductFactor,
+                            dl.bothOcean, dl.hasOcean,
+                            dl.hotspot, dl.lip, dl.basin,
+                            noise, d.seed, dl.koppen,
+                            dl.erosionDelta, dl.coastal, dl.foldRidge,
+                            dl.orogenicPower, dl.backArc, dl.margins,
+                            dl.dynamicTopo
+                        );
+                        dl.rockType = r_rockType;
                     }
                 }
 
@@ -658,6 +678,43 @@ if (worker) {
                     // Merge climate debug layers
                     if (msg.climateDebugLayers && d.debugLayers) {
                         Object.assign(d.debugLayers, msg.climateDebugLayers);
+                    }
+
+                    // Re-classify rock types and compute deposits with Köppen
+                    if (d.debugLayers && d.debugLayers.koppen) {
+                        try {
+                            const dl = d.debugLayers;
+                            const mesh = d.mesh;
+                            const noise = new SimplexNoise(d.seed);
+
+                            if (dl.rockType) {
+                                const { r_rockType } = assignRockTypes(
+                                    mesh, d.r_xyz, d.r_elevation, d.r_plate, d.plateIsOcean,
+                                    dl.boundaryType, d.r_stress, dl.subductFactor,
+                                    dl.bothOcean, dl.hasOcean,
+                                    dl.hotspot, dl.lip, dl.basin,
+                                    noise, d.seed, dl.koppen,
+                                    dl.erosionDelta, dl.coastal, dl.foldRidge,
+                                    dl.orogenicPower, dl.backArc, dl.margins,
+                                    dl.dynamicTopo
+                                );
+                                dl.rockType = r_rockType;
+
+                                const depResult = assignDeposits(
+                                    mesh, d.r_xyz, d.r_elevation, r_rockType, d.r_plate, d.plateIsOcean,
+                                    dl.boundaryType, d.r_stress, dl.basin,
+                                    dl.hotspot, dl.lip, dl.erosionDelta,
+                                    dl.coastal, dl.foldRidge, dl.orogenicPower,
+                                    dl.backArc, dl.koppen, noise, d.seed
+                                );
+                                dl.deposits = depResult.r_deposits;
+                                for (const [key, arr] of Object.entries(depResult.richArrays)) {
+                                    dl['dep_' + key] = arr;
+                                }
+                            }
+                        } catch (e) {
+                            console.error('[World Orogen] Failed to compute deposits on climate done:', e);
+                        }
                     }
                 }
                 state.climateComputed = true;

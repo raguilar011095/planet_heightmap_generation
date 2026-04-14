@@ -7,6 +7,8 @@ import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
 import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+import { ROCK_TYPE_INFO } from './geology.js';
+import { listDeposits } from './deposits.js';
 import { elevToHeightKm } from './color-map.js';
 
 const raycaster = new THREE.Raycaster();
@@ -156,6 +158,26 @@ function buildHoverHTML(region, plate) {
                     lines.push(`<span class="hi-label">Clima</span> <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${hex};vertical-align:middle;margin-right:4px"></span>${kc.code} — ${kc.name}`);
                 }
             }
+        }
+    }
+
+    // Rock type (always shown when available, for land and ocean)
+    if (d.debugLayers && d.debugLayers.rockType) {
+        const rtIdx = d.debugLayers.rockType[region];
+        const rt = ROCK_TYPE_INFO[rtIdx];
+        if (rt) {
+            const [r, g, b] = rt.color;
+            const hex = '#' + [r, g, b].map(v => Math.round(v * 255).toString(16).padStart(2, '0')).join('');
+            lines.push(`<span class="hi-label">Rock</span> <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${hex};vertical-align:middle;margin-right:4px"></span>${rt.name}`);
+        }
+    }
+
+    // Deposits (shown when computed)
+    if (d.debugLayers && d.debugLayers.deposits && elev > 0) {
+        const names = listDeposits(d.debugLayers.deposits[region]);
+        if (names.length > 0) {
+            const display = names.length > 3 ? names.slice(0, 3).join(', ') + ` +${names.length - 3}` : names.join(', ');
+            lines.push(`<span class="hi-label">Deps</span> ${display}`);
         }
     }
 

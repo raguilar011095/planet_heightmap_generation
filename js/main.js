@@ -11,7 +11,8 @@ import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, reb
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
-import { elevationToColor } from './color-map.js';
+import { elevationToColor, rockTypeColor } from './color-map.js';
+import { ROCK_TYPE_INFO } from './geology.js';
 
 // Slider value displays + stale tracking
 const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc'];
@@ -201,7 +202,10 @@ const CLIMATE_LAYERS = new Set([
     'precipSummer', 'precipWinter',
     'rainShadowSummer', 'rainShadowWinter',
     'tempSummer', 'tempWinter',
-    'koppen', 'biome', 'continentality'
+    'koppen', 'biome', 'continentality',
+    'dep_copperCu', 'dep_copperAu',
+    'dep_bronzeCu', 'dep_bronzeAu', 'dep_bronzeSn', 'dep_bronzePbZn', 'dep_bronzeGems',
+    'dep_ironCu', 'dep_ironAu', 'dep_ironSn', 'dep_ironPbZn', 'dep_ironGems', 'dep_ironFe',
 ]);
 
 // Map tabs → tab-layer mapping
@@ -383,6 +387,60 @@ function updateLegend(layer) {
                 updateMapKoppenHoverHighlight();
             });
         });
+    } else if (layer === 'rockType') {
+        // Rock type legend — swatch grid with hover tooltips (like Köppen)
+        let html = '<div class="legend-koppen-header">Rock Type Classification</div>';
+        html += '<div class="legend-koppen">';
+        for (let i = 0; i < ROCK_TYPE_INFO.length; i++) {
+            const rt = ROCK_TYPE_INFO[i];
+            const [r, g, b] = rt.color;
+            const hex = `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+            html += `<div class="legend-koppen-item" data-rock="${i}"><span class="legend-koppen-swatch" style="background:${hex}"></span>${rt.code}</div>`;
+        }
+        html += '<div class="legend-koppen-tooltip" id="rockTypeTip"></div>';
+        html += '</div>';
+        vizLegend.innerHTML = html;
+        const tipEl = document.getElementById('rockTypeTip');
+        const container = vizLegend.querySelector('.legend-koppen');
+        vizLegend.querySelectorAll('.legend-koppen-item').forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                const idx = parseInt(item.dataset.rock, 10);
+                const rt = ROCK_TYPE_INFO[idx];
+                if (!rt) return;
+                tipEl.textContent = `${rt.name} — ${rt.description}`;
+                tipEl.classList.add('visible');
+                const itemRect = item.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const tipWidth = 280;
+                let left = itemRect.left - containerRect.left + itemRect.width / 2 - tipWidth / 2;
+                left = Math.max(0, Math.min(left, containerRect.width - tipWidth));
+                tipEl.style.left = left + 'px';
+                tipEl.style.bottom = (containerRect.bottom - itemRect.top + 6) + 'px';
+            });
+            item.addEventListener('mouseleave', () => {
+                tipEl.classList.remove('visible');
+            });
+        });
+    } else if (layer.startsWith('dep_')) {
+        // Per-metal richness legend — gradient bar with era + metal label
+        const key = layer.slice(4);
+        const chInfo = { copperCu: { label: 'Copper Age \u2014 Copper', high: '#EB9E47' },
+                         copperAu: { label: 'Copper Age \u2014 Gold',   high: '#FFE04D' },
+                         bronzeCu: { label: 'Bronze Age \u2014 Copper', high: '#EB9E47' },
+                         bronzeAu: { label: 'Bronze Age \u2014 Gold',   high: '#FFE04D' },
+                         bronzeSn: { label: 'Bronze Age \u2014 Tin',    high: '#C7C2B3' },
+                         bronzePbZn:{label: 'Bronze Age \u2014 Lead-Zinc', high: '#A6A6CC' },
+                         bronzeGems:{label: 'Bronze Age \u2014 Gems',   high: '#D1A6F2' },
+                         ironCu:   { label: 'Iron Age \u2014 Copper',   high: '#EB9E47' },
+                         ironAu:   { label: 'Iron Age \u2014 Gold',     high: '#FFE04D' },
+                         ironSn:   { label: 'Iron Age \u2014 Tin',      high: '#C7C2B3' },
+                         ironPbZn: { label: 'Iron Age \u2014 Lead-Zinc',high: '#A6A6CC' },
+                         ironGems: { label: 'Iron Age \u2014 Gems',     high: '#D1A6F2' },
+                         ironFe:   { label: 'Iron Age \u2014 Iron',     high: '#E66B4D' } };
+        const info = chInfo[key] || { label: layer, high: '#E6B340' };
+        vizLegend.innerHTML =
+            `<div class="legend-gradient" style="background:linear-gradient(to right,#0A0A0A 0%,${info.high} 100%)"></div>` +
+            `<div class="legend-labels"><span>None</span><span>${info.label}</span><span>Rich</span></div>`;
     } else if (layer === 'biome') {
         // Satellite biome legend — gradient bar of key biome colors
         const biomeStops = [

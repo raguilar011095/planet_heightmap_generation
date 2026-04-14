@@ -14,6 +14,8 @@ import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
+import { assignRockTypes } from './geology.js';
+import { assignDeposits } from './deposits.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT } from './terrain-config.js';
@@ -45,9 +47,10 @@ function runPostProcessing(mesh, r_xyz, r_elevation, params, neighborDist, seed,
     const timing = [];
 
     // Terrain warp — first step, before ocean detection or smoothing
+    let warpMap = null;
     if (terrainWarp > 0) {
         const t0 = performance.now();
-        warpTerrain(mesh, r_elevation, r_xyz, seed, terrainWarp, r_hotspot);
+        warpMap = warpTerrain(mesh, r_elevation, r_xyz, seed, terrainWarp, r_hotspot);
         timing.push({ stage: `Terrain warp (strength=${terrainWarp.toFixed(2)})`, ms: performance.now() - t0 });
     }
 
@@ -101,7 +104,7 @@ function runPostProcessing(mesh, r_xyz, r_elevation, params, neighborDist, seed,
         dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
     }
 
-    return { dl_erosionDelta, postTiming: timing };
+    return { dl_erosionDelta, warpMap, postTiming: timing };
 }
 
 function getClimateParams(data) {
@@ -257,9 +260,33 @@ function handleGenerate(data) {
 
         progress(60, 'Eroding terrain\u2026');
         t0 = performance.now();
-        const { dl_erosionDelta, postTiming } = runPostProcessing(mesh, r_xyz, r_elevation, { smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, terrainWarp }, neighborDist, seed, debugLayers.hotspot);
+        const { dl_erosionDelta, warpMap, postTiming } = runPostProcessing(mesh, r_xyz, r_elevation, { smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, terrainWarp }, neighborDist, seed, debugLayers.hotspot);
         timing.push({ stage: 'Terrain post-processing (total)', ms: performance.now() - t0 });
         debugLayers.erosionDelta = dl_erosionDelta;
+
+        // Apply terrain warp mapping to debug layers so rock/deposit classification
+        // aligns with the warped terrain rather than pre-warp positions.
+        if (warpMap) {
+            const layersToWarp = ['hotspot', 'lip', 'base', 'tectonic', 'interior', 'coastal',
+                'ocean', 'margins', 'backArc', 'foldRidge', 'orogenicPower', 'dynamicTopo',
+                'basin', 'boundaryType', 'subductFactor', 'bothOcean', 'hasOcean'];
+            for (const key of layersToWarp) {
+                const src = debugLayers[key];
+                if (!src) continue;
+                const warped = new src.constructor(src.length);
+                for (let r = 0; r < mesh.numRegions; r++) {
+                    warped[r] = src[warpMap[r]];
+                }
+                debugLayers[key] = warped;
+            }
+            // Also warp stress (not in debugLayers, it's a separate array)
+            const warpedStress = new Float32Array(mesh.numRegions);
+            for (let r = 0; r < mesh.numRegions; r++) {
+                warpedStress[r] = r_stress[warpMap[r]];
+            }
+            r_stress.set(warpedStress);
+            timing.push({ stage: 'Warp debug layers for geology', ms: performance.now() - t0 });
+        }
 
         // Expand plate physics diagnostics to hi-res mesh
         {
@@ -273,6 +300,22 @@ function handleGenerate(data) {
             debugLayers.velChange = ppd.dl_velChange;
             debugLayers.mantleFlow = ppd.dl_mantleFlow;
         }
+
+        // Rock type classification (runs before climate; re-runs after Köppen for evaporite)
+        progress(65, 'Classifying rock types\u2026');
+        t0 = performance.now();
+        let { r_rockType } = assignRockTypes(
+            mesh, r_xyz, r_elevation, r_plate, plateIsOcean,
+            debugLayers.boundaryType, r_stress, debugLayers.subductFactor,
+            debugLayers.bothOcean, debugLayers.hasOcean,
+            debugLayers.hotspot, debugLayers.lip, debugLayers.basin,
+            noise, seed, null,
+            debugLayers.erosionDelta, debugLayers.coastal, debugLayers.foldRidge,
+            debugLayers.orogenicPower, debugLayers.backArc, debugLayers.margins,
+            debugLayers.dynamicTopo
+        );
+        debugLayers.rockType = r_rockType;
+        timing.push({ stage: 'Rock type classification', ms: performance.now() - t0 });
 
         let windResult = null, oceanResult = null, precipResult = null, tempResult = null;
 
@@ -315,7 +358,38 @@ function handleGenerate(data) {
             t0 = performance.now();
             debugLayers.koppen = classifyKoppen(mesh, r_elevation, tempResult, precipResult);
             timing.push({ stage: 'Köppen classification', ms: performance.now() - t0 });
+
+            // Re-run rock types with Köppen data for climate-dependent types (evaporite)
+            t0 = performance.now();
+            ({ r_rockType } = assignRockTypes(
+                mesh, r_xyz, r_elevation, r_plate, plateIsOcean,
+                debugLayers.boundaryType, r_stress, debugLayers.subductFactor,
+                debugLayers.bothOcean, debugLayers.hasOcean,
+                debugLayers.hotspot, debugLayers.lip, debugLayers.basin,
+                noise, seed, debugLayers.koppen,
+                debugLayers.erosionDelta, debugLayers.coastal, debugLayers.foldRidge,
+                debugLayers.orogenicPower, debugLayers.backArc, debugLayers.margins,
+                debugLayers.dynamicTopo
+            ));
+            debugLayers.rockType = r_rockType;
+            timing.push({ stage: 'Rock type reclassification (with climate)', ms: performance.now() - t0 });
+
+            // Re-run deposits with climate data for climate-dependent types (bog/laterite iron)
+            t0 = performance.now();
+            const depResult2 = assignDeposits(
+                mesh, r_xyz, r_elevation, r_rockType, r_plate, plateIsOcean,
+                debugLayers.boundaryType, r_stress, debugLayers.basin,
+                debugLayers.hotspot, debugLayers.lip, debugLayers.erosionDelta,
+                debugLayers.coastal, debugLayers.foldRidge, debugLayers.orogenicPower,
+                debugLayers.backArc, debugLayers.koppen, noise, seed
+            );
+            debugLayers.deposits = depResult2.r_deposits;
+            for (const [key, arr] of Object.entries(depResult2.richArrays)) {
+                debugLayers['dep_' + key] = arr;
+            }
+            timing.push({ stage: 'Mineral deposit reclassification (with climate)', ms: performance.now() - t0 });
         }
+
 
         progress(skipClimate ? 75 : 90, 'Computing triangle elevations\u2026');
         t0 = performance.now();

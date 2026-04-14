@@ -3,9 +3,10 @@
 import * as THREE from 'three';
 import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
-import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
+import { elevationToColor, elevToHeightKm, biomeColor, rockTypeColor } from './color-map.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+import { depositRichnessColor, METAL_CHANNEL_INFO } from './deposits.js';
 
 // Clipping planes for map wrap — keep everything within x ∈ [-2, 2]
 renderer.localClippingEnabled = true;
@@ -302,9 +303,16 @@ export function buildMapMesh() {
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isRockType = debugLayer === 'rockType';
+    const rockTypeArr = isRockType ? (debugLayers && debugLayers.rockType) : null;
+    // Deposit layers: dep_copperCu, dep_bronzeSn, etc.
+    const depKey = debugLayer.startsWith('dep_') ? debugLayer.slice(4) : null;
+    const isDeposits = depKey != null && depKey in METAL_CHANNEL_INFO;
+    const depositsRichArr = isDeposits && debugLayers ? debugLayers[debugLayer] : null;
+    const depositsRampColor = isDeposits ? METAL_CHANNEL_INFO[depKey].color : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isRockType && !isDeposits && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -359,6 +367,10 @@ export function buildMapMesh() {
                 [cr, cg, cb] = continentalityColor(contArr[br]);
             } else if (isKoppen && koppenArr) {
                 [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else if (isRockType && rockTypeArr) {
+                [cr, cg, cb] = rockTypeColor(rockTypeArr[br]);
+            } else if (isDeposits && depositsRichArr) {
+                [cr, cg, cb] = depositRichnessColor(depositsRichArr[br], r_elevation[br], depositsRampColor);
             } else if (isTemp && tempArr) {
                 [cr, cg, cb] = temperatureColor(tempArr[br]);
             } else if (isPrecip && precipArr) {
@@ -733,9 +745,16 @@ export function buildMesh() {
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isRockType = debugLayer === 'rockType';
+    const rockTypeArr = isRockType ? (debugLayers && debugLayers.rockType) : null;
+    // Deposit layers: dep_copperCu, dep_bronzeSn, etc.
+    const depKey = debugLayer.startsWith('dep_') ? debugLayer.slice(4) : null;
+    const isDeposits = depKey != null && depKey in METAL_CHANNEL_INFO;
+    const depositsRichArr = isDeposits && debugLayers ? debugLayers[debugLayer] : null;
+    const depositsRampColor = isDeposits ? METAL_CHANNEL_INFO[depKey].color : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isRockType && !isDeposits && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -820,6 +839,10 @@ export function buildMesh() {
                 [cr, cg, cb] = continentalityColor(contArr[br]);
             } else if (isKoppen && koppenArr) {
                 [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else if (isRockType && rockTypeArr) {
+                [cr, cg, cb] = rockTypeColor(rockTypeArr[br]);
+            } else if (isDeposits && depositsRichArr) {
+                [cr, cg, cb] = depositRichnessColor(depositsRichArr[br], r_elevation[br], depositsRampColor);
             } else if (isTemp && tempArr) {
                 [cr, cg, cb] = temperatureColor(tempArr[br]);
             } else if (isPrecip && precipArr) {
@@ -969,9 +992,16 @@ export function updateMeshColors() {
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isRockType = debugLayer === 'rockType';
+    const rockTypeArr = isRockType ? (debugLayers && debugLayers.rockType) : null;
+    // Deposit layers: dep_copperCu, dep_bronzeSn, etc.
+    const depKey = debugLayer.startsWith('dep_') ? debugLayer.slice(4) : null;
+    const isDeposits = depKey != null && depKey in METAL_CHANNEL_INFO;
+    const depositsRichArr = isDeposits && debugLayers ? debugLayers[debugLayer] : null;
+    const depositsRampColor = isDeposits ? METAL_CHANNEL_INFO[depKey].color : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isRockType && !isDeposits && !isCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -987,6 +1017,8 @@ export function updateMeshColors() {
         if (isBiome && biomeSmoothed) return [biomeSmoothed[br * 3], biomeSmoothed[br * 3 + 1], biomeSmoothed[br * 3 + 2]];
         if (isCont && contArr) return continentalityColor(contArr[br]);
         if (isKoppen && koppenArr) return koppenColor(koppenArr[br]);
+        if (isRockType && rockTypeArr) return rockTypeColor(rockTypeArr[br]);
+        if (isDeposits && depositsRichArr) return depositRichnessColor(depositsRichArr[br], r_elevation[br], depositsRampColor);
         if (isTemp && tempArr) return temperatureColor(tempArr[br]);
         if (isPrecip && precipArr) return precipitationColor(precipArr[br]);
         if (isRainShadow && rainShadowArr) return rainShadowColor(rainShadowArr[br]);
@@ -1901,6 +1933,7 @@ export async function exportMap(type, width, onProgress) {
     // Climate-dependent export types (Satellite / Köppen)
     const debugLayers = state.curData.debugLayers;
     const koppenArr = (type === 'biome' || type === 'koppen') ? (debugLayers && debugLayers.koppen) : null;
+    const rockTypeArr = type === 'rockType' ? (debugLayers && debugLayers.rockType) : null;
     const biomeSmoothed = (type === 'biome' && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
 
     // Build map triangles (same projection as buildMapMesh, chosen coloring, no grid)
@@ -1949,6 +1982,8 @@ export async function exportMap(type, width, onProgress) {
                 cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
             } else if (type === 'koppen' && koppenArr) {
                 [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else if (type === 'rockType' && rockTypeArr) {
+                [cr, cg, cb] = rockTypeColor(rockTypeArr[br]);
             } else {
                 [cr, cg, cb] = elevationToColor(r_elevation[br]);
             }
@@ -2176,6 +2211,7 @@ export async function exportMapBatch(types, width, onProgress) {
     const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
     const debugLayers = state.curData.debugLayers;
     const koppenArr = debugLayers && debugLayers.koppen;
+    const rockTypeArr = debugLayers && debugLayers.rockType;
     const biomeSmoothed = koppenArr ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
     const { numSides, numTriangles } = mesh;
     const PI = Math.PI;
