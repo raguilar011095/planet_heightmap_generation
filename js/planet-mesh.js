@@ -6,6 +6,7 @@ import { state } from './state.js';
 import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+import { applyNoiseHeightmap } from './noise-heightmap.js';
 
 // Clipping planes for map wrap — keep everything within x ∈ [-2, 2]
 renderer.localClippingEnabled = true;
@@ -1932,8 +1933,8 @@ export async function exportMap(type, width, onProgress) {
 
     const height = width / 2;
     const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
-    const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask';
-    const is16Bit = type === 'heightmap' || type === 'landheightmap';
+    const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask' || type === 'noiseheightmap';
+    const is16Bit = type === 'heightmap' || type === 'landheightmap' || type === 'noiseheightmap';
 
     // Climate-dependent export types (Satellite / Köppen)
     const debugLayers = state.curData.debugLayers;
@@ -1971,7 +1972,7 @@ export async function exportMap(type, width, onProgress) {
         let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
         if (is16Bit) {
             // Smooth heightmap: triangle-center vertices use averaged elevation
-            const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
+            const colorFn = (type === 'landheightmap' || type === 'noiseheightmap') ? landHeightmapColor : heightmapColor;
             const v0 = colorFn(t_elev[it])[0];
             const v1 = colorFn(t_elev[ot])[0];
             const v2 = colorFn(r_elevation[br])[0];
@@ -2107,6 +2108,12 @@ export async function exportMap(type, width, onProgress) {
                 renderer.setRenderTarget(null);
                 renderTarget.dispose();
 
+                // Apply per-pixel noise enhancement for noise heightmap export
+                if (type === 'noiseheightmap') {
+                    const code = location.hash.replace(/^#/, '').trim() || (state.curData ? state.curData.seed : '');
+                    applyNoiseHeightmap(floatPixels, pw, ph, px0, py0, width, height, code);
+                }
+
                 // Write to img16 (flip rows, extract R channel → 16-bit)
                 for (let y = 0; y < ph; y++) {
                     const srcRow = (ph - 1 - y) * pw;
@@ -2196,6 +2203,7 @@ function exportFilename(type, seed) {
         case 'landmask':       return `orogen-landmask-${seed}.png`;
         case 'landheightmap':  return `orogen-land-heightmap-${seed}.png`;
         case 'heightmap':      return `orogen-heightmap-${seed}.png`;
+        case 'noiseheightmap': return `orogen-noise-heightmap-${seed}.png`;
         case 'biome':          return `orogen-satellite-${seed}.png`;
         case 'koppen':         return `orogen-climate-${seed}.png`;
         default:               return `orogen-colormap-${seed}.png`;
@@ -2328,7 +2336,7 @@ export async function exportMapBatch(types, width, onProgress) {
 
             if (is16Bit) {
                 // Smooth heightmap: triangle-center vertices use averaged elevation
-                const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
+                const colorFn = (type === 'landheightmap' || type === 'noiseheightmap') ? landHeightmapColor : heightmapColor;
                 const v0 = colorFn(t_elev[triInnerT[i]])[0];
                 const v1 = colorFn(t_elev[triOuterT[i]])[0];
                 const v2 = colorFn(r_elevation[br])[0];
