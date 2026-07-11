@@ -20,7 +20,7 @@ excluded (and reported separately as `landAgreement`).
 - `macroF1` — unweighted mean F1 across classes present in the truth, so rare
   but important classes (Mediterranean Csa/Csb, monsoon Cwa/Dwa…) aren't drowned
   out by large deserts and subarctic zones
-- **objective = 0.5·exactAcc + 0.5·macroF1** — what the optimizer maximizes
+- **objective = 0.60·gradedAcc + 0.12·macroF1 + 0.15·groupBalance + 0.13·watchlistF1** — what the optimizer maximizes
 
 Ground-truth codes are mapped onto the app's class set (`As` → `Aw`, the standard
 merge). Ground truth lives in `data/ascii/Koeppen-Geiger-ASCII.txt`.

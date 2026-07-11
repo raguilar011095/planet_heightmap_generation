@@ -74,6 +74,17 @@ function landHeightmapColor(elevation) {
     return [t, t, t];
 }
 
+// Scalar grayscale variants — identical to heightmapColor(e)[0] / landHeightmapColor(e)[0]
+// but without allocating a 3-element array just to read one channel.
+function heightmapGray(elevation) {
+    const h = elevToHeightKm(elevation);
+    return Math.max(0, Math.min(1, (h + 5) / 11));
+}
+function landHeightmapGray(elevation) {
+    if (elevation <= 0) return 0;
+    return Math.max(0, Math.min(1, elevToHeightKm(elevation) / 6));
+}
+
 // Land mask: white = land, black = ocean
 function landMaskColor(elevation) {
     return elevation > 0 ? [1, 1, 1] : [0, 0, 0];
@@ -372,10 +383,10 @@ export function buildMapMesh() {
         // Per-vertex colors for smooth heightmaps, flat for everything else
         let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
         if (isSmooth) {
-            const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const v0 = colorFn(t_elevation[it])[0];
-            const v1 = colorFn(t_elevation[ot])[0];
-            const v2 = colorFn(r_elevation[br])[0];
+            const grayFn = isLandHeightmap ? landHeightmapGray : heightmapGray;
+            const v0 = grayFn(t_elevation[it]);
+            const v1 = grayFn(t_elevation[ot]);
+            const v2 = grayFn(r_elevation[br]);
             c0r = c0g = c0b = v0;
             c1r = c1g = c1b = v1;
             c2r = c2g = c2b = v2;
@@ -834,10 +845,10 @@ export function buildMesh() {
 
         if (isSmooth) {
             // Smooth heightmap: per-vertex colors from averaged triangle elevations
-            const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const c0 = colorFn(t_elevation[it])[0];  // inner_t (vertex 0, never swapped)
-            const cOt = colorFn(t_elevation[ot])[0];  // outer_t
-            const cBr = colorFn(r_elevation[br])[0];  // begin_r
+            const grayFn = isLandHeightmap ? landHeightmapGray : heightmapGray;
+            const c0 = grayFn(t_elevation[it]);  // inner_t (vertex 0, never swapped)
+            const cOt = grayFn(t_elevation[ot]);  // outer_t
+            const cBr = grayFn(r_elevation[br]);  // begin_r
             // After winding fix, v1/v2 may have swapped (outer_t ↔ begin_r)
             const c1 = swapped ? cBr : cOt;
             const c2 = swapped ? cOt : cBr;
@@ -1061,10 +1072,10 @@ export function updateMeshColors() {
             const it = mesh.s_inner_t(s);
             const ot = mesh.s_outer_t(s);
             const br = mesh.s_begin_r(s);
-            const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const c0 = colorFn(t_elevation[it])[0];
-            const cOt = colorFn(t_elevation[ot])[0];
-            const cBr = colorFn(r_elevation[br])[0];
+            const grayFn = isLandHeightmap ? landHeightmapGray : heightmapGray;
+            const c0 = grayFn(t_elevation[it]);
+            const cOt = grayFn(t_elevation[ot]);
+            const cBr = grayFn(r_elevation[br]);
             const swapped = sideSwapped && sideSwapped[s];
             const c1 = swapped ? cBr : cOt;
             const c2 = swapped ? cOt : cBr;
@@ -1099,10 +1110,10 @@ export function updateMeshColors() {
                 const it = mesh.s_inner_t(s);
                 const ot = mesh.s_outer_t(s);
                 const br = mesh.s_begin_r(s);
-                const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-                const v0 = colorFn(t_elevation[it])[0];
-                const v1 = colorFn(t_elevation[ot])[0];
-                const v2 = colorFn(r_elevation[br])[0];
+                const grayFn = isLandHeightmap ? landHeightmapGray : heightmapGray;
+                const v0 = grayFn(t_elevation[it]);
+                const v1 = grayFn(t_elevation[ot]);
+                const v2 = grayFn(r_elevation[br]);
                 mapColors[off] = mapColors[off+1] = mapColors[off+2] = v0;
                 mapColors[off+3] = mapColors[off+4] = mapColors[off+5] = v1;
                 mapColors[off+6] = mapColors[off+7] = mapColors[off+8] = v2;
@@ -1971,10 +1982,10 @@ export async function exportMap(type, width, onProgress) {
         let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
         if (is16Bit) {
             // Smooth heightmap: triangle-center vertices use averaged elevation
-            const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
-            const v0 = colorFn(t_elev[it])[0];
-            const v1 = colorFn(t_elev[ot])[0];
-            const v2 = colorFn(r_elevation[br])[0];
+            const grayFn = type === 'landheightmap' ? landHeightmapGray : heightmapGray;
+            const v0 = grayFn(t_elev[it]);
+            const v1 = grayFn(t_elev[ot]);
+            const v2 = grayFn(r_elevation[br]);
             c0r = c0g = c0b = v0;
             c1r = c1g = c1b = v1;
             c2r = c2g = c2b = v2;
@@ -2328,10 +2339,10 @@ export async function exportMapBatch(types, width, onProgress) {
 
             if (is16Bit) {
                 // Smooth heightmap: triangle-center vertices use averaged elevation
-                const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
-                const v0 = colorFn(t_elev[triInnerT[i]])[0];
-                const v1 = colorFn(t_elev[triOuterT[i]])[0];
-                const v2 = colorFn(r_elevation[br])[0];
+                const grayFn = type === 'landheightmap' ? landHeightmapGray : heightmapGray;
+                const v0 = grayFn(t_elev[triInnerT[i]]);
+                const v1 = grayFn(t_elev[triOuterT[i]]);
+                const v2 = grayFn(r_elevation[br]);
                 colData[off] = colData[off+1] = colData[off+2] = v0;
                 colData[off+3] = colData[off+4] = colData[off+5] = v1;
                 colData[off+6] = colData[off+7] = colData[off+8] = v2;

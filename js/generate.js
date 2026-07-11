@@ -3,7 +3,7 @@
 
 import Delaunator from 'delaunator';
 import { setDelaunator, SphereMesh } from './sphere-mesh.js';
-import { computePlateColors, buildMesh } from './planet-mesh.js';
+import { computePlateColors, buildMesh, updateMeshColors } from './planet-mesh.js';
 import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
 import { computeOceanCurrents } from './ocean.js';
@@ -78,8 +78,8 @@ function fail(err) {
 }
 
 // Reconstruct SphereMesh from transferred data
-function reconstructMesh(triangles, halfedges, numRegions) {
-    return new SphereMesh(triangles, halfedges, numRegions);
+function reconstructMesh(triangles, halfedges, numRegions, meshAdj) {
+    return new SphereMesh(triangles, halfedges, numRegions, meshAdj || null);
 }
 
 // Build minimal wind-result-like object for computeOceanCurrents fallback.
@@ -187,7 +187,7 @@ if (worker) {
                 const tMainStart = performance.now();
 
                 const tReconStart = performance.now();
-                const mesh = reconstructMesh(msg.triangles, msg.halfedges, msg.numRegions);
+                const mesh = reconstructMesh(msg.triangles, msg.halfedges, msg.numRegions, msg.meshAdj);
                 const tRecon = performance.now() - tReconStart;
 
                 const tColorsStart = performance.now();
@@ -316,6 +316,13 @@ if (worker) {
 
                 const tMainTotal = performance.now() - tMainStart;
                 const tTotal = performance.now() - _t0;
+
+                // Test-only capture handle (inert unless the regression harness
+                // sets window.__WO_CAPTURE). Lets tuning/regress.mjs read the
+                // deterministic output arrays for golden-master hashing.
+                if (typeof window !== 'undefined' && window.__WO_CAPTURE) {
+                    window.__WO_state = state;
+                }
 
                 // Diagnostics
                 {
@@ -662,7 +669,7 @@ if (worker) {
                     }
                 }
                 state.climateComputed = true;
-                buildMesh();
+                updateMeshColors();
 
                 const f = v => typeof v === 'number' ? v.toFixed(1) : v;
                 const ct = msg._climateTiming || {};

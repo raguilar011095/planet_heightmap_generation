@@ -69,6 +69,17 @@ async function runSeed(browser, baseUrl, seed) {
       }
     });
 
+    // The app auto-generates once on load with a random seed and default
+    // sliders (js/main.js), and #generate stays disabled until that
+    // generation finishes. If we proceed before it settles, the click
+    // below is a no-op and the harness ends up capturing the random
+    // auto-gen instead of our seeded case. Wait for it to fully finish.
+    await page.waitForFunction(() => {
+      const o = document.getElementById('buildOverlay');
+      const b = document.getElementById('generate');
+      return o && o.classList.contains('hidden') && b && !b.disabled;
+    }, { timeout: 180000 });
+
     // Set low detail for speed
     await page.evaluate(() => {
       const el = document.getElementById('sN');
@@ -80,7 +91,10 @@ async function runSeed(browser, baseUrl, seed) {
     await page.evaluate((s) => {
       const origPost = Worker.prototype.postMessage;
       Worker.prototype.postMessage = function(msg, ...rest) {
-        if (msg && msg.cmd === 'generate' && msg.seed === undefined) msg.seed = Number(s);
+        if (msg && msg.cmd === 'generate' && msg.seed === undefined) {
+          msg.seed = Number(s);
+          msg.computeMetrics = true;
+        }
         return origPost.call(this, msg, ...rest);
       };
     }, seed);
@@ -95,6 +109,15 @@ async function runSeed(browser, baseUrl, seed) {
     }, 120_000);
 
     await new Promise((r) => setTimeout(r, 100));
+    // For detail/erosion-only cases (no plate-affecting slider change) the
+    // click handler would otherwise see isRebuild=true and reuse the prior
+    // seed, so the postMessage patch's `msg.seed === undefined` check never
+    // fires and our seed is silently ignored. Stripping 'stale' forces
+    // seed=undefined so the patch above actually injects our seed.
+    await page.evaluate(() => {
+      const b = document.getElementById('generate');
+      if (b) b.classList.remove('stale');
+    });
     await page.click('#generate');
     await genDone;
 

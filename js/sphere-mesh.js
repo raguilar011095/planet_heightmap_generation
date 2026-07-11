@@ -92,12 +92,22 @@ export function addPoleToMesh(poleId, triangles, halfedges) {
 // Lightweight dual-mesh helper wrapping Delaunator output.
 // Regions = Voronoi cells, Triangles = Delaunay triangles, Sides = half-edges.
 export class SphereMesh {
-    constructor(triangles, halfedges, numRegions) {
+    constructor(triangles, halfedges, numRegions, prebuilt = null) {
         this.triangles = triangles;
         this.halfedges = halfedges;
         this.numRegions = numRegions;
         this.numSides = triangles.length;
         this.numTriangles = (triangles.length / 3) | 0;
+
+        if (prebuilt) {
+            this._r_s = prebuilt.r_s;
+            this._adjOffset = prebuilt.adjOffset;
+            this._adjList = prebuilt.adjList;
+            this._adjTriList = prebuilt.adjTriList;
+            this.adjOffset = this._adjOffset;
+            this.adjList = this._adjList;
+            return;
+        }
 
         this._r_s = new Int32Array(numRegions).fill(-1);
         for (let s = 0; s < this.numSides; s++) {

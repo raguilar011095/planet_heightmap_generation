@@ -233,6 +233,17 @@ async function main() {
           }
         });
 
+        // The app auto-generates once on load with a random seed and default
+        // sliders (js/main.js), and #generate stays disabled until that
+        // generation finishes. If we proceed before it settles, the click
+        // below is a no-op and the harness ends up capturing the random
+        // auto-gen instead of our seeded case. Wait for it to fully finish.
+        await page.waitForFunction(() => {
+          const o = document.getElementById('buildOverlay');
+          const b = document.getElementById('generate');
+          return o && o.classList.contains('hidden') && b && !b.disabled;
+        }, { timeout: 180000 });
+
         // Set detail slider low for fast iteration
         await setSlider(page, 'sN', DETAIL_SLIDER_VALUE);
 
@@ -250,6 +261,7 @@ async function main() {
           Worker.prototype.postMessage = function(msg, ...rest) {
             if (msg && msg.cmd === 'generate' && msg.seed === undefined) {
               msg.seed = Number(seed);
+              msg.computeMetrics = true;
             }
             return origPost.call(this, msg, ...rest);
           };
@@ -260,6 +272,15 @@ async function main() {
         const genDone = installGenerationWaiter(page, 120_000);
         // Small delay so the evaluate above has time to register the listener
         await new Promise((r) => setTimeout(r, 100));
+        // For detail/erosion-only cases (no plate-affecting slider change) the
+        // click handler would otherwise see isRebuild=true and reuse the prior
+        // seed, so the postMessage patch's `msg.seed === undefined` check never
+        // fires and our seed is silently ignored. Stripping 'stale' forces
+        // seed=undefined so the patch above actually injects tc.seed.
+        await page.evaluate(() => {
+          const b = document.getElementById('generate');
+          if (b) b.classList.remove('stale');
+        });
         await page.click('#generate');
 
         // Wait for generation to finish

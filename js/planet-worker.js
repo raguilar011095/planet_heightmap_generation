@@ -193,7 +193,7 @@ function buildClimateFields(windResult, oceanResult, precipResult, tempResult) {
 }
 
 function handleGenerate(data) {
-    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate } = data;
+    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate, computeMetrics = false } = data;
     const spread = 5;
     const timing = []; // top-level pipeline timing
 
@@ -411,20 +411,25 @@ function handleGenerate(data) {
 
         // Compute terrain quality metrics using retained-state clones
         // (the originals will be transferred and neutered below).
+        // Terrain metrics are a dev-only scorecard (never rendered). Skip the
+        // ~19-metric pass in normal generation; the tuning harnesses opt in
+        // via computeMetrics on the generate command.
         let terrainMetrics = null;
-        try {
-            terrainMetrics = computeTerrainMetrics({
-                mesh: W.mesh,
-                r_xyz: W.r_xyz,
-                r_elevation: W.r_elevation_final,
-                r_plate: W.r_plate,
-                plateIsOcean: Array.from(W.plateIsOcean),
-                r_stress: W.r_stress,
-                debugLayers,
-                prePostElev: W.prePostElev,
-            });
-        } catch (e) {
-            terrainMetrics = { _error: e.message };
+        if (computeMetrics) {
+            try {
+                terrainMetrics = computeTerrainMetrics({
+                    mesh: W.mesh,
+                    r_xyz: W.r_xyz,
+                    r_elevation: W.r_elevation_final,
+                    r_plate: W.r_plate,
+                    plateIsOcean: Array.from(W.plateIsOcean),
+                    r_stress: W.r_stress,
+                    debugLayers,
+                    prePostElev: W.prePostElev,
+                });
+            } catch (e) {
+                terrainMetrics = { _error: e.message };
+            }
         }
 
         const tWorkerTotal = performance.now() - tTotal0;
@@ -436,6 +441,12 @@ function handleGenerate(data) {
             triangles: mesh.triangles,
             halfedges: mesh.halfedges,
             numRegions: mesh.numRegions,
+            meshAdj: {
+                r_s: mesh._r_s,
+                adjOffset: mesh._adjOffset,
+                adjList: mesh._adjList,
+                adjTriList: mesh._adjTriList,
+            },
             r_xyz, t_xyz, r_plate,
             plateSeeds: Array.from(plateSeeds),
             plateVec,

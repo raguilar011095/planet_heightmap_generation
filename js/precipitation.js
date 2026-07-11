@@ -203,9 +203,9 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         r_eastX, r_eastY, r_eastZ,
         r_northX, r_northY, r_northZ } = windResult;
 
-    // Scale-dependent hop count: ~2000 km reach.
+    // Scale-dependent hop count: PRECIP_ADVECT_REACH_KM (default 3961 km), currently clamped to 20 hops (see SP2/SP3).
     // Average edge length ≈ π / sqrt(numRegions) radians ≈ (π * 6371) / sqrt(N) km
-    // hops ≈ 2000 / edgeLengthKm
+    // hops ≈ PRECIP_ADVECT_REACH_KM / edgeLengthKm
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const avgEdgeRad = Math.PI / Math.sqrt(numRegions);
     const maxHops = Math.max(8, Math.min(20, Math.round(CLIMATE.PRECIP_ADVECT_REACH_KM / avgEdgeKm)));
@@ -579,7 +579,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             upOff[numRegions] = upCount;
             dnOff[numRegions] = dnCount;
 
-            // --- Pass 1: Propagate shadow DOWNWIND (~2500 km, 15% survives) ---
+            // --- Pass 1: Propagate shadow DOWNWIND (PRECIP_RS_SHADOW_PROP_KM, default 3363 km; 15% survives) ---
             const shadowHops = Math.max(8, Math.round(CLIMATE.PRECIP_RS_SHADOW_PROP_KM / avgEdgeKm));
             const shadowDecay = 1 - Math.pow(0.15, 1 / shadowHops);
             const shadowField = new Float32Array(rainShadow);

@@ -1,17 +1,18 @@
-// Elevation pipeline — 12 explicit stages.
+// Elevation pipeline — 13 explicit stages (see assignElevation).
 //
-// Stage 1: Tectonic state              (computeTectonicState)
-// Stage 2: Spatial fields              (computeSpatialFields)
-// Stage 3: Terrain classification      (classifyTerrain)
-// Stage 4: Skeleton                    (buildSkeleton)        [first renderable intermediate]
-// Stage 5: Tectonic-band noise         (applyTectonicBandNoise)
-// Stage 6: Elevation-gated detail      (applyDetailTexture)
-// Stage 7: Coastal detail              (applyCoastalDetail)
-// Stage 8: Discrete edifices           (applyEdifices)
-// Stage 9: Uniform background noise    (applyUniformLandNoise)
-// Stage 10: Dynamic topography         (applyDynamicTopography)
-// Stage 11: Final shaping              (applyFinalShaping)
-// Stage 12: Topology fixup             (fixupTopology)
+// Stage 1:  Tectonic state          (computeTectonicState)
+// Stage 2:  Spatial fields          (computeSpatialFields)
+// Stage 3:  Terrain classification  (classifyTerrain)
+// Stage 4:  Skeleton                (buildSkeleton)          [first renderable intermediate]
+// Stage 5:  Phasor ridges           (applyPhasorRidges)
+// Stage 6:  Discrete edifices       (applyIslandArcs / applyVolcanicArcs / applyHotspotsAndLIPs)
+// Stage 7:  Tectonic-band noise     (applyTectonicBandNoise)
+// Stage 8:  Elevation-gated detail  (applyDetailTexture)
+// Stage 9:  Coastal detail          (applyCoastalDetail)
+// Stage 10: Uniform background noise (applyUniformLandNoise)
+// Stage 11: Dynamic topography       (applyDynamicTopography)
+// Stage 12: Final shaping            (applyFinalShaping)
+// Stage 13: Topology fixup           (fixupTopology)
 
 import { makeRandInt, makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';
@@ -894,8 +895,6 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
     const riftNoise = new SimplexNoise(seed + 419);
 
     const eps = 1e-3;
-    const warpScale = WARP_SCALE;
-    const warpOctaves = numRegions > 200000 ? 2 : 3;
 
     for (let r = 0; r < numRegions; r++) {
         const isOceanPlate = r_isOcean[r];
@@ -916,11 +915,6 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
             r_elevation[r] = (1/a - 1/b) / (1/a + 1/b + 1/c) * BASE_SCALE;
         }
         dl_base[r] = r_elevation[r];
-
-        // Domain-warped coordinates (re-used by feature noise below; stage 5 recomputes)
-        const wx = x + warpScale * noise.fbm(x + 5.3, y + 1.7, z + 3.1, warpOctaves);
-        const wy = y + warpScale * noise.fbm(x + 8.1, y + 2.9, z + 7.3, warpOctaves);
-        const wz = z + warpScale * noise.fbm(x + 1.4, y + 6.2, z + 4.8, warpOctaves);
 
         // Orogenic power (used by stress uplift formula)
         const rawOro = noise.noise3D(x * OROGENIC_FREQ + 33.7, y * OROGENIC_FREQ + 11.2, z * OROGENIC_FREQ + 22.9);
@@ -1972,12 +1966,34 @@ function applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_pl
     };
 
     const hsPosRng = makeRng(seed + 1001);
+    // Nearest region by max dot product. Greedy hill-climb on the mesh
+    // adjacency graph (dot product is unimodal over the sphere for a fixed
+    // query, so ascent converges to the global nearest); a brute-force
+    // fallback guarantees exactness if the walk stalls at the step cap.
+    // `_nearCur` is retained across calls (warm start) since consecutive queries
+    // along a hotspot chain are close.
+    const { adjOffset: _adjOff, adjList: _adjList } = mesh;
+    const _maxWalk = Math.ceil(Math.sqrt(numRegions));
+    let _nearCur = 0;
     const findNearestR = (px, py, pz) => {
-        let bestDot = -2, bestR = 0;
-        for (let r = 0; r < numRegions; r++) {
-            const dot = px * r_xyz[3*r] + py * r_xyz[3*r+1] + pz * r_xyz[3*r+2];
-            if (dot > bestDot) { bestDot = dot; bestR = r; }
+        let bestR = _nearCur;
+        let bestDot = px * r_xyz[3*bestR] + py * r_xyz[3*bestR+1] + pz * r_xyz[3*bestR+2];
+        let improved = true, steps = 0;
+        while (improved && steps < _maxWalk) {
+            improved = false; steps++;
+            for (let i = _adjOff[bestR], iEnd = _adjOff[bestR + 1]; i < iEnd; i++) {
+                const nb = _adjList[i];
+                const d = px * r_xyz[3*nb] + py * r_xyz[3*nb+1] + pz * r_xyz[3*nb+2];
+                if (d > bestDot) { bestDot = d; bestR = nb; improved = true; }
+            }
         }
+        if (steps >= _maxWalk) {
+            for (let r = 0; r < numRegions; r++) {
+                const d = px * r_xyz[3*r] + py * r_xyz[3*r+1] + pz * r_xyz[3*r+2];
+                if (d > bestDot) { bestDot = d; bestR = r; }
+            }
+        }
+        _nearCur = bestR;
         return bestR;
     };
 
