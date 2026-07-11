@@ -203,12 +203,12 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
         r_eastX, r_eastY, r_eastZ,
         r_northX, r_northY, r_northZ } = windResult;
 
-    // Scale-dependent hop count: ~2000 km reach.
+    // Scale-dependent hop count: PRECIP_ADVECT_REACH_KM (default 2001 km), clamped to CLIMATE.PRECIP_ADVECT_MAX_HOPS (default 60) hops (see SP3a-2).
     // Average edge length ≈ π / sqrt(numRegions) radians ≈ (π * 6371) / sqrt(N) km
     // hops ≈ 2000 / edgeLengthKm
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const avgEdgeRad = Math.PI / Math.sqrt(numRegions);
-    const maxHops = Math.max(8, Math.min(20, Math.round(CLIMATE.PRECIP_ADVECT_REACH_KM / avgEdgeKm)));
+    const maxHops = Math.max(8, Math.min(CLIMATE.PRECIP_ADVECT_MAX_HOPS, Math.round(CLIMATE.PRECIP_ADVECT_REACH_KM / avgEdgeKm)));
 
     // Coast distance through land — reuse BFS already computed by wind.js
     const r_coastDistLand = windResult.r_coastDistLand;
@@ -579,8 +579,8 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             upOff[numRegions] = upCount;
             dnOff[numRegions] = dnCount;
 
-            // --- Pass 1: Propagate shadow DOWNWIND (~2500 km, 15% survives) ---
-            const shadowHops = Math.max(8, Math.round(CLIMATE.PRECIP_RS_SHADOW_PROP_KM / avgEdgeKm));
+            // --- Pass 1: Propagate shadow DOWNWIND (PRECIP_RS_SHADOW_PROP_KM, default 3363 km; 15% survives) ---
+            const shadowHops = Math.max(8, Math.min(CLIMATE.PRECIP_RS_MAX_HOPS, Math.round(CLIMATE.PRECIP_RS_SHADOW_PROP_KM / avgEdgeKm)));
             const shadowDecay = 1 - Math.pow(0.15, 1 / shadowHops);
             const shadowField = new Float32Array(rainShadow);
             // Reusable ping-pong buffers for both shadow and windward passes
@@ -608,7 +608,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             }
 
             // --- Pass 2: Propagate windward rain UPWIND (~1500 km, 25% survives) ---
-            const windwardHops = Math.max(6, Math.round(1500 / avgEdgeKm));
+            const windwardHops = Math.max(6, Math.min(CLIMATE.PRECIP_RS_WINDWARD_MAX_HOPS, Math.round(1500 / avgEdgeKm)));
             const windwardDecay = 1 - Math.pow(0.25, 1 / windwardHops);
             const windwardField = new Float32Array(rainShadow);
             // Reuse ping-pong buffers from shadow pass

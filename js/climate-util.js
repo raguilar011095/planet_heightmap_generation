@@ -2,9 +2,16 @@
 
 // ── Laplacian smoothing ──────────────────────────────────────────────────────
 
+// Reused scratch buffer (grown on demand) so the many per-generation smoothing
+// passes don't each allocate a fresh Float32Array. Safe: smoothField is a leaf
+// function and the worker/fallback run single-threaded, so no call nests inside
+// another. The buffer may be larger than numRegions; only its prefix is used.
+let _smoothScratch = new Float32Array(0);
+
 export function smoothField(mesh, field, passes) {
     const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
+    if (_smoothScratch.length < numRegions) _smoothScratch = new Float32Array(numRegions);
+    const tmp = _smoothScratch;
     let src = field, dst = tmp;
 
     for (let pass = 0; pass < passes; pass++) {
@@ -20,8 +27,8 @@ export function smoothField(mesh, field, passes) {
         }
         const swap = src; src = dst; dst = swap;
     }
-    // If result ended up in tmp, copy back to field
-    if (src !== field) field.set(src);
+    // If the result ended up in the scratch, copy its prefix back to field.
+    if (src !== field) field.set(src.subarray(0, numRegions));
 }
 
 // ── ITCZ latitude lookup (linear interpolation with wrapping) ────────────────

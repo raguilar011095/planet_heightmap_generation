@@ -625,6 +625,11 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     t0 = performance.now();
     const { adjOffset, adjList } = mesh;
 
+    // Reusable BFS/flood-fill queues (Int32Array) — replaces per-pass plain-array
+    // growth; mirrors the pattern in ocean.js. FIFO order is preserved.
+    const bfsQ = new Int32Array(numRegions);
+    const bfsQ2 = new Int32Array(numRegions);
+
     // Find the main ocean: largest connected component of non-land cells.
     // Inland seas / small lakes don't count as "ocean" for continentality.
     const r_oceanLabel = new Int32Array(numRegions);
@@ -635,18 +640,19 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
         if (r_isLand[r] || r_oceanLabel[r] >= 0) continue;
         const label = nextLabel++;
         let size = 0;
-        const floodQueue = [r];
+        bfsQ[0] = r;
+        let fLen = 1;
         r_oceanLabel[r] = label;
         let fHead = 0;
-        while (fHead < floodQueue.length) {
-            const cur = floodQueue[fHead++];
+        while (fHead < fLen) {
+            const cur = bfsQ[fHead++];
             size++;
             const end = adjOffset[cur + 1];
             for (let ni = adjOffset[cur]; ni < end; ni++) {
                 const nb = adjList[ni];
                 if (!r_isLand[nb] && r_oceanLabel[nb] === -1) {
                     r_oceanLabel[nb] = label;
-                    floodQueue.push(nb);
+                    bfsQ[fLen++] = nb;
                 }
             }
         }
@@ -659,7 +665,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     // BFS coast distance through land, seeded only from main-ocean coastline
     const r_coastDist = new Int32Array(numRegions);
     r_coastDist.fill(-1);
-    const bfsQueue = [];
+    let cqLen = 0;
     for (let r = 0; r < numRegions; r++) {
         if (!r_isLand[r]) continue;
         const end = adjOffset[r + 1];
@@ -667,21 +673,21 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             const nb = adjList[ni];
             if (!r_isLand[nb] && r_oceanLabel[nb] === mainOceanLabel) {
                 r_coastDist[r] = 0;
-                bfsQueue.push(r);
+                bfsQ[cqLen++] = r;
                 break;
             }
         }
     }
     let head = 0;
-    while (head < bfsQueue.length) {
-        const r = bfsQueue[head++];
+    while (head < cqLen) {
+        const r = bfsQ[head++];
         const d = r_coastDist[r] + 1;
         const end = adjOffset[r + 1];
         for (let ni = adjOffset[r]; ni < end; ni++) {
             const nb = adjList[ni];
             if (r_isLand[nb] && r_coastDist[nb] === -1) {
                 r_coastDist[nb] = d;
-                bfsQueue.push(nb);
+                bfsQ[cqLen++] = nb;
             }
         }
     }
@@ -713,7 +719,8 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     {
         const distWest = new Int32Array(numRegions).fill(-1);
         const distEast = new Int32Array(numRegions).fill(-1);
-        const qW = [], qE = [];
+        const qW = bfsQ, qE = bfsQ2;
+        let qWLen = 0, qELen = 0;
         for (let r = 0; r < numRegions; r++) {
             if (!r_isLand[r] || r_coastDist[r] !== 0) continue; // coastal land only
             // Mean direction to adjacent main-ocean cells, projected on east tangent.
@@ -731,23 +738,23 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             }
             if (on === 0) continue;
             const oceanDotEast = ox * eX + oz * eZ;
-            if (oceanDotEast < 0) { distWest[r] = 0; qW.push(r); } // ocean to west → west coast
-            else { distEast[r] = 0; qE.push(r); }                  // ocean to east → east coast
+            if (oceanDotEast < 0) { distWest[r] = 0; qW[qWLen++] = r; } // ocean to west → west coast
+            else { distEast[r] = 0; qE[qELen++] = r; }                 // ocean to east → east coast
         }
-        const bfsLand = (dist, q) => {
+        const bfsLand = (dist, q, qLen) => {
             let head = 0;
-            while (head < q.length) {
+            while (head < qLen) {
                 const r = q[head++];
                 const d = dist[r] + 1;
                 const end = adjOffset[r + 1];
                 for (let ni = adjOffset[r]; ni < end; ni++) {
                     const nb = adjList[ni];
-                    if (r_isLand[nb] && dist[nb] === -1) { dist[nb] = d; q.push(nb); }
+                    if (r_isLand[nb] && dist[nb] === -1) { dist[nb] = d; q[qLen++] = nb; }
                 }
             }
         };
-        bfsLand(distWest, qW);
-        bfsLand(distEast, qE);
+        bfsLand(distWest, qW, qWLen);
+        bfsLand(distEast, qE, qELen);
         for (let r = 0; r < numRegions; r++) {
             if (!r_isLand[r]) continue;
             const dw = distWest[r], de = distEast[r];
@@ -766,28 +773,28 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
     // BFS through continental-plate cells
     const r_plateDist = new Int32Array(numRegions);
     r_plateDist.fill(-1);
-    const plateBfsQueue = [];
+    let pqLen = 0;
     for (let r = 0; r < numRegions; r++) {
         if (plateIsOcean.has(r_plate[r])) continue; // skip oceanic plate cells
         const end = adjOffset[r + 1];
         for (let ni = adjOffset[r]; ni < end; ni++) {
             if (plateIsOcean.has(r_plate[adjList[ni]])) {
                 r_plateDist[r] = 0;
-                plateBfsQueue.push(r);
+                bfsQ[pqLen++] = r;
                 break;
             }
         }
     }
     head = 0;
-    while (head < plateBfsQueue.length) {
-        const r = plateBfsQueue[head++];
+    while (head < pqLen) {
+        const r = bfsQ[head++];
         const d = r_plateDist[r] + 1;
         const end = adjOffset[r + 1];
         for (let ni = adjOffset[r]; ni < end; ni++) {
             const nb = adjList[ni];
             if (!plateIsOcean.has(r_plate[nb]) && r_plateDist[nb] === -1) {
                 r_plateDist[nb] = d;
-                plateBfsQueue.push(nb);
+                bfsQ[pqLen++] = nb;
             }
         }
     }

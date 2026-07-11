@@ -317,6 +317,13 @@ if (worker) {
                 const tMainTotal = performance.now() - tMainStart;
                 const tTotal = performance.now() - _t0;
 
+                // Test-only capture handle (inert unless the regression harness
+                // sets window.__WO_CAPTURE). Lets tuning/regress.mjs read the
+                // deterministic output arrays for golden-master hashing.
+                if (typeof window !== 'undefined' && window.__WO_CAPTURE) {
+                    window.__WO_state = state;
+                }
+
                 // Diagnostics
                 {
                     let landCount = 0, nanCount = 0;

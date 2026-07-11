@@ -1,17 +1,18 @@
-// Elevation pipeline — 12 explicit stages.
+// Elevation pipeline — 13 explicit stages (see assignElevation).
 //
-// Stage 1: Tectonic state              (computeTectonicState)
-// Stage 2: Spatial fields              (computeSpatialFields)
-// Stage 3: Terrain classification      (classifyTerrain)
-// Stage 4: Skeleton                    (buildSkeleton)        [first renderable intermediate]
-// Stage 5: Tectonic-band noise         (applyTectonicBandNoise)
-// Stage 6: Elevation-gated detail      (applyDetailTexture)
-// Stage 7: Coastal detail              (applyCoastalDetail)
-// Stage 8: Discrete edifices           (applyEdifices)
-// Stage 9: Uniform background noise    (applyUniformLandNoise)
-// Stage 10: Dynamic topography         (applyDynamicTopography)
-// Stage 11: Final shaping              (applyFinalShaping)
-// Stage 12: Topology fixup             (fixupTopology)
+// Stage 1:  Tectonic state          (computeTectonicState)
+// Stage 2:  Spatial fields          (computeSpatialFields)
+// Stage 3:  Terrain classification  (classifyTerrain)
+// Stage 4:  Skeleton                (buildSkeleton)          [first renderable intermediate]
+// Stage 5:  Phasor ridges           (applyPhasorRidges)
+// Stage 6:  Discrete edifices       (applyIslandArcs / applyVolcanicArcs / applyHotspotsAndLIPs)
+// Stage 7:  Tectonic-band noise     (applyTectonicBandNoise)
+// Stage 8:  Elevation-gated detail  (applyDetailTexture)
+// Stage 9:  Coastal detail          (applyCoastalDetail)
+// Stage 10: Uniform background noise (applyUniformLandNoise)
+// Stage 11: Dynamic topography       (applyDynamicTopography)
+// Stage 12: Final shaping            (applyFinalShaping)
+// Stage 13: Topology fixup           (fixupTopology)
 
 import { makeRandInt, makeRng } from './rng.js';
 import { SimplexNoise } from './simplex-noise.js';

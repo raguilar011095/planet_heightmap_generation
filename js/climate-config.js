@@ -67,7 +67,13 @@ export const CLIMATE_DEFAULTS = Object.freeze({
     // ── Precipitation: moisture & advection ──
     PRECIP_OCEAN_MOISTURE_BASE: 0.4508,      // base moisture of ocean cells
     PRECIP_ADVECT_FLAT_SURVIVAL: 0.8901,    // moisture surviving full advection over flat land
-    PRECIP_ADVECT_REACH_KM: 3961.314,         // moisture advection physical reach
+    // Effective advection reach. Historically 3961 km, but the min(20)-hop clamp
+    // made the true reach ≈ 2001 km at the N=40,000 tuning resolution (20 hops ×
+    // ~100 km). The nominal 3961 was underdetermined (any value ≥ ~2000 km gave
+    // 20 hops at 40k). Set to the real effective value so the reach is consistent
+    // across Detail (fixes the default-204k drop to ~880 km); no-op at 40k.
+    PRECIP_ADVECT_REACH_KM: 2001,
+    PRECIP_ADVECT_MAX_HOPS: 60,               // ceiling that bounds advection cost at very high Detail
     PRECIP_ELEV_DEPLETION_PER_KM: 0.9906,   // moisture depletion per km of terrain rise
 
     // ── Precipitation: ITCZ & convergence ──
@@ -88,6 +94,8 @@ export const CLIMATE_DEFAULTS = Object.freeze({
     PRECIP_RS_APPLY_STRENGTH_SCALE: 2.4002, // propagated shadow → suppression multiplier
     PRECIP_RS_APPLY_MAX_SUPPRESS: 0.9782,   // max suppression in propagated shadow
     PRECIP_RS_APPLY_WINDWARD_ADD: 1.7675,    // additive windward boost from propagated field
+    PRECIP_RS_MAX_HOPS: 60,                 // ceiling on downwind shadow hops (bounds O(N^1.5) cost above ~40k regions; > the 34-hop tuning-resolution value so 40k is unaffected)
+    PRECIP_RS_WINDWARD_MAX_HOPS: 30,        // ceiling on upwind windward hops (> the 15-hop tuning-resolution value)
 
     // ── Precipitation: subtropical high / Mediterranean / monsoon ──
     PRECIP_SUBTROP_CENTER_SUMMER_DEG: 37.738, // suppression band center in local summer

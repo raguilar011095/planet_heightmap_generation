@@ -168,9 +168,13 @@ function classifyWarmth(r_isOcean, r_lat, numRegions,
 
 // ── Laplacian smoothing (ocean only) ────────────────────────────────────────
 
+// Reused scratch (grown on demand); see the note on smoothField in climate-util.js.
+let _oceanSmoothScratch = new Float32Array(0);
+
 function smoothOcean(mesh, field, r_isOcean, passes) {
     const { adjOffset, adjList, numRegions } = mesh;
-    const tmp = new Float32Array(numRegions);
+    if (_oceanSmoothScratch.length < numRegions) _oceanSmoothScratch = new Float32Array(numRegions);
+    const tmp = _oceanSmoothScratch;
 
     for (let pass = 0; pass < passes; pass++) {
         for (let r = 0; r < numRegions; r++) {
@@ -187,7 +191,7 @@ function smoothOcean(mesh, field, r_isOcean, passes) {
             }
             tmp[r] = sum / count;
         }
-        field.set(tmp);
+        field.set(tmp.subarray(0, numRegions));
     }
 }
 

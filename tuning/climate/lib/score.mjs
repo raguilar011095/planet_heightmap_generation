@@ -57,7 +57,7 @@ export function runClimate(ctx, paramOverrides = {}) {
 /**
  * Score a simulated Köppen field against ground truth.
  *
- * objective = 0.48·gradedAcc + 0.20·macroF1 + 0.18·groupBalance + 0.14·watchlistF1
+ * objective = 0.60·gradedAcc + 0.12·macroF1 + 0.15·groupBalance + 0.13·watchlistF1
  *   gradedAcc     — per-cell climatic similarity (partial credit; a big error
  *                   like rainforest→desert scores ~0, an adjacent one ~0.8)
  *   macroF1       — unweighted mean F1, keeps every class alive regardless of area

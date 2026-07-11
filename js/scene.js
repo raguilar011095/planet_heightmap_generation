@@ -55,8 +55,9 @@ canvas.addEventListener('touchmove', (e) => {
 
 canvas.addEventListener('touchend', () => { _pinchDist = 0; }, { passive: true });
 
+const _zoomVec = new THREE.Vector3();
 export function tickZoom() {
-    const v = new THREE.Vector3().subVectors(camera.position, ctrl.target);
+    const v = _zoomVec.subVectors(camera.position, ctrl.target);
     const cur = v.length();
     const next = THREE.MathUtils.lerp(cur, _zoomTarget, ZOOM_SMOOTH);
     if (Math.abs(next - cur) < 0.0001) return;
