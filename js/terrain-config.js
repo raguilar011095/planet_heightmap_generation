@@ -22,7 +22,13 @@ export const STRESS_DIR_FACTOR_BASE = 0.3;
 export const STRESS_DIR_FACTOR_SCALE = 0.7;
 export const STRESS_DIR_BLEND_PARENT = 0.8;
 export const STRESS_DIR_BLEND_TRAVEL = 0.2;
-export const STRESS_DIR_SMOOTH_PASSES = 2;
+// Scale-invariant smoothing targets (SP2). Physical distances chosen so the
+// default Detail (~204K regions, avgEdgeKm ≈ 44.3 km) reproduces the previous
+// fixed pass counts exactly — in declaration order below: stress-dir 2,
+// plate-smooth 3, soil-creep 3 (round(88/44.3)=2, round(133/44.3)=3, round(133/44.3)=3).
+export const STRESS_DIR_SMOOTH_KM = 88;
+export const PLATE_SMOOTH_HIRES_KM = 133;
+export const SOIL_CREEP_KM = 133;
 export const STRESS_DIR_SELF_WEIGHT = 2;
 
 export const STRESS_DECAY_BASE = 0.5;
@@ -467,6 +473,13 @@ export const GLACIAL_INITIAL_CARVE = 0.5;
 // ── Hydraulic Erosion (terrain-post.js) ──
 export const HYDRAULIC_DEPOSIT_FRAC = 0.5;
 export const HYDRAULIC_SLOPE_SENSITIVITY = 50;
+
+// Reference region count for flow-accumulation normalization (SP2).
+// flow[] and iceFlow[] are raw upstream-cell counts, which scale ∝ numRegions
+// for a fixed physical catchment; multiplying by (REF / N) converts them to a
+// physical-area-proportional quantity that is a no-op at the default Detail.
+// 204000 = detailFromSlider(600), the default Detail slider position.
+export const EROSION_REF_REGIONS = 204000;
 
 // ── Thermal Erosion (terrain-post.js) ──
 export const THERMAL_TRANSFER_FRAC = 0.5;

@@ -23,7 +23,7 @@ import {
     STRESS_PROPAGATE_MIN, STRESS_PROPAGATE_CUTOFF,
     STRESS_DIR_FACTOR_MIN, STRESS_DIR_FACTOR_BASE, STRESS_DIR_FACTOR_SCALE,
     STRESS_DIR_BLEND_PARENT, STRESS_DIR_BLEND_TRAVEL,
-    STRESS_DIR_SMOOTH_PASSES, STRESS_DIR_SELF_WEIGHT,
+    STRESS_DIR_SMOOTH_KM, STRESS_DIR_SELF_WEIGHT,
     STRESS_DECAY_BASE, STRESS_DECAY_SPREAD_FACTOR, STRESS_SUBDUCT_DECAY_MULT,
     STRESS_PASSES_PER_SPREAD, STRESS_PERCENTILE,
     SMALL_W, SUPER_W,
@@ -302,7 +302,9 @@ export function propagateStress(mesh, r_stress, r_stressDir, r_subductFactor, r_
         frontier = nextFrontier;
     }
 
-    for (let pass = 0; pass < STRESS_DIR_SMOOTH_PASSES; pass++) {
+    const stressDirAvgEdgeKm = (Math.PI * 6371) / Math.sqrt(mesh.numRegions);
+    const stressDirPasses = Math.max(1, Math.round(STRESS_DIR_SMOOTH_KM / stressDirAvgEdgeKm));
+    for (let pass = 0; pass < stressDirPasses; pass++) {
         for (let r = 0; r < mesh.numRegions; r++) {
             if (r_stress[r] < STRESS_PROPAGATE_MIN) continue;
             const plate = r_plate[r];

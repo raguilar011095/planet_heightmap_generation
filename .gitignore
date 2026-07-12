@@ -7,3 +7,5 @@ tuning/results/*.json
 tuning/results/climate/
 tuning/climate/data/
 tuning/climate/maps/
+tuning/scale-invariance-baseline.json
+tuning/scale-invariance-screenshots/

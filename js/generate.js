@@ -10,6 +10,7 @@ import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
+import { PLATE_SMOOTH_HIRES_KM, SOIL_CREEP_KM } from './terrain-config.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -738,7 +739,8 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
         }},
         { pct: 18, label: 'Projecting plates\u2026', work() {
             ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed, P);
-            m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, 3);
+            const plateSmoothPasses = Math.max(1, Math.round(PLATE_SMOOTH_HIRES_KM / ((Math.PI * 6371) / Math.sqrt(ctx.mesh.numRegions))));
+            m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, plateSmoothPasses);
         }},
         { pct: 25, label: 'Carving oceans\u2026', work() {
             const plateIsOcean = ctx.coarsePlateIsOcean;
@@ -807,7 +809,8 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
             if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0)
                 m.post.erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, Math.round(hydraulicErosion * 20), hydraulicErosion * 0.0006, 0.5, 1.0, Math.round(thermalErosion * 10), 1.2 - thermalErosion * 0.4, thermalErosion * 0.15, Math.round(glacialErosion * 10), glacialErosion);
             if (ridgeSharpening > 0) m.post.sharpenRidges(ctx.mesh, r_elevation, r_isOcean, Math.round(1 + ridgeSharpening * 3), ridgeSharpening * 0.08);
-            m.post.applySoilCreep(ctx.mesh, r_elevation, r_isOcean, 3, 0.1125);
+            const creepPasses = Math.max(1, Math.round(SOIL_CREEP_KM / ((Math.PI * 6371) / Math.sqrt(ctx.mesh.numRegions))));
+            m.post.applySoilCreep(ctx.mesh, r_elevation, r_isOcean, creepPasses, 0.1125);
             const dl_erosionDelta = new Float32Array(ctx.mesh.numRegions);
             for (let r = 0; r < ctx.mesh.numRegions; r++) dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
             debugLayers.erosionDelta = dl_erosionDelta;

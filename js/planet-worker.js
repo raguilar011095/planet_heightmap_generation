@@ -16,7 +16,7 @@ import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
-import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
+import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH, PLATE_SMOOTH_HIRES_KM, SOIL_CREEP_KM } from './terrain-config.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -148,8 +148,9 @@ function runPostProcessing(mesh, r_xyz, r_elevation, params, neighborDist, seed,
 
     {
         const t0 = performance.now();
-        applySoilCreep(mesh, r_elevation, r_isOcean, 3, 0.1125);
-        timing.push({ stage: 'Soil creep (3 iters)', ms: performance.now() - t0 });
+        const creepPasses = Math.max(1, Math.round(SOIL_CREEP_KM / ((Math.PI * 6371) / Math.sqrt(mesh.numRegions))));
+        applySoilCreep(mesh, r_elevation, r_isOcean, creepPasses, 0.1125);
+        timing.push({ stage: `Soil creep (${creepPasses} iters)`, ms: performance.now() - t0 });
     }
 
     const dl_erosionDelta = new Float32Array(mesh.numRegions);
@@ -229,7 +230,8 @@ function handleGenerate(data) {
 
         progress(25, 'Smoothing boundaries\u2026');
         t0 = performance.now();
-        smoothAndReconnectPlates(mesh, r_plate, coarsePlateSeeds, 3);
+        const plateSmoothPasses = Math.max(1, Math.round(PLATE_SMOOTH_HIRES_KM / ((Math.PI * 6371) / Math.sqrt(mesh.numRegions))));
+        smoothAndReconnectPlates(mesh, r_plate, coarsePlateSeeds, plateSmoothPasses);
         timing.push({ stage: 'Smooth projected plates', ms: performance.now() - t0 });
 
         const plateSeeds = coarsePlateSeeds;

@@ -16,7 +16,7 @@ import {
     GLACIAL_WIDENING_FRAC, GLACIAL_TERMINUS_RATIO, GLACIAL_FJORD_ICE_MIN,
     GLACIAL_POST_SMOOTH, GLACIAL_MID_FLOOD_FRAC, GLACIAL_MID_FLOOD_CARVE,
     GLACIAL_INITIAL_CARVE,
-    HYDRAULIC_DEPOSIT_FRAC, HYDRAULIC_SLOPE_SENSITIVITY,
+    HYDRAULIC_DEPOSIT_FRAC, HYDRAULIC_SLOPE_SENSITIVITY, EROSION_REF_REGIONS,
     THERMAL_TRANSFER_FRAC,
     RIDGE_SHARPEN_CAP, VALLEY_DEEPEN_FACTOR, VALLEY_FLOOR_FRAC, VALLEY_FLOOR_MIN,
     DETAIL_NOISE_AMP_KM, DETAIL_NOISE_FREQ, DETAIL_NOISE_OCTAVES,
@@ -409,6 +409,9 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     if (totalIters <= 0) return;
 
     const N = mesh.numRegions;
+    // Convert raw upstream-cell counts to physical-area scale (no-op at the
+    // default Detail); see EROSION_REF_REGIONS in terrain-config.js.
+    const flowScale = EROSION_REF_REGIONS / N;
     const { adjOffset, adjList } = mesh;
 
     // Collect land cell indices
@@ -537,9 +540,10 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             // Carving: deepening + widening + over-deepening
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
-                if (iceFlow[r] <= gFlowThreshold) continue;
+                const iceFlowNorm = iceFlow[r] * flowScale;
+                if (iceFlowNorm <= gFlowThreshold) continue;
 
-                const deepening = gCarveRate * Math.pow(iceFlow[r], 0.6) * glacialStrength;
+                const deepening = gCarveRate * Math.pow(iceFlowNorm, 0.6) * glacialStrength;
                 r_elevation[r] -= deepening;
 
                 // Valley widening for U-shape
@@ -553,31 +557,32 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
 
                 // Over-deepening at convergence zones
                 if (numIceUpstream[r] >= 2) {
-                    r_elevation[r] -= gConvergenceBonus * Math.pow(iceFlow[r], 0.4);
+                    r_elevation[r] -= gConvergenceBonus * Math.pow(iceFlowNorm, 0.4);
                 }
             }
 
             // Moraine deposition at glacier termini
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
-                if (iceFlow[r] <= gFlowThreshold) continue;
+                const iceFlowNorm = iceFlow[r] * flowScale;
+                if (iceFlowNorm <= gFlowThreshold) continue;
                 const target = iceTarget[r];
                 if (target < 0 || r_isOcean[target]) continue;
                 if (glacIdx[target] < glacIdx[r] * GLACIAL_TERMINUS_RATIO) {
-                    r_elevation[target] += gDepositAmount * Math.pow(iceFlow[r], 0.3);
+                    r_elevation[target] += gDepositAmount * Math.pow(iceFlowNorm, 0.3);
                 }
             }
 
             // Fjord enhancement on coastal glaciated cells
             for (let r = 0; r < N; r++) {
                 if (r_isOcean[r]) continue;
-                if (glacIdx[r] <= GLACIAL_FJORD_ICE_MIN || iceFlow[r] <= gFjordThreshold) continue;
+                if (glacIdx[r] <= GLACIAL_FJORD_ICE_MIN || iceFlow[r] * flowScale <= gFjordThreshold) continue;
                 let isCoastal = false;
                 for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
                     if (r_isOcean[adjList[j]]) { isCoastal = true; break; }
                 }
                 if (isCoastal) {
-                    r_elevation[r] -= gFjordCarve * Math.pow(iceFlow[r], 0.5);
+                    r_elevation[r] -= gFjordCarve * Math.pow(iceFlow[r] * flowScale, 0.5);
                     if (r_elevation[r] < 0) r_elevation[r] = 0;
                 }
             }
@@ -648,7 +653,7 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                 const target = drainTarget[r];
                 if (target < 0 || cellDist[r] <= 0) continue;
 
-                const factor = K * Math.pow(flow[r], m) * dt / cellDist[r];
+                const factor = K * Math.pow(flow[r] * flowScale, m) * dt / cellDist[r];
                 const h_receiver = Math.max(r_elevation[target], 0);
                 let h_new = (r_elevation[r] + factor * h_receiver) / (1 + factor);
 
