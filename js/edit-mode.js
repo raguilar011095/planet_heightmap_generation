@@ -8,6 +8,11 @@ import { state } from './state.js';
 import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevToHeightKm } from './color-map.js';
+import {
+    getPlateMotionSummary,
+    selectMotionPlate,
+    setupPlateMotionEditor,
+} from './plate-motion-editor.js';
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -27,9 +32,8 @@ function findNearestRegion(nx, ny, nz) {
     return { region: bestR, plate: r_plate[bestR] };
 }
 
-/** Globe view: analytical ray-sphere intersection → nearest region.
- *  ~50-100x faster than Three.js mesh raycasting at high detail. */
-function getHitInfoGlobe(event) {
+/** Globe view: analytical ray-sphere intersection → unit direction. */
+function getPointerDirectionGlobe(event) {
     if (!state.planetMesh) return null;
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -56,11 +60,11 @@ function getHitInfoGlobe(event) {
     // Hit point → normalise to unit direction
     const hx = ox + t * dx, hy = oy + t * dy, hz = oz + t * dz;
     const len = Math.sqrt(hx * hx + hy * hy + hz * hz) || 1;
-    return findNearestRegion(hx / len, hy / len, hz / len);
+    return [hx / len, hy / len, hz / len];
 }
 
-/** Map view: unproject mouse → map plane → inverse equirect → nearest region. */
-function getHitInfoMap(event) {
+/** Map view: unproject mouse → map plane → inverse equirect → unit direction. */
+function getPointerDirectionMap(event) {
     if (!state.mapMesh) return null;
     const rect = canvas.getBoundingClientRect();
     mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -85,16 +89,21 @@ function getHitInfoMap(event) {
     else if (lon < -PI) lon += 2 * PI;
 
     const cosLat = Math.cos(lat);
-    return findNearestRegion(
+    return [
         cosLat * Math.sin(lon),
         Math.sin(lat),
         cosLat * Math.cos(lon)
-    );
+    ];
+}
+
+function getPointerDirection(event) {
+    if (!state.curData) return null;
+    return state.mapMode ? getPointerDirectionMap(event) : getPointerDirectionGlobe(event);
 }
 
 function getHitInfo(event) {
-    if (!state.curData) return null;
-    return state.mapMode ? getHitInfoMap(event) : getHitInfoGlobe(event);
+    const direction = getPointerDirection(event);
+    return direction ? findNearestRegion(direction[0], direction[1], direction[2]) : null;
 }
 
 /** Build multi-line hover HTML for a region. */
@@ -106,8 +115,16 @@ function buildHoverHTML(region, plate) {
     const action = state.isTouchDevice ? 'Tap' : 'Ctrl-click';
     const lines = [];
 
-    // Line 1: plate type + edit hint
-    if (isPending) {
+    // Line 1: active edit action + status
+    if (state.editMode && state.editTool === 'motion') {
+        const motion = getPlateMotionSummary(plate);
+        if (motion) {
+            const pending = motion.pending ? ' <span style="color:#fa0">(pending)</span>' : '';
+            lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} plate motion</b>${pending} · ${motion.bearingDeg}° · ${motion.speedPercent}%`);
+        } else {
+            lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} plate</b> · Tap to edit motion`);
+        }
+    } else if (isPending) {
         const target = isOcean ? 'Land' : 'Ocean';
         lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${target}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`);
     } else {
@@ -168,16 +185,21 @@ export function setupEditMode() {
     let orbiting = false;
     let lastHoverTime = 0;
     const HOVER_INTERVAL = 50; // ms — cap hover lookups
+    setupPlateMotionEditor(getPointerDirection);
 
     canvas.addEventListener('pointerdown', (e) => {
         if (!state.curData) return;
-        const isEditTap = (e.button === 0 && e.ctrlKey) ||
-                          (e.button === 0 && state.isTouchDevice && state.editMode);
-        if (isEditTap) {
-            // Ctrl-click or mobile edit-mode tap: plate editing
+        const isLandShortcut = e.button === 0 && e.ctrlKey;
+        const isPaletteEdit = e.button === 0 && state.editMode;
+        if (isLandShortcut || isPaletteEdit) {
             const hit = getHitInfo(e);
             if (!hit) return;
-            downInfo = { x: e.clientX, y: e.clientY, plate: hit.plate };
+            downInfo = {
+                x: e.clientX,
+                y: e.clientY,
+                plate: hit.plate,
+                tool: isLandShortcut ? 'land' : state.editTool,
+            };
         } else if (e.button === 0 || e.button === 2) {
             // Regular click/right-click: orbit or pan — skip hover raycasts
             orbiting = true;
@@ -193,6 +215,11 @@ export function setupEditMode() {
 
         if (dx * dx + dy * dy < 36) {
             const pid = downInfo.plate;
+            if (downInfo.tool === 'motion') {
+                selectMotionPlate(pid);
+                downInfo = null;
+                return;
+            }
             // Toggle pending: add if absent, remove if present (undo)
             if (state.pendingToggles.has(pid)) {
                 state.pendingToggles.delete(pid);
@@ -244,8 +271,8 @@ export function setupEditMode() {
 
         const hit = getHitInfo(e);
         const newRegion = hit ? hit.region : -1;
-        // Only highlight the plate when in edit mode (Ctrl held or mobile edit toggle)
-        const inEditMode = e.ctrlKey || (state.isTouchDevice && state.editMode);
+        // Highlight plates for the Ctrl shortcut or either palette tool.
+        const inEditMode = e.ctrlKey || state.editMode;
         const newPlate = (hit && inEditMode) ? hit.plate : -1;
 
         // Update plate highlight only when plate changes

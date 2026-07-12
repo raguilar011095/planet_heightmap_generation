@@ -12,6 +12,12 @@ import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevationToColor } from './color-map.js';
+import { plateOverridesToRecords } from './plate-motion.js';
+import {
+    clearMotionSelection,
+    refreshPlateMotionEditor,
+    tickPlateMotionEditor,
+} from './plate-motion-editor.js';
 
 // Slider value displays + stale tracking
 const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc'];
@@ -466,7 +472,8 @@ genBtn.addEventListener('click', () => {
     const isRebuild = genBtn.classList.contains('stale') && state.curData && !plateChanged;
     const seed = isRebuild ? state.curData.seed : undefined;
     const toggles = isRebuild ? getToggledIndices() : [];
-    generate(seed, toggles, onProgress, shouldSkipClimate());
+    const motionOverrides = isRebuild ? getMotionOverrideRecords() : [];
+    generate(seed, toggles, onProgress, shouldSkipClimate(), motionOverrides);
 });
 genBtn.addEventListener('generate-done', snapshotSliders);
 genBtn.addEventListener('generate-done', hideBuildOverlay);
@@ -506,6 +513,13 @@ function getToggledIndices() {
     return indices;
 }
 
+/** Get sorted applied motion overrides using stable coarse-plate indices. */
+function getMotionOverrideRecords() {
+    const d = state.curData;
+    if (!d || !d.motionOverrides) return [];
+    return plateOverridesToRecords(d.motionOverrides, d.plateSeeds);
+}
+
 /** Encode current planet state and update the seed input + URL hash. */
 function updatePlanetCode(flash) {
     const d = state.curData;
@@ -528,7 +542,8 @@ function updatePlanetCode(flash) {
         +document.getElementById('sTmp').value,
         +document.getElementById('sPrc').value,
         +document.getElementById('sLc').value,
-        getToggledIndices()
+        getToggledIndices(),
+        getMotionOverrideRecords()
     );
     currentCode = code;
     seedInput.value = code;
@@ -624,7 +639,7 @@ function applyCode(code) {
     state.pendingToggles.clear();
     document.getElementById('rebuildFab').style.display = 'none';
     showBuildOverlay();
-    generate(params.seed, params.toggledIndices, onProgress, shouldSkipClimate());
+    generate(params.seed, params.toggledIndices, onProgress, shouldSkipClimate(), params.motionOverrides);
 }
 
 loadBtn.addEventListener('click', () => {
@@ -676,6 +691,7 @@ sMapCenterLon.addEventListener('input', () => {
         state.mapMesh.position.x = dx;
         if (state.mapGridMesh) state.mapGridMesh.position.x = dx;
     }
+    refreshPlateMotionEditor();
 });
 
 sMapCenterLon.addEventListener('change', () => {
@@ -688,6 +704,7 @@ sMapCenterLon.addEventListener('change', () => {
         const isOcean = layer === 'oceanCurrentSummer' || layer === 'oceanCurrentWinter';
         if (isWind) buildWindArrows(layer.includes('Winter') ? 'winter' : 'summer');
         if (isOcean) buildOceanCurrentArrows(layer.includes('Winter') ? 'winter' : 'summer');
+        refreshPlateMotionEditor();
     }
 });
 
@@ -765,6 +782,7 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         ctrl.enabled = true;
         mapCenterLonGroup.style.display = 'none';
     }
+    refreshPlateMotionEditor();
 });
 
 // Debug layer dropdown
@@ -859,16 +877,25 @@ setupEditMode();
 
     function clearPending() {
         state.pendingToggles.clear();
+        state.pendingMotionOverrides.clear();
         rebuildBtn.style.display = 'none';
         state._pendingBackup = null;
         state._mapPendingBackup = null;
         updatePendingHighlight();
         updateMapPendingHighlight();
+        refreshPlateMotionEditor();
+    }
+
+    function pendingPlateCount() {
+        return new Set([
+            ...state.pendingToggles,
+            ...state.pendingMotionOverrides.keys(),
+        ]).size;
     }
 
     // Show/hide rebuild button when pending set changes
     document.addEventListener('pending-edits-changed', () => {
-        const count = state.pendingToggles.size;
+        const count = pendingPlateCount();
         if (count > 0) {
             rebuildLabel.textContent = `Rebuild (${count})`;
             rebuildBtn.style.display = '';
@@ -879,7 +906,7 @@ setupEditMode();
 
     // Click: apply all pending toggles, then recompute once
     rebuildBtn.addEventListener('click', () => {
-        if (state.pendingToggles.size === 0) return;
+        if (pendingPlateCount() === 0) return;
         const { plateIsOcean, plateDensity, plateDensityLand, plateDensityOcean } = state.curData;
 
         // Apply all pending toggles
@@ -891,6 +918,14 @@ setupEditMode();
                 plateIsOcean.add(pid);
                 plateDensity[pid] = plateDensityOcean[pid];
             }
+        }
+
+        // Merge staged direction/speed values. Null is an explicit Reset back
+        // to the newly rebuilt automatic baseline.
+        if (!state.curData.motionOverrides) state.curData.motionOverrides = new Map();
+        for (const [pid, override] of state.pendingMotionOverrides) {
+            if (override == null) state.curData.motionOverrides.delete(pid);
+            else state.curData.motionOverrides.set(pid, override);
         }
 
         clearPending();
@@ -911,13 +946,14 @@ setupEditMode();
             btn.textContent = 'Build New World';
             btn.classList.remove('generating');
             hoverEl.style.display = 'none';
+            refreshPlateMotionEditor();
             document.dispatchEvent(new CustomEvent('plates-edited'));
         }, skipClimate);
     });
 
     // Escape clears all pending edits
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && state.pendingToggles.size > 0) {
+        if (e.key === 'Escape' && pendingPlateCount() > 0) {
             clearPending();
         }
     });
@@ -1047,11 +1083,38 @@ sidebarToggle.addEventListener('click', () => {
 // Edit-mode toggle wiring
 (function initEditToggle() {
     const editBtn = document.getElementById('editToggle');
-    if (!editBtn) return;
+    const editTools = document.getElementById('editTools');
+    if (!editBtn || !editTools) return;
+    const toolButtons = Array.from(editTools.querySelectorAll('[data-edit-tool]'));
+
+    function syncEditControls() {
+        editBtn.classList.toggle('active', state.editMode);
+        editBtn.setAttribute('aria-pressed', String(state.editMode));
+        editBtn.setAttribute('aria-expanded', String(state.editMode));
+        editTools.hidden = !state.editMode;
+        for (const button of toolButtons) {
+            const active = button.dataset.editTool === state.editTool;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        }
+        refreshPlateMotionEditor();
+    }
+
     editBtn.addEventListener('click', () => {
         state.editMode = !state.editMode;
-        editBtn.classList.toggle('active', state.editMode);
+        syncEditControls();
     });
+    for (const button of toolButtons) {
+        button.addEventListener('click', () => {
+            state.editTool = button.dataset.editTool === 'motion' ? 'motion' : 'land';
+            syncEditControls();
+        });
+    }
+    genBtn.addEventListener('generate-done', () => {
+        clearMotionSelection();
+        syncEditControls();
+    });
+    syncEditControls();
 })();
 
 // Mobile refresh FAB — two-tap to regenerate (blue → green → generate)
@@ -1086,7 +1149,7 @@ sidebarToggle.addEventListener('click', () => {
 // Mobile info text
 if (state.isTouchDevice) {
     const infoEl = document.getElementById('info');
-    if (infoEl) infoEl.textContent = 'Drag to rotate \u00b7 Pinch to zoom \u00b7 Use edit button to reshape';
+    if (infoEl) infoEl.textContent = 'Drag to rotate \u00b7 Pinch to zoom \u00b7 Use the pencil to edit plates';
 }
 
 // Disable export widths > 8192 on touch devices
@@ -1125,6 +1188,7 @@ function animate() {
         if (state.oceanCurrentArrowGroup) state.oceanCurrentArrowGroup.rotation.y = state.planetMesh.rotation.y;
         if (state.globeGridMesh) state.globeGridMesh.rotation.y = state.planetMesh.rotation.y;
     }
+    tickPlateMotionEditor();
     renderer.render(scene, state.mapMode ? mapCamera : camera);
 }
 
@@ -1195,7 +1259,7 @@ window.addEventListener('resize', () => {
         const step2 = card.querySelector('.tutorial-step[data-step="2"]');
         if (step2) {
             const p = step2.querySelector('p');
-            if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.';
+            if (p) p.innerHTML = '<strong>Drag</strong> to rotate and <strong>pinch</strong> to zoom. Tap the <strong>pencil</strong>, then choose <strong>Land/Sea</strong> to reshape continents or <strong>Motion</strong> to steer a selected plate with its arrow and Speed control. Stage several changes, then tap <strong>Rebuild</strong> once.';
         }
     }
 
@@ -1214,7 +1278,7 @@ window.addEventListener('resize', () => {
 
 // What's New modal — shown once per version for returning users
 (function initWhatsNew() {
-    const VERSION    = '2';
+    const VERSION    = '3';
     const LS_KEY     = 'wo-whatsnew-seen';
     const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
     const overlay    = document.getElementById('whatsNewOverlay');
@@ -1336,7 +1400,8 @@ window.takePreview = function(width = 1200, height = 630) {
     // Hide all UI elements
     const hiddenEls = [];
     for (const sel of ['#ui', '#topInfo', '#info', '#hoverInfo', '#helpBtn',
-                        '#editToggle', '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
+                        '#editToggle', '#editTools', '#motionPanel', '#motionHandle',
+                        '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
                         '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay', '#whatsNewOverlay']) {
         const el = document.querySelector(sel);
         if (el && el.style.display !== 'none') {
@@ -1380,7 +1445,7 @@ if (hashParams) {
         el.value = val;
         el.dispatchEvent(new Event('input'));
     }
-    generate(hashParams.seed, hashParams.toggledIndices, onProgress, shouldSkipClimate());
+    generate(hashParams.seed, hashParams.toggledIndices, onProgress, shouldSkipClimate(), hashParams.motionOverrides);
 } else {
     generate(undefined, [], onProgress, shouldSkipClimate());
 }

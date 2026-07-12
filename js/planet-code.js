@@ -32,6 +32,7 @@ const PREV2_LEN = 16; // previous 16-char codes (before glacial erosion)
 const PREV_LEN = 14; // previous 14-char codes (before ridge/creep)
 const LEGACY_LEN = 13; // legacy 13-char codes (single erosion slider)
 const IDX_CHARS = 2; // base36 chars per plate index (max index 119 = "3b")
+const MOTION_RECORD_CHARS = 6; // plate index (2) + bearing degrees (2) + speed percent (2)
 
 // Legacy radices for decoding old 13-char codes (single erosion slider)
 const LEGACY_RADICES = [21, 21, 51, 10, 117, 21, 2559];
@@ -69,6 +70,48 @@ function parseBase36(str) {
         if (isNaN(d)) throw new Error('bad char');
         return acc * 36n + BigInt(d);
     }, 0n);
+}
+
+function normalizeMotionRecords(records, numPlates) {
+    if (!Array.isArray(records)) throw new TypeError('Motion overrides must be an array');
+    const seen = new Set();
+    const normalized = records.map(record => {
+        const plateIndex = record?.plateIndex;
+        const bearingDeg = record?.bearingDeg;
+        const speedPercent = record?.speedPercent;
+        if (!Number.isInteger(plateIndex) || plateIndex < 0 || plateIndex >= numPlates) {
+            throw new RangeError(`Invalid motion plate index: ${plateIndex}`);
+        }
+        if (!Number.isInteger(bearingDeg) || bearingDeg < 0 || bearingDeg > 359) {
+            throw new RangeError(`Invalid motion bearing: ${bearingDeg}`);
+        }
+        if (!Number.isInteger(speedPercent) || speedPercent < 0 || speedPercent > 200) {
+            throw new RangeError(`Invalid motion speed: ${speedPercent}`);
+        }
+        if (seen.has(plateIndex)) throw new RangeError(`Duplicate motion plate index: ${plateIndex}`);
+        seen.add(plateIndex);
+        return { plateIndex, bearingDeg, speedPercent };
+    });
+    normalized.sort((a, b) => a.plateIndex - b.plateIndex);
+    return normalized;
+}
+
+function decodeMotionRecords(motionStr, numPlates) {
+    if (!motionStr || !/^[0-9a-z]+$/.test(motionStr)) return null;
+    if (motionStr.length % MOTION_RECORD_CHARS !== 0) return null;
+    const records = [];
+    const seen = new Set();
+    for (let i = 0; i < motionStr.length; i += MOTION_RECORD_CHARS) {
+        const plateIndex = parseInt(motionStr.slice(i, i + 2), 36);
+        const bearingDeg = parseInt(motionStr.slice(i + 2, i + 4), 36);
+        const speedPercent = parseInt(motionStr.slice(i + 4, i + 6), 36);
+        if (plateIndex >= numPlates || bearingDeg > 359 || speedPercent > 200) return null;
+        if (seen.has(plateIndex)) return null;
+        seen.add(plateIndex);
+        records.push({ plateIndex, bearingDeg, speedPercent });
+    }
+    records.sort((a, b) => a.plateIndex - b.plateIndex);
+    return records;
 }
 
 // Decode format configs: one entry per code length.
@@ -192,9 +235,10 @@ function decodeFormat(packed, config, toggleStr) {
  * @param {number} precipitationOffset - Precipitation offset (-1–1, step 0.1)
  * @param {number} landCoverage - Land Coverage (0–1, step 0.05)
  * @param {number[]} [toggledIndices=[]] - Sorted array of toggled plate indices
- * @returns {string} base36 code (22 chars without edits, 22 + '-' + 2*k with k edits)
+ * @param {{plateIndex:number,bearingDeg:number,speedPercent:number}[]} [motionOverrides=[]] - Plate motion records
+ * @returns {string} base36 code with optional land/type (`-`) and motion (`~`) suffixes
  */
-export function encodePlanetCode(seed, N, jitter, P, numContinents, roughness, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, soilCreep, continentSizeVariety, temperatureOffset, precipitationOffset, landCoverage, toggledIndices = []) {
+export function encodePlanetCode(seed, N, jitter, P, numContinents, roughness, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, soilCreep, continentSizeVariety, temperatureOffset, precipitationOffset, landCoverage, toggledIndices = [], motionOverrides = []) {
     const nIdx  = toIndex(N, SLIDERS[0]);
     const jIdx  = toIndex(jitter, SLIDERS[1]);
     const pIdx  = toIndex(P, SLIDERS[2]);
@@ -240,18 +284,36 @@ export function encodePlanetCode(seed, N, jitter, P, numContinents, roughness, t
             .join('');
     }
 
+    const motionRecords = normalizeMotionRecords(motionOverrides, P);
+    if (motionRecords.length > 0) {
+        code += '~' + motionRecords.map(record =>
+            record.plateIndex.toString(36).padStart(2, '0')
+            + record.bearingDeg.toString(36).padStart(2, '0')
+            + record.speedPercent.toString(36).padStart(2, '0')
+        ).join('');
+    }
+
     return code;
 }
 
 /**
  * Decode a base36 planet code back into planet parameters.
  * Supports 22-char (current), 21-char (prev5), 18-char (prev4), 17-char (prev3), 16-char (prev2), 14-char (previous-gen), and 13-char (legacy) codes.
- * @param {string} code - base36 code (13, 14, 16, 17, 18, 21, or 22 chars, optionally followed by "-" + toggle indices)
- * @returns {{ seed: number, N: number, jitter: number, P: number, numContinents: number, roughness: number, terrainWarp: number, smoothing: number, glacialErosion: number, hydraulicErosion: number, thermalErosion: number, ridgeSharpening: number, soilCreep: number, continentSizeVariety: number, temperatureOffset: number, precipitationOffset: number, landCoverage: number, toggledIndices: number[] } | null}
+ * Optional suffixes are `-` + land/type toggle indices and `~` + motion records.
+ * @param {string} code - Encoded planet code
+ * @returns {{ seed: number, N: number, jitter: number, P: number, numContinents: number, roughness: number, terrainWarp: number, smoothing: number, glacialErosion: number, hydraulicErosion: number, thermalErosion: number, ridgeSharpening: number, soilCreep: number, continentSizeVariety: number, temperatureOffset: number, precipitationOffset: number, landCoverage: number, toggledIndices: number[], motionOverrides: {plateIndex:number,bearingDeg:number,speedPercent:number}[] } | null}
  */
 export function decodePlanetCode(code) {
     if (typeof code !== 'string') return null;
     code = code.trim().toLowerCase();
+
+    // Motion records are a separate suffix so every pre-SP6 base/toggle code
+    // keeps its exact representation and decode path.
+    const motionParts = code.split('~');
+    if (motionParts.length > 2) return null;
+    code = motionParts[0];
+    const motionStr = motionParts.length === 2 ? motionParts[1] : null;
+    if (motionStr === '') return null;
 
     // Split base code from optional toggle suffix
     const dashIdx = code.indexOf('-');
@@ -271,5 +333,14 @@ export function decodePlanetCode(code) {
         return null;
     }
 
-    return decodeFormat(packed, config, toggleStr);
+    const result = decodeFormat(packed, config, toggleStr);
+    if (!result) return null;
+    if (motionStr == null) {
+        result.motionOverrides = [];
+        return result;
+    }
+    const motionOverrides = decodeMotionRecords(motionStr, result.P);
+    if (!motionOverrides) return null;
+    result.motionOverrides = motionOverrides;
+    return result;
 }

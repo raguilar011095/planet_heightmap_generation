@@ -394,7 +394,7 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
-                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
+                <p><strong>Drag</strong> to rotate and <strong>scroll</strong> to zoom. Use the <strong>pencil</strong> for Land/Sea or Motion editing: select a plate, drag its motion arrow, adjust Speed, then hit <strong>Rebuild</strong> to apply staged changes. <strong>Ctrl-click</strong> remains the quick Land/Sea shortcut. <strong>Hover</strong> any region for terrain and climate details.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>
@@ -491,6 +491,7 @@
             <div class="whatsnew-step" data-step="3">
                 <h3>Plate Editing &amp; Climate Fixes</h3>
                 <ul class="whatsnew-list">
+                    <li><strong>Steer tectonic plates</strong> &mdash; Open the pencil's Motion tool, drag a plate's arrow to change direction, and set its speed. Batch several edits into one Rebuild and share them in the planet code.</li>
                     <li><strong>Multi-select plates</strong> &mdash; Mark several plates at once, then reshape them all in a single rebuild. No more click-wait-repeat.</li>
                     <li><strong>Southern hemisphere climates fixed</strong> &mdash; Mediterranean and continental climates now appear properly in both hemispheres.</li>
                     <li><strong>Better terrain at every detail level</strong> &mdash; Mountains, erosion, and coastlines now scale consistently whether you're at 5K or 2.5M regions.</li>
@@ -510,7 +511,26 @@
     </div>
 
     <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
-    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
+    <div id="editTools" class="edit-tools" role="group" aria-label="Plate edit tool" hidden>
+        <button type="button" class="active" data-edit-tool="land" aria-pressed="true">Land/Sea</button>
+        <button type="button" data-edit-tool="motion" aria-pressed="false">Motion</button>
+    </div>
+    <aside id="motionPanel" class="motion-panel" aria-label="Selected plate motion" hidden>
+        <div class="motion-panel-head">
+            <strong id="motionPlateLabel">Plate motion</strong>
+            <span id="motionDirectionValue">0&deg; N</span>
+        </div>
+        <label for="motionSpeed">Speed <output id="motionSpeedValue" for="motionSpeed">100%</output></label>
+        <input type="range" id="motionSpeed" min="0" max="200" value="100" step="5">
+        <div class="motion-panel-foot">
+            <span>Drag the arrow to steer</span>
+            <button type="button" id="motionReset">Reset</button>
+        </div>
+    </aside>
+    <button type="button" id="motionHandle" class="motion-handle" aria-label="Drag to change selected plate direction" title="Drag to steer · Arrow keys rotate" hidden>
+        <span></span>
+    </button>
+    <button id="editToggle" class="edit-toggle" title="Edit plates" aria-label="Edit plates" aria-expanded="false" aria-pressed="false">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
         </svg>

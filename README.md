@@ -32,7 +32,7 @@ All three are considered together; ties are broken in the order above.
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
-- **Interactive editing** — Ctrl-click plates to mark them for reshaping (multi-select with visual tinting), then click Rebuild to apply all changes at once. Ctrl-click again to undo a pending selection. Press Escape to cancel all pending edits
+- **Interactive plate editing** — use the pencil's Land/Sea and Motion tools to reshape continents or steer individual plates with a direction arrow and 0–200% speed control. Stage changes across multiple plates, then apply everything in one Rebuild. Desktop Ctrl-click remains the fast Land/Sea shortcut; Escape cancels pending edits
 - **Seasonal wind simulation** — pressure-driven wind patterns with a longitude-varying ITCZ that tracks the thermal equator (~5° over ocean, up to 15-20° over continents), Gaussian pressure bands (subtropical highs, subpolar lows, polar highs), land/sea thermal contrast for monsoon-like pressure reversals, elevation barometric effects, and Coriolis-deflected geostrophic wind with natural cross-equatorial flow reversal. Computed for both summer and winter seasons.
 - **Ocean surface currents** — rule-based geographic gyre simulation driven by wind belts (trade winds, westerlies, polar easterlies) with a longitude-varying ITCZ equatorial countercurrent. Continental shelves are classified as western or eastern boundaries via coast-normal BFS, producing subtropical gyres (CW in NH, CCW in SH) with western boundary intensification (Gulf Stream, Kuroshio effect) and weaker eastern boundary return flow. Detects circumpolar channels for unobstructed eastward currents (Antarctic Circumpolar Current). Currents are colored by heat transport: red = warm poleward flow, blue = cold equatorward flow, black = zonal (neutral). Computed for both summer and winter seasons.
 - **Precipitation** — blended dual-model approach: a complex moisture advection simulation is blended with a fast heuristic zonal model (blend weight and all climate constants are tuned against real-Earth Köppen data; see `js/climate-config.js`). The advection model simulates wind-driven moisture transport from coasts with six mechanisms: ITCZ convective uplift, frontal convergence, orographic rain/shadow, lee cyclogenesis, polar-front precipitation, and subtropical high suppression. The heuristic model provides smooth latitude-based patterns (ITCZ wet belt, subtropical dry belt, mid-latitude recovery, polar dryness) modulated by continentality and orographic effects. Blending the two reduces splotchiness while preserving terrain-informed detail and strengthening subtropical desert formation (~20–35°). Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
@@ -69,7 +69,7 @@ A top navigation bar connects the two pages:
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 21 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–18 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any applied plate edits. An unedited current-format planet is 22 characters. Land/Sea edits add a `-` suffix; direction/speed edits add compact `~` records. Older 13–21 character codes are still supported — missing controls default to their current values. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -174,10 +174,12 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 | Highlight plate + info card | Hover | — |
 | Mark plate for reshaping | Ctrl-click a plate (multi-select) | Tap the edit button (pencil), then tap plates |
 | Undo pending plate | Ctrl-click the same plate again | Tap the same plate again |
+| Edit plate motion | Pencil → Motion, select a plate, drag its arrow; adjust Speed | Pencil → Motion, tap a plate, drag its arrow; adjust Speed |
+| Restore generated motion | Select the plate and click Reset, then Rebuild | Select the plate and tap Reset, then Rebuild |
 | Apply pending edits | Click the Rebuild button | Tap the Rebuild button |
 | Cancel all pending edits | Press Escape | — |
 
-Hovering over a region shows an info card with plate type, elevation, coordinates, and (when climate has been computed) temperature, precipitation, and K&ouml;ppen classification. Pending plates show a colored tint (green = ocean→land, blue = land→ocean) and hover text indicates "(pending)".
+Hovering over a region shows an info card with plate type, elevation, coordinates, and (when climate has been computed) temperature, precipitation, and K&ouml;ppen classification. Pending Land/Sea plates show a colored tint (green = ocean→land, blue = land→ocean). Motion mode shows an arrow per plate: cyan = generated, violet = applied edit, amber = pending, white = selected.
 
 ### Mobile Support
 
@@ -186,7 +188,7 @@ World Orogen is fully usable on phones and tablets:
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map, using the same smooth lerp as desktop scroll-zoom.
 - **View switcher** — a dropdown in the top-right lets you switch between Terrain, Satellite, Climate, and Heightmap views without opening the bottom sheet.
-- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap plates to mark them. Tap the Rebuild button to apply all changes at once.
+- **Edit-mode toggle** — a floating pencil button (bottom-right) opens Land/Sea and Motion tools. In Motion, tap a plate, drag the 44px arrow handle to steer, and adjust the touch-friendly Speed slider. Tap Rebuild to apply all staged changes at once.
 - **Touch-friendly targets** — buttons, checkboxes, and sliders are enlarged for comfortable finger input.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K). Export widths above 8192px are disabled on mobile.
 - **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.
@@ -243,7 +245,9 @@ js/
   state.js              Shared mutable application state
   generate.js           Worker dispatcher — posts jobs, handles results
   planet-worker.js      Web Worker — runs geology pipeline off main thread
-  planet-code.js        Planet code encode/decode (seed + sliders → base36)
+  planet-code.js        Planet code encode/decode (seed + sliders + plate edits → base36)
+  plate-motion.js       Pure Euler-vector, bearing/speed override, anchor, and stable-record helpers
+  plate-motion-editor.js Plate motion arrows, drag handle, speed panel, and pending previews
   rng.js                Seeded PRNG (Park-Miller LCG)
   simplex-noise.js      3D Simplex noise with fBm and ridged fBm
   color-map.js          Elevation → RGB colour mapping + satellite biome colors
@@ -263,7 +267,7 @@ js/
   temperature.js        Temperature simulation — ITCZ thermal equator, lapse rate, continentality, ocean currents
   scene.js              Three.js scene, cameras, controls, lights
   planet-mesh.js        Voronoi mesh, map projection, hover highlight
-  edit-mode.js          Ctrl-click plate multi-select + hover info
+  edit-mode.js          Land/Sea and Motion plate selection + hover info
   detail-scale.js       Non-linear (power-curve) detail slider mapping
 tuning/
   climate/              Automated climate tuning suite — scores the simulated Köppen

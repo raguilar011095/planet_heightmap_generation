@@ -16,6 +16,13 @@ import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
+import {
+    applyMotionOverrides,
+    clonePlateVec,
+    computePlateMotionAnchors,
+    plateOverridesToRecords,
+    recordsToPlateOverrides,
+} from './plate-motion.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
@@ -192,8 +199,96 @@ function buildClimateFields(windResult, oceanResult, precipResult, tempResult) {
     };
 }
 
+// Build the complete motion-dependent tectonic state from an immutable raw
+// baseline. Initial generation and edit-recompute both call this so applying
+// edits in the UI produces the same result as loading the resulting code.
+function buildPlateMotionState({
+    rawPlateVec, motionAnchors, motionOverrides,
+    plateSeeds, plateIsOcean, plateDensity,
+    coarseMesh, coarse_xyz, coarse_r_plate,
+    mesh, r_xyz, r_plate, seed, P,
+    timing = null,
+}) {
+    let t0 = performance.now();
+    const generatedPlateVec = clonePlateVec(rawPlateVec);
+    const { plateDebug, mantleField, velDelta } = applyPlatePhysics(
+        generatedPlateVec, plateSeeds, plateIsOcean,
+        coarse_r_plate, coarseMesh, coarse_xyz, seed
+    );
+    if (timing) timing.push({
+        stage: 'Plate physics (drag + slab pull + ridge push + mantle flow)',
+        ms: performance.now() - t0,
+    });
+
+    const plateVec = applyMotionOverrides(generatedPlateVec, motionAnchors, motionOverrides);
+    for (const plateId of motionOverrides.keys()) {
+        if (plateDebug[plateId] && plateVec[plateId]) {
+            plateDebug[plateId].omegaAfter = Math.abs(plateVec[plateId].omega);
+        }
+    }
+
+    let superPlateData = null;
+    if (P >= 8) {
+        t0 = performance.now();
+        superPlateData = buildSuperPlates(
+            coarseMesh, coarse_r_plate, plateSeeds, plateVec,
+            plateIsOcean, plateDensity, r_plate
+        );
+        if (timing) timing.push({
+            stage: `Super plates (${superPlateData.numSuperPlates} groups from ${P} plates)`,
+            ms: performance.now() - t0,
+        });
+
+        t0 = performance.now();
+        const superPlateSeeds = new Set();
+        for (let i = 0; i < superPlateData.numSuperPlates; i++) superPlateSeeds.add(i);
+        applyPlatePhysics(
+            superPlateData.superPlateVec, superPlateSeeds, superPlateData.superPlateIsOcean,
+            superPlateData.r_superPlate, mesh, r_xyz, seed + 7777,
+            SUPER_PLATE_PHYSICS_MULT
+        );
+        if (timing) timing.push({ stage: 'Super plate physics', ms: performance.now() - t0 });
+    }
+
+    const r_mantleField = new Float32Array(mesh.numRegions);
+    const plateMantleSum = {};
+    const plateMantleCount = {};
+    for (let region = 0; region < coarseMesh.numRegions; region++) {
+        const plateId = coarse_r_plate[region];
+        plateMantleSum[plateId] = (plateMantleSum[plateId] || 0) + mantleField[region];
+        plateMantleCount[plateId] = (plateMantleCount[plateId] || 0) + 1;
+    }
+    for (let region = 0; region < mesh.numRegions; region++) {
+        const plateId = r_plate[region];
+        r_mantleField[region] = plateMantleCount[plateId]
+            ? plateMantleSum[plateId] / plateMantleCount[plateId]
+            : 0;
+    }
+
+    const physicsDebug = expandPlatePhysicsDebug(
+        plateDebug, mantleField, velDelta, r_plate, mesh.numRegions,
+        coarse_r_plate, coarseMesh.numRegions
+    );
+
+    return {
+        generatedPlateVec,
+        plateVec,
+        superPlateData,
+        r_mantleField,
+        physicsDebug,
+    };
+}
+
+function attachPlatePhysicsDebug(debugLayers, physicsDebug) {
+    debugLayers.continentalDrag = physicsDebug.dl_continentalDrag;
+    debugLayers.sizeVelocity = physicsDebug.dl_sizeVelocity;
+    debugLayers.plateSpeed = physicsDebug.dl_plateSpeed;
+    debugLayers.velChange = physicsDebug.dl_velChange;
+    debugLayers.mantleFlow = physicsDebug.dl_mantleFlow;
+}
+
 function handleGenerate(data) {
-    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate } = data;
+    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, motionOverrides: motionOverrideRecords = [], skipClimate } = data;
     const spread = 5;
     const timing = []; // top-level pipeline timing
 
@@ -233,8 +328,10 @@ function handleGenerate(data) {
         timing.push({ stage: 'Smooth projected plates', ms: performance.now() - t0 });
 
         const plateSeeds = coarsePlateSeeds;
-        const plateVec = coarsePlateVec;
         const plateIsOcean = coarsePlateIsOcean;
+        const rawPlateVec = clonePlateVec(coarsePlateVec);
+        const motionAnchors = computePlateMotionAnchors(coarse_r_plate, plateSeeds, coarse_xyz);
+        const motionOverrides = recordsToPlateOverrides(motionOverrideRecords, plateSeeds);
 
         const originalPlateIsOcean = new Set(plateIsOcean);
 
@@ -261,47 +358,16 @@ function handleGenerate(data) {
 
         const noise = new SimplexNoise(seed);
 
-        // Apply physically-motivated plate motion biasing
-        t0 = performance.now();
-        const { plateDebug, mantleField, velDelta } = applyPlatePhysics(
-            plateVec, plateSeeds, plateIsOcean,
-            coarse_r_plate, coarseMesh, coarse_xyz, seed
-        );
-        timing.push({ stage: 'Plate physics (drag + slab pull + ridge push + mantle flow)', ms: performance.now() - t0 });
-
-        // Build super plates for broad orogenic belts (skip if too few plates)
-        let superPlateData = null;
-        if (P >= 8) {
-            t0 = performance.now();
-            superPlateData = buildSuperPlates(coarseMesh, coarse_r_plate, plateSeeds, plateVec, plateIsOcean, plateDensity, r_plate);
-            timing.push({ stage: `Super plates (${superPlateData.numSuperPlates} groups from ${P} plates)`, ms: performance.now() - t0 });
-
-            // Apply plate physics to super plates with stronger blending
-            t0 = performance.now();
-            const spSeeds = new Set();
-            for (let i = 0; i < superPlateData.numSuperPlates; i++) spSeeds.add(i);
-            applyPlatePhysics(
-                superPlateData.superPlateVec, spSeeds, superPlateData.superPlateIsOcean,
-                superPlateData.r_superPlate, mesh, r_xyz, seed + 7777,
-                SUPER_PLATE_PHYSICS_MULT
-            );
-            timing.push({ stage: 'Super plate physics', ms: performance.now() - t0 });
-        }
-
-        // Expand mantle field from coarse mesh to hi-res via plate averages
-        const r_mantleField = new Float32Array(mesh.numRegions);
-        {
-            const plateMantleSum = {}, plateMantleN = {};
-            for (let r = 0; r < coarseMesh.numRegions; r++) {
-                const pid = coarse_r_plate[r];
-                plateMantleSum[pid] = (plateMantleSum[pid] || 0) + mantleField[r];
-                plateMantleN[pid] = (plateMantleN[pid] || 0) + 1;
-            }
-            for (let r = 0; r < mesh.numRegions; r++) {
-                const pid = r_plate[r];
-                r_mantleField[r] = plateMantleN[pid] ? plateMantleSum[pid] / plateMantleN[pid] : 0;
-            }
-        }
+        const motionState = buildPlateMotionState({
+            rawPlateVec, motionAnchors, motionOverrides,
+            plateSeeds, plateIsOcean, plateDensity,
+            coarseMesh, coarse_xyz, coarse_r_plate,
+            mesh, r_xyz, r_plate, seed, P, timing,
+        });
+        const {
+            generatedPlateVec, plateVec, superPlateData,
+            r_mantleField, physicsDebug,
+        } = motionState;
 
         progress(35, 'Raising mountains\u2026');
         t0 = performance.now();
@@ -319,18 +385,7 @@ function handleGenerate(data) {
         timing.push({ stage: 'Terrain post-processing (total)', ms: performance.now() - t0 });
         debugLayers.erosionDelta = dl_erosionDelta;
 
-        // Expand plate physics diagnostics to hi-res mesh
-        {
-            const ppd = expandPlatePhysicsDebug(
-                plateDebug, mantleField, velDelta, r_plate, mesh.numRegions,
-                coarse_r_plate, coarseMesh.numRegions
-            );
-            debugLayers.continentalDrag = ppd.dl_continentalDrag;
-            debugLayers.sizeVelocity = ppd.dl_sizeVelocity;
-            debugLayers.plateSpeed = ppd.dl_plateSpeed;
-            debugLayers.velChange = ppd.dl_velChange;
-            debugLayers.mantleFlow = ppd.dl_mantleFlow;
-        }
+        attachPlatePhysicsDebug(debugLayers, physicsDebug);
 
         let windResult = null, oceanResult = null, precipResult = null, tempResult = null;
 
@@ -386,7 +441,12 @@ function handleGenerate(data) {
         W = {
             mesh, r_xyz: new Float32Array(r_xyz), t_xyz: new Float32Array(t_xyz),
             neighborDist,
-            r_plate: new Int32Array(r_plate), plateSeeds: new Set(plateSeeds), plateVec,
+            r_plate: new Int32Array(r_plate), plateSeeds: new Set(plateSeeds),
+            rawPlateVec: clonePlateVec(rawPlateVec),
+            generatedPlateVec: clonePlateVec(generatedPlateVec),
+            plateVec: clonePlateVec(plateVec),
+            motionAnchors,
+            motionOverrides: new Map(motionOverrides),
             plateIsOcean: new Set(plateIsOcean), originalPlateIsOcean: new Set(originalPlateIsOcean),
             plateDensity: Object.assign({}, plateDensity),
             plateDensityLand: Object.assign({}, plateDensityLand),
@@ -405,7 +465,9 @@ function handleGenerate(data) {
             r_orogenic: r_orogenic ? new Float32Array(r_orogenic) : null,
             // Retain coarse-plate data so editRecompute can rebuild super
             // plates with the same detail-independent adjacency graph.
-            coarseMesh, coarse_r_plate: new Int32Array(coarse_r_plate)
+            coarseMesh,
+            coarse_xyz: new Float32Array(coarse_xyz),
+            coarse_r_plate: new Int32Array(coarse_r_plate)
         };
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });
 
@@ -439,6 +501,9 @@ function handleGenerate(data) {
             r_xyz, t_xyz, r_plate,
             plateSeeds: Array.from(plateSeeds),
             plateVec,
+            generatedPlateVec,
+            motionAnchors,
+            motionOverrides: plateOverridesToRecords(motionOverrides, plateSeeds),
             plateIsOcean: Array.from(plateIsOcean),
             originalPlateIsOcean: Array.from(originalPlateIsOcean),
             plateDensity, plateDensityLand, plateDensityOcean,
@@ -589,21 +654,36 @@ function handleEditRecompute(data) {
         // Update retained plate state
         W.plateIsOcean = new Set(data.plateIsOcean);
         W.plateDensity = Object.assign({}, data.plateDensity);
+        W.motionOverrides = recordsToPlateOverrides(data.motionOverrides || [], W.plateSeeds);
 
-        const { mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, seed } = W;
+        const { mesh, r_xyz, plateIsOcean, r_plate, plateSeeds, noise, seed } = W;
         const nMag = data.nMag;
         const spread = 5;
 
-        // Rebuild super plates from updated plate ocean/density state
-        // (uses retained coarse-plate data for detail-stable adjacency graph)
-        let superPlateData = null;
-        if ((W.P || 0) >= 8) {
-            superPlateData = buildSuperPlates(W.coarseMesh, W.coarse_r_plate, plateSeeds, plateVec, plateIsOcean, W.plateDensity, r_plate);
-        }
-
         let t0 = performance.now();
+        const motionState = buildPlateMotionState({
+            rawPlateVec: W.rawPlateVec,
+            motionAnchors: W.motionAnchors,
+            motionOverrides: W.motionOverrides,
+            plateSeeds,
+            plateIsOcean,
+            plateDensity: W.plateDensity,
+            coarseMesh: W.coarseMesh,
+            coarse_xyz: W.coarse_xyz,
+            coarse_r_plate: W.coarse_r_plate,
+            mesh, r_xyz, r_plate, seed, P: W.P || 0,
+        });
+        const tMotion = performance.now() - t0;
+        const {
+            generatedPlateVec, plateVec, superPlateData,
+            r_mantleField, physicsDebug,
+        } = motionState;
+        W.generatedPlateVec = clonePlateVec(generatedPlateVec);
+        W.plateVec = clonePlateVec(plateVec);
+
+        t0 = performance.now();
         const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity, superPlateData);
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity, superPlateData, r_mantleField);
         const tElev = performance.now() - t0;
 
         const prePostElev = new Float32Array(r_elevation);
@@ -617,6 +697,7 @@ function handleEditRecompute(data) {
         const { dl_erosionDelta, postTiming } = runPostProcessing(mesh, r_xyz, r_elevation, data, W.neighborDist, W.seed, debugLayers.hotspot, r_dampen, r_orogenic);
         const tPost = performance.now() - t0;
         debugLayers.erosionDelta = dl_erosionDelta;
+        attachPlatePhysicsDebug(debugLayers, physicsDebug);
 
         // Update retained final elevation for deferred climate
         W.r_elevation_final = new Float32Array(r_elevation);
@@ -685,6 +766,10 @@ function handleEditRecompute(data) {
         const result = {
             type: 'editDone',
             skipClimate,
+            plateVec,
+            generatedPlateVec,
+            motionAnchors: W.motionAnchors,
+            motionOverrides: plateOverridesToRecords(W.motionOverrides, plateSeeds),
             prePostElev,
             r_elevation,
             t_elevation,
@@ -695,6 +780,7 @@ function handleEditRecompute(data) {
             ...buildClimateFields(windResult, oceanResult, precipResult, tempResult),
             debugLayers,
             _editTiming: {
+                motionPhysics: tMotion,
                 elevation: tElev,
                 postProcessing: tPost,
                 wind: tWind,

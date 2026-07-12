@@ -738,8 +738,99 @@ button#generate.generating {
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
-/* Edit toggle — hidden on desktop */
-.edit-toggle { display: none; }
+/* Plate editor controls */
+.edit-toggle {
+    display: flex; align-items: center; justify-content: center;
+    position: fixed; bottom: 20px; right: 20px;
+    width: 48px; height: 48px;
+    border-radius: 50%;
+    background: rgba(40,60,120,0.8);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(100,160,255,0.25);
+    color: #8bf; cursor: pointer; z-index: 28;
+    transition: background 0.2s, box-shadow 0.2s, color 0.2s;
+}
+.edit-toggle:hover { background: rgba(60,90,180,0.9); color: #fff; }
+.edit-toggle.active {
+    background: rgba(34,170,90,0.85);
+    border-color: rgba(34,170,90,0.5);
+    color: #fff;
+    box-shadow: 0 0 12px rgba(34,170,90,0.4);
+}
+
+.edit-tools {
+    position: fixed; bottom: 76px; right: 20px;
+    display: flex; flex-direction: column; gap: 6px;
+    padding: 6px;
+    border-radius: 12px;
+    background: rgba(16,20,44,0.92);
+    border: 1px solid rgba(100,160,255,0.22);
+    backdrop-filter: blur(12px);
+    box-shadow: 0 6px 22px rgba(0,0,0,0.35);
+    z-index: 28;
+}
+.edit-tools[hidden], .motion-panel[hidden], .motion-handle[hidden] { display: none !important; }
+.edit-tools button {
+    min-width: 92px; min-height: 44px;
+    padding: 9px 12px;
+    border: 1px solid transparent; border-radius: 8px;
+    background: transparent; color: #89a;
+    font-size: 13px; font-weight: 500; font-family: inherit; cursor: pointer;
+}
+.edit-tools button:hover { color: #def; background: rgba(255,255,255,0.06); }
+.edit-tools button.active {
+    color: #fff; background: rgba(68,136,255,0.3);
+    border-color: rgba(100,160,255,0.4);
+}
+
+.motion-panel {
+    position: fixed; bottom: 20px; right: 82px;
+    width: min(280px, calc(100vw - 120px));
+    padding: 12px 14px;
+    border-radius: 12px;
+    background: rgba(16,20,44,0.94);
+    border: 1px solid rgba(100,160,255,0.25);
+    backdrop-filter: blur(14px);
+    box-shadow: 0 8px 28px rgba(0,0,0,0.4);
+    color: #cde; z-index: 28;
+}
+.motion-panel-head,
+.motion-panel-foot,
+.motion-panel label {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.motion-panel-head { margin-bottom: 10px; }
+.motion-panel-head strong { font-size: 14px; color: #eef; }
+.motion-panel-head span,
+.motion-panel label,
+.motion-panel-foot { font-size: 12px; color: #789; }
+.motion-panel label output { color: #bdf; font-weight: 600; }
+.motion-panel input[type="range"] { margin: 7px 0 8px; }
+.motion-panel-foot button {
+    min-height: 36px; padding: 6px 12px;
+    border: 1px solid rgba(255,255,255,0.14); border-radius: 7px;
+    background: rgba(255,255,255,0.06); color: #bcd;
+    font-size: 12px; font-weight: 500; font-family: inherit; cursor: pointer;
+}
+.motion-panel-foot button:hover:not(:disabled) { background: rgba(255,255,255,0.12); color: #fff; }
+.motion-panel-foot button:disabled { opacity: 0.35; cursor: default; }
+
+.motion-handle {
+    position: fixed; left: 0; top: 0;
+    width: 44px; height: 44px;
+    padding: 0; transform: translate(-50%, -50%);
+    border: 0; border-radius: 50%;
+    background: rgba(255,173,66,0.08);
+    cursor: grab; touch-action: none; z-index: 27;
+}
+.motion-handle span {
+    display: block; width: 16px; height: 16px; margin: auto;
+    border-radius: 50%;
+    background: #fff; border: 3px solid #ffad42;
+    box-shadow: 0 0 0 3px rgba(0,0,0,0.35), 0 0 14px rgba(255,173,66,0.75);
+}
+.motion-handle:hover, .motion-handle:focus-visible { background: rgba(255,173,66,0.18); outline: none; }
+.motion-handle.dragging { cursor: grabbing; background: rgba(255,173,66,0.24); }
 
 /* Refresh FAB — hidden on desktop */
 .refresh-fab { display: none; }
@@ -923,6 +1014,12 @@ button#generate.generating {
         color: #fff;
         box-shadow: 0 0 12px rgba(34,170,90,0.4);
     }
+    .edit-tools { bottom: 126px; right: 16px; }
+    .motion-panel {
+        right: 16px; bottom: 182px;
+        width: min(300px, calc(100vw - 32px));
+    }
+    .motion-panel-foot button { min-height: 44px; }
 
     /* Refresh FAB — mirrors edit toggle on the left */
     .refresh-fab {
