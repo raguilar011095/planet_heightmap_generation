@@ -194,7 +194,8 @@ function advectMoisture(mesh, r_xyz, r_heightKm, r_isLand,
  * @param {object} oceanResult - output from computeOceanCurrents()
  * @returns {{ r_precip_summer, r_precip_winter }} normalized 0–1 arrays
  */
-export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset = 0, landCoverage = 0.3) {
+export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset = 0, landCoverage = 0.3, userClimate = {}) {
+    const { orographicRain = 1, seasonFactor = 1 } = userClimate;
     console.log('[precipitation.js] computePrecipitation called, numRegions:', mesh.numRegions);
     const numRegions = mesh.numRegions;
     const timing = [];
@@ -241,6 +242,20 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
     }
 
     const result = {};
+
+    let effSubtropCenterSummer = CLIMATE.PRECIP_SUBTROP_CENTER_SUMMER_DEG;
+    let effSubtropCenterWinter = CLIMATE.PRECIP_SUBTROP_CENTER_WINTER_DEG;
+    if (seasonFactor !== 1) {
+        // The summer/winter center split IS the seasonal migration; scale
+        // the split about its midpoint so 0 tilt collapses both to one band.
+        const mid = (effSubtropCenterSummer + effSubtropCenterWinter) / 2;
+        effSubtropCenterSummer = mid + (effSubtropCenterSummer - mid) * seasonFactor;
+        effSubtropCenterWinter = mid + (effSubtropCenterWinter - mid) * seasonFactor;
+    }
+
+    const effOroUpliftAdd = CLIMATE.PRECIP_ORO_UPLIFT_ADD * orographicRain;
+    const effRsStrengthScale = CLIMATE.PRECIP_RS_APPLY_STRENGTH_SCALE * orographicRain;
+    const effRsWindwardAdd = CLIMATE.PRECIP_RS_APPLY_WINDWARD_ADD * orographicRain;
 
     const seasons = [
         { name: 'summer', shift: 5 },
@@ -359,7 +374,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
                     // the wind is pushing up, the more rain wrung out.
                     // gradient strength matters more than absolute height.
                     const uplift = Math.min(1, windDotGrad * 15);
-                    p += uplift * CLIMATE.PRECIP_ORO_UPLIFT_ADD;
+                    p += uplift * effOroUpliftAdd;
                 } else {
                     // Leeward: rain shadow. The advection step already depleted
                     // moisture crossing the ridge; this is the *extra* suppression
@@ -379,7 +394,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             // poleward in local summer (creating Mediterranean dry summers)
             // and retreats equatorward in local winter (allowing westerly rain).
             const inLocalSummer = (name === 'summer') ? (lat >= 0) : (lat < 0);
-            const subtropCenter = inLocalSummer ? CLIMATE.PRECIP_SUBTROP_CENTER_SUMMER_DEG : CLIMATE.PRECIP_SUBTROP_CENTER_WINTER_DEG;
+            const subtropCenter = inLocalSummer ? effSubtropCenterSummer : effSubtropCenterWinter;
             const subtropWidth  = inLocalSummer ? CLIMATE.PRECIP_SUBTROP_WIDTH_SUMMER_DEG : CLIMATE.PRECIP_SUBTROP_WIDTH_WINTER_DEG;
             let   subtropPeak   = inLocalSummer ? CLIMATE.PRECIP_SUBTROP_PEAK_SUMMER : CLIMATE.PRECIP_SUBTROP_PEAK_WINTER;
 
@@ -653,11 +668,11 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
             const rs = rainShadow[r];
             if (rs < -0.01) {
                 // Shadow zone: precipitation suppression behind mountains
-                const strength = Math.min(1, -rs * CLIMATE.PRECIP_RS_APPLY_STRENGTH_SCALE);
+                const strength = Math.min(1, -rs * effRsStrengthScale);
                 precip[r] *= Math.max(0.02, 1 - strength * CLIMATE.PRECIP_RS_APPLY_MAX_SUPPRESS);
             } else if (rs > 0.01) {
                 // Windward zone: strong orographic precipitation enhancement
-                precip[r] += rs * CLIMATE.PRECIP_RS_APPLY_WINDWARD_ADD;
+                precip[r] += rs * effRsWindwardAdd;
             }
         }
 
@@ -707,7 +722,7 @@ export function computePrecipitation(mesh, r_xyz, r_elevation, windResult, ocean
 
     // ── Step 4: Blend with heuristic model and normalize ──
     t0 = performance.now();
-    const heuristic = computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand);
+    const heuristic = computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand, seasonFactor);
 
     for (const seasonName of ['summer', 'winter']) {
         const complex = result[`r_precip_${seasonName}`];

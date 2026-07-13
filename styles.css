@@ -89,6 +89,14 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
     font-size: 11px; color: #678; line-height: 1.4;
     margin-bottom: 8px;
 }
+.cg-sub {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    opacity: 0.55;
+    margin: 10px 0 2px;
+}
 .import-expect {
     font-size: 11px; color: #8ab; line-height: 1.5;
     background: rgba(68,136,255,0.08);

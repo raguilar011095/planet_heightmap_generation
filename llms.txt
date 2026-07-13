@@ -10,6 +10,7 @@ World Orogen generates realistic procedural planets shaped by tectonic plate sim
 - Simulates tectonic plates with convergent, divergent, and transform boundaries
 - Applies glacial, hydraulic, and thermal erosion to carve fjords, river valleys, and talus slopes
 - Simulates seasonal climate: wind patterns, ocean currents, precipitation, and Köppen classification
+- Tunable planetary (axial tilt, rotation rate, greenhouse) and climate-character (winter severity, orographic rain, maritime influence, mountain chill) controls, recomputed on slider release
 - Creates hotspot volcanism with drift-trail island chains (like Hawaii)
 - Allows interactive editing — select multiple tectonic plates for batch reshaping with visual preview before rebuild
 - Import your own equirectangular B&W heightmaps (Earth, Mars, hand-drawn) onto a 3D globe with automatic climate simulation

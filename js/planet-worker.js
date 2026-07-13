@@ -14,6 +14,7 @@ import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
+import { seasonFactorFromTilt } from './climate-util.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
@@ -164,8 +165,23 @@ function getClimateParams(data) {
     const temperatureOffset = data?.temperatureOffset ?? W?.temperatureOffset ?? 0;
     const precipitationOffset = data?.precipitationOffset ?? W?.precipitationOffset ?? 0;
     const landCoverage = data?.landCoverage ?? W?.landCoverage ?? 0.3;
-    if (W) { W.temperatureOffset = temperatureOffset; W.precipitationOffset = precipitationOffset; W.landCoverage = landCoverage; }
-    return { temperatureOffset, precipitationOffset, landCoverage };
+    const axialTilt = data?.axialTilt ?? W?.axialTilt ?? 23.5;
+    const rotationRate = data?.rotationRate ?? W?.rotationRate ?? 1;
+    const greenhouse = data?.greenhouse ?? W?.greenhouse ?? 0;
+    const winterSeverity = data?.winterSeverity ?? W?.winterSeverity ?? 1;
+    const orographicRain = data?.orographicRain ?? W?.orographicRain ?? 1;
+    const maritimeInfluence = data?.maritimeInfluence ?? W?.maritimeInfluence ?? 1;
+    const mountainChill = data?.mountainChill ?? W?.mountainChill ?? 1;
+    if (W) {
+        // Tilt and rotation reshape the wind field itself, so the cached
+        // wind/ocean results are stale the moment either changes.
+        if ((W.axialTilt ?? 23.5) !== axialTilt || (W.rotationRate ?? 1) !== rotationRate) {
+            W.cachedWind = null;
+            W.cachedOcean = null;
+        }
+        Object.assign(W, { temperatureOffset, precipitationOffset, landCoverage, axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill });
+    }
+    return { temperatureOffset, precipitationOffset, landCoverage, axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill };
 }
 
 function buildClimateFields(windResult, oceanResult, precipResult, tempResult) {
@@ -193,7 +209,7 @@ function buildClimateFields(windResult, oceanResult, precipResult, tempResult) {
 }
 
 function handleGenerate(data) {
-    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate } = data;
+    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, axialTilt = 23.5, rotationRate = 1, greenhouse = 0, winterSeverity = 1, orographicRain = 1, maritimeInfluence = 1, mountainChill = 1, seed: overrideSeed, toggledIndices, skipClimate } = data;
     const spread = 5;
     const timing = []; // top-level pipeline timing
 
@@ -335,9 +351,12 @@ function handleGenerate(data) {
         let windResult = null, oceanResult = null, precipResult = null, tempResult = null;
 
         if (!skipClimate) {
+            const seasonFactor = seasonFactorFromTilt(axialTilt);
+            const userClimate = { greenhouse, winterSeverity, maritimeInfluence, mountainChill, orographicRain, rotationRate, seasonFactor };
+
             progress(70, 'Simulating wind patterns\u2026');
             t0 = performance.now();
-            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise);
+            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise, axialTilt, rotationRate);
             timing.push({ stage: 'Wind simulation', ms: performance.now() - t0 });
             if (windResult._windTiming) timing.push(...windResult._windTiming);
             debugLayers.pressureSummer = windResult.r_pressure_summer;
@@ -348,13 +367,13 @@ function handleGenerate(data) {
 
             progress(78, 'Computing ocean currents\u2026');
             t0 = performance.now();
-            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult);
+            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult, userClimate);
             timing.push({ stage: 'Ocean currents', ms: performance.now() - t0 });
             if (oceanResult._oceanTiming) timing.push(...oceanResult._oceanTiming);
 
             progress(82, 'Computing precipitation\u2026');
             t0 = performance.now();
-            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage);
+            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage, userClimate);
             timing.push({ stage: 'Precipitation', ms: performance.now() - t0 });
             if (precipResult._precipTiming) timing.push(...precipResult._precipTiming);
             debugLayers.precipSummer = precipResult.r_precip_summer;
@@ -364,7 +383,7 @@ function handleGenerate(data) {
 
             progress(86, 'Computing temperature\u2026');
             t0 = performance.now();
-            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
+            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset, userClimate);
             timing.push({ stage: 'Temperature', ms: performance.now() - t0 });
             if (tempResult._tempTiming) timing.push(...tempResult._tempTiming);
             debugLayers.tempSummer = tempResult.r_temperature_summer;
@@ -397,6 +416,7 @@ function handleGenerate(data) {
             mountain_r: new Set(mountain_r), coastline_r: new Set(coastline_r), ocean_r: new Set(ocean_r),
             r_stress: new Float32Array(r_stress),
             temperatureOffset, precipitationOffset, landCoverage,
+            axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill,
             cachedWind: windResult, cachedOcean: oceanResult,
             // Retain detail-noise dampen + orogenic fields so reapply (which
             // reuses prePostElev) shapes the noise the same way as the initial
@@ -478,7 +498,7 @@ function handleReapply(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for reapply' }); return; }
 
     const skipClimate = !!data.skipClimate;
-    const { temperatureOffset, precipitationOffset, landCoverage } = getClimateParams(data);
+    const { temperatureOffset, precipitationOffset, landCoverage, axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill } = getClimateParams(data);
 
     try {
         const tTotal0 = performance.now();
@@ -501,24 +521,27 @@ function handleReapply(data) {
         let tWind = 0, tOcean = 0, tPrecip = 0, tTemp = 0;
 
         if (!skipClimate) {
+            const seasonFactor = seasonFactorFromTilt(axialTilt);
+            const userClimate = { greenhouse, winterSeverity, maritimeInfluence, mountainChill, orographicRain, rotationRate, seasonFactor };
+
             progress(60, 'Simulating wind patterns\u2026');
             t0 = performance.now();
-            windResult = computeWind(W.mesh, W.r_xyz, r_elevation, W.plateIsOcean, W.r_plate, W.noise);
+            windResult = computeWind(W.mesh, W.r_xyz, r_elevation, W.plateIsOcean, W.r_plate, W.noise, axialTilt, rotationRate);
             tWind = performance.now() - t0;
 
             progress(75, 'Computing ocean currents\u2026');
             t0 = performance.now();
-            oceanResult = computeOceanCurrents(W.mesh, W.r_xyz, r_elevation, windResult);
+            oceanResult = computeOceanCurrents(W.mesh, W.r_xyz, r_elevation, windResult, userClimate);
             tOcean = performance.now() - t0;
 
             progress(80, 'Computing precipitation\u2026');
             t0 = performance.now();
-            precipResult = computePrecipitation(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage);
+            precipResult = computePrecipitation(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage, userClimate);
             tPrecip = performance.now() - t0;
 
             progress(85, 'Computing temperature\u2026');
             t0 = performance.now();
-            tempResult = computeTemperature(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
+            tempResult = computeTemperature(W.mesh, W.r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset, userClimate);
             tTemp = performance.now() - t0;
 
             W.cachedWind = windResult;
@@ -579,7 +602,7 @@ function handleEditRecompute(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for editRecompute' }); return; }
 
     const skipClimate = !!data.skipClimate;
-    const { temperatureOffset, precipitationOffset, landCoverage } = getClimateParams(data);
+    const { temperatureOffset, precipitationOffset, landCoverage, axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill } = getClimateParams(data);
 
     try {
         const tTotal0 = performance.now();
@@ -625,9 +648,12 @@ function handleEditRecompute(data) {
         let tWind = 0, tOcean = 0, tPrecip = 0, tTemp = 0;
 
         if (!skipClimate) {
+            const seasonFactor = seasonFactorFromTilt(axialTilt);
+            const userClimate = { greenhouse, winterSeverity, maritimeInfluence, mountainChill, orographicRain, rotationRate, seasonFactor };
+
             progress(65, 'Simulating wind patterns\u2026');
             t0 = performance.now();
-            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, W.noise);
+            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, W.noise, axialTilt, rotationRate);
             tWind = performance.now() - t0;
             debugLayers.pressureSummer = windResult.r_pressure_summer;
             debugLayers.pressureWinter = windResult.r_pressure_winter;
@@ -637,12 +663,12 @@ function handleEditRecompute(data) {
 
             progress(78, 'Computing ocean currents\u2026');
             t0 = performance.now();
-            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult);
+            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult, userClimate);
             tOcean = performance.now() - t0;
 
             progress(82, 'Computing precipitation\u2026');
             t0 = performance.now();
-            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage);
+            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage, userClimate);
             tPrecip = performance.now() - t0;
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
@@ -651,7 +677,7 @@ function handleEditRecompute(data) {
 
             progress(86, 'Computing temperature\u2026');
             t0 = performance.now();
-            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
+            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset, userClimate);
             tTemp = performance.now() - t0;
             debugLayers.tempSummer = tempResult.r_temperature_summer;
             debugLayers.tempWinter = tempResult.r_temperature_winter;
@@ -721,11 +747,14 @@ function handleEditRecompute(data) {
 function handleComputeClimate(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for computeClimate' }); return; }
 
-    const { temperatureOffset, precipitationOffset, landCoverage } = getClimateParams(data);
+    const { temperatureOffset, precipitationOffset, landCoverage, axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill } = getClimateParams(data);
 
     try {
         const tTotal0 = performance.now();
         const { mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise } = W;
+
+        const seasonFactor = seasonFactorFromTilt(axialTilt);
+        const userClimate = { greenhouse, winterSeverity, maritimeInfluence, mountainChill, orographicRain, rotationRate, seasonFactor };
 
         let windResult = W.cachedWind;
         let oceanResult = W.cachedOcean;
@@ -735,12 +764,12 @@ function handleComputeClimate(data) {
         if (!windResult) {
             progress(0, 'Simulating wind patterns\u2026');
             t0 = performance.now();
-            windResult = computeWind(mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise);
+            windResult = computeWind(mesh, r_xyz, r_elevation_final, plateIsOcean, r_plate, noise, axialTilt, rotationRate);
             tWind = performance.now() - t0;
 
             progress(30, 'Computing ocean currents\u2026');
             t0 = performance.now();
-            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation_final, windResult);
+            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation_final, windResult, userClimate);
             tOcean = performance.now() - t0;
 
             W.cachedWind = windResult;
@@ -749,12 +778,12 @@ function handleComputeClimate(data) {
 
         progress(50, 'Computing precipitation\u2026');
         t0 = performance.now();
-        const precipResult = computePrecipitation(mesh, r_xyz, r_elevation_final, windResult, oceanResult, precipitationOffset, landCoverage);
+        const precipResult = computePrecipitation(mesh, r_xyz, r_elevation_final, windResult, oceanResult, precipitationOffset, landCoverage, userClimate);
         const tPrecip = performance.now() - t0;
 
         progress(70, 'Computing temperature\u2026');
         t0 = performance.now();
-        const tempResult = computeTemperature(mesh, r_xyz, r_elevation_final, windResult, oceanResult, precipResult, temperatureOffset);
+        const tempResult = computeTemperature(mesh, r_xyz, r_elevation_final, windResult, oceanResult, precipResult, temperatureOffset, userClimate);
         const tTemp = performance.now() - t0;
 
         progress(88, 'Classifying climates\u2026');
@@ -911,7 +940,7 @@ function deriveSyntheticPlates(mesh, r_elevation) {
 }
 
 function handleImportHeightmap(data) {
-    const { N, jitter, grayscale, imageWidth, imageHeight, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, skipClimate } = data;
+    const { N, jitter, grayscale, imageWidth, imageHeight, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, temperatureOffset = 0, precipitationOffset = 0, landCoverage = 0.3, axialTilt = 23.5, rotationRate = 1, greenhouse = 0, winterSeverity = 1, orographicRain = 1, maritimeInfluence = 1, mountainChill = 1, seed: overrideSeed, skipClimate } = data;
     const timing = [];
 
     try {
@@ -980,10 +1009,12 @@ function handleImportHeightmap(data) {
 
         if (!skipClimate) {
             const noise = new SimplexNoise(seed);
+            const seasonFactor = seasonFactorFromTilt(axialTilt);
+            const userClimate = { greenhouse, winterSeverity, maritimeInfluence, mountainChill, orographicRain, rotationRate, seasonFactor };
 
             progress(60, 'Simulating wind patterns\u2026');
             t0 = performance.now();
-            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise);
+            windResult = computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise, axialTilt, rotationRate);
             timing.push({ stage: 'Wind simulation', ms: performance.now() - t0 });
             debugLayers.pressureSummer = windResult.r_pressure_summer;
             debugLayers.pressureWinter = windResult.r_pressure_winter;
@@ -993,12 +1024,12 @@ function handleImportHeightmap(data) {
 
             progress(72, 'Computing ocean currents\u2026');
             t0 = performance.now();
-            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult);
+            oceanResult = computeOceanCurrents(mesh, r_xyz, r_elevation, windResult, userClimate);
             timing.push({ stage: 'Ocean currents', ms: performance.now() - t0 });
 
             progress(80, 'Computing precipitation\u2026');
             t0 = performance.now();
-            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage);
+            precipResult = computePrecipitation(mesh, r_xyz, r_elevation, windResult, oceanResult, precipitationOffset, landCoverage, userClimate);
             timing.push({ stage: 'Precipitation', ms: performance.now() - t0 });
             debugLayers.precipSummer = precipResult.r_precip_summer;
             debugLayers.precipWinter = precipResult.r_precip_winter;
@@ -1007,7 +1038,7 @@ function handleImportHeightmap(data) {
 
             progress(88, 'Computing temperature\u2026');
             t0 = performance.now();
-            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset);
+            tempResult = computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanResult, precipResult, temperatureOffset, userClimate);
             timing.push({ stage: 'Temperature', ms: performance.now() - t0 });
             debugLayers.tempSummer = tempResult.r_temperature_summer;
             debugLayers.tempWinter = tempResult.r_temperature_winter;
@@ -1036,6 +1067,7 @@ function handleImportHeightmap(data) {
             seed, nMag, noise: new SimplexNoise(seed),
             mountain_r: new Set(mountain_r), coastline_r: new Set(coastline_r), ocean_r: new Set(ocean_r),
             r_stress: new Float32Array(r_stress),
+            axialTilt, rotationRate, greenhouse, winterSeverity, orographicRain, maritimeInfluence, mountainChill,
             cachedWind: windResult, cachedOcean: oceanResult
         };
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });

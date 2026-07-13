@@ -14,6 +14,23 @@ import { classifyKoppen } from './koppen.js';
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
 
+// Climate-only slider values; optional-chained so pages without the climate
+// panel (and Task-1-era code before the sliders exist) fall back to defaults.
+function readClimateSliders() {
+    return {
+        temperatureOffset: +(document.getElementById('sTmp')?.value ?? 0),
+        precipitationOffset: +(document.getElementById('sPrc')?.value ?? 0),
+        landCoverage: +(document.getElementById('sLc')?.value ?? 0.3),
+        axialTilt: +(document.getElementById('sTilt')?.value ?? 23.5),
+        rotationRate: +(document.getElementById('sRot')?.value ?? 1),
+        greenhouse: +(document.getElementById('sGh')?.value ?? 0),
+        winterSeverity: +(document.getElementById('sWs')?.value ?? 1),
+        orographicRain: +(document.getElementById('sOro')?.value ?? 1),
+        maritimeInfluence: +(document.getElementById('sMar')?.value ?? 1),
+        mountainChill: +(document.getElementById('sLap')?.value ?? 1),
+    };
+}
+
 // Read all slider values from the DOM into a params object
 function readSliders() {
     return {
@@ -29,9 +46,7 @@ function readSliders() {
         ridgeSharpening: +document.getElementById('sRs').value,
         glacialErosion: +document.getElementById('sGl').value,
         continentSizeVariety: +document.getElementById('sCsv').value,
-        temperatureOffset: +document.getElementById('sTmp').value,
-        precipitationOffset: +document.getElementById('sPrc').value,
-        landCoverage: +document.getElementById('sLc').value,
+        ...readClimateSliders(),
     };
 }
 
@@ -316,6 +331,13 @@ if (worker) {
 
                 const tMainTotal = performance.now() - tMainStart;
                 const tTotal = performance.now() - _t0;
+
+                // Test-only capture handle (inert unless the regression harness
+                // sets window.__WO_CAPTURE). Lets tuning/regress.mjs read the
+                // deterministic output arrays for golden-master hashing.
+                if (typeof window !== 'undefined' && window.__WO_CAPTURE) {
+                    window.__WO_state = state;
+                }
 
                 // Diagnostics
                 {
@@ -928,13 +950,11 @@ export function reapplyViaWorker(onDone, skipClimate = false) {
     _t0 = performance.now();
 
     const s = readSlidersOptional();
-    const temperatureOffset = +(document.getElementById('sTmp')?.value ?? 0);
-    const precipitationOffset = +(document.getElementById('sPrc')?.value ?? 0);
-    const landCoverage = +(document.getElementById('sLc')?.value ?? 0.3);
+    const climate = readClimateSliders();
 
     worker.postMessage({
         cmd: 'reapply',
-        ...s, temperatureOffset, precipitationOffset, landCoverage,
+        ...s, ...climate,
         skipClimate
     });
 }
@@ -947,14 +967,14 @@ export function editRecomputeViaWorker(onDone, skipClimate = false) {
     _onDone = onDone || null;
     _t0 = performance.now();
 
-    const { nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, temperatureOffset, precipitationOffset, landCoverage } = readSliders();
+    const { nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening } = readSliders();
 
     worker.postMessage({
         cmd: 'editRecompute',
         plateIsOcean: Array.from(d.plateIsOcean),
         plateDensity: d.plateDensity,
         nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening,
-        temperatureOffset, precipitationOffset, landCoverage,
+        ...readClimateSliders(),
         skipClimate
     });
 }
@@ -964,13 +984,10 @@ export function computeClimateViaWorker(onProgress, onDone) {
     _onProgress = onProgress || (() => {});
     _onDone = onDone || null;
     _t0 = performance.now();
-    const temperatureOffset = +(document.getElementById('sTmp')?.value ?? 0);
-    const precipitationOffset = +(document.getElementById('sPrc')?.value ?? 0);
-    const landCoverage = +(document.getElementById('sLc')?.value ?? 0.3);
 
     worker.postMessage({
         cmd: 'computeClimate',
-        temperatureOffset, precipitationOffset, landCoverage
+        ...readClimateSliders()
     });
 }
 

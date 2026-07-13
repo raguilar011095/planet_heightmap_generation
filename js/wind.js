@@ -3,7 +3,7 @@
 
 import { CLIMATE } from './climate-config.js';
 import { elevToHeightKm } from './color-map.js';
-import { smoothField, percentile } from './climate-util.js';
+import { smoothField, percentile, seasonFactorFromTilt } from './climate-util.js';
 
 const DEG = Math.PI / 180;
 const RAD = 180 / Math.PI;
@@ -228,9 +228,10 @@ function buildGeoIndex(r_lat, r_lon, r_sinLat, r_cosLat, r_elevation, r_isLand, 
  * @param {Object} geoIndex - from buildGeoIndex ({sample, sampleDual, _outLocal, _outWide})
  * @param {string} season - 'summer' (NH) or 'winter' (NH)
  * @param {number} tiltRad - axial tilt in radians
+ * @param {number} [seasonFactor=1] - seasonal-contrast scale from axial tilt (1 at Earth tilt)
  * @returns {{ spline, lons: Float64Array, lats: Float64Array }}
  */
-function computeITCZ(geoIndex, season, tiltRad) {
+function computeITCZ(geoIndex, season, tiltRad, seasonFactor = 1) {
     const { sample: geoSample, sampleDual, _outLocal, _outWide } = geoIndex;
     const NUM_LON = 72;
     // Two sampling radii: local (5°) for precise land detection, wide (30°) for continental scale
@@ -244,9 +245,12 @@ function computeITCZ(geoIndex, season, tiltRad) {
     // Full tilt in summer hemisphere (e.g. +23.5° for NH summer)
     const subsolarLat = sign * tiltRad;
 
-    // Scan range: -30° to +30° in 2.5° steps
-    const SCAN_MIN = -30;
-    const SCAN_MAX = 30;
+    // Excursion clamp scales with tilt: pinned at 0°, roams wide at 45°.
+    const effClampDeg = CLIMATE.WIND_ITCZ_CLAMP_DEG * seasonFactor;
+    // Scan must cover the clamp; ±30 (the Earth-tuned range) until the clamp
+    // itself needs more.
+    const SCAN_MAX = Math.max(30, effClampDeg + 5);
+    const SCAN_MIN = -SCAN_MAX;
     const SCAN_STEP = 2.5;
     const numScans = Math.round((SCAN_MAX - SCAN_MIN) / SCAN_STEP) + 1;
 
@@ -371,9 +375,9 @@ function computeITCZ(geoIndex, season, tiltRad) {
         lats.set(tmp);
     }
 
-    // Clamp to ±30° (ITCZ never migrates beyond the tropics)
+    // Clamp ITCZ migration (scaled by tilt; ±~20° at Earth tilt)
     for (let i = 0; i < NUM_LON; i++) {
-        lats[i] = Math.max(-CLIMATE.WIND_ITCZ_CLAMP_DEG * DEG, Math.min(CLIMATE.WIND_ITCZ_CLAMP_DEG * DEG, lats[i]));
+        lats[i] = Math.max(-effClampDeg * DEG, Math.min(effClampDeg * DEG, lats[i]));
     }
 
     const spline = buildPeriodicSpline(lons, lats);
@@ -385,7 +389,7 @@ function computeITCZ(geoIndex, season, tiltRad) {
 /**
  * Compute pressure at a single region.
  */
-function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noiseFn, px, py, pz) {
+function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noiseFn, px, py, pz, eff) {
     const itczLat = evaluateSpline(itczSpline, lon);
     const latDeg = lat * RAD;
     const seasonSign = season === 'summer' ? 1 : -1;
@@ -397,16 +401,16 @@ function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noise
     p -= CLIMATE.WIND_ITCZ_LOW_DEPTH_HPA * Math.exp(-0.5 * (dItcz / CLIMATE.WIND_ITCZ_LOW_WIDTH_DEG) ** 2);
 
     // (b) Subtropical highs — shift with season, weaker over hot land
-    const shiftDeg = seasonSign * CLIMATE.WIND_SUBTROP_SEASONAL_SHIFT_DEG;
-    const nhSubHigh = CLIMATE.WIND_SUBTROP_HIGH_LAT_DEG + shiftDeg;
-    const shSubHigh = -(CLIMATE.WIND_SUBTROP_HIGH_LAT_DEG - shiftDeg);
+    const shiftDeg = seasonSign * eff.subtropShiftDeg;
+    const nhSubHigh = eff.subtropHighLatDeg + shiftDeg;
+    const shSubHigh = -(eff.subtropHighLatDeg - shiftDeg);
     const highIntensity = CLIMATE.WIND_SUBTROP_HIGH_STRENGTH_HPA * (1 - CLIMATE.WIND_SUBTROP_LAND_WEAKENING * landFrac);
     p += highIntensity * Math.exp(-0.5 * ((latDeg - nhSubHigh) / CLIMATE.WIND_SUBTROP_HIGH_WIDTH_DEG) ** 2);
     p += highIntensity * Math.exp(-0.5 * ((latDeg - shSubHigh) / CLIMATE.WIND_SUBTROP_HIGH_WIDTH_DEG) ** 2);
 
     // (c) Subpolar lows
-    p -= CLIMATE.WIND_SUBPOLAR_LOW_DEPTH_HPA * Math.exp(-0.5 * ((latDeg - CLIMATE.WIND_SUBPOLAR_LOW_LAT_DEG) / CLIMATE.WIND_SUBPOLAR_LOW_WIDTH_DEG) ** 2);
-    p -= CLIMATE.WIND_SUBPOLAR_LOW_DEPTH_HPA * Math.exp(-0.5 * ((latDeg + CLIMATE.WIND_SUBPOLAR_LOW_LAT_DEG) / CLIMATE.WIND_SUBPOLAR_LOW_WIDTH_DEG) ** 2);
+    p -= CLIMATE.WIND_SUBPOLAR_LOW_DEPTH_HPA * Math.exp(-0.5 * ((latDeg - eff.subpolarLowLatDeg) / CLIMATE.WIND_SUBPOLAR_LOW_WIDTH_DEG) ** 2);
+    p -= CLIMATE.WIND_SUBPOLAR_LOW_DEPTH_HPA * Math.exp(-0.5 * ((latDeg + eff.subpolarLowLatDeg) / CLIMATE.WIND_SUBPOLAR_LOW_WIDTH_DEG) ** 2);
 
     // (d) Polar highs
     p += CLIMATE.WIND_POLAR_HIGH_STRENGTH_HPA * Math.exp(-0.5 * ((latDeg - 85) / 8) ** 2);
@@ -430,10 +434,10 @@ function regionPressure(lat, lon, itczSpline, season, landFrac, elevation, noise
         const isSummerHemisphere = (seasonSign > 0 && lat > 0) || (seasonSign < 0 && lat < 0);
         if (isSummerHemisphere) {
             // Thermal low over hot continent
-            p -= CLIMATE.WIND_SUMMER_THERMAL_LOW_HPA * latFactor * continentalScale;
+            p -= eff.thermalLowHpa * latFactor * continentalScale;
         } else {
             // Thermal high over cold continent (stronger — Siberian/Canadian highs)
-            p += CLIMATE.WIND_WINTER_THERMAL_HIGH_HPA * latFactor * continentalScale;
+            p += eff.thermalHighHpa * latFactor * continentalScale;
         }
     }
 
@@ -490,7 +494,7 @@ export function computeGradients(mesh, r_xyz, r_pressure,
 // ── Pressure gradient → wind ─────────────────────────────────────────────────
 
 function pressureToWind(r_gradE, r_gradN, r_sinLat,
-    r_windE, r_windN, r_windSpeed, numRegions) {
+    r_windE, r_windN, r_windSpeed, numRegions, geoMaxAngleDeg) {
     const sin5 = Math.sin(5 * DEG);
 
     for (let r = 0; r < numRegions; r++) {
@@ -502,7 +506,7 @@ function pressureToWind(r_gradE, r_gradN, r_sinLat,
         const absSinLat = Math.abs(sinLat);
 
         // Geostrophic deflection: 0° at equator → 70° at ≥5° latitude
-        const geoAngle = CLIMATE.WIND_GEOSTROPHIC_MAX_ANGLE_DEG * DEG * smoothstep(0, sin5, absSinLat);
+        const geoAngle = geoMaxAngleDeg * DEG * smoothstep(0, sin5, absSinLat);
 
         // Surface friction turns wind 20° back toward low pressure
         const frictionAngle = CLIMATE.WIND_FRICTION_BACK_ANGLE_DEG * DEG;
@@ -538,12 +542,32 @@ function pressureToWind(r_gradE, r_gradN, r_sinLat,
  * @param {Int32Array} r_plate - per-region plate ID
  * @param {SimplexNoise} noise - seeded noise instance
  * @param {number} [axialTilt=23.5] - axial tilt in degrees
+ * @param {number} [rotationRate=1] - rotation rate multiplier; scales circulation-band latitudes and geostrophic deflection here, and is also threaded to ocean.js
  * @returns {object} pressure and wind arrays for both seasons
  */
-export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise, axialTilt = 23.5) {
+export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noise, axialTilt = 23.5, rotationRate = 1) {
     const numRegions = mesh.numRegions;
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const tiltRad = axialTilt * DEG;
+    const seasonFactor = seasonFactorFromTilt(axialTilt);
+    // Seasonal-contrast quantities scale with tilt (×1 at Earth tilt, 0 at 0°):
+    // band migration, monsoon thermal low, and the winter continental high are
+    // all consequences of the seasonal insolation swing.
+    // Fast rotators: stronger Coriolis turning and equator-compressed bands
+    // (Hadley width shrinks with spin); slow rotators widen the tropical cell.
+    // Math.pow(1, x) === 1, so ρ = 1 is exact without a guard; the deflection
+    // map subtracts, so it does need one.
+    const bandScale = Math.pow(rotationRate, -1 / 3);
+    const effWind = {
+        subtropShiftDeg: CLIMATE.WIND_SUBTROP_SEASONAL_SHIFT_DEG * seasonFactor,
+        thermalLowHpa: CLIMATE.WIND_SUMMER_THERMAL_LOW_HPA * seasonFactor,
+        thermalHighHpa: CLIMATE.WIND_WINTER_THERMAL_HIGH_HPA * seasonFactor,
+        subtropHighLatDeg: Math.min(42, Math.max(22, CLIMATE.WIND_SUBTROP_HIGH_LAT_DEG * bandScale)),
+        subpolarLowLatDeg: Math.min(72, Math.max(44, CLIMATE.WIND_SUBPOLAR_LOW_LAT_DEG * bandScale)),
+        geoMaxAngleDeg: rotationRate === 1
+            ? CLIMATE.WIND_GEOSTROPHIC_MAX_ANGLE_DEG
+            : 90 - (90 - CLIMATE.WIND_GEOSTROPHIC_MAX_ANGLE_DEG) * Math.pow(rotationRate, -0.8),
+    };
     const timing = [];
 
     // ── Step 0: Precompute per-region properties ──
@@ -597,8 +621,8 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
 
     t0 = performance.now();
     const geoIndex = buildGeoIndex(r_lat, r_lon, r_sinLat, r_cosLat, r_elevation, r_isLand, numRegions);
-    const itczSummer = computeITCZ(geoIndex, 'summer', tiltRad);
-    const itczWinter = computeITCZ(geoIndex, 'winter', tiltRad);
+    const itczSummer = computeITCZ(geoIndex, 'summer', tiltRad, seasonFactor);
+    const itczWinter = computeITCZ(geoIndex, 'winter', tiltRad, seasonFactor);
     timing.push({ stage: 'Wind: ITCZ computation', ms: performance.now() - t0 });
 
     // ── Step 2–5: Compute pressure & wind for each season ──
@@ -816,7 +840,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
             r_pressure[r] = regionPressure(
                 r_lat[r], r_lon[r], itcz.spline, name,
                 r_continentality[r], r_elevation[r], noise,
-                r_xyz[3 * r], r_xyz[3 * r + 1], r_xyz[3 * r + 2]
+                r_xyz[3 * r], r_xyz[3 * r + 1], r_xyz[3 * r + 2], effWind
             );
         }
         smoothField(mesh, r_pressure, pressSmoothPasses);
@@ -837,7 +861,7 @@ export function computeWind(mesh, r_xyz, r_elevation, plateIsOcean, r_plate, noi
         const r_windN = new Float32Array(numRegions);
         const r_windSpeed = new Float32Array(numRegions);
         pressureToWind(r_gradE, r_gradN, r_sinLat,
-            r_windE, r_windN, r_windSpeed, numRegions);
+            r_windE, r_windN, r_windSpeed, numRegions, effWind.geoMaxAngleDeg);
 
         // Step 5: Normalize wind speed to 0-1
         const maxSpeed = percentile(r_windSpeed, 0.95);

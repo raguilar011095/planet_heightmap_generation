@@ -124,9 +124,10 @@ export function computeHeuristicWindField(numRegions, r_lat, r_lon, itczLookup) 
  * @param {Float32Array} r_elevGradE - pre-computed east elevation gradient
  * @param {Float32Array} r_elevGradN - pre-computed north elevation gradient
  * @param {Int32Array} r_coastDistLand - BFS hop distance from coast through land
+ * @param {number} [seasonFactor=1] - seasonal-contrast scale from axial tilt (1 at Earth tilt)
  * @returns {{ r_precip_summer, r_precip_winter }}
  */
-export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand) {
+export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResult, r_elevGradE, r_elevGradN, r_coastDistLand, seasonFactor = 1) {
     const numRegions = mesh.numRegions;
     const { r_lat, r_lon, r_isLand, r_continentality } = windResult;
 
@@ -177,6 +178,13 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
 
     const result = {};
 
+    let effSummerMod = CLIMATE.HEUR_SEASON_SUMMER_MOD;
+    let effWinterMod = CLIMATE.HEUR_SEASON_WINTER_MOD;
+    if (seasonFactor !== 1) {
+        effSummerMod = 1 + (effSummerMod - 1) * seasonFactor;
+        effWinterMod = 1 + (effWinterMod - 1) * seasonFactor;
+    }
+
     const seasons = [
         { name: 'summer', shift: 5 },
         { name: 'winter', shift: -5 }
@@ -209,7 +217,7 @@ export function computeHeuristicPrecipitation(mesh, r_xyz, r_elevation, windResu
             // ── B. Seasonal modifier + Mediterranean subtropical suppression ──
             const absLatDeg = Math.abs(lat) / DEG;
             const inSummerHemi = isSummer ? (lat >= 0) : (lat < 0);
-            let seasonMod = inSummerHemi ? CLIMATE.HEUR_SEASON_SUMMER_MOD : CLIMATE.HEUR_SEASON_WINTER_MOD;
+            let seasonMod = inSummerHemi ? effSummerMod : effWinterMod;
 
             // Mediterranean suppression: subtropical highs expand poleward in
             // local summer, strongly suppressing rainfall at 25-42° latitude.

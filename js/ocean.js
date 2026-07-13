@@ -121,8 +121,9 @@ function hasCircumpolarChannel(r_lat, r_lon, r_isOcean, numRegions, targetLat, b
 //   Polar cell (easterlies westward):  western=warm, eastern=cold  (flipped back)
 
 function classifyWarmth(r_isOcean, r_lat, numRegions,
-    r_westCoastDist, r_eastCoastDist, fadeRange, seasonalShiftDeg) {
+    r_westCoastDist, r_eastCoastDist, fadeRange, seasonalShiftDeg, bandScale = 1) {
     const r_warmth = new Float32Array(numRegions);
+    const b28 = 28 * bandScale, b35 = 35 * bandScale, b55 = 55 * bandScale, b65 = 65 * bandScale;
 
     for (let r = 0; r < numRegions; r++) {
         if (!r_isOcean[r]) continue;
@@ -133,14 +134,14 @@ function classifyWarmth(r_isOcean, r_lat, numRegions,
         // Wind cell sign: trades/polar push water west (western=warm → +1),
         // westerlies push water east (western=cold → -1)
         let cellSign;
-        if (bandLatDeg < 28) {
+        if (bandLatDeg < b28) {
             cellSign = 1;
-        } else if (bandLatDeg < 35) {
-            cellSign = 1 - 2 * smoothstep(28, 35, bandLatDeg);
-        } else if (bandLatDeg < 55) {
+        } else if (bandLatDeg < b35) {
+            cellSign = 1 - 2 * smoothstep(b28, b35, bandLatDeg);
+        } else if (bandLatDeg < b55) {
             cellSign = -1;
-        } else if (bandLatDeg < 65) {
-            cellSign = -1 + 2 * smoothstep(55, 65, bandLatDeg);
+        } else if (bandLatDeg < b65) {
+            cellSign = -1 + 2 * smoothstep(b55, b65, bandLatDeg);
         } else {
             cellSign = 1;
         }
@@ -204,7 +205,12 @@ function smoothOcean(mesh, field, r_isOcean, passes) {
  * @param {object} windResult - output from computeWind() (includes lat, lon, sinLat, isLand, tangent frames, ITCZ arrays)
  * @returns {object} current vectors, warmth, and speed arrays for both seasons
  */
-export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
+export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult, userClimate = {}) {
+    const { rotationRate = 1, seasonFactor = 1 } = userClimate;
+    // INTERIM (until SP5 couples currents to the real wind field): shift the
+    // hardcoded gyre band latitudes with rotation the same way the wind bands
+    // move, so atmosphere and ocean don't visibly disagree.
+    const bandScale = Math.pow(rotationRate, -1 / 3);
     console.log('[ocean.js] computeOceanCurrents called, numRegions:', mesh.numRegions);
     const numRegions = mesh.numRegions;
     const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
@@ -258,13 +264,15 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
     ];
 
     for (const { name, itczLookup } of seasons) {
-        // Seasonal shift: wind cells migrate ~5° toward summer hemisphere
-        const seasonalShiftDeg = name === 'summer' ? 5 : -5;
+        // Wind cells migrate toward the summer hemisphere; the migration is a
+        // seasonal effect so it scales with tilt (0 at 0°).
+        const seasonalShiftDeg = (name === 'summer' ? 5 : -5) * seasonFactor;
 
         // Steps 3–4: Wind band classification + current vectors
         t0 = performance.now();
         const currentE = new Float32Array(numRegions);
         const currentN = new Float32Array(numRegions);
+        const c30 = 30 * bandScale, c35 = 35 * bandScale, c58 = 58 * bandScale, c65 = 65 * bandScale;
 
         for (let r = 0; r < numRegions; r++) {
             if (!r_isOcean[r]) continue;
@@ -286,18 +294,18 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
             if (distFromItcz < 3) {
                 // ITCZ zone: eastward countercurrent at center, blends to westward at edges
                 baseE = 1 - 2 * smoothstep(0, 3, distFromItcz);
-            } else if (bandLatDeg < 30) {
+            } else if (bandLatDeg < c30) {
                 // Trade winds: westward
                 baseE = -1;
-            } else if (bandLatDeg < 35) {
+            } else if (bandLatDeg < c35) {
                 // Subtropical transition: blend trades → westerlies
-                baseE = -1 + 2 * smoothstep(30, 35, bandLatDeg);
-            } else if (bandLatDeg < 58) {
+                baseE = -1 + 2 * smoothstep(c30, c35, bandLatDeg);
+            } else if (bandLatDeg < c58) {
                 // Ferrel cell / westerlies: eastward
                 baseE = 1;
-            } else if (bandLatDeg < 65) {
+            } else if (bandLatDeg < c65) {
                 // Subpolar transition: blend westerlies → polar easterlies
-                baseE = 1 - 1.5 * smoothstep(58, 65, bandLatDeg);
+                baseE = 1 - 1.5 * smoothstep(c58, c65, bandLatDeg);
             } else {
                 // Polar easterlies: weak westward
                 baseE = -0.5;
@@ -353,7 +361,7 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
         // small island contributions (few coast cells → weak signal after smoothing).
         t0 = performance.now();
         const r_warmth = classifyWarmth(r_isOcean, r_lat, numRegions,
-            r_westCoastDist, r_eastCoastDist, warmthRange, seasonalShiftDeg);
+            r_westCoastDist, r_eastCoastDist, warmthRange, seasonalShiftDeg, bandScale);
         const warmthSmoothPasses = Math.max(3, Math.round(900 / avgEdgeKm));
         smoothOcean(mesh, r_warmth, r_isOcean, warmthSmoothPasses);
 

@@ -64,6 +64,12 @@ export const CLIMATE_DEFAULTS = Object.freeze({
     TEMP_CLOUD_MOD_STRENGTH: 0.05,        // max pull toward 0 under full cloud cover
     TEMP_CLEARSKY_AMP_STRENGTH: 0.2745,     // max amplification of extremes under clear skies
 
+    // ── Temperature: greenhouse (user Greenhouse slider g ∈ [−1,1]; all three
+    // terms are exactly inert at g = 0, so the optimizer never needs them) ──
+    TEMP_GH_UNIFORM_C: 10,                   // uniform warming per unit g
+    TEMP_GH_GRADIENT_FRAC: 0.35,             // equator→pole range shrink at g=1 (polar amplification)
+    TEMP_GH_WINTER_LIFT: 0.15,               // winter-share reduction at g=1 (winters warm faster)
+
     // ── Precipitation: moisture & advection ──
     PRECIP_OCEAN_MOISTURE_BASE: 0.4508,      // base moisture of ocean cells
     PRECIP_ADVECT_FLAT_SURVIVAL: 0.8901,    // moisture surviving full advection over flat land

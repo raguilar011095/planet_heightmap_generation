@@ -108,3 +108,14 @@ export function percentile(arr, p) {
     floydRivest(work, 0, n - 1, k);
     return work[k] || 1;
 }
+
+// ── Season-factor scaling for user-tunable axial tilt ────────────────────────
+
+// Earth's tilt is the reference the whole climate system was tuned at; the
+// exact-equality early return guarantees a bit-identical no-op at 23.5°.
+export const REF_TILT_DEG = 23.5;
+
+export function seasonFactorFromTilt(axialTiltDeg) {
+    if (axialTiltDeg === REF_TILT_DEG) { return 1; }
+    return Math.sin(axialTiltDeg * Math.PI / 180) / Math.sin(REF_TILT_DEG * Math.PI / 180);
+}

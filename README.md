@@ -36,6 +36,7 @@ All three are considered together; ties are broken in the order above.
 - **Seasonal wind simulation** — pressure-driven wind patterns with a longitude-varying ITCZ that tracks the thermal equator (~5° over ocean, up to 15-20° over continents), Gaussian pressure bands (subtropical highs, subpolar lows, polar highs), land/sea thermal contrast for monsoon-like pressure reversals, elevation barometric effects, and Coriolis-deflected geostrophic wind with natural cross-equatorial flow reversal. Computed for both summer and winter seasons.
 - **Ocean surface currents** — rule-based geographic gyre simulation driven by wind belts (trade winds, westerlies, polar easterlies) with a longitude-varying ITCZ equatorial countercurrent. Continental shelves are classified as western or eastern boundaries via coast-normal BFS, producing subtropical gyres (CW in NH, CCW in SH) with western boundary intensification (Gulf Stream, Kuroshio effect) and weaker eastern boundary return flow. Detects circumpolar channels for unobstructed eastward currents (Antarctic Circumpolar Current). Currents are colored by heat transport: red = warm poleward flow, blue = cold equatorward flow, black = zonal (neutral). Computed for both summer and winter seasons.
 - **Precipitation** — blended dual-model approach: a complex moisture advection simulation is blended with a fast heuristic zonal model (blend weight and all climate constants are tuned against real-Earth Köppen data; see `js/climate-config.js`). The advection model simulates wind-driven moisture transport from coasts with six mechanisms: ITCZ convective uplift, frontal convergence, orographic rain/shadow, lee cyclogenesis, polar-front precipitation, and subtropical high suppression. The heuristic model provides smooth latitude-based patterns (ITCZ wet belt, subtropical dry belt, mid-latitude recovery, polar dryness) modulated by continentality and orographic effects. Blending the two reduces splotchiness while preserving terrain-informed detail and strengthening subtropical desert formation (~20–35°). Visualized on a brown (dry) → green (moderate) → blue (wet) color ramp. Computed for both summer and winter seasons.
+- **Planetary and climate-character controls** — three planetary sliders (Axial Tilt, Rotation Rate, Greenhouse) reshape the simulation itself: seasons scale with tilt, circulation bands shift equatorward or poleward with rotation rate, and pole-equator contrast flattens or sharpens with greenhouse strength. Four climate-character sliders (Winter Severity, Orographic Rain, Maritime Influence, Mountain Chill) restyle continental winters, mountain rain shadows, coastal mildness, and altitude lapse rate. All seven recompute climate-only on slider release and are encoded in the planet code.
 - **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
 - **On-demand climate** — optional deferred climate computation; skip climate during generation for faster terrain iteration, compute it on demand when needed
 - **Detailed visualization** — twenty-six selectable inspection layers organized by category (Geology, Atmosphere, Ocean, Climate, Elevation) for viewing each component in isolation. Wind/pressure layers show directional wind arrows, ocean current layers show current arrows colored by heat transport, on both globe and map views. Precipitation layers use a brown→green→blue ramp showing dry to wet regions.
@@ -69,7 +70,7 @@ A top navigation bar connects the two pages:
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 21 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–18 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 27 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–22 characters) from previous versions — including the 21- and 22-character codes produced just before this update — are still supported; missing sliders (such as the seven planetary/climate-character sliders below) default to their current default values. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -106,12 +107,26 @@ Post-processing passes that refine the terrain (collapsed by default — the def
 
 ### Climate
 
-Global climate offsets that adjust temperature and precipitation without a full rebuild. Changing these triggers a fast climate-only recompute.
+Planetary and climate-character controls that adjust the simulation without a full rebuild. Changing any slider triggers a climate-only recompute on release: the **Planet** group reshapes the simulation — Axial Tilt and Rotation Rate reshape circulation itself and invalidate the cached wind and ocean current fields, while Greenhouse — like the **Character** knobs (including the existing Temperature and Precipitation offsets) — reuses those cached fields for a cheaper temperature/precipitation-only recompute.
+
+**Planet**
+
+| Control | Range | Default | Description |
+|---------|-------|---------|-------------|
+| Axial Tilt | 0 – 45° | 23.5° | Tilt of the spin axis — drives the strength of seasons. 0° is seasonless, Earth is 23.5°, higher gives extreme seasonal swings and deep monsoons |
+| Rotation Rate | 0.5 – 2× | 1× | Spin speed vs Earth — fast rotators bend winds harder and pull circulation bands toward the equator; slow rotators widen the tropical cells |
+| Greenhouse | -1 – 1 | 0 | Atmosphere thickness — thick warms the whole planet and softens the equator-to-pole contrast; thin cools it and sharpens the poles |
+
+**Character**
 
 | Control | Range | Default | Description |
 |---------|-------|---------|-------------|
 | Temperature | -15 – 15 | 0 | Global temperature offset in °C — positive makes the planet warmer, negative colder. Climate zones shift accordingly |
 | Precipitation | -1 – 1 | 0 | Global precipitation scale — positive makes the planet wetter, negative drier. Affects desert and rainforest distribution |
+| Winter Severity | 0 – 2× | 1× | How brutally continental interiors cool in their winter — high values push Siberian-style winters deeper into the continents |
+| Orographic Rain | 0 – 2× | 1× | How strongly mountains wring rain out of the wind — windward slopes get wetter and leeward rain shadows get deeper |
+| Maritime Influence | 0 – 2× | 1× | How far ocean warmth reaches inland — high values carry mild coastal climates deep into the continents |
+| Mountain Chill | 0 – 2× | 1× | How fast temperature falls with altitude — high values frost highlands and snow-cap peaks sooner |
 
 ### Auto Climate
 

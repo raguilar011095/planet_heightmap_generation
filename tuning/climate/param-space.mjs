@@ -50,6 +50,9 @@ export const PARAM_SPACE = {
     TEMP_OCEANIC_WARMING_MAX_C:       { min: 2,    max: 10,   high: true },
     TEMP_CLOUD_MOD_STRENGTH:          { min: 0.05, max: 0.3 },
     TEMP_CLEARSKY_AMP_STRENGTH:       { min: 0.05, max: 0.3 },
+    TEMP_GH_UNIFORM_C:                { min: 4,    max: 16 },
+    TEMP_GH_GRADIENT_FRAC:            { min: 0.1,  max: 0.5 },
+    TEMP_GH_WINTER_LIFT:              { min: 0,    max: 0.3 },
 
     // ── Precipitation (complex model) ──
     PRECIP_OCEAN_MOISTURE_BASE:       { min: 0.2,  max: 0.7 },
