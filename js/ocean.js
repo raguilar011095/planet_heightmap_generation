@@ -5,6 +5,7 @@
 console.log('[ocean.js] Module loaded');
 import { smoothstep } from './wind.js';
 import { makeItczLookup, percentile } from './climate-util.js';
+import { CLIMATE } from './climate-config.js';
 
 const DEG = Math.PI / 180;
 
@@ -266,6 +267,13 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
         const currentE = new Float32Array(numRegions);
         const currentN = new Float32Array(numRegions);
 
+        const wE = windResult[`r_wind_east_${name}`] || null;
+        const wN = windResult[`r_wind_north_${name}`] || null;
+        const wSpd = windResult[`r_wind_speed_${name}`] || null;
+        const cWind = (wE && wN) ? CLIMATE.OCEAN_WIND_COUPLING : 0;
+        const ekRad = CLIMATE.OCEAN_EKMAN_DEG * DEG;
+        const cosEk = Math.cos(ekRad), sinEk = Math.sin(ekRad);
+
         for (let r = 0; r < numRegions; r++) {
             if (!r_isOcean[r]) continue;
 
@@ -303,8 +311,25 @@ export function computeOceanCurrents(mesh, r_xyz, r_elevation, windResult) {
                 baseE = -0.5;
             }
 
-            currentE[r] = baseE;
-            currentN[r] = 0;
+            // Wind-driven flow: the actual seasonal wind rotated by the Ekman
+            // angle (right of wind in NH, left in SH), magnitude from the
+            // normalized wind speed. The ITCZ countercurrent zone keeps the
+            // band model — the equatorial countercurrent is not a local-wind
+            // effect and the wind field is near-calm (doldrums) there.
+            let flowE = baseE, flowN = 0;
+            if (cWind > 0 && distFromItcz >= 3) {
+                const we = wE[r], wn = wN[r];
+                const wm = Math.sqrt(we * we + wn * wn);
+                if (wm > 1e-9) {
+                    const de = (we * cosEk + hemisphereSign * wn * sinEk) / wm;
+                    const dn = (-hemisphereSign * we * sinEk + wn * cosEk) / wm;
+                    const g = CLIMATE.OCEAN_WIND_GAIN * (wSpd ? wSpd[r] : 1);
+                    flowE = (1 - cWind) * baseE + cWind * de * g;
+                    flowN = cWind * dn * g;
+                }
+            }
+            currentE[r] = flowE;
+            currentN[r] = flowN;
 
             // Step 4: Coast deflection
             const wDist = r_westCoastDist[r];

@@ -832,6 +832,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
         const coastalWarmth = diffuseOceanWarmth(mesh, r_oceanWarmth, r_isLand, plateCont, oceanWarmthPasses);
 
         const temp = new Float32Array(numRegions);
+        const r_cloud = new Float32Array(numRegions);
 
         for (let r = 0; r < numRegions; r++) {
             const lat = r_lat[r];
@@ -897,6 +898,10 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
             // ── 6. Precipitation / cloud cover moderation ──
             if (r_precip) {
                 const p = r_precip[r];
+                // Display-only cloud fraction: 0 below the clear-sky threshold,
+                // 1 at p95 precipitation. The moderation terms below stay
+                // untouched so temperature output is bit-identical.
+                r_cloud[r] = smoothstep(0.3, 1.0, p);
                 if (p > 0.5) {
                     // High precip → clouds → moderate toward latitude baseline
                     const mod = smoothstep(0.5, 1.0, p) * CLIMATE.TEMP_CLOUD_MOD_STRENGTH;
@@ -1003,6 +1008,7 @@ export function computeTemperature(mesh, r_xyz, r_elevation, windResult, oceanRe
         timing.push({ stage: `Temp: normalize (${name})`, ms: tNorm });
 
         result[`r_temperature_${name}`] = temp;
+        result[`r_cloud_${name}`] = r_cloud;
     }
 
     result._tempTiming = timing;

@@ -147,6 +147,11 @@ export const CLIMATE_DEFAULTS = Object.freeze({
     HEUR_CONT_DRYNESS: 0.7586,              // max continentality drying (heuristic model)
     HEUR_ORO_UPLIFT_MAX: 0.8841,             // max windward orographic boost
     HEUR_ORO_SHADOW_MAX: 0.8685,             // max leeward orographic suppression
+
+    // ── Ocean: wind-driven surface currents ──
+    OCEAN_WIND_COUPLING: 0.6,       // 0 = legacy latitude bands, 1 = fully wind-driven; 0.6 is the Earth-match optimum
+    OCEAN_EKMAN_DEG: 35,            // surface current deflection from wind (right in NH)
+    OCEAN_WIND_GAIN: 1.5,           // scales wind-driven current magnitude to legacy band units
 });
 
 // Live values — mutated by setClimateParams(), read by the climate modules.

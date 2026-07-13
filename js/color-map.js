@@ -123,3 +123,9 @@ export function elevationToColor(e) {
     if (e <  0.75) { const t=(e-0.50)/0.25;  return [0.44+t*0.16,0.28+t*0.12,0.14+t*0.18]; }
     { const t=Math.min(1,(e-0.75)/0.20);      return [0.60+t*0.35,0.40+t*0.50,0.32+t*0.60]; }
 }
+
+// Cloud fraction: transparent-sky blue-gray → solid white
+export function cloudColor(c) {
+    const t = Math.max(0, Math.min(1, c));
+    return [0.25 + 0.72 * t, 0.30 + 0.68 * t, 0.38 + 0.60 * t];
+}

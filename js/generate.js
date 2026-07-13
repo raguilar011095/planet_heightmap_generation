@@ -3,13 +3,16 @@
 
 import Delaunator from 'delaunator';
 import { setDelaunator, SphereMesh } from './sphere-mesh.js';
-import { computePlateColors, buildMesh } from './planet-mesh.js';
+import { computePlateColors, buildMesh, updateRiverOverlay } from './planet-mesh.js';
 import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
 import { computeOceanCurrents } from './ocean.js';
 import { computePrecipitation } from './precipitation.js';
 import { computeTemperature } from './temperature.js';
 import { classifyKoppen } from './koppen.js';
+import { classifyTrewartha } from './trewartha.js';
+import { percentile } from './climate-util.js';
+import { PLATE_SMOOTH_HIRES_KM, SOIL_CREEP_KM, LITHO_EROSION_STRENGTH, LITHO_CRATON_RESIST, LITHO_BASIN_SOFTEN, LITHO_HARDNESS_MIN, LITHO_HARDNESS_MAX } from './terrain-config.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -32,6 +35,9 @@ function readSliders() {
         temperatureOffset: +document.getElementById('sTmp').value,
         precipitationOffset: +document.getElementById('sPrc').value,
         landCoverage: +document.getElementById('sLc').value,
+        deposition: +document.getElementById('sDp').value,
+        rebound: +document.getElementById('sRb').value,
+        numHotspots: +document.getElementById('sHs').value,
     };
 }
 
@@ -46,6 +52,9 @@ function readSlidersOptional() {
         thermalErosion: +(document.getElementById('sTEr')?.value ?? 0),
         ridgeSharpening: +(document.getElementById('sRs')?.value ?? 0),
         glacialErosion: +(document.getElementById('sGl')?.value ?? 0),
+        deposition: +(document.getElementById('sDp')?.value ?? 0.5),
+        rebound: +(document.getElementById('sRb')?.value ?? 0.35),
+        numHotspots: +(document.getElementById('sHs')?.value ?? 5),
     };
 }
 
@@ -158,6 +167,16 @@ function buildWindResultForOcean(mesh, r_xyz, r_elevation,
         r_wind_speed_winter[r] = Math.sqrt(we * we + wn * wn);
     }
 
+    // Normalize to 0-1 like wind.js does (see js/wind.js:843-846), so consumers
+    // reading r_wind_speed_* (e.g. ocean.js's wind-coupling gain) see a
+    // calibrated speed on this fallback path too, not a raw magnitude.
+    const maxSummer = percentile(r_wind_speed_summer, 0.95) || 1;
+    const maxWinter = percentile(r_wind_speed_winter, 0.95) || 1;
+    for (let r = 0; r < n; r++) {
+        r_wind_speed_summer[r] = Math.min(1, r_wind_speed_summer[r] / maxSummer);
+        r_wind_speed_winter[r] = Math.min(1, r_wind_speed_winter[r] / maxWinter);
+    }
+
     // Zero-filled pressure deviation (neutral: no pressure-driven effects in fallback)
     const r_pressure_summer = new Float32Array(n);
     const r_pressure_winter = new Float32Array(n);
@@ -238,7 +257,9 @@ if (worker) {
                     seed: msg.seed,
                     nMag: msg.nMag,
                     debugLayers: msg.debugLayers,
-                    terrainMetrics: msg.terrainMetrics || null
+                    terrainMetrics: msg.terrainMetrics || null,
+                    riverDrainTarget: msg.riverDrainTarget,
+                    riverFlow: msg.riverFlow
                 };
                 if (msg.terrainMetrics) window.__terrainMetrics = msg.terrainMetrics;
                 const tState = performance.now() - tStateStart;
@@ -307,6 +328,9 @@ if (worker) {
                         d.debugLayers.koppen = classifyKoppen(mesh, d.r_elevation,
                             { r_temperature_summer: d.r_temperature_summer, r_temperature_winter: d.r_temperature_winter },
                             { r_precip_summer: d.r_precip_summer, r_precip_winter: d.r_precip_winter });
+                        d.debugLayers.trewartha = classifyTrewartha(mesh, d.r_elevation,
+                            { r_temperature_summer: d.r_temperature_summer, r_temperature_winter: d.r_temperature_winter },
+                            { r_precip_summer: d.r_precip_summer, r_precip_winter: d.r_precip_winter });
                     }
                 }
 
@@ -316,6 +340,13 @@ if (worker) {
 
                 const tMainTotal = performance.now() - tMainStart;
                 const tTotal = performance.now() - _t0;
+
+                // Test-only capture handle (inert unless the regression harness
+                // sets window.__WO_CAPTURE). Lets tuning/regress.mjs read the
+                // deterministic output arrays for golden-master hashing.
+                if (typeof window !== 'undefined' && window.__WO_CAPTURE) {
+                    window.__WO_state = state;
+                }
 
                 // Diagnostics
                 {
@@ -391,6 +422,8 @@ if (worker) {
                 d.r_elevation = msg.r_elevation;
                 d.t_elevation = msg.t_elevation;
                 d.debugLayers.erosionDelta = msg.erosionDelta;
+                d.riverDrainTarget = msg.riverDrainTarget;
+                d.riverFlow = msg.riverFlow;
                 if (msg.r_wind_east_summer) {
                     d.r_wind_east_summer = msg.r_wind_east_summer;
                     d.r_wind_north_summer = msg.r_wind_north_summer;
@@ -514,6 +547,8 @@ if (worker) {
                 d.coastline_r = new Set(msg.coastline_r);
                 d.ocean_r = new Set(msg.ocean_r);
                 d.r_stress = msg.r_stress;
+                d.riverDrainTarget = msg.riverDrainTarget;
+                d.riverFlow = msg.riverFlow;
                 if (msg.r_wind_east_summer) {
                     d.r_wind_east_summer = msg.r_wind_east_summer;
                     d.r_wind_north_summer = msg.r_wind_north_summer;
@@ -660,6 +695,9 @@ if (worker) {
                     if (msg.climateDebugLayers && d.debugLayers) {
                         Object.assign(d.debugLayers, msg.climateDebugLayers);
                     }
+                    // Only the flow re-weight is sent here — the drain graph itself is unchanged
+                    if (msg.riverFlow) d.riverFlow = msg.riverFlow;
+                    updateRiverOverlay();
                 }
                 state.climateComputed = true;
                 buildMesh();
@@ -716,7 +754,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
     // Dynamic import already resolved — run synchronously via rAF stages
     const m = _fallbackModules;
     const btn = document.getElementById('generate');
-    const { N, P, jitter, nMag, numContinents, terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, continentSizeVariety, temperatureOffset, precipitationOffset, landCoverage } = readSliders();
+    const { N, P, jitter, nMag, numContinents, terrainWarp, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, continentSizeVariety, temperatureOffset, precipitationOffset, landCoverage, deposition, rebound, numHotspots } = readSliders();
     const progress = onProgress || (() => {});
     const ctx = {};
 
@@ -738,7 +776,8 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
         }},
         { pct: 18, label: 'Projecting plates\u2026', work() {
             ctx.r_plate = m.coarsePlates.projectCoarsePlates(ctx.mesh, ctx.r_xyz, ctx.coarseMesh, ctx.coarse_xyz, ctx.coarse_r_plate, ctx.seed, P);
-            m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, 3);
+            const plateSmoothPasses = Math.max(1, Math.round(PLATE_SMOOTH_HIRES_KM / ((Math.PI * 6371) / Math.sqrt(ctx.mesh.numRegions))));
+            m.plates.smoothAndReconnectPlates(ctx.mesh, ctx.r_plate, ctx.plateSeeds, plateSmoothPasses);
         }},
         { pct: 25, label: 'Carving oceans\u2026', work() {
             const plateIsOcean = ctx.coarsePlateIsOcean;
@@ -767,7 +806,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
         }},
         { pct: 35, label: 'Raising mountains\u2026', work() {
             const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-                m.elev.assignElevation(ctx.mesh, ctx.r_xyz, ctx.plateIsOcean, ctx.r_plate, ctx.plateVec, ctx.plateSeeds, ctx.noise, nMag, ctx.seed, 5, ctx.plateDensity);
+                m.elev.assignElevation(ctx.mesh, ctx.r_xyz, ctx.plateIsOcean, ctx.r_plate, ctx.plateVec, ctx.plateSeeds, ctx.noise, nMag, ctx.seed, 5, ctx.plateDensity, undefined, undefined, numHotspots);
             ctx.r_elevation = r_elevation; ctx.mountain_r = mountain_r; ctx.coastline_r = coastline_r;
             ctx.ocean_r = ocean_r; ctx.r_stress = r_stress; ctx.debugLayers = debugLayers;
             ctx.prePostElev = new Float32Array(r_elevation);
@@ -804,13 +843,36 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
                 dampenField: r_dampen, dampenStrength: 0.5,
                 amplitudeField: r_orogenic,
             });
-            if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0)
-                m.post.erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, Math.round(hydraulicErosion * 20), hydraulicErosion * 0.0006, 0.5, 1.0, Math.round(thermalErosion * 10), 1.2 - thermalErosion * 0.4, thermalErosion * 0.15, Math.round(glacialErosion * 10), glacialErosion);
+            // Per-cell erodibility from craton/basin weights (cratons resist, basins soften) —
+            // mirrors computeErodibilityField() in planet-worker.js for the no-worker path.
+            let r_erodibility = null;
+            if (debugLayers.cratonWeight && debugLayers.basinWeight && LITHO_EROSION_STRENGTH > 0) {
+                r_erodibility = new Float32Array(ctx.mesh.numRegions);
+                for (let r = 0; r < ctx.mesh.numRegions; r++) {
+                    const h = 1 + LITHO_EROSION_STRENGTH * (LITHO_CRATON_RESIST * debugLayers.cratonWeight[r] - LITHO_BASIN_SOFTEN * debugLayers.basinWeight[r]);
+                    r_erodibility[r] = 1 / Math.min(LITHO_HARDNESS_MAX, Math.max(LITHO_HARDNESS_MIN, h));
+                }
+            }
+            if (glacialErosion > 0 || hydraulicErosion > 0 || thermalErosion > 0) {
+                // neighborDist arg (unchanged from prior behavior): this fallback path never
+                // computed it, so it stays undefined here — r_erodibility/deposition are trailing args.
+                const preEro = rebound > 0 ? new Float32Array(r_elevation) : null;
+                m.post.erodeComposite(ctx.mesh, r_elevation, ctx.r_xyz, r_isOcean, Math.round(hydraulicErosion * 20), hydraulicErosion * 0.0006, 0.5, 1.0, Math.round(thermalErosion * 10), 1.2 - thermalErosion * 0.4, thermalErosion * 0.15, Math.round(glacialErosion * 10), glacialErosion, undefined, r_erodibility, deposition);
+                if (preEro) {
+                    m.post.applyIsostaticRebound(ctx.mesh, r_elevation, r_isOcean, preEro, rebound);
+                }
+            }
             if (ridgeSharpening > 0) m.post.sharpenRidges(ctx.mesh, r_elevation, r_isOcean, Math.round(1 + ridgeSharpening * 3), ridgeSharpening * 0.08);
-            m.post.applySoilCreep(ctx.mesh, r_elevation, r_isOcean, 3, 0.1125);
+            const creepPasses = Math.max(1, Math.round(SOIL_CREEP_KM / ((Math.PI * 6371) / Math.sqrt(ctx.mesh.numRegions))));
+            m.post.applySoilCreep(ctx.mesh, r_elevation, r_isOcean, creepPasses, 0.1125);
             const dl_erosionDelta = new Float32Array(ctx.mesh.numRegions);
             for (let r = 0; r < ctx.mesh.numRegions; r++) dl_erosionDelta[r] = r_elevation[r] - preErosion[r];
             debugLayers.erosionDelta = dl_erosionDelta;
+            // Final-truth drainage graph, extracted after all post-processing so rivers
+            // follow the shipped terrain; stored on ctx since later stages run in a
+            // separate closure. Uniform weight first — re-weighted by precip below.
+            ctx.riverGraph = m.post.computeRiverGraph(ctx.mesh, r_elevation);
+            ctx.riverFlow = m.post.accumulateRiverFlow(ctx.mesh, ctx.riverGraph, null);
             if (!skipClimate) {
                 const windResult = m.wind.computeWind(ctx.mesh, ctx.r_xyz, r_elevation, ctx.plateIsOcean, ctx.r_plate, ctx.noise);
                 debugLayers.pressureSummer = windResult.r_pressure_summer;
@@ -832,6 +894,14 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
                 debugLayers.tempWinter = tempResult.r_temperature_winter;
                 debugLayers.tempContinentality = tempResult.r_tempContinentality;
                 debugLayers.koppen = classifyKoppen(ctx.mesh, r_elevation, tempResult, precipResult);
+                debugLayers.trewartha = classifyTrewartha(ctx.mesh, r_elevation, tempResult, precipResult);
+                // Annual precipitation (mean of the two seasons, 0-1) as river-volume weight —
+                // mirrors riverPrecipWeight() in planet-worker.js for the no-worker path.
+                const rw = new Float32Array(precipResult.r_precip_summer.length);
+                for (let r = 0; r < rw.length; r++) {
+                    rw[r] = (Math.max(0, precipResult.r_precip_summer[r]) + Math.max(0, precipResult.r_precip_winter[r])) / 2;
+                }
+                ctx.riverFlow = m.post.accumulateRiverFlow(ctx.mesh, ctx.riverGraph, rw);
             }
             const t_elevation = new Float32Array(ctx.mesh.numTriangles);
             for (let t = 0; t < ctx.mesh.numTriangles; t++) {
@@ -869,7 +939,9 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
                 r_precip_summer: ctx.precipResult ? ctx.precipResult.r_precip_summer : null,
                 r_precip_winter: ctx.precipResult ? ctx.precipResult.r_precip_winter : null,
                 r_temperature_summer: ctx.tempResult ? ctx.tempResult.r_temperature_summer : null,
-                r_temperature_winter: ctx.tempResult ? ctx.tempResult.r_temperature_winter : null
+                r_temperature_winter: ctx.tempResult ? ctx.tempResult.r_temperature_winter : null,
+                riverDrainTarget: ctx.riverGraph.drainTarget,
+                riverFlow: ctx.riverFlow
             };
             state.climateComputed = !skipClimate;
             buildMesh();
@@ -947,14 +1019,14 @@ export function editRecomputeViaWorker(onDone, skipClimate = false) {
     _onDone = onDone || null;
     _t0 = performance.now();
 
-    const { nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, temperatureOffset, precipitationOffset, landCoverage } = readSliders();
+    const { nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, temperatureOffset, precipitationOffset, landCoverage, deposition, rebound, numHotspots } = readSliders();
 
     worker.postMessage({
         cmd: 'editRecompute',
         plateIsOcean: Array.from(d.plateIsOcean),
         plateDensity: d.plateDensity,
         nMag, terrainWarp, smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening,
-        temperatureOffset, precipitationOffset, landCoverage,
+        temperatureOffset, precipitationOffset, landCoverage, deposition, rebound, numHotspots,
         skipClimate
     });
 }

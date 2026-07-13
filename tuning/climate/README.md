@@ -25,6 +25,26 @@ excluded (and reported separately as `landAgreement`).
 Ground-truth codes are mapped onto the app's class set (`As` → `Aw`, the standard
 merge). Ground truth lives in `data/ascii/Koeppen-Geiger-ASCII.txt`.
 
+## Setup
+
+The Node harnesses depend on `puppeteer` (golden-master render), plus `pngjs` and
+`delaunator` (Earth-heightmap import in `lib/earth-context.mjs`). Install them:
+
+```bash
+npm install puppeteer pngjs delaunator
+```
+
+The Köppen-Geiger ground-truth grid is gitignored and must be fetched once into
+`tuning/climate/data/ascii/Koeppen-Geiger-ASCII.txt`:
+
+```bash
+curl -fL -o /tmp/kg-ascii.zip 'https://koeppen-geiger.vu-wien.ac.at/data/Koeppen-Geiger-ASCII.zip'
+unzip -o /tmp/kg-ascii.zip -d tuning/climate/data/ascii/
+```
+
+(If the Vienna server is unreachable, use the Wayback mirror in "Re-downloading
+ground truth" below.)
+
 ## Usage
 
 ```bash

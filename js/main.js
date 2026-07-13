@@ -7,14 +7,15 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
 import { state } from './state.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, updateSuperPlateBorders, updateRiverOverlay, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+import { TREWARTHA_CLASSES } from './trewartha.js';
 import { elevationToColor } from './color-map.js';
 
 // Slider value displays + stale tracking
-const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc'];
+const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc','sHs'];
 const PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'];
 let lastGenValues = {};
 
@@ -25,7 +26,7 @@ function snapshotSliders() {
 function checkStale() {
     const btn = document.getElementById('generate');
     if (btn.classList.contains('generating')) return;
-    const detailSliders = ['sN', 'sJ', 'sNs'];
+    const detailSliders = ['sN', 'sJ', 'sNs', 'sHs'];
     const plateChanged = PLATE_SLIDERS.some(id => document.getElementById(id).value !== lastGenValues[id]);
     const detailChanged = detailSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
     btn.classList.remove('stale', 'regen');
@@ -133,7 +134,7 @@ function initSliderTooltip(slider) {
     slider.addEventListener('pointercancel', hide);
 }
 
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sCsv','vCsv'],['sLc','vLc'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs'],['sTmp','vTmp'],['sPrc','vPrc']]) {
+for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sCsv','vCsv'],['sLc','vLc'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs'],['sDp','vDp'],['sRb','vRb'],['sHs','vHs'],['sTmp','vTmp'],['sPrc','vPrc']]) {
     const slider = document.getElementById(s);
     initSliderTooltip(slider);
     slider.addEventListener('input', e => {
@@ -153,7 +154,7 @@ for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','v
         } else {
             document.getElementById(v).textContent = e.target.value;
         }
-        if (s === 'sTw' || s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
+        if (s === 'sTw' || s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs' || s === 'sDp' || s === 'sRb') {
             markReapplyPending();
         } else if (s === 'sTmp' || s === 'sPrc') {
             // Display-only update during drag; actual recompute on change (release)
@@ -201,7 +202,8 @@ const CLIMATE_LAYERS = new Set([
     'precipSummer', 'precipWinter',
     'rainShadowSummer', 'rainShadowWinter',
     'tempSummer', 'tempWinter',
-    'koppen', 'biome', 'continentality'
+    'cloudSummer', 'cloudWinter',
+    'koppen', 'trewartha', 'biome', 'continentality'
 ]);
 
 // Map tabs → tab-layer mapping
@@ -383,6 +385,42 @@ function updateLegend(layer) {
                 updateMapKoppenHoverHighlight();
             });
         });
+    } else if (layer === 'trewartha') {
+        // Trewartha legend — swatches + tooltips only; ids don't map onto
+        // debugLayers.koppen, so no mesh hover-highlight wiring here.
+        let html = '<div class="legend-koppen-header"><a href="https://en.wikipedia.org/wiki/Trewartha_climate_classification" target="_blank" rel="noopener">Trewartha climate classification</a></div>';
+        html += '<div class="legend-koppen">';
+        for (let i = 1; i < TREWARTHA_CLASSES.length; i++) {
+            const k = TREWARTHA_CLASSES[i];
+            const [r, g, b] = k.color;
+            const hex = `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
+            html += `<div class="legend-koppen-item" data-code="${k.code}"><span class="legend-koppen-swatch" style="background:${hex}"></span>${k.code}</div>`;
+        }
+        html += '<div class="legend-koppen-tooltip" id="trewarthaTip"></div>';
+        html += '</div>';
+        vizLegend.innerHTML = html;
+        // Wire hover tooltips with dynamic positioning (no mesh highlight)
+        const tipEl = document.getElementById('trewarthaTip');
+        const container = vizLegend.querySelector('.legend-koppen');
+        vizLegend.querySelectorAll('.legend-koppen-item').forEach(item => {
+            item.addEventListener('mouseenter', () => {
+                const code = item.dataset.code;
+                const k = TREWARTHA_CLASSES.find(c => c.code === code);
+                tipEl.textContent = k ? k.name : '';
+                tipEl.classList.add('visible');
+                // Position above the hovered item, clamped within the container
+                const itemRect = item.getBoundingClientRect();
+                const containerRect = container.getBoundingClientRect();
+                const tipWidth = 240;
+                let left = itemRect.left - containerRect.left + itemRect.width / 2 - tipWidth / 2;
+                left = Math.max(0, Math.min(left, containerRect.width - tipWidth));
+                tipEl.style.left = left + 'px';
+                tipEl.style.bottom = (containerRect.bottom - itemRect.top + 6) + 'px';
+            });
+            item.addEventListener('mouseleave', () => {
+                tipEl.classList.remove('visible');
+            });
+        });
     } else if (layer === 'biome') {
         // Satellite biome legend — gradient bar of key biome colors
         const biomeStops = [
@@ -409,6 +447,9 @@ function updateLegend(layer) {
     } else if (layer === 'landheightmap') {
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
             `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;
+    } else if (layer === 'cloudSummer' || layer === 'cloudWinter') {
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,rgb(64,77,97) 0%,rgb(247,250,250) 100%)"></div>` +
+            `<div class="legend-labels"><span>Clear</span><span>Overcast</span></div>`;
     } else {
         vizLegend.innerHTML = '';
     }
@@ -528,6 +569,9 @@ function updatePlanetCode(flash) {
         +document.getElementById('sTmp').value,
         +document.getElementById('sPrc').value,
         +document.getElementById('sLc').value,
+        +document.getElementById('sDp').value,
+        +document.getElementById('sRb').value,
+        +document.getElementById('sHs').value,
         getToggledIndices()
     );
     currentCode = code;
@@ -601,6 +645,7 @@ function paramsToSliderMap(params) {
         sHEr: params.hydraulicErosion, sTEr: params.thermalErosion,
         sRs: params.ridgeSharpening, sTmp: params.temperatureOffset,
         sPrc: params.precipitationOffset,
+        sDp: params.deposition, sRb: params.rebound, sHs: params.numHotspots,
     };
 }
 
@@ -638,6 +683,7 @@ seedInput.addEventListener('keydown', (e) => {
 // View-mode checkboxes
 document.getElementById('chkPlates').addEventListener('change', () => { updateMeshColors(); updateSuperPlateBorders(); });
 document.getElementById('chkWire').addEventListener('change', buildMesh);
+document.getElementById('chkRivers').addEventListener('change', updateRiverOverlay);
 
 // Grid toggle
 const gridSpacingGroup = document.getElementById('gridSpacingGroup');
@@ -681,6 +727,7 @@ sMapCenterLon.addEventListener('input', () => {
 sMapCenterLon.addEventListener('change', () => {
     if (state.mapMode) {
         buildMapMesh();
+        updateRiverOverlay();
         // Rebuild arrows if a wind/ocean layer is active
         const layer = state.debugLayer;
         const isWind = layer === 'pressureSummer' || layer === 'pressureWinter' ||
@@ -765,6 +812,9 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         ctrl.enabled = true;
         mapCenterLonGroup.style.display = 'none';
     }
+    // Rivers are projection-specific (globe vs map polylines) — rebuild for
+    // the new mode regardless of direction, using the mesh/curData already in state.
+    updateRiverOverlay();
 });
 
 // Debug layer dropdown
@@ -1214,7 +1264,7 @@ window.addEventListener('resize', () => {
 
 // What's New modal — shown once per version for returning users
 (function initWhatsNew() {
-    const VERSION    = '2';
+    const VERSION    = '4';
     const LS_KEY     = 'wo-whatsnew-seen';
     const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
     const overlay    = document.getElementById('whatsNewOverlay');

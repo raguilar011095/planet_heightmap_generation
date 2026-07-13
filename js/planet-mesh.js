@@ -3,9 +3,11 @@
 import * as THREE from 'three';
 import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
 import { state } from './state.js';
-import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
+import { elevationToColor, elevToHeightKm, biomeColor, cloudColor } from './color-map.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
+import { TREWARTHA_CLASSES } from './trewartha.js';
+import { RIVER_FLOW_MIN, RIVER_RAMP_DECADES } from './terrain-config.js';
 
 // Clipping planes for map wrap — keep everything within x ∈ [-2, 2]
 renderer.localClippingEnabled = true;
@@ -325,14 +327,18 @@ export function buildMapMesh() {
     const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isCloud = debugLayer === 'cloudSummer' || debugLayer === 'cloudWinter';
+    const cloudArr = isCloud ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isTrewartha = debugLayer === 'trewartha';
+    const trewarthaArr = isTrewartha ? (debugLayers && debugLayers.trewartha) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
     const isTempCont = debugLayer === 'tempContinentality';
     const tempContArr = isTempCont ? (debugLayers && debugLayers.tempContinentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isCloud && !isKoppen && !isTrewartha && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -389,8 +395,13 @@ export function buildMapMesh() {
                 [cr, cg, cb] = tempContinentalityColor(tempContArr[br]);
             } else if (isKoppen && koppenArr) {
                 [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else if (isTrewartha && trewarthaArr) {
+                const c = TREWARTHA_CLASSES[trewarthaArr[br]].color;
+                cr = c[0]; cg = c[1]; cb = c[2];
             } else if (isTemp && tempArr) {
                 [cr, cg, cb] = temperatureColor(tempArr[br]);
+            } else if (isCloud && cloudArr) {
+                [cr, cg, cb] = cloudColor(cloudArr[br]);
             } else if (isPrecip && precipArr) {
                 [cr, cg, cb] = precipitationColor(precipArr[br]);
             } else if (isRainShadow && rainShadowArr) {
@@ -734,6 +745,142 @@ export function updateSuperPlateBorders() {
     }
 }
 
+// Rivers overlay — polyline chains from the drainage graph, flow-ramped color.
+// Chains get one Chaikin corner-cut pass so low-Detail rivers don't read as
+// cell-center zigzags. Width is encoded as a brightness ramp (LineBasicMaterial
+// linewidth is unsupported on most WebGL stacks).
+export function updateRiverOverlay() {
+    if (state.riverMesh) { scene.remove(state.riverMesh); state.riverMesh.geometry.dispose(); state.riverMesh.material.dispose(); state.riverMesh = null; }
+    if (state.mapRiverMesh) { scene.remove(state.mapRiverMesh); state.mapRiverMesh.geometry.dispose(); state.mapRiverMesh.material.dispose(); state.mapRiverMesh = null; }
+
+    if (!state.curData) return;
+    const chk = document.getElementById('chkRivers');
+    if (!chk || !chk.checked) return;
+    const { riverDrainTarget, riverFlow, r_xyz, r_elevation } = state.curData;
+    if (!riverDrainTarget || !riverFlow) return;
+
+    const N = riverFlow.length;
+    const V = 0.04;
+    const logMin = Math.log10(RIVER_FLOW_MIN);
+
+    const isRiver = new Uint8Array(N);
+    for (let r = 0; r < N; r++) {
+        if (r_elevation[r] > 0 && riverFlow[r] >= RIVER_FLOW_MIN && riverDrainTarget[r] >= 0) isRiver[r] = 1;
+    }
+    // Upstream river-inflow count → chain heads and junction boundaries
+    const inCount = new Uint8Array(N);
+    for (let r = 0; r < N; r++) {
+        if (isRiver[r] && inCount[riverDrainTarget[r]] < 255) inCount[riverDrainTarget[r]]++;
+    }
+
+    // Walk chains: start at heads (no river inflow) and just below junctions
+    const chains = [];
+    for (let r = 0; r < N; r++) {
+        if (!isRiver[r]) continue;
+        if (inCount[r] !== 0 && inCount[r] < 2) continue;
+        // r is a head (0 inflows) or a junction (2+) — each starts a chain
+        let cur = r;
+        const pts = [cur];
+        while (true) {
+            const nxt = riverDrainTarget[cur];
+            if (nxt < 0) break;
+            pts.push(nxt);
+            if (!isRiver[nxt] || inCount[nxt] >= 2) break;
+            cur = nxt;
+        }
+        if (pts.length >= 2) chains.push(pts);
+    }
+
+    const flowT = (r) => Math.max(0, Math.min(1,
+        (Math.log10(Math.max(riverFlow[r], RIVER_FLOW_MIN)) - logMin) / RIVER_RAMP_DECADES));
+    // Pale glacier blue → deep river blue
+    const colOf = (t) => [0.42 - 0.30 * t, 0.58 - 0.30 * t, 0.86 - 0.18 * t];
+    const dispOf = (r) => {
+        const e = r_elevation[r];
+        return 1.0015 + (e > 0 ? e * V : 0);
+    };
+
+    if (!state.mapMode) {
+        const pos = [], col = [];
+        for (const pts of chains) {
+            // 3D points (elevation-displaced), then one Chaikin pass
+            let p = pts.map(r => {
+                const d = dispOf(r);
+                return [r_xyz[3 * r] * d, r_xyz[3 * r + 1] * d, r_xyz[3 * r + 2] * d, flowT(r)];
+            });
+            if (p.length >= 3) {
+                const q = [p[0]];
+                for (let i = 0; i < p.length - 1; i++) {
+                    const a = p[i], b = p[i + 1];
+                    q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25, a[2] * 0.75 + b[2] * 0.25, a[3] * 0.75 + b[3] * 0.25]);
+                    q.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75, a[2] * 0.25 + b[2] * 0.75, a[3] * 0.25 + b[3] * 0.75]);
+                }
+                q.push(p[p.length - 1]);
+                p = q;
+            }
+            for (let i = 0; i < p.length - 1; i++) {
+                pos.push(p[i][0], p[i][1], p[i][2], p[i + 1][0], p[i + 1][1], p[i + 1][2]);
+                const c0 = colOf(p[i][3]), c1 = colOf(p[i + 1][3]);
+                col.push(c0[0], c0[1], c0[2], c1[0], c1[1], c1[2]);
+            }
+        }
+        if (pos.length > 0) {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            state.riverMesh = new THREE.LineSegments(g,
+                new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
+            scene.add(state.riverMesh);
+        }
+    } else {
+        const centerLon = state.mapCenterLon || 0;
+        const PI = Math.PI;
+        const wrapLon = (lon) => {
+            let l = lon - centerLon;
+            if (l > PI) l -= 2 * PI;
+            else if (l < -PI) l += 2 * PI;
+            return l;
+        };
+        const sx = 2 / PI;
+        const pos = [], col = [];
+        for (const pts of chains) {
+            let p = pts.map(r => {
+                const lat = Math.asin(Math.max(-1, Math.min(1, r_xyz[3 * r + 1])));
+                const lon = wrapLon(Math.atan2(r_xyz[3 * r], r_xyz[3 * r + 2]));
+                return [lon * sx, lat * sx, flowT(r)];
+            });
+            if (p.length >= 3) {
+                const q = [p[0]];
+                for (let i = 0; i < p.length - 1; i++) {
+                    const a = p[i], b = p[i + 1];
+                    if (Math.abs(a[0] - b[0]) > 1) { q.push(b); continue; }  // seam jump — no midpoints
+                    q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25, a[2] * 0.75 + b[2] * 0.25]);
+                    q.push([a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75, a[2] * 0.25 + b[2] * 0.75]);
+                }
+                q.push(p[p.length - 1]);
+                p = q;
+            }
+            for (let i = 0; i < p.length - 1; i++) {
+                if (Math.abs(p[i][0] - p[i + 1][0]) > 1) continue;  // antimeridian split
+                pos.push(p[i][0], p[i][1], 0.003, p[i + 1][0], p[i + 1][1], 0.003);
+                const c0 = colOf(p[i][2]), c1 = colOf(p[i + 1][2]);
+                col.push(c0[0], c0[1], c0[2], c1[0], c1[1], c1[2]);
+            }
+        }
+        if (pos.length > 0) {
+            const g = new THREE.BufferGeometry();
+            g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+            const m = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, clippingPlanes: MAP_CLIP_PLANES });
+            state.mapRiverMesh = new THREE.LineSegments(g, m);
+            const cL = new THREE.LineSegments(g, m); cL.position.x = -4;
+            const cR = new THREE.LineSegments(g, m); cR.position.x = 4;
+            state.mapRiverMesh.add(cL, cR);
+            scene.add(state.mapRiverMesh);
+        }
+    }
+}
+
 // Build Voronoi mesh — each half-edge produces one triangle.
 export function buildMesh() {
     if (!state.curData) return;
@@ -760,14 +907,18 @@ export function buildMesh() {
     const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isCloud = debugLayer === 'cloudSummer' || debugLayer === 'cloudWinter';
+    const cloudArr = isCloud ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isTrewartha = debugLayer === 'trewartha';
+    const trewarthaArr = isTrewartha ? (debugLayers && debugLayers.trewartha) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
     const isTempCont = debugLayer === 'tempContinentality';
     const tempContArr = isTempCont ? (debugLayers && debugLayers.tempContinentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isCloud && !isKoppen && !isTrewartha && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -854,8 +1005,13 @@ export function buildMesh() {
                 [cr, cg, cb] = tempContinentalityColor(tempContArr[br]);
             } else if (isKoppen && koppenArr) {
                 [cr, cg, cb] = koppenColor(koppenArr[br]);
+            } else if (isTrewartha && trewarthaArr) {
+                const c = TREWARTHA_CLASSES[trewarthaArr[br]].color;
+                cr = c[0]; cg = c[1]; cb = c[2];
             } else if (isTemp && tempArr) {
                 [cr, cg, cb] = temperatureColor(tempArr[br]);
+            } else if (isCloud && cloudArr) {
+                [cr, cg, cb] = cloudColor(cloudArr[br]);
             } else if (isPrecip && precipArr) {
                 [cr, cg, cb] = precipitationColor(precipArr[br]);
             } else if (isRainShadow && rainShadowArr) {
@@ -935,6 +1091,7 @@ export function buildMesh() {
     }
 
     updateSuperPlateBorders();
+    updateRiverOverlay();
 
     buildDriftArrows();
     updatePendingHighlight();
@@ -1000,14 +1157,18 @@ export function updateMeshColors() {
     const rainShadowArr = isRainShadow ? (debugLayers && debugLayers[debugLayer]) : null;
     const isTemp = debugLayer === 'tempSummer' || debugLayer === 'tempWinter';
     const tempArr = isTemp ? (debugLayers && debugLayers[debugLayer]) : null;
+    const isCloud = debugLayer === 'cloudSummer' || debugLayer === 'cloudWinter';
+    const cloudArr = isCloud ? (debugLayers && debugLayers[debugLayer]) : null;
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
+    const isTrewartha = debugLayer === 'trewartha';
+    const trewarthaArr = isTrewartha ? (debugLayers && debugLayers.trewartha) : null;
     const isCont = debugLayer === 'continentality';
     const contArr = isCont ? (debugLayers && debugLayers.continentality) : null;
     const isTempCont = debugLayer === 'tempContinentality';
     const tempContArr = isTempCont ? (debugLayers && debugLayers.tempContinentality) : null;
-    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isKoppen && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
+    if (!isHeightmap && !isLandHeightmap && !isOceanCurrent && !isPrecip && !isRainShadow && !isTemp && !isCloud && !isKoppen && !isTrewartha && !isBiome && !isCont && !isTempCont && debugLayer && debugLayers && debugLayers[debugLayer]) {
         dbgArr = debugLayers[debugLayer];
         for (let r = 0; r < mesh.numRegions; r++) {
             if (dbgArr[r] < dbgMin) dbgMin = dbgArr[r];
@@ -1024,7 +1185,9 @@ export function updateMeshColors() {
         if (isCont && contArr) return continentalityColor(contArr[br]);
         if (isTempCont && tempContArr) return tempContinentalityColor(tempContArr[br]);
         if (isKoppen && koppenArr) return koppenColor(koppenArr[br]);
+        if (isTrewartha && trewarthaArr) { const c = TREWARTHA_CLASSES[trewarthaArr[br]].color; return [c[0], c[1], c[2]]; }
         if (isTemp && tempArr) return temperatureColor(tempArr[br]);
+        if (isCloud && cloudArr) return cloudColor(cloudArr[br]);
         if (isPrecip && precipArr) return precipitationColor(precipArr[br]);
         if (isRainShadow && rainShadowArr) return rainShadowColor(rainShadowArr[br]);
         if (isOceanCurrent && oceanWarmth && oceanSpeed) return oceanCurrentColor(oceanWarmth[br], oceanSpeed[br], r_elevation[br] <= 0);

@@ -23,7 +23,7 @@ import {
     STRESS_PROPAGATE_MIN, STRESS_PROPAGATE_CUTOFF,
     STRESS_DIR_FACTOR_MIN, STRESS_DIR_FACTOR_BASE, STRESS_DIR_FACTOR_SCALE,
     STRESS_DIR_BLEND_PARENT, STRESS_DIR_BLEND_TRAVEL,
-    STRESS_DIR_SMOOTH_PASSES, STRESS_DIR_SELF_WEIGHT,
+    STRESS_DIR_SMOOTH_KM, STRESS_DIR_SELF_WEIGHT,
     STRESS_DECAY_BASE, STRESS_DECAY_SPREAD_FACTOR, STRESS_SUBDUCT_DECAY_MULT,
     STRESS_PASSES_PER_SPREAD, STRESS_PERCENTILE,
     SMALL_W, SUPER_W,
@@ -77,9 +77,11 @@ import {
     SHELF_NARROW_BASE, SHELF_WIDE_BASE, SLOPE_WIDTH_BASE,
     SHELF_DEPTH_START, SHELF_DEPTH_RANGE, SLOPE_DEPTH_RANGE,
     ABYSS_BASE, ABYSS_NOISE_AMP, OCEAN_FLOOR_CLAMP,
+    RIDGE_AGE_DEPTH_SCALE, RIDGE_AGE_SATURATION_KM, RIDGE_AGE_MEAN_FRAC,
     RIDGE_HALF_WIDTH_BASE as RIDGE_HW_BASE, RIDGE_UPLIFT_NOISE, RIDGE_UPLIFT_BASE,
-    FRACTURE_HALF_WIDTH_BASE, FRACTURE_DEPTH,
+    FRACTURE_HALF_WIDTH_BASE, FRACTURE_DEPTH, TRANSFORM_OFFSET_KM,
     TRENCH_BASE_DEPTH, TRENCH_STRESS_DEPTH,
+    TRENCH_HALF_WIDTH_BASE, TRENCH_OUTER_RISE_EXTENT, TRENCH_OUTER_RISE_HEIGHT,
     COAST_ROUGHEN_BASE, COAST_PASSIVE_FREQ, COAST_ACTIVE_FREQ,
     COAST_PASSIVE_AMP, COAST_ACTIVE_AMP,
     COAST_WARP_PASSIVE_REACH, COAST_WARP_ACTIVE_REACH, COAST_WARP_AMT,
@@ -302,7 +304,9 @@ export function propagateStress(mesh, r_stress, r_stressDir, r_subductFactor, r_
         frontier = nextFrontier;
     }
 
-    for (let pass = 0; pass < STRESS_DIR_SMOOTH_PASSES; pass++) {
+    const stressDirAvgEdgeKm = (Math.PI * 6371) / Math.sqrt(mesh.numRegions);
+    const stressDirPasses = Math.max(1, Math.round(STRESS_DIR_SMOOTH_KM / stressDirAvgEdgeKm));
+    for (let pass = 0; pass < stressDirPasses; pass++) {
         for (let r = 0; r < mesh.numRegions; r++) {
             if (r_stress[r] < STRESS_PROPAGATE_MIN) continue;
             const plate = r_plate[r];
@@ -710,11 +714,23 @@ function computeSpatialFields(mesh, r_xyz, r_plate, plateIsOcean, tect, seed, su
     // Fracture zone BFS (oceanic transform)
     const fractureHalfWidth = Math.max(2, Math.round(FRACTURE_HALF_WIDTH_BASE * scaleFactor));
     const fractureDist = new Float32Array(numRegions).fill(Infinity);
+    // Side tag (±1) for the transform-fault texture offset: which side of
+    // the fault a cell is on, so the offset shifts opposite ways across it.
+    const fractureSide = new Int8Array(numRegions);
     const fractureSeeds = [];
     for (let r = 0; r < numRegions; r++) {
         if (r_boundaryType[r] === 3 && r_bothOcean[r]) {
             fractureSeeds.push(r);
             fractureDist[r] = 0;
+            let side = 1;
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
+                if (r_plate[nr] !== r_plate[r]) {
+                    side = r_plate[r] < r_plate[nr] ? 1 : -1;
+                    break;
+                }
+            }
+            fractureSide[r] = side;
         }
     }
     {
@@ -727,6 +743,7 @@ function computeSpatialFields(mesh, r_xyz, r_plate, plateIsOcean, tect, seed, su
                 const nr = adjList[ni];
                 if (nd < fractureDist[nr] && r_isOcean[nr]) {
                     fractureDist[nr] = nd;
+                    fractureSide[nr] = fractureSide[r];
                     fractureSeeds.push(nr);
                 }
             }
@@ -765,14 +782,46 @@ function computeSpatialFields(mesh, r_xyz, r_plate, plateIsOcean, tect, seed, su
         }
     }
 
+    // Trench band (ocean side of convergent boundaries) — carries seed stress
+    // outward like the back-arc band so off-axis cells scale with convergence.
+    const trenchHW = Math.max(2, Math.round(TRENCH_HALF_WIDTH_BASE * scaleFactor));
+    const trenchOuterEnd = Math.max(trenchHW + 1, Math.round(trenchHW * TRENCH_OUTER_RISE_EXTENT));
+    const trenchDist = new Float32Array(numRegions).fill(Infinity);
+    const trenchStress = new Float32Array(numRegions);
+    const trenchSeeds = [];
+    for (let r = 0; r < numRegions; r++) {
+        if (r_boundaryType[r] === 1 && r_isOcean[r]) {
+            trenchSeeds.push(r);
+            trenchDist[r] = 0;
+            trenchStress[r] = Math.min(1, r_stress[r] / maxStress);
+        }
+    }
+    {
+        let qi = 0;
+        while (qi < trenchSeeds.length) {
+            const r = trenchSeeds[qi++];
+            const nd = trenchDist[r] + 1;
+            if (nd > trenchOuterEnd) continue;
+            for (let ni = adjOffset[r], niEnd = adjOffset[r + 1]; ni < niEnd; ni++) {
+                const nr = adjList[ni];
+                if (nd < trenchDist[nr] && r_isOcean[nr]) {
+                    trenchDist[nr] = nd;
+                    trenchStress[nr] = trenchStress[r];
+                    trenchSeeds.push(nr);
+                }
+            }
+        }
+    }
+
     return {
         r_isOcean,
         dist_mountain, dist_ocean, dist_coastline, dist_coast, dist_coast_land,
         dBdry, coastStressMax, coastSubductMax, coastConvergent, maxCD,
         riftDist, riftHalfWidth,
         ridgeDist, ridgeHalfWidth,
-        fractureDist, fractureHalfWidth,
+        fractureDist, fractureHalfWidth, fractureSide,
         backArcDist, backArcStress, baStart, baPeak, baEnd,
+        trenchDist, trenchStress, trenchHW, trenchOuterEnd,
         interiorBand:    Math.max(4, Math.round(INTERIOR_BAND_BASE * scaleFactor)),
         tectonicReach:   Math.max(6, Math.round(TECTONIC_REACH_BASE * scaleFactor)),
         plateauStart:    Math.max(2, Math.round(PLATEAU_START_BASE * scaleFactor)),
@@ -858,6 +907,9 @@ function classifyTerrain(mesh, r_xyz, tect, sf, seed) {
 function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, tect, sf, tt, noise, noiseMag, seed, debugLayers) {
     const { numRegions } = mesh;
     const r_elevation = new Float32Array(numRegions);
+    // Physical km per cell hop — lets ridge-age bathymetry use a real
+    // saturation distance instead of a resolution-dependent hop count.
+    const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(numRegions);
     const dl_base       = debugLayers.base;
     const dl_tectonic   = debugLayers.tectonic;
     const dl_interior   = debugLayers.interior;
@@ -867,12 +919,13 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
     const dl_backArc    = debugLayers.backArc;
     const dl_orogenicPower = debugLayers.orogenicPower;
 
-    const { r_subductFactor, r_stress, r_boundaryType, r_hasOcean, r_bothOcean, maxStress, scaleFactor } = tect;
+    const { r_subductFactor, r_stress, r_hasOcean, r_bothOcean, maxStress, scaleFactor } = tect;
     const { r_isOcean, dist_mountain, dist_ocean, dist_coastline, dist_coast, dist_coast_land,
             dBdry, coastConvergent, maxCD,
             riftDist, riftHalfWidth, ridgeDist, ridgeHalfWidth,
-            fractureDist, fractureHalfWidth,
+            fractureDist, fractureHalfWidth, fractureSide,
             backArcDist, backArcStress, baStart, baPeak, baEnd,
+            trenchDist, trenchStress, trenchHW, trenchOuterEnd,
             interiorBand, tectonicReach, plateauStart,
             ridgeSigmaBase, ridgePeakShift, ridgeExtent } = sf;
     const { r_basinFactor, r_tectonicActivity, r_t_plateau } = tt;
@@ -901,7 +954,6 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
         const isOceanPlate = r_isOcean[r];
         const sf_r = r_subductFactor[r];
         const stressNorm = Math.min(1, r_stress[r] / maxStress);
-        const btype = r_boundaryType[r];
         const x = r_xyz[3*r], y = r_xyz[3*r+1], z = r_xyz[3*r+2];
 
         // Distance-ratio base
@@ -1152,6 +1204,24 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
         } else {
             // ───── OCEAN ─────
             const dc = dist_coast[r];
+
+            // Transform-fault juxtaposition: sample abyssal noise from a
+            // tangentially shifted position on each side of the fault.
+            let nsx = x, nsy = y, nsz = z;
+            if (TRANSFORM_OFFSET_KM > 0) {
+                const fdo = fractureDist[r];
+                if (fdo !== Infinity && fdo <= fractureHalfWidth * 2) {
+                    const v = plateVelocityAt(plateVec, r_plate[r], x, y, z);
+                    const vLen = Math.sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2]);
+                    if (vLen > 1e-9) {
+                        const off = fractureSide[r] * (TRANSFORM_OFFSET_KM / 6371) * (1 - fdo / (fractureHalfWidth * 2));
+                        nsx = x + (v[0] / vLen) * off;
+                        nsy = y + (v[1] / vLen) * off;
+                        nsz = z + (v[2] / vLen) * off;
+                    }
+                }
+            }
+
             const isActiveMarginShelf = coastConvergent[r] === 1;
             const shelfWidth = isActiveMarginShelf
                 ? Math.max(2, Math.round(SHELF_NARROW_BASE * scaleFactor))
@@ -1165,7 +1235,7 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
             } else if (dc < totalMargin) {
                 oceanBase = (SHELF_DEPTH_START - SHELF_DEPTH_RANGE) - SLOPE_DEPTH_RANGE * ((dc - shelfWidth) / slopeWidth);
             } else {
-                oceanBase = ABYSS_BASE + noise.fbm(x * 2, y * 2, z * 2, 3) * ABYSS_NOISE_AMP;
+                oceanBase = ABYSS_BASE + noise.fbm(nsx * 2, nsy * 2, nsz * 2, 3) * ABYSS_NOISE_AMP;
             }
 
             r_elevation[r] = Math.min(r_elevation[r], oceanBase);
@@ -1196,9 +1266,21 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
                 r_elevation[r] -= FRACTURE_DEPTH * fractureFade;
             }
 
-            // Trench
-            if (btype === 1) {
-                r_elevation[r] -= TRENCH_BASE_DEPTH + TRENCH_STRESS_DEPTH * stressNorm;
+            // Trench: deepest at the subduction axis, tapering over the
+            // half-width, with a subtle outer-rise bulge beyond — replaces
+            // the old footprint-less flat subtraction at boundary cells.
+            {
+                const td = trenchDist[r];
+                if (td !== Infinity) {
+                    if (td <= trenchHW) {
+                        const tT = td / trenchHW;
+                        const axisFade = (1 - tT) * (1 - tT);
+                        r_elevation[r] -= (TRENCH_BASE_DEPTH + TRENCH_STRESS_DEPTH * trenchStress[r]) * axisFade;
+                    } else if (td <= trenchOuterEnd) {
+                        const oT = (td - trenchHW) / Math.max(1, trenchOuterEnd - trenchHW);
+                        r_elevation[r] += TRENCH_OUTER_RISE_HEIGHT * Math.sin(Math.PI * oT) * trenchStress[r];
+                    }
+                }
             }
 
             // Back-arc basin (ocean side)
@@ -1220,6 +1302,18 @@ function buildSkeleton(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds,
                     r_elevation[r] += baEffect;
                     dl_backArc[r] = baEffect;
                 }
+            }
+
+            // Half-space cooling: floor subsides ∝ √(distance from ridge),
+            // gated to beyond the continental margin so shelf/slope shape is
+            // untouched. Centered on MEAN_FRAC to keep mean abyssal depth.
+            if (RIDGE_AGE_DEPTH_SCALE > 0) {
+                const rdAge = ridgeDist[r];
+                const ageFrac = rdAge === Infinity
+                    ? 1
+                    : Math.min(1, Math.sqrt((rdAge * avgEdgeKm) / RIDGE_AGE_SATURATION_KM));
+                const beyondMargin = Math.min(1, Math.max(0, (dc - totalMargin) / slopeWidth));
+                r_elevation[r] -= RIDGE_AGE_DEPTH_SCALE * (ageFrac - RIDGE_AGE_MEAN_FRAC) * beyondMargin;
             }
 
             dl_tectonic[r] = r_elevation[r] - elevBeforeOcTec;
@@ -1947,7 +2041,7 @@ function applyVolcanicArcs(mesh, r_xyz, r_elevation, tect, seed, debugLayers) {
     }
 }
 
-function applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_plate, plateIsOcean, seed, debugLayers) {
+function applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_plate, plateIsOcean, seed, debugLayers, numHotspots = NUM_HOTSPOTS) {
     const { numRegions } = mesh;
     const { r_mantleNorm } = tect;
     const { r_isOcean } = sf;
@@ -2008,7 +2102,7 @@ function applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_pl
         }
     };
 
-    for (let h = 0; h < NUM_HOTSPOTS; h++) {
+    for (let h = 0; h < numHotspots; h++) {
         const hStrength = DOME_STRENGTH * (0.4 + hsRng() * 1.2);
         const hSigma    = DOME_SIGMA * (0.4 + hsRng() * 1.2);
         const hDecay    = CHAIN_DECAY + (hsRng() - 0.5) * 0.35;
@@ -2513,7 +2607,7 @@ function fixupTopology(mesh, r_elevation, r_isOcean) {
 // ─────────────────────────────────────────────────────────────────────────
 //  Main orchestrator
 // ─────────────────────────────────────────────────────────────────────────
-export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity, superPlateData, r_mantleField) {
+export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, noiseMag, seed, spread, plateDensity, superPlateData, r_mantleField, numHotspots = NUM_HOTSPOTS) {
     const { numRegions } = mesh;
     const _timing = [];
     let _t0 = performance.now();
@@ -2568,7 +2662,7 @@ export function assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, pl
     // Runs BEFORE textured noise so edifice shapes get textured by it.
     applyIslandArcs(mesh, r_xyz, r_elevation, tect, sf, r_plate, seed, debugLayers);
     applyVolcanicArcs(mesh, r_xyz, r_elevation, tect, seed, debugLayers);
-    applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_plate, plateIsOcean, seed, debugLayers);
+    applyHotspotsAndLIPs(mesh, r_xyz, r_elevation, tect, sf, plateVec, r_plate, plateIsOcean, seed, debugLayers, numHotspots);
     _timing.push({ stage: '6. Edifices', ms: performance.now() - _t0 }); _t0 = performance.now();
 
     // Stage 7 — tectonic-band textured noise (was 5)

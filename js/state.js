@@ -3,6 +3,8 @@
 export const state = {
     planetMesh: null,
     wireMesh: null,
+    riverMesh: null,
+    mapRiverMesh: null,
     arrowGroup: null,
     windArrowGroup: null,
     curData: null,

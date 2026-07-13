@@ -16,12 +16,16 @@ import {
     GLACIAL_WIDENING_FRAC, GLACIAL_TERMINUS_RATIO, GLACIAL_FJORD_ICE_MIN,
     GLACIAL_POST_SMOOTH, GLACIAL_MID_FLOOD_FRAC, GLACIAL_MID_FLOOD_CARVE,
     GLACIAL_INITIAL_CARVE,
-    HYDRAULIC_DEPOSIT_FRAC, HYDRAULIC_SLOPE_SENSITIVITY,
+    EROSION_REF_REGIONS,
+    SEDIMENT_CAPACITY_K, SEDIMENT_SETTLE_BASE, SEDIMENT_SETTLE_RANGE,
+    SEDIMENT_SINK_SETTLE, SEDIMENT_DELTA_FRAC, SEDIMENT_DELTA_CAP,
     THERMAL_TRANSFER_FRAC,
     RIDGE_SHARPEN_CAP, VALLEY_DEEPEN_FACTOR, VALLEY_FLOOR_FRAC, VALLEY_FLOOR_MIN,
+    REBOUND_RESTORE_FRAC, REBOUND_FLEX_KM,
     DETAIL_NOISE_AMP_KM, DETAIL_NOISE_FREQ, DETAIL_NOISE_OCTAVES,
     DETAIL_NOISE_WARP_FREQ, DETAIL_NOISE_WARP_AMP, DETAIL_NOISE_WARP_OCTAVES,
     DETAIL_NOISE_DAMPEN_STRENGTH,
+    RIVER_PRECIP_WEIGHT_FLOOR,
 } from './terrain-config.js';
 
 /**
@@ -400,7 +404,7 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     hIters, K, m, dt,
     tIters, talusSlope, kThermal,
     gIters, glacialStrength,
-    neighborDist)
+    neighborDist, r_erodibility, deposition)
 {
     gIters = gIters || 0;
     glacialStrength = glacialStrength || 0;
@@ -409,6 +413,9 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     if (totalIters <= 0) return;
 
     const N = mesh.numRegions;
+    // Convert raw upstream-cell counts to physical-area scale (no-op at the
+    // default Detail); see EROSION_REF_REGIONS in terrain-config.js.
+    const flowScale = EROSION_REF_REGIONS / N;
     const { adjOffset, adjList } = mesh;
 
     // Collect land cell indices
@@ -424,6 +431,8 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
     const cellDist = new Float32Array(N);
     const flow = new Float32Array(N);
     const delta = new Float32Array(N);
+    const eroAmt = new Float32Array(N);
+    const sedLoad = new Float32Array(N);
 
     // Priority-flood pit resolution: ensure every land cell drains to ocean
     // before hydraulic erosion begins. Carves canyons through spill points.
@@ -537,9 +546,10 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             // Carving: deepening + widening + over-deepening
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
-                if (iceFlow[r] <= gFlowThreshold) continue;
+                const iceFlowNorm = iceFlow[r] * flowScale;
+                if (iceFlowNorm <= gFlowThreshold) continue;
 
-                const deepening = gCarveRate * Math.pow(iceFlow[r], 0.6) * glacialStrength;
+                const deepening = gCarveRate * Math.pow(iceFlowNorm, 0.6) * glacialStrength;
                 r_elevation[r] -= deepening;
 
                 // Valley widening for U-shape
@@ -553,31 +563,32 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
 
                 // Over-deepening at convergence zones
                 if (numIceUpstream[r] >= 2) {
-                    r_elevation[r] -= gConvergenceBonus * Math.pow(iceFlow[r], 0.4);
+                    r_elevation[r] -= gConvergenceBonus * Math.pow(iceFlowNorm, 0.4);
                 }
             }
 
             // Moraine deposition at glacier termini
             for (let i = 0; i < landCount; i++) {
                 const r = landCells[i];
-                if (iceFlow[r] <= gFlowThreshold) continue;
+                const iceFlowNorm = iceFlow[r] * flowScale;
+                if (iceFlowNorm <= gFlowThreshold) continue;
                 const target = iceTarget[r];
                 if (target < 0 || r_isOcean[target]) continue;
                 if (glacIdx[target] < glacIdx[r] * GLACIAL_TERMINUS_RATIO) {
-                    r_elevation[target] += gDepositAmount * Math.pow(iceFlow[r], 0.3);
+                    r_elevation[target] += gDepositAmount * Math.pow(iceFlowNorm, 0.3);
                 }
             }
 
             // Fjord enhancement on coastal glaciated cells
             for (let r = 0; r < N; r++) {
                 if (r_isOcean[r]) continue;
-                if (glacIdx[r] <= GLACIAL_FJORD_ICE_MIN || iceFlow[r] <= gFjordThreshold) continue;
+                if (glacIdx[r] <= GLACIAL_FJORD_ICE_MIN || iceFlow[r] * flowScale <= gFjordThreshold) continue;
                 let isCoastal = false;
                 for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
                     if (r_isOcean[adjList[j]]) { isCoastal = true; break; }
                 }
                 if (isCoastal) {
-                    r_elevation[r] -= gFjordCarve * Math.pow(iceFlow[r], 0.5);
+                    r_elevation[r] -= gFjordCarve * Math.pow(iceFlow[r] * flowScale, 0.5);
                     if (r_elevation[r] < 0) r_elevation[r] = 0;
                 }
             }
@@ -642,34 +653,58 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                 if (target >= 0) flow[target] += flow[r];
             }
 
-            // Implicit stream power solve (ascending elevation order) + sediment deposition
+            // Implicit stream power solve (ascending elevation order)
+            eroAmt.fill(0);
             for (let i = landCount - 1; i >= 0; i--) {
                 const r = landCells[i];
                 const target = drainTarget[r];
                 if (target < 0 || cellDist[r] <= 0) continue;
 
-                const factor = K * Math.pow(flow[r], m) * dt / cellDist[r];
+                const erod = r_erodibility ? r_erodibility[r] : 1;
+                const factor = K * erod * Math.pow(flow[r] * flowScale, m) * dt / cellDist[r];
                 const h_receiver = Math.max(r_elevation[target], 0);
                 let h_new = (r_elevation[r] + factor * h_receiver) / (1 + factor);
 
                 if (h_new < h_receiver) h_new = h_receiver;
                 if (h_new < 0) h_new = 0;
 
-                // Sediment deposition: deposit fraction of eroded material at receiver
-                const eroded = r_elevation[r] - h_new;
-                if (eroded > 0 && !r_isOcean[target]) {
-                    const drainOfTarget = drainTarget[target];
-                    let receiverSlope = 0;
-                    if (drainOfTarget >= 0 && cellDist[target] > 0) {
-                        receiverSlope = Math.abs(r_elevation[target] - r_elevation[drainOfTarget]) / cellDist[target];
-                    }
-                    const depositFrac = HYDRAULIC_DEPOSIT_FRAC / (1 + receiverSlope * HYDRAULIC_SLOPE_SENSITIVITY);
-                    const deposit = eroded * depositFrac;
-                    r_elevation[target] += deposit;
-                    if (r_elevation[target] > h_new) r_elevation[target] = h_new;
-                }
-
+                eroAmt[r] = r_elevation[r] - h_new;
                 r_elevation[r] = h_new;
+            }
+
+            // Sediment routing (descending order): carry load downstream with a
+            // stream-power capacity; settle the excess (floodplains), fill pits
+            // (playas), and drop a delta share at ocean mouths.
+            if (deposition > 0) {
+                sedLoad.fill(0);
+                const settleFrac = SEDIMENT_SETTLE_BASE + deposition * SEDIMENT_SETTLE_RANGE;
+                for (let i = 0; i < landCount; i++) {
+                    const r = landCells[i];
+                    let load = sedLoad[r] + eroAmt[r];
+                    if (load <= 0) continue;
+                    const target = drainTarget[r];
+                    if (target < 0) {
+                        r_elevation[r] += load * SEDIMENT_SINK_SETTLE;
+                        continue;
+                    }
+                    let slopeR = 0;
+                    if (cellDist[r] > 0) {
+                        slopeR = Math.max(0, (r_elevation[r] - r_elevation[target]) / cellDist[r]);
+                    }
+                    const capacity = SEDIMENT_CAPACITY_K * Math.pow(flow[r] * flowScale, m) * slopeR;
+                    if (load > capacity) {
+                        const settle = (load - capacity) * settleFrac;
+                        r_elevation[r] += settle;
+                        load -= settle;
+                    }
+                    if (r_isOcean[target]) {
+                        const dep = load * deposition * SEDIMENT_DELTA_FRAC;
+                        r_elevation[target] += dep;
+                        if (r_elevation[target] > SEDIMENT_DELTA_CAP) r_elevation[target] = SEDIMENT_DELTA_CAP;
+                    } else {
+                        sedLoad[target] += load;
+                    }
+                }
             }
         }
 
@@ -713,7 +748,7 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
                     totalSlopeWeighted += excVal[k] * excSlope[k];
                 }
 
-                const transfer = kThermal * totalExcess * THERMAL_TRANSFER_FRAC;
+                const transfer = kThermal * (r_erodibility ? r_erodibility[r] : 1) * totalExcess * THERMAL_TRANSFER_FRAC;
                 if (totalSlopeWeighted > 0) {
                     for (let k = 0; k < excCount; k++) {
                         const share = (excVal[k] * excSlope[k] / totalSlopeWeighted) * transfer;
@@ -753,6 +788,58 @@ export function erodeComposite(mesh, r_elevation, r_xyz, r_isOcean,
             if (!r_isOcean[r] && glacIdx[r] > 0) r_elevation[r] = tmp[r];
         }
     }
+}
+
+/**
+ * Final-truth drainage graph for river rendering — computed AFTER all
+ * post-processing so rivers follow the shipped terrain (deposition
+ * floodplains, rebound uplift included). Pits terminate their chain
+ * (endorheic basins) instead of being carved like the eroder does.
+ */
+export function computeRiverGraph(mesh, r_elevation) {
+    const N = mesh.numRegions;
+    const { adjOffset, adjList } = mesh;
+    const land = [];
+    for (let r = 0; r < N; r++) {
+        if (r_elevation[r] > 0) { land.push(r); }
+    }
+    land.sort((a, b) => r_elevation[b] - r_elevation[a]);
+    const drainTarget = new Int32Array(N).fill(-1);
+    for (let i = 0; i < land.length; i++) {
+        const r = land[i];
+        const h = r_elevation[r];
+        let bestNb = -1, bestDrop = 0;
+        for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+            const nb = adjList[j];
+            const drop = h - r_elevation[nb];
+            if (drop > bestDrop) { bestDrop = drop; bestNb = nb; }
+        }
+        drainTarget[r] = bestNb;
+    }
+    return { drainTarget, order: Int32Array.from(land) };
+}
+
+/**
+ * Accumulate flow down the river graph. r_weight (0-1 per region, or null
+ * for uniform area weighting) modulates each cell's contribution — used to
+ * couple river volume to annual precipitation once climate has computed.
+ * Output is physical-area scaled (flowScale) so thresholds are km²-stable
+ * across the Detail slider.
+ */
+export function accumulateRiverFlow(mesh, riverGraph, r_weight) {
+    const N = mesh.numRegions;
+    const { drainTarget, order } = riverGraph;
+    const flowScale = EROSION_REF_REGIONS / N;
+    const flow = new Float32Array(N);
+    const floor = RIVER_PRECIP_WEIGHT_FLOOR;
+    for (let i = 0; i < order.length; i++) {
+        const r = order[i];
+        flow[r] += r_weight ? (floor + (1 - floor) * Math.max(0, Math.min(1, r_weight[r]))) : 1;
+        const t = drainTarget[r];
+        if (t >= 0) { flow[t] += flow[r]; }
+    }
+    for (let r = 0; r < N; r++) { flow[r] *= flowScale; }
+    return flow;
 }
 
 /**
@@ -954,5 +1041,45 @@ export function applySoilCreep(mesh, r_elevation, r_isOcean, iterations, strengt
             tmp[r] = h + (avg - h) * strength;
         }
         for (let li = 0; li < ilCount; li++) r_elevation[interiorLand[li]] = tmp[interiorLand[li]];
+    }
+}
+
+/**
+ * Isostatic rebound: erosion unloads the crust, which flexes back up. The
+ * erosion-only delta (snapshotted around erodeComposite by the caller — the
+ * cumulative dl_erosionDelta also contains smoothing/detail noise and is NOT
+ * usable here) is spread over a flexural radius and a fraction added back,
+ * so eroded orogens keep broad relief instead of melting away.
+ */
+export function applyIsostaticRebound(mesh, r_elevation, r_isOcean, preErosion, strength) {
+    if (strength <= 0) return;
+    const N = mesh.numRegions;
+    const { adjOffset, adjList } = mesh;
+    const avgEdgeKm = (Math.PI * 6371) / Math.sqrt(N);
+    const passes = Math.max(1, Math.round(REBOUND_FLEX_KM / avgEdgeKm));
+
+    let src = new Float32Array(N);
+    for (let r = 0; r < N; r++) {
+        if (!r_isOcean[r]) {
+            const d = preErosion[r] - r_elevation[r];
+            if (d > 0) src[r] = d;
+        }
+    }
+    // Diffusion crosses coastlines (flexure does) but uplift applies to land only
+    let dst = new Float32Array(N);
+    for (let p = 0; p < passes; p++) {
+        for (let r = 0; r < N; r++) {
+            let sum = src[r], cnt = 1;
+            for (let j = adjOffset[r], jEnd = adjOffset[r + 1]; j < jEnd; j++) {
+                sum += src[adjList[j]];
+                cnt++;
+            }
+            dst[r] = sum / cnt;
+        }
+        const tmp = src; src = dst; dst = tmp;
+    }
+    const k = strength * REBOUND_RESTORE_FRAC;
+    for (let r = 0; r < N; r++) {
+        if (!r_isOcean[r]) r_elevation[r] += k * src[r];
     }
 }

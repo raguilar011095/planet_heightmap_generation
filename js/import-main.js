@@ -279,6 +279,7 @@ const CLIMATE_LAYERS = new Set([
     'precipSummer', 'precipWinter',
     'rainShadowSummer', 'rainShadowWinter',
     'tempSummer', 'tempWinter',
+    'cloudSummer', 'cloudWinter',
     'koppen', 'biome', 'continentality'
 ]);
 
@@ -471,6 +472,9 @@ function updateLegend(layer) {
     } else if (layer === 'landheightmap') {
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
             `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;
+    } else if (layer === 'cloudSummer' || layer === 'cloudWinter') {
+        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,rgb(64,77,97) 0%,rgb(247,250,250) 100%)"></div>` +
+            `<div class="legend-labels"><span>Clear</span><span>Overcast</span></div>`;
     } else {
         vizLegend.innerHTML = '';
     }

@@ -4,8 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>World Orogen — Procedural Planet Generator</title>
-    <meta name="description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
-    <meta name="keywords" content="procedural planet generator, world generator, heightmap generator, tectonic simulation, worldbuilding tool, fantasy map maker, terrain generator, planet builder, procedural generation, Three.js, tabletop RPG map, D&D world map, game dev heightmap">
+    <meta name="description" content="Generate realistic procedural planets with tectonic plates, erosion, rivers, volcanic islands, and dual climate classification (Koppen and Trewartha) with cloud cover — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta name="keywords" content="procedural planet generator, world generator, heightmap generator, tectonic simulation, worldbuilding tool, fantasy map maker, terrain generator, planet builder, procedural generation, Three.js, tabletop RPG map, D&D world map, game dev heightmap, river generator, Trewartha climate classification">
     <meta name="author" content="World Orogen">
     <meta name="theme-color" content="#0a0e17">
     <link rel="canonical" href="https://orogen.studio/">
@@ -14,7 +14,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://orogen.studio/">
     <meta property="og:title" content="World Orogen — Procedural Planet Generator">
-    <meta property="og:description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta property="og:description" content="Generate realistic procedural planets with tectonic plates, erosion, rivers, volcanic islands, and dual climate classification (Koppen and Trewartha) with cloud cover — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
     <meta property="og:image" content="https://orogen.studio/preview.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
@@ -23,7 +23,7 @@
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:title" content="World Orogen — Procedural Planet Generator">
-    <meta name="twitter:description" content="Generate realistic procedural planets with tectonic plates, erosion, climate simulation, and volcanic islands — free, in your browser.">
+    <meta name="twitter:description" content="Generate realistic procedural planets with tectonic plates, erosion, rivers, volcanic islands, and climate simulation (Koppen and Trewartha) with cloud cover — free, in your browser.">
     <meta name="twitter:image" content="https://orogen.studio/preview.png">
 
     <!-- Structured Data -->
@@ -50,8 +50,14 @@
             "Interactive plate editing",
             "Equirectangular heightmap import with automatic climate simulation",
             "Equirectangular map export up to 65536px",
-            "Multiple visualization modes (terrain, satellite, climate, heightmap)",
-            "Shareable planet codes"
+            "Multiple visualization modes (terrain, satellite biome, Köppen climate, Trewartha climate, heightmap)",
+            "Shareable planet codes",
+            "River networks from simulated drainage",
+            "Trewartha climate classification",
+            "Cloud-cover visualization",
+            "Wind-coupled ocean currents",
+            "Sediment deposition and river deltas",
+            "Adjustable hotspot volcanism"
         ],
         "screenshot": "https://orogen.studio/preview.png",
         "softwareVersion": "1.0",
@@ -129,10 +135,16 @@
             <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
             <li>Interactive plate editing — select multiple plates for batch land/ocean toggling with visual preview before rebuild</li>
             <li>Heightmap import — bring your own equirectangular B&amp;W heightmap (Earth, Mars, hand-drawn) and run full climate simulation on it</li>
-            <li>Multiple visualization modes: terrain, satellite biome, climate, and heightmap</li>
+            <li>Multiple visualization modes: terrain, satellite biome, K&ouml;ppen climate, Trewartha climate, and heightmap</li>
             <li>26 detailed inspection layers for geology, atmosphere, ocean, and climate</li>
             <li>High-resolution equirectangular map export up to 65,536px wide</li>
             <li>Shareable planet codes — copy a code to share your exact planet with others</li>
+            <li>River networks extracted from the simulated drainage graph, rendered on both the globe and map</li>
+            <li>Trewartha climate classification alongside K&ouml;ppen</li>
+            <li>Cloud cover visualization layers (summer/winter)</li>
+            <li>Wind-coupled ocean currents that deflect around embayments and reverse on monsoon coasts</li>
+            <li>Capacity-limited sediment transport with river deltas</li>
+            <li>Adjustable hotspot volcanism (0&ndash;12 mantle hotspots)</li>
         </ul>
         <h2>Use Cases</h2>
         <p>World Orogen is used by worldbuilders, game developers, tabletop RPG players, fantasy authors, and anyone who needs realistic terrain. Export heightmaps for use in game engines like Unity or Unreal, or download satellite-style maps for your D&amp;D campaign setting. The climate simulation produces realistic biome distributions for believable fantasy worlds.</p>
@@ -195,6 +207,11 @@
                     <div class="slider-hint"><span>Equal</span><span>Varied</span></div>
                 </div>
                 <div class="cg">
+                    <label>Hotspots <span class="tip" data-tip="Number of mantle hotspots — each spawns a volcanic island chain or continental volcanic field">?</span> <span class="v" id="vHs">5</span></label>
+                    <input type="range" id="sHs" min="0" max="12" value="5" step="1">
+                    <div class="slider-hint"><span>None</span><span>Volcanic World</span></div>
+                </div>
+                <div class="cg">
                     <label>Land Coverage <span class="tip" data-tip="Percentage of the planet covered by land — low values create ocean worlds, high values create desert worlds with reduced precipitation">?</span> <span class="v" id="vLc">30%</span></label>
                     <input type="range" id="sLc" min="0" max="1" value="0.3" step="0.01">
                     <div class="slider-hint"><span>Ocean World</span><span>Desert World</span></div>
@@ -241,6 +258,16 @@
                     <input type="range" id="sRs" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Jagged</span></div>
                 </div>
+                <div class="cg">
+                    <label>Deposition <span class="tip" data-tip="Where eroded sediment settles — low exports it to the sea for sharp canyons, high builds floodplains and river deltas">?</span> <span class="v" id="vDp">0.50</span></label>
+                    <input type="range" id="sDp" min="0" max="1" value="0.5" step="0.05">
+                    <div class="slider-hint"><span>Canyons</span><span>Deltas</span></div>
+                </div>
+                <div class="cg">
+                    <label>Rebound <span class="tip" data-tip="Isostatic rebound — the crust flexes back up where erosion removes weight, letting old mountain ranges keep broad relief">?</span> <span class="v" id="vRb">0.35</span></label>
+                    <input type="range" id="sRb" min="0" max="1" value="0.35" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Strong</span></div>
+                </div>
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
@@ -278,6 +305,7 @@
                     <button class="map-tab active" data-layer="">Terrain</button>
                     <button class="map-tab" data-layer="biome">Satellite</button>
                     <button class="map-tab" data-layer="koppen">Climate</button>
+                    <button class="map-tab" data-layer="trewartha">Trewartha</button>
                     <button class="map-tab" data-layer="landheightmap">Heightmap</button>
                 </div>
                 <div class="cg">
@@ -286,6 +314,7 @@
                         <option value="">Terrain</option>
                         <option value="biome">Satellite</option>
                         <option value="koppen">K&ouml;ppen Climate</option>
+                        <option value="trewartha">Trewartha Climate</option>
                         <option value="landheightmap">Land Heightmap</option>
                         <optgroup label="Geology">
                             <option value="base">Base</option>
@@ -322,6 +351,8 @@
                             <option value="pressureWinter">Pressure (Winter)</option>
                             <option value="windSpeedSummer">Wind Speed (Summer)</option>
                             <option value="windSpeedWinter">Wind Speed (Winter)</option>
+                            <option value="cloudSummer">Cloud Cover (Summer)</option>
+                            <option value="cloudWinter">Cloud Cover (Winter)</option>
                         </optgroup>
                         <optgroup label="Ocean">
                             <option value="oceanCurrentSummer">Currents (Summer)</option>
@@ -345,6 +376,7 @@
                 <div id="vizLegend" class="viz-legend"></div>
                 <div class="tg">
                     <label class="toggle-label"><input type="checkbox" id="chkWire"><span class="toggle-track"><span class="toggle-thumb"></span></span>Wireframe</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkRivers" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers</label>
                     <label class="toggle-label"><input type="checkbox" id="chkPlates"><span class="toggle-track"><span class="toggle-thumb"></span></span>Show Plates</label>
                     <label class="toggle-label"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
                     <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
@@ -376,6 +408,7 @@
         <option value="">Terrain</option>
         <option value="biome">Satellite</option>
         <option value="koppen">Climate</option>
+        <option value="trewartha">Trewartha</option>
         <option value="landheightmap">Heightmap</option>
     </select>
     <button id="helpBtn" title="Tutorial">?</button>
@@ -390,7 +423,7 @@
             </div>
             <div class="tutorial-step" data-step="1">
                 <h3>Shape Your World</h3>
-                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, roughness, and hotspot volcanism, then hit <strong>Build New World</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion, sediment deposition, isostatic rebound, and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
@@ -398,7 +431,7 @@
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, and <strong>Heightmap</strong> views using the tabs under Visual Options. Use the <strong>Inspect</strong> dropdown for detailed layers like pressure, wind, and precipitation.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Trewartha</strong>, and <strong>Heightmap</strong> views using the tabs under Visual Options. Use the <strong>Inspect</strong> dropdown for detailed layers like pressure, wind, cloud cover, and precipitation. Toggle <strong>Rivers</strong> to show or hide drainage networks on the globe and map.</p>
                 <p>At high detail, climate is skipped automatically for faster generation &mdash; it computes on demand when you switch to a climate view.</p>
             </div>
             <div class="tutorial-step" data-step="4">
@@ -496,11 +529,23 @@
                     <li><strong>Better terrain at every detail level</strong> &mdash; Mountains, erosion, and coastlines now scale consistently whether you're at 5K or 2.5M regions.</li>
                 </ul>
             </div>
+            <div class="whatsnew-step" data-step="4">
+                <h3>Rivers, Trewartha Climate &amp; Deeper Geology</h3>
+                <ul class="whatsnew-list">
+                    <li><strong>Rivers</strong> &mdash; drainage networks now flow across the globe and map, colored by flow volume and fed by simulated precipitation. Toggle them off any time.</li>
+                    <li><strong>Trewartha classification</strong> &mdash; a second climate scheme alongside K&ouml;ppen, available as its own map tab and Inspect layer.</li>
+                    <li><strong>Cloud cover layers</strong> &mdash; new Inspect options show summer and winter cloud fraction derived from precipitation.</li>
+                    <li><strong>Deposition, Rebound &amp; Hotspots sliders</strong> &mdash; tune where sediment settles, how much eroded mountains rebound, and how many mantle hotspots dot the planet.</li>
+                    <li><strong>Wind-coupled ocean currents</strong> &mdash; currents now bend with the actual simulated wind field, deflecting around embayments and reversing on monsoon coasts.</li>
+                    <li><strong>Geology upgrades</strong> &mdash; lithology-driven erodibility, ridge-age seafloor bathymetry, and textured transform faults make terrain and ocean floors more convincing.</li>
+                </ul>
+            </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
                 <span class="dot" data-dot="1"></span>
                 <span class="dot" data-dot="2"></span>
                 <span class="dot" data-dot="3"></span>
+                <span class="dot" data-dot="4"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="whatsNewBack" class="btn-ghost" disabled>Back</button>

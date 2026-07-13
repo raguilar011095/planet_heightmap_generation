@@ -22,7 +22,13 @@ export const STRESS_DIR_FACTOR_BASE = 0.3;
 export const STRESS_DIR_FACTOR_SCALE = 0.7;
 export const STRESS_DIR_BLEND_PARENT = 0.8;
 export const STRESS_DIR_BLEND_TRAVEL = 0.2;
-export const STRESS_DIR_SMOOTH_PASSES = 2;
+// Scale-invariant smoothing targets (SP2). Physical distances chosen so the
+// default Detail (~204K regions, avgEdgeKm ≈ 44.3 km) reproduces the previous
+// fixed pass counts exactly — in declaration order below: stress-dir 2,
+// plate-smooth 3, soil-creep 3 (round(88/44.3)=2, round(133/44.3)=3, round(133/44.3)=3).
+export const STRESS_DIR_SMOOTH_KM = 88;
+export const PLATE_SMOOTH_HIRES_KM = 133;
+export const SOIL_CREEP_KM = 133;
 export const STRESS_DIR_SELF_WEIGHT = 2;
 
 export const STRESS_DECAY_BASE = 0.5;
@@ -280,14 +286,32 @@ export const ABYSS_BASE = -0.35;
 export const ABYSS_NOISE_AMP = 0.03;
 export const OCEAN_FLOOR_CLAMP = -0.005;
 
+// ── Ridge-age bathymetry (half-space cooling) ──
+// Sea floor deepens ∝ √age away from spreading ridges, flattening past the
+// saturation distance (~80 Myr analog). MEAN_FRAC centers the term so mean
+// abyssal depth is preserved (young floor rises, old floor sinks). 0 = off.
+export const RIDGE_AGE_DEPTH_SCALE = 0.10;
+export const RIDGE_AGE_SATURATION_KM = 5000;
+export const RIDGE_AGE_MEAN_FRAC = 0.75;
+
 // ── Mid-Ocean Features ──
 export const RIDGE_HALF_WIDTH_BASE = 4;
 export const RIDGE_UPLIFT_NOISE = 0.12;
 export const RIDGE_UPLIFT_BASE = 0.06;
 export const FRACTURE_HALF_WIDTH_BASE = 3;
 export const FRACTURE_DEPTH = 0.03;
+// Transform-fault texture offset: noise-sampling coordinates shift
+// tangentially (along plate motion) by ± this many km across the fault,
+// juxtaposing mismatched abyssal texture — a stylized visual cue, not
+// physical displacement. 0 = off.
+export const TRANSFORM_OFFSET_KM = 60;
 export const TRENCH_BASE_DEPTH = 0.20;
 export const TRENCH_STRESS_DEPTH = 0.20;
+// Trench spatial profile: half-width band (hops × scaleFactor, like the
+// sibling bands) with an outer-rise bulge beyond the axis taper.
+export const TRENCH_HALF_WIDTH_BASE = 2.5;
+export const TRENCH_OUTER_RISE_EXTENT = 2.5;   // × half-width
+export const TRENCH_OUTER_RISE_HEIGHT = 0.02;
 
 // ── Coastal Roughening ──
 export const COAST_ROUGHEN_BASE = 8;
@@ -464,12 +488,46 @@ export const GLACIAL_MID_FLOOD_FRAC = 0.75;
 export const GLACIAL_MID_FLOOD_CARVE = 0.85;
 export const GLACIAL_INITIAL_CARVE = 0.5;
 
-// ── Hydraulic Erosion (terrain-post.js) ──
-export const HYDRAULIC_DEPOSIT_FRAC = 0.5;
-export const HYDRAULIC_SLOPE_SENSITIVITY = 50;
+// ── Sediment transport (replaces the flat immediate-deposit fraction) ──
+// Eroded material rides the drainage graph with a stream-power carrying
+// capacity; excess settles where slopes flatten (floodplains) and at ocean
+// mouths (deltas). The Deposition slider spans sharp-canyon (0, all sediment
+// exported) to floodplain/delta (1). DEFAULT is calibrated so the shipped
+// look sits near the pre-SP5 flat-fraction behavior.
+export const DEPOSITION_DEFAULT = 0.5;
+export const SEDIMENT_CAPACITY_K = 0.002;
+export const SEDIMENT_SETTLE_BASE = 0.25;
+export const SEDIMENT_SETTLE_RANGE = 0.55;
+export const SEDIMENT_SINK_SETTLE = 0.5;
+export const SEDIMENT_DELTA_FRAC = 0.6;
+export const SEDIMENT_DELTA_CAP = -0.01;
+
+// Reference region count for flow-accumulation normalization (SP2).
+// flow[] and iceFlow[] are raw upstream-cell counts, which scale ∝ numRegions
+// for a fixed physical catchment; multiplying by (REF / N) converts them to a
+// physical-area-proportional quantity that is a no-op at the default Detail.
+// 204000 = detailFromSlider(600), the default Detail slider position.
+export const EROSION_REF_REGIONS = 204000;
 
 // ── Thermal Erosion (terrain-post.js) ──
 export const THERMAL_TRANSFER_FRAC = 0.5;
+
+// ── Lithology-driven erosion (terrain-post.js) ──
+// Per-cell erodibility from the classifier's craton/basin weights: cratons
+// resist erosion, basins erode fast. 0 strength = exactly today's behavior.
+export const LITHO_EROSION_STRENGTH = 1.0;
+export const LITHO_CRATON_RESIST = 0.6;
+export const LITHO_BASIN_SOFTEN = 0.35;
+export const LITHO_HARDNESS_MIN = 0.55;
+export const LITHO_HARDNESS_MAX = 2.2;
+
+// ── Isostatic rebound ──
+// Fraction of flexural response restored at slider=1; ~0.8 ≈ crust/mantle
+// density ratio. REBOUND_FLEX_KM is the smoothing radius approximating
+// flexural spreading of the unloading response.
+export const REBOUND_DEFAULT = 0.35;
+export const REBOUND_RESTORE_FRAC = 0.8;
+export const REBOUND_FLEX_KM = 200;
 
 // ── Ridge Sharpening (terrain-post.js) ──
 export const RIDGE_SHARPEN_CAP = 2.0;
@@ -480,6 +538,17 @@ export const VALLEY_FLOOR_MIN = 0.001;
 // ── Priority Flood (terrain-post.js) ──
 export const FLOOD_NOISE_AMP = 0.01;
 export const FLOOD_CARVE_RADIUS_FRAC = 0.3;
+
+// ── Rivers (view-layer; extracted after all post-processing) ──
+// Weight floor keeps rivers alive across deserts (exotic rivers like the Nile)
+// once flow is precipitation-weighted.
+export const RIVER_PRECIP_WEIGHT_FLOOR = 0.15;
+// Minimum drainage area to draw, in reference-resolution cell units
+// (≈ 630 km² per unit at the 204K default; flow is flowScale-normalized
+// so this reads as the same physical catchment at every Detail).
+export const RIVER_FLOW_MIN = 40;
+// log10 decades of flow over which the color ramp saturates
+export const RIVER_RAMP_DECADES = 2.5;
 
 // ── Plate Generation ──
 export const PLATE_LOW_PLATE_T_HIGH = 80;

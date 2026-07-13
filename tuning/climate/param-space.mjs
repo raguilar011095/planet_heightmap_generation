@@ -117,6 +117,11 @@ export const PARAM_SPACE = {
     HEUR_CONT_DRYNESS:                { min: 0.4,  max: 0.85, high: true },
     HEUR_ORO_UPLIFT_MAX:              { min: 0.3,  max: 1.2 },
     HEUR_ORO_SHADOW_MAX:              { min: 0.4,  max: 0.9 },
+
+    // ── Ocean: wind-driven surface currents ──
+    OCEAN_WIND_COUPLING:              { min: 0,    max: 1,    high: true },
+    OCEAN_EKMAN_DEG:                  { min: 15,   max: 60 },
+    OCEAN_WIND_GAIN:                  { min: 0.5,  max: 3 },
 };
 
 // Ordering constraints the optimizer must maintain: [lowerKey, upperKey, minGap]
