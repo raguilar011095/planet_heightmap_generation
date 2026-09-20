@@ -4,6 +4,10 @@ Status: design. No code yet.
 Location: `tectonics/` — a parallel project in this repo. World Orogen v1 keeps running
 unchanged at the repo root and keeps its own design tenets.
 
+This document covers *what* is simulated. Its companion **`ARCHITECTURE.md`** covers *how the
+code is organised* — the pass contract, field registry, dependency rules, debugging
+affordances and testing. The two are equally binding.
+
 ---
 
 ## 0. Premise, and how it differs from v1
@@ -47,9 +51,14 @@ artistic → usability → plausibility. That is correct for v1's instant-genera
 1. **Physical self-consistency** — prefer one mechanism that produces many landforms over
    many rules that each produce one. If a feature needs a special case, treat that as a bug
    in the model first.
-2. **Legibility** — the user must be able to see *why* the world came out this way. The
-   history is the product as much as the heightmap is.
-3. **Artistic appeal** — still matters, but earned through the simulation rather than applied
+2. **Component isolation** — every simulation behaviour is an independently understandable,
+   testable, toggleable unit. If you cannot disable a component and see exactly what it
+   contributed, the architecture has failed regardless of how good the output looks. This is
+   a hard structural requirement; see `ARCHITECTURE.md`.
+3. **Legibility** — the user must be able to see *why* the world came out this way. The
+   history is the product as much as the heightmap is. Note that (2) is the developer-facing
+   form of the same principle: the tool explains its output, and the code explains itself.
+4. **Artistic appeal** — still matters, but earned through the simulation rather than applied
    on top of it. Detail noise and stylisation are a final render layer, never load-bearing.
 
 Shared with v1, non-negotiable: runs in a browser, no install, no account, no server, globe-first,
@@ -371,6 +380,10 @@ discipline from the root `CLAUDE.md`.
 Each phase must be independently validatable. Do not start the next until the current one's
 debug view looks right.
 
+- **P−1 — Harness.** Pass contract, field registry, scheduler, dev-mode access guard,
+  dependency checker, test runner. Validated end to end by one trivial pass. See
+  `ARCHITECTURE.md` §8 — this is built *before* any tectonics, because retrofitting it is
+  precisely how v1 ended up with stage labels and no stage boundaries.
 - **P0 — Crust + isostasy, no motion.** Particle field, Airy elevation, oceanic age→depth.
   Static world, correct hypsometry. Proves §4.1–4.2.
 - **P1 — Motion.** Advection, re-tessellation, boundary classification, divergent gap-filling.
@@ -402,6 +415,9 @@ debug view looks right.
    v1's noise-driven output. Mitigation is a final detail pass (`terrain-post.js`) that is
    explicitly cosmetic and never load-bearing. Judge by eye and by `tuning/` metrics.
 5. **Mobile runtime** — measure on a real phone at P1, not at P7.
+6. **Harness over-engineering** — the pass framework must stay thin enough to read in one
+   sitting, and its dev-mode guard must stay out of the hot loop or it will eat the runtime
+   budget in §1. Costs and mitigations in `ARCHITECTURE.md` §7.
 
 ---
 
