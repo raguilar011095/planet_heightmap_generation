@@ -20,6 +20,8 @@ export function createWorld({ cellCount, xyz = null, seed = 1, fields = listFiel
     fields: store,
     diag: Object.create(null),        // "passId.name" → array, written via ctx.diag
     clock: { stepIndex: 0, timeMa: 0 },
+    plates: [],                        // see state/plates.js
+    counters: { terrane: 0 },          // next free ids for non-cell objects
   };
 }
 

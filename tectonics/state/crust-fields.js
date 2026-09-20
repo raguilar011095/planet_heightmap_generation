@@ -17,7 +17,7 @@ export function defineCrustFields() {
   defineField('crust.type', { type: Uint8Array, unit: '', range: [0, 2],
     doc: 'CRUST.NONE (transient during scatter), CRUST.OCEANIC or CRUST.CONTINENTAL.' });
 
-  defineField('crust.thickness', { type: Float32Array, unit: 'km', range: [0, 120],
+  defineField('crust.thickness', { type: Float32Array, unit: 'km', range: [0, 160],
     doc: 'Crustal column thickness. The conserved mass quantity: cell area is fixed, so mass = thickness × area.' });
 
   defineField('crust.ageMa', { type: Float32Array, unit: 'Myr', range: [0, 5000],
@@ -31,4 +31,12 @@ export function defineCrustFields() {
 
   defineField('crust.sediment', { type: Float32Array, unit: 'km', range: [0, 30],
     doc: 'Deposited material: passive-margin wedges and foreland fill.' });
+
+  // The crust in a cell is a particle with an exact position; the cell is only where it
+  // is stored. Rotating the exact position each substep means transport accumulates no
+  // rounding error, whatever the lattice does (see passes/motion/advect.js).
+  for (const [axis, doc] of [['X', 'x'], ['Y', 'y'], ['Z', 'z']]) {
+    defineField(`crust.pos${axis}`, { type: Float32Array, unit: '', range: [-1.001, 1.001],
+      doc: `Unit-sphere ${doc} of the exact position of this cell's crust particle (within ~1 spacing of the cell centre).` });
+  }
 }

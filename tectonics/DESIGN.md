@@ -165,9 +165,24 @@ Then classify every destination cell by how many sources landed on it:
 Transform boundaries produce neither gaps nor overlaps along strike and need no mass
 handling; they are detected from relative velocity for the boundary map only.
 
-This is platec's algorithm on a sphere. A full pass over 80k cells is ~1–3 ms in plain JS;
-200 substeps ≈ **under a second** of advection for the whole history. The runtime budget
-(§8) is spent on elevation, erosion and rendering, not on moving plates.
+This is platec's algorithm on a sphere, with one addition learned the hard way in P1:
+
+**Cells store crust particles with exact positions.** Nearest-cell rounding on the Fibonacci
+spiral is *systematically biased* for rotations near the spiral's axis — a 10° step maps
+almost every cell to spiral index +76, one z-row over, which drifts crust ~0.5 cell
+poleward per step and strands the matching gaps in the other hemisphere. No pairing scheme
+can fix that locally. So each cell carries the exact unit-vector position of its crust
+(`crust.posX/Y/Z`); the rotation is applied to that, and the grid cell is only *where the
+particle is stored*, always within about a spacing. Transport accumulates no error. Initial
+positions are jittered within their cells so the particle cloud never aligns with the grid
+and rounding defects pair locally (a rigid 90° rotation now lands within 0.2°). Same-plate
+duplicate/gap pairs are re-paired within a few cells; a duplicate at a trench with no gap
+behind it is shortening, never teleported to the plate's ridge.
+
+Measured cost at 80k cells: ~130 ms per substep for advection (nearest-cell lookup, pairing,
+gap fill), ~60 ms for the orogeny and surface passes — about **40 s per Gyr**, above the §8
+target. Optimisation is deferred until the policy exists; the per-section timers in
+`motion.advect` show where it goes.
 
 ### 3.1 Convergence resolution
 
@@ -182,6 +197,16 @@ Applied per overlapping cell, in this order:
 
 Craton handling is a hard rule rather than a rheology. Revision 2 claimed routing-around
 would emerge from a `strength` field that nothing used; this is the honest replacement.
+
+Three consequences found in P1, all now built in: **plate boundaries go around cratons**
+(each craton is kept whole on one plate, then the partition is majority-smoothed so no
+one-cell sliver is convergent on every side); **belts widen until no cell takes more than a
+bounded amount per substep**, because crust that cannot be stacked spreads — which is *why*
+fast collisions make wide belts; and **crustal flow ignores plate labels** between continental
+cells in contact, since a suture zone is exactly where two plates' crust must exchange.
+Craton margins accept a bounded thrust load (to ~48 km) through flow only, never through
+belts; crust above ~85 km delaminates (`orogeny.delaminate`), and the removed mass is
+reported so the books stay honest.
 
 ---
 

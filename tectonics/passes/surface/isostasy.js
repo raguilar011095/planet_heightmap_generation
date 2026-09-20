@@ -4,11 +4,13 @@
 //
 // Formulation: each cell's crust-plus-sediment above a reference column is a
 // load. The mantle deflection under that load is the load's mantle-equivalent
-// height spread by a Gaussian of width α, the flexural parameter for the given
-// elastic thickness; elevation = column height − deflection. With Te = 0 the
-// kernel collapses to a delta and this is exactly Airy. A Gaussian is used in
-// place of the true Kelvin-function kernel: it keeps the adjacent basin, which is
-// the feature that matters, and drops only the second-order forebulge.
+// height spread by a Gaussian of width σ = α/2, where α is the flexural
+// parameter for the elastic thickness; elevation = column height − deflection.
+// With Te = 0 the kernel collapses to a delta and this is exactly Airy. A
+// Gaussian stands in for the Kelvin-function kernel; σ = α/2 reproduces the
+// elastic disc-load response (≈49% of Airy deflection under a disc of radius
+// α/2, ≈90% at radius α). It keeps the adjacent basin and drops only the
+// second-order forebulge.
 //
 // Coupling is restricted to cells of the same crust type. Continental and oceanic
 // columns are separate reference states, each in local balance; averaging a
@@ -51,7 +53,8 @@ export default definePass({
     refOceanicKm:       { value: 7,    range: [5, 10],      unit: 'km',    doc: 'Oceanic thickness carrying no isostatic anomaly.' },
     refElevationM:      { value: 100,  range: [-500, 1000], unit: 'm',     doc: 'Elevation of a refContinentalKm continental column.' },
     elasticThicknessKm: { value: 35,   range: [0, 80],      unit: 'km',    doc: 'Effective elastic thickness Te. 0 = pure Airy (local compensation). α(35 km) ≈ 76 km, about one cell at 80k cells.' },
-    kernelCutoffSigma:  { value: 3,    range: [1, 5],       unit: 'σ',     doc: 'Truncate the flexural kernel at this many α.' },
+    sigmaOverAlpha:     { value: 0.5,  range: [0.3, 1.2],   unit: '',      doc: 'Gaussian width as a fraction of the flexural parameter α. 0.5 matches the elastic disc-load response.' },
+    kernelCutoffSigma:  { value: 3,    range: [1, 5],       unit: 'σ',     doc: 'Truncate the flexural kernel at this many σ.' },
   },
   run(world, p, ctx) {
     const n = world.cellCount;
@@ -69,23 +72,30 @@ export default definePass({
       load[i] = ((cont ? p.rhoContinental : p.rhoOceanic) * h + p.rhoSediment * s) / p.rhoMantle;
     }
 
-    // Deflection: Airy (delta) or Gaussian-spread with σ = α.
+    // Deflection: Airy (delta) or Gaussian-spread with σ = α/2.
     const alphaKm = flexuralParameterKm(p.elasticThicknessKm, p.rhoMantle);
     const w = new Float32Array(n);
     if (alphaKm <= 0) {
       w.set(load);
     } else {
-      const sigma = alphaKm / EARTH_RADIUS_KM;
+      const sigma = p.sigmaOverAlpha * alphaKm / EARTH_RADIUS_KM;
       const nb = radiusNeighbors(world, p.kernelCutoffSigma * sigma);
-      const inv2s2 = 1 / (2 * sigma * sigma);
+      // Kernel weights depend only on the (fixed) grid and σ: compute once, cache on the neighbourhood.
+      const key = `gauss:${sigma}`;
+      let kw = (nb.kernels ??= new Map()).get(key);
+      if (!kw) {
+        kw = new Float32Array(nb.dist.length);
+        const inv2s2 = 1 / (2 * sigma * sigma);
+        for (let k = 0; k < kw.length; k++) kw[k] = Math.exp(-nb.dist[k] * nb.dist[k] * inv2s2);
+        nb.kernels.set(key, kw);
+      }
       for (let i = 0; i < n; i++) {
         const ti = type[i];
         let num = 0, den = 0;
         for (let k = nb.offset[i], ke = nb.offset[i + 1]; k < ke; k++) {
           const j = nb.idx[k];
           if (type[j] !== ti) continue;                       // same-type coupling only
-          const d = nb.dist[k], kv = Math.exp(-d * d * inv2s2);
-          num += kv * load[j]; den += kv;
+          num += kw[k] * load[j]; den += kw[k];
         }
         w[i] = den > 0 ? num / den : load[i];
       }
@@ -95,6 +105,6 @@ export default definePass({
       elevation[i] = height[i] - w[i] + (type[i] === CRUST.CONTINENTAL ? p.refElevationM : 0);
     }
     ctx.diag('deflectionM', w);
-    ctx.diag('flexuralAlphaKm', new Float32Array([alphaKm]));
+    ctx.diag('flexuralAlphaKm', new Float32Array([alphaKm, p.sigmaOverAlpha * alphaKm]));
   },
 });

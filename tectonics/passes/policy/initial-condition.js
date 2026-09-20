@@ -30,12 +30,14 @@ export default definePass({
         placed beyond the continental edge. The blog's supercontinent-plus-cratons opening
         position, rolled from the seed instead of drawn.`,
   writes: ['crust.type', 'crust.thickness', 'crust.ageMa', 'crust.isCraton',
-           'crust.terraneId', 'crust.orogenAge', 'crust.sediment'],
+           'crust.terraneId', 'crust.orogenAge', 'crust.sediment',
+           'crust.posX', 'crust.posY', 'crust.posZ'],
   params: {
     landFraction:          { value: 0.25, range: [0.10, 0.45], unit: '',    doc: 'Fraction of the sphere that is continental. Above ~0.4 continents cannot manoeuvre; above 0.5 tectonics locks up.' },
     coastNoiseAmp:         { value: 0.30, range: [0, 0.8],     unit: 'rad', doc: 'Amplitude of the angular warp applied to the supercontinent outline.' },
     cratonCount:           { value: 10,   range: [4, 16],      unit: '',    doc: 'Number of cratons to place inside the supercontinent (the blog uses 8-12).' },
-    cratonRadiusDeg:       { value: 8,    range: [4, 20],      unit: '°',   doc: 'Nominal angular semi-minor radius of a craton before elongation and outline noise.' },
+    cratonRadiusDeg:       { value: 7,    range: [4, 20],      unit: '°',   doc: 'Nominal angular semi-minor radius of a craton before elongation and outline noise.' },
+    cratonSeparation:      { value: 3.0,  range: [2, 5],       unit: 'radii', doc: 'Minimum centre spacing between cratons in units of cratonRadius; leaves mobile-belt corridors between them.' },
     cratonAspectMax:       { value: 1.9,  range: [1, 3],       unit: '',    doc: 'Cratons are elongated along a random axis by an aspect ratio in [1, this].' },
     cratonThicknessKm:     { value: 39,   range: [35, 50],     unit: 'km',  doc: 'Crustal thickness of craton cells (~770 m at the default reference).' },
     continentThicknessKm:  { value: 37.5, range: [28, 42],     unit: 'km',  doc: 'Crustal thickness of non-craton continental interior before noise (~500 m).' },
@@ -48,6 +50,7 @@ export default definePass({
     ridgeMaxOffsetDeg:     { value: 18,   range: [0, 45],      unit: '°',   doc: 'Extra ridges tilt at most this far; small values keep ridges far from the continent so margin ocean is old.' },
     halfSpreadCmPerYr:     { value: 3,    range: [1, 8],       unit: 'cm/yr', doc: 'Half spreading rate used to convert distance-from-ridge into crust age.' },
     maxOceanAgeMa:         { value: 180,  range: [60, 300],    unit: 'Myr', doc: 'Oldest ocean floor in the initial condition; older floor would have subducted.' },
+    positionJitterCells:   { value: 0.45, range: [0, 0.5],     unit: 'cells', doc: 'Crust particles start offset from their cell centres by up to this much, so the particle cloud never aligns with the grid and rounding defects stay local instead of piling up at the poles.' },
   },
   run(world, p, ctx) {
     const n = world.cellCount, xyz = world.grid.xyz;
@@ -74,7 +77,7 @@ export default definePass({
 
     // 2. Cratons: rejection-sample centres from the continental interior, well separated.
     const count = Math.round(p.cratonCount);
-    const radius = p.cratonRadiusDeg * DEG, minSep = 2.2 * radius;
+    const radius = p.cratonRadiusDeg * DEG, minSep = p.cratonSeparation * radius;
     const centres = [];
     const cratonNoise = makeSphereNoise({ seed, tag: 3, baseFreq: 3, octaves: 3 });
     for (let t = 0, id = 2; centres.length < count && t < count * 60; t++, id += 3) {
@@ -141,6 +144,21 @@ export default definePass({
       thickness[i] = p.oceanThicknessKm;
       ageMa[i] = Math.min(p.maxOceanAgeMa, dist * EARTH_RADIUS_KM / kmPerMyr);
       isCraton[i] = 0; terraneId[i] = -1; orogenAge[i] = 3000; sediment[i] = 0;
+    }
+    // 5. Exact particle positions: cell centres jittered within the cell.
+    const posX = ctx.write('crust.posX'), posY = ctx.write('crust.posY'), posZ = ctx.write('crust.posZ');
+    const jr = p.positionJitterCells * world.grid.spacingRad;
+    for (let i = 0; i < n; i++) {
+      let x = xyz[3 * i], y = xyz[3 * i + 1], z = xyz[3 * i + 2];
+      if (jr > 0) {
+        const r = jr * Math.sqrt(ctx.rand(i, 7)), th = ctx.rand(i, 8) * 2 * Math.PI;
+        let ax = -y, ay = x, az = 0; const al = Math.hypot(ax, ay) || 1; ax /= al; ay /= al;
+        if (al < 1e-6) { ax = 1; ay = 0; }
+        const bx = y * az - z * ay, by = z * ax - x * az, bz = x * ay - y * ax;
+        x += r * (Math.cos(th) * ax + Math.sin(th) * bx); y += r * (Math.cos(th) * ay + Math.sin(th) * by); z += r * (Math.cos(th) * az + Math.sin(th) * bz);
+        const l = Math.hypot(x, y, z); x /= l; y /= l; z /= l;
+      }
+      posX[i] = x; posY[i] = y; posZ[i] = z;
     }
     ctx.diag('supercontinentScore', score);
   },

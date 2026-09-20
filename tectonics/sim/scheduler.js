@@ -126,6 +126,18 @@ export class Scheduler {
 
   run(n) { for (let i = 0; i < n; i++) this.step(); return this; }
 
+  // Run the named passes now, ignoring schedule and enabled state, without
+  // advancing the clock. For refreshing derived fields after a run.
+  refresh(...ids) {
+    if (!this.validated) this.validate();
+    for (const id of ids) {
+      const pass = this._get(id);
+      pass.run(this.world, this.paramValues.get(id), this._context(pass));
+      if (this.dev) this._checkAfter(pass);
+    }
+    return this;
+  }
+
   _get(id) {
     const p = this.byId.get(id);
     if (!p) throw new Error(`Scheduler: unknown pass "${id}"`);

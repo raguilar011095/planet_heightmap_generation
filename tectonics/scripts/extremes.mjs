@@ -3,11 +3,22 @@
 // number came from. Usage: node scripts/extremes.mjs [--n 80000] [--seed 3] [--field surface.elevation]
 
 import { buildStaticCrust } from '../app/static-crust.js';
+import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
 
-const a = Object.fromEntries(process.argv.slice(2).map((v, i, arr) => v.startsWith('--') ? [v.slice(2), arr[i + 1]] : null).filter(Boolean));
+function build(a, opts) {
+  const app = a.app ?? 'static';
+  if (a.nodev) opts = { ...opts, dev: false };
+  if (app === 'static') return buildStaticCrust(opts);
+  if (app === 'prescribed') return buildPrescribedMotion(opts);
+  throw new Error(`unknown --app ${app}`);
+}
+
+const a = Object.fromEntries(process.argv.slice(2).map((v, i, arr) => v.startsWith('--') ? [v.slice(2), arr[i + 1] === undefined || arr[i + 1].startsWith('--') ? true : arr[i + 1]] : null).filter(Boolean));
 const n = Number(a.n ?? 80000), seed = Number(a.seed ?? 3), field = a.field ?? 'surface.elevation';
-const { world, scheduler } = buildStaticCrust({ n, seed });
-scheduler.step();
+const steps = Number(a.steps ?? 1);
+const { world, scheduler } = build(a, { n, seed });
+scheduler.run(steps);
+if ((a.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
 const f = world.fields, v = f[field] ?? world.diag[field], e = f['surface.elevation'];
 const { locator, xyz, spacingKm } = world.grid;
 

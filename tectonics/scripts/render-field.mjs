@@ -1,13 +1,22 @@
 // Headless equirectangular render of any registered field to PNG, so a phase's
 // "debug view" exists before there is a UI. No dependencies: PNG is written with
 // node:zlib. Usage:
-//   node scripts/render-field.mjs [--n 20000] [--seed 1] [--field surface.elevation]
+//   node scripts/render-field.mjs [--app static|prescribed] [--n 20000] [--seed 1] [--field surface.elevation]
 //        [--map elevation|gray|categorical] [--width 1024] [--steps 1]
 //        [--param pass.id:name=value ...] [--out /path/file.png]
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { buildStaticCrust } from '../app/static-crust.js';
+import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
+
+function build(a, opts) {
+  const app = a.app ?? 'static';
+  if (a.nodev) opts = { ...opts, dev: false };
+  if (app === 'static') return buildStaticCrust(opts);
+  if (app === 'prescribed') return buildPrescribedMotion(opts);
+  throw new Error(`unknown --app ${app}`);
+}
 
 const args = Object.fromEntries(process.argv.slice(2).reduce((acc, a, i, arr) => {
   if (a.startsWith('--')) acc.push([a.slice(2), arr[i + 1]?.startsWith('--') || arr[i + 1] === undefined ? true : arr[i + 1]]);
@@ -29,8 +38,9 @@ for (const spec of multi('param')) {
 }
 
 const t0 = performance.now();
-const { world, scheduler } = buildStaticCrust({ n, seed, params });
+const { world, scheduler } = build(args, { n, seed, params });
 scheduler.run(steps);
+if ((args.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
 const arr = world.fields[field] ?? world.diag[field];
 if (!arr) throw new Error(`no field or diag "${field}"; fields: ${Object.keys(world.fields)}; diag: ${Object.keys(world.diag)}`);
 const map = args.map ?? (field === 'surface.elevation' ? 'elevation' : field.endsWith('Id') || field.endsWith('type') ? 'categorical' : 'gray');
@@ -92,5 +102,5 @@ const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(
 fs.writeFileSync(out, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 
 const ms = (performance.now() - t0).toFixed(0);
-const stepMs = scheduler.lastTimings.map(t => `${t.id} ${t.ms.toFixed(1)}ms`).join(', ');
-console.log(`${out}  field=${field} map=${map} range=[${lo.toFixed(1)}, ${hi.toFixed(1)}] n=${n} seed=${seed} total=${ms}ms  last step: ${stepMs}`);
+console.log(`${out}  field=${field} map=${map} range=[${lo.toFixed(1)}, ${hi.toFixed(1)}] n=${n} seed=${seed} total=${ms}ms`);
+if (args.timing) for (const t of scheduler.lastTimings) console.log(`   ${t.id.padEnd(28)} ${t.ms.toFixed(1)} ms`);

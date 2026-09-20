@@ -32,7 +32,7 @@ test('createWorld allocates every registered field with its initial value', () =
   defineCrustFields();
   defineCrustFields();                         // idempotent
   const w = createWorld({ cellCount: 10, seed: 5 });
-  assert.equal(listFields().length, 8);
+  assert.equal(listFields().length, 11);
   assert.equal(w.fields['crust.plateId'][3], -1);
   assert.equal(w.fields['crust.thickness'].length, 10);
   assert.equal(w.fields['crust.type'][0], CRUST.NONE);

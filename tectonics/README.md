@@ -34,10 +34,11 @@ Dependency direction is `core ← state ← sim ← passes ← app`, enforced by
 
 ## Status
 
-P−1 (harness) and P0 (static crust) complete. A seed-generated supercontinent with cratons
-and an aged ocean derives into an Earth-like bimodal hypsometry via Airy isostasy, Gaussian
-flexure and half-space cooling. 35 tests. Next: P1 (motion + collision with prescribed
-rotations). See `DESIGN.md` §10 for phases.
+P−1 (harness), P0 (static crust) complete; P1 (motion + collision with prescribed rotations)
+kinematics built and tested — exact-position scatter advection, plate partition that keeps
+cratons whole, convergence resolution, belt thickening with craton routing, crustal flow,
+delamination — with the visual gate still being evaluated. 39 tests. Next: P1 visual
+sign-off, then P2 (policy). See `DESIGN.md` §10 for phases.
 
 ```
 node scripts/render-field.mjs --n 80000 --seed 3 --out /tmp/elev.png   # equirectangular PNG of any field

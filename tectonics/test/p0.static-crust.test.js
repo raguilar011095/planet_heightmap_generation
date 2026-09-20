@@ -84,13 +84,13 @@ test('Airy limit (Te = 0) reproduces the analytic elevation exactly', () => {
 });
 
 test('flexure: a narrow load stands higher than Airy and depresses its surroundings into a basin', () => {
-  const n = 40000;
+  const n = 80000;
   const { world, scheduler } = buildStaticCrust({ n, seed: 1, params: { 'surface.isostasy': { elasticThicknessKm: 0 } } });
   scheduler.step();                                        // init runs once here
   const f = world.fields, p = scheduler.getParams('surface.isostasy');
   // Synthetic: uniform 35 km continent everywhere, a Himalayan-scale patch (50 km)
-  // of radius 2α around (1,0,0). Te = 60 km → α ≈ 114 km ≈ one cell spacing at 40k.
-  const TE = 60, alphaKm = flexuralParameterKm(TE, p.rhoMantle), sigma = alphaKm / 6371;
+  // of radius 2σ around (1,0,0). Te = 80 km → α ≈ 141 km, σ = α/2 ≈ 71 km ≈ 0.9 cells at 80k.
+  const TE = 80, alphaKm = flexuralParameterKm(TE, p.rhoMantle), sigma = 0.5 * alphaKm / 6371;
   f['crust.type'].fill(CRUST.CONTINENTAL); f['crust.thickness'].fill(35); f['crust.sediment'].fill(0);
   const i0 = world.grid.locator.nearest(1, 0, 0);
   world.grid.locator.forEachWithin(1, 0, 0, 2 * sigma, (c) => { f['crust.thickness'][c] = 50; });
