@@ -62,9 +62,12 @@ export default definePass({
   invariants: ['depthIncreasesWithAge'],
 
   run(world, p, ctx) {
-    const { type, ageMa } = ctx.read('crust');
+    // ctx.read/ctx.write hand back ONLY the declared fields. Asking for a
+    // whole collection is not possible, so the declaration cannot be bypassed.
+    const type      = ctx.read('crust.type');
+    const ageMa     = ctx.read('crust.ageMa');
     const baseDepth = ctx.write('crust.baseDepth');
-    for (let i = 0; i < world.crust.count; i++) {
+    for (let i = 0; i < world.cellCount; i++) {
       if (type[i] !== CRUST.OCEANIC) continue;
       const t = ageMa[i];
       baseDepth[i] = t < p.flatteningAgeMa
@@ -121,8 +124,22 @@ Consequences, all of which v1 lacked:
 - **Allocation is centralised,** so snapshotting, cloning and worker transfer are generic
   rather than written per field.
 
-Diagnostic fields use the same mechanism — a pass calls `ctx.diag('slabPullMagnitude', arr)`
+Diagnostic fields use the same mechanism — a pass calls `ctx.diag('convergenceRate', arr)`
 and it becomes visualizable with no wiring anywhere else.
+
+### 3.1 The grid is fixed, so the cell index is the stable ID
+
+`DESIGN.md` §1.1 runs the simulation on a fixed Fibonacci cell grid that is never
+re-tessellated. That decision does a lot of work here:
+
+- **Every field has the same length for the whole run**, so before/after diffs (§4.4) and
+  golden comparisons (§6) align by index with no ID bookkeeping.
+- **There is no topology-mutating pass.** Plate split, merge, accretion and subduction
+  death are all ordinary writes to `crust.plateId` / `crust.type`. The pass contract
+  therefore covers *every* pass, including the ones that would have fit worst under a
+  particle model (advection, gap-filling, convergence resolution — each is a pass that
+  declares the crust fields it rewrites).
+- Snapshotting is a flat copy of the registered arrays.
 
 ---
 
@@ -137,8 +154,8 @@ wrapped so that a pass touching an undeclared field throws, naming the pass and 
 Declarations therefore cannot rot.
 
 **Performance note — important:** the guard wraps at **field granularity** (one check when a
-pass acquires an array), never per element. A per-element Proxy over 50k particles × 300
-steps would obliterate the runtime budget in `DESIGN.md` §1. Production builds take the
+pass acquires an array), never per element. A per-element Proxy over 80k cells × 200
+substeps would obliterate the runtime budget in `DESIGN.md` §8. Production builds take the
 unguarded path; the guard is dev-only and must never appear in the hot loop.
 
 ### 4.2 Pass toggling, soloing, and stepping
@@ -149,13 +166,24 @@ unguarded path; the guard is dev-only and must never appear in the hot loop.
 
 ### 4.3 Deterministic A/B — the part that is easy to get wrong
 
-Each pass gets its **own RNG stream**, seeded from `hash(worldSeed, passId, stepIndex)`.
+Randomness is **stateless and addressed**, not streamed:
 
-This matters more than it looks: with one shared global RNG, disabling any pass shifts the
-random number sequence for every pass after it, so the A/B comparison you just ran is
-meaningless — the differences you see are mostly reseeding noise, not the pass's effect.
-Per-pass streams mean toggling a pass changes *only that pass's contribution*. Without this,
-every other affordance here produces confident nonsense.
+```js
+ctx.rand(cellIndex)            // = hash(worldSeed, passId, stepIndex, cellIndex) → [0,1)
+ctx.rand(cellIndex, k)         // k-th independent draw for the same cell
+ctx.randPlate(plateId)         // same idea, keyed by plate instead of cell
+```
+
+Why not per-pass streams (the earlier revision's design): a stream is consumed in order, and
+*how many* draws a pass makes depends on state — how many cells are on a convergent boundary,
+say. Change an upstream pass and every downstream stream is consumed differently, so the A/B
+you just ran still shows mostly reseeding noise. Keying each draw by
+`(pass, step, cell)` removes ordering entirely: toggling a pass changes only that pass's
+contribution, and a cell's random value is the same whether or not its neighbour was
+processed. Without this, every other affordance in this section produces confident nonsense.
+
+The hash must be cheap (a 32-bit integer mix, no allocation) because it runs per cell in
+the hot loop.
 
 ### 4.4 Before/after diff
 
@@ -223,8 +251,11 @@ v2's simulation core is pure and headless, so this is cheap:
   outcome. Feasible *only* because passes are isolated — this is the payoff for §2.
 - **Invariant tests.** Mass conservation across 1,000 steps within tolerance; no NaNs; every
   field stays inside its declared range.
-- **Golden regression.** Hash the field state at fixed steps for a fixed seed. Any
-  unintended behaviour change fails loudly; intended ones re-bless the hash in one place.
+- **Golden regression.** Store the field state at fixed steps for a fixed seed and compare
+  with a **per-field tolerance**, not a hash: `Math.sin`, `exp` and `pow` are not
+  bit-identical across JS engines, so a byte hash that passes under node's V8 can fail in
+  Safari for no real reason. Unintended behaviour change fails loudly; intended change
+  re-blesses the golden in one place.
 - **Acceptance scoring.** `DESIGN.md` §0.1's checklist, automated where it can be: hypsometric
   curve vs Earth, land fraction stability, orogen width distribution, margin asymmetry.
   Extends the `tuning/` pattern already proven under node in this repo.
@@ -237,8 +268,9 @@ under node. v2 makes that the default for the entire simulation rather than a bo
 ## 7. Honest costs
 
 1. **Infrastructure before tectonics.** The pass framework, field registry, scheduler and
-   dev guard are roughly 300–500 lines before a single plate moves. That is the price of the
-   requirement, and it is paid once.
+   dev guard are ~300–500 lines; the dev UI (inspector, field viewer, toggles, step
+   controls, diff view) is more than that again. Honest total: **1,500–2,500 lines before a
+   plate moves.** That is the price of the requirement, and it is paid once.
 2. **Indirection.** `definePass` is a layer between you and the loop. Mitigation: it stays
    thin and readable — no DI container, no plugin lifecycle, no events. Read it in one sitting.
 3. **Guard discipline.** The dev guard must stay out of the hot path (§4.1). This needs a
@@ -252,7 +284,7 @@ under node. v2 makes that the default for the entire simulation rather than a bo
 
 ## 8. How this changes the phasing
 
-`DESIGN.md` §9 gains a phase before P0:
+`DESIGN.md` §10 begins with a phase before P0:
 
 - **P−1 — Harness.** `core/`, `state/` with the field registry, `sim/` with the scheduler and
   pass contract, the dev guard, the dependency checker, and the test runner. Validated by a

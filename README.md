@@ -270,6 +270,10 @@ tuning/
                         map of an imported Earth heightmap against the observed
                         Köppen-Geiger classification and optimizes js/climate-config.js
                         parameters to match (see tuning/climate/README.md)
+tectonics/              World Orogen v2 (design stage) — a separate, automated plate-history
+                        engine following the Worldbuilding Pasta / GPlates method. Governed by
+                        its own tectonics/DESIGN.md and tectonics/ARCHITECTURE.md, not by the
+                        v1 rules above. No user-facing surface yet.
 ```
 
 ## Dependencies
