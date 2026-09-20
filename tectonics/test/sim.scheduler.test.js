@@ -48,7 +48,7 @@ test('end to end: register, run, toggle, param, diag, timing', () => {
   w.fields['t.a'].fill(1);
   s.run(1);
   assert.equal(w.fields['t.a'][0], 1);
-  assert.deepEqual(s.listPasses(), [{ id: fill.id, phase: 'debug', enabled: false }]);
+  assert.deepEqual(s.listPasses(), [{ id: fill.id, phase: 'debug', schedule: 'every', enabled: false }]);
   assert.throws(() => s.setParam(fill.id, 'nope', 1), /no param/);
   assert.throws(() => s.enable('ghost.pass'), /unknown pass/);
 });
@@ -147,4 +147,16 @@ test('solo runs only the soloed pass; phases order passes', () => {
   s2.solo(null);
   s2.step();
   assert.equal(w.fields['t.a'][0], 1);
+});
+
+test('schedule: once runs at step 0 only; policy runs every substepsPerPolicy', () => {
+  fields();
+  const w = createWorld({ cellCount: 4 });
+  const log = [];
+  const mk = (id, schedule) => definePass({ id, phase: 'p', schedule, doc: `records when it runs (${schedule})`,
+    writes: ['t.a'], run(world, p, ctx) { log.push(`${id}@${ctx.step}${ctx.isPolicyStep ? '*' : ''}`); } });
+  const s = new Scheduler(w, { substepsPerPolicy: 3 }).register(mk('t.once', 'once')).register(mk('t.pol', 'policy')).register(mk('t.ev', 'every'));
+  s.run(4);
+  assert.deepEqual(log, ['t.once@0*', 't.pol@0*', 't.ev@0*', 't.ev@1', 't.ev@2', 't.pol@3*', 't.ev@3*']);
+  assert.throws(() => definePass({ id: 't.bad', phase: 'p', schedule: 'sometimes', doc: 'invalid schedule value', run() {} }), /schedule must be/);
 });

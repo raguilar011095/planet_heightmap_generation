@@ -3,6 +3,7 @@
 // field registry, so snapshot/restore/clone are generic too.
 
 import { listFields, getField } from './fields.js';
+import { fibonacciPoints, CellLocator, meanSpacingRad, meanSpacingKm, cellAreaSr } from '../core/fibonacci-sphere.js';
 
 export function createWorld({ cellCount, xyz = null, seed = 1, fields = listFields() }) {
   if (!(cellCount > 0)) throw new Error('createWorld: cellCount must be positive');
@@ -20,6 +21,21 @@ export function createWorld({ cellCount, xyz = null, seed = 1, fields = listFiel
     diag: Object.create(null),        // "passId.name" → array, written via ctx.diag
     clock: { stepIndex: 0, timeMa: 0 },
   };
+}
+
+// A World on the fixed Fibonacci cell grid, with the geometry the passes need.
+export function createGridWorld(n, { seed = 1, fields } = {}) {
+  const xyz = fibonacciPoints(n);
+  const world = createWorld({ cellCount: n, xyz, seed, fields });
+  world.grid = {
+    n, xyz,
+    locator: new CellLocator(xyz, n),
+    spacingRad: meanSpacingRad(n),
+    spacingKm: meanSpacingKm(n),
+    areaSr: cellAreaSr(n),
+    neighborCache: new Map(),
+  };
+  return world;
 }
 
 export function getArray(world, name) {

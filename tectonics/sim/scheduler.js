@@ -12,10 +12,11 @@ import { rand01 } from '../core/hash-rng.js';
 const PLATE_NS = 0x5bd1e995;
 
 export class Scheduler {
-  constructor(world, { dev = true, dtMyr = 5, startMa = -1000, phases = null } = {}) {
+  constructor(world, { dev = true, dtMyr = 5, startMa = -1000, phases = null, substepsPerPolicy = 10 } = {}) {
     this.world = world;
     this.dev = dev;
     this.dtMyr = dtMyr;
+    this.substepsPerPolicy = substepsPerPolicy;
     this.phases = phases;
     this.passes = [];                 // registration order (then stable phase sort)
     this.byId = new Map();
@@ -82,6 +83,14 @@ export class Scheduler {
   disable(id) { this._get(id); this.enabled.set(id, false); return this; }
   solo(id) { if (id != null) this._get(id); this.soloId = id ?? null; return this; }
   isActive(id) { return this.soloId ? id === this.soloId : this.enabled.get(id) === true; }
+  isPolicyStep(stepIndex = this.world.clock.stepIndex) { return stepIndex % this.substepsPerPolicy === 0; }
+
+  _due(pass) {
+    const step = this.world.clock.stepIndex;
+    if (pass.schedule === 'once') return step === 0;
+    if (pass.schedule === 'policy') return this.isPolicyStep(step);
+    return true;
+  }
 
   setParam(id, name, value) {
     const pass = this._get(id);
@@ -94,7 +103,7 @@ export class Scheduler {
   getParams(id) { this._get(id); return { ...this.paramValues.get(id) }; }
 
   listPasses() {
-    return this.passes.map(p => ({ id: p.id, phase: p.phase, enabled: this.isActive(p.id) }));
+    return this.passes.map(p => ({ id: p.id, phase: p.phase, schedule: p.schedule, enabled: this.isActive(p.id) }));
   }
 
   step() {
@@ -102,7 +111,7 @@ export class Scheduler {
     const world = this.world;
     const timings = [];
     for (const pass of this.passes) {
-      if (!this.isActive(pass.id)) continue;
+      if (!this.isActive(pass.id) || !this._due(pass)) continue;
       const ctx = this._context(pass);
       const t0 = performance.now();
       pass.run(world, this.paramValues.get(pass.id), ctx);
@@ -128,7 +137,8 @@ export class Scheduler {
     const { seed } = world;
     const { stepIndex, timeMa } = world.clock;
     const base = {
-      passId: pass.id, step: stepIndex, timeMa, dtMyr: this.dtMyr, cellCount: world.cellCount,
+      passId: pass.id, passHash: pass.hash, step: stepIndex, timeMa, dtMyr: this.dtMyr,
+      cellCount: world.cellCount, isPolicyStep: this.isPolicyStep(stepIndex),
       rand: (cell, k = 0) => rand01(seed, pass.hash, stepIndex, cell, k),
       randPlate: (plateId, k = 0) => rand01(seed, pass.hash ^ PLATE_NS, stepIndex, plateId, k),
       diag: (name, arr) => { world.diag[`${pass.id}.${name}`] = arr; },

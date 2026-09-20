@@ -34,4 +34,12 @@ Dependency direction is `core ← state ← sim ← passes ← app`, enforced by
 
 ## Status
 
-P−1 (harness) complete: pass contract, field registry, Scheduler with dev guard, addressed RNG, invariants, dependency and size checkers, 27 tests. Next: P0 (static crust). See `DESIGN.md` §10 for phases.
+P−1 (harness) and P0 (static crust) complete. A seed-generated supercontinent with cratons
+and an aged ocean derives into an Earth-like bimodal hypsometry via Airy isostasy, Gaussian
+flexure and half-space cooling. 35 tests. Next: P1 (motion + collision with prescribed
+rotations). See `DESIGN.md` §10 for phases.
+
+```
+node scripts/render-field.mjs --n 80000 --seed 3 --out /tmp/elev.png   # equirectangular PNG of any field
+node scripts/extremes.mjs --seed 3                                       # where the extremes are, hypsometry
+```

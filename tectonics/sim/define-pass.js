@@ -7,6 +7,10 @@
 import { hashString } from '../core/hash-rng.js';
 
 const ID_RE = /^[a-z][a-zA-Z0-9]*(\.[a-zA-Z][a-zA-Z0-9_]*)+$/;
+// every  — runs each substep (kinematics, surface)
+// policy — runs on policy steps only (the blog's 50 Myr cadence; DESIGN.md §2.1)
+// once   — runs at step 0 only (initial condition)
+const SCHEDULES = new Set(['every', 'policy', 'once']);
 const FIELD_RE = /^[a-z][a-zA-Z0-9]*\.[a-z][a-zA-Z0-9_]*$/;
 
 function checkFieldList(id, kind, list) {
@@ -49,6 +53,8 @@ export function definePass(spec) {
     throw new Error(`definePass(${id}): doc is required — say what this pass does and why it exists`);
   }
   if (typeof spec.run !== 'function') throw new Error(`definePass(${id}): run(world, params, ctx) is required`);
+  const schedule = spec.schedule ?? 'every';
+  if (!SCHEDULES.has(schedule)) throw new Error(`definePass(${id}): schedule must be one of ${[...SCHEDULES]}`);
 
   const reads = checkFieldList(id, 'reads', spec.reads ?? []);
   const writes = checkFieldList(id, 'writes', spec.writes ?? []);
@@ -57,7 +63,7 @@ export function definePass(spec) {
   for (const inv of invariants) if (typeof inv !== 'string') throw new Error(`definePass(${id}): invariants must be names`);
 
   return Object.freeze({
-    id, phase: spec.phase, doc: spec.doc.trim(), reads, writes, params, invariants,
+    id, phase: spec.phase, schedule, doc: spec.doc.trim(), reads, writes, params, invariants,
     run: spec.run, hash: hashString(id),
   });
 }

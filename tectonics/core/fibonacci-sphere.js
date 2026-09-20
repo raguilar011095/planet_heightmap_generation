@@ -101,4 +101,37 @@ export class CellLocator {
     }
     return best;
   }
+
+  // Calls cb(cellIndex, angularDistance) for every cell within radiusRad of the
+  // point, the point's own cell included. Exact: every cell in range is visited.
+  forEachWithin(x, y, z, radiusRad, cb) {
+    const len = Math.sqrt(x * x + y * y + z * z) || 1;
+    x /= len; y /= len; z /= len;
+    const lat = Math.asin(Math.max(-1, Math.min(1, z)));
+    const lon = Math.atan2(y, x);
+    const bi = this._latBand(lat), bj = this._lonBand(lon);
+    const dLat = Math.ceil(radiusRad / this.bandLat);
+    const cosMin = Math.cos(radiusRad);
+    const half = Math.floor(this.lonBands / 2);
+    const { xyz, cells, start, lonBands } = this;
+    for (let i = bi - dLat; i <= bi + dLat; i++) {
+      if (i < 0 || i >= this.latBands) continue;
+      const latLo = -Math.PI / 2 + i * this.bandLat, latHi = latLo + this.bandLat;
+      const polar = Math.min(Math.PI / 2, Math.max(Math.abs(latLo), Math.abs(latHi)));
+      const cosL = Math.max(1e-9, Math.cos(polar));
+      const reach = Math.min(half, Math.ceil(radiusRad / (this.bandLon * cosL)) + 1);
+      const whole = 2 * reach + 1 >= lonBands;
+      const jFrom = whole ? 0 : -reach, jTo = whole ? lonBands - 1 : reach;
+      for (let dj = jFrom; dj <= jTo; dj++) {
+        let j = whole ? dj : bj + dj;
+        if (j < 0) j += lonBands; else if (j >= lonBands) j -= lonBands;
+        const bkt = i * lonBands + j;
+        for (let p = start[bkt], pe = start[bkt + 1]; p < pe; p++) {
+          const c = cells[p];
+          const d = xyz[3 * c] * x + xyz[3 * c + 1] * y + xyz[3 * c + 2] * z;
+          if (d >= cosMin) cb(c, Math.acos(Math.min(1, d)));
+        }
+      }
+    }
+  }
 }

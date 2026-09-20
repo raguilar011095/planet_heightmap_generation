@@ -194,10 +194,16 @@ for the live view). Four cheap passes:
    ρ_mantle 3300, ρ_continental ~2750, ρ_oceanic ~2900 kg/m³ `[verified]`; offset calibrated so
    35 km continental crust sits just above sea level. Thickened crust rises *with roots*.
 2. **Flexure.** Airy alone gives spiky local uplift and **no foreland basins** — those are
-   flexural, from the plate bending under the load. Apply an elastic-plate response as a
-   smoothing kernel with ~150–250 km wavelength (effective elastic thickness 20–40 km). This
-   is the correction the adversarial review demanded; it is one filter pass and it produces
-   forelands, moats around loads, and believable range shoulders.
+   flexural, from the plate bending under the load. The deflection under each cell's load is
+   the load spread by a **Gaussian of width α**, the flexural parameter for the elastic
+   thickness Te (default 35 km → α ≈ 76 km, about one cell at 80k). Elevation = column
+   height − deflection; with Te = 0 this is exactly Airy. A Gaussian stands in for the true
+   Kelvin-function kernel — it keeps the adjacent basin and drops only the second-order
+   forebulge. Coupling is restricted to cells of the same crust type: continental and
+   oceanic columns are separate reference states in local balance, and averaging across a
+   coast produces a spurious shelf-edge trench. *(As implemented in P0: this is also what
+   makes thinned passive margins produce rift-shoulder escarpments of 1–2.5 km where a
+   thick block meets the taper — the Drakensberg / Western Ghats effect — for free.)*
 3. **Oceanic age → depth.** Half-space cooling `2500 + 350·√t` m to ~75 Myr, plate-model
    flattening beyond (`6400 − 3200·exp(−t/62.8)`), since √t over-predicts depth past
    ~80 Myr `[verified]`. Ridges, abyssal plains and ridge-flank asymmetry for free.
@@ -231,7 +237,10 @@ own parameters and RNG, so any of them can be disabled or replaced.
 
 - **8–12 cratons** `[verified]` placed inside one supercontinent covering **~25 % of the
   sphere** `[verified]` (clamped: >40 % cramped, >50 % locks up `[verified]`). Cratons are
-  thick (40–45 km), old, `isCraton = 1`; inter-craton continental crust ~35 km.
+  elongated, noise-warped, 39 km thick and old, `isCraton = 1`; inter-craton continental
+  crust 37.5 ± 1.5 km. Continental thickness tapers to 24 km over ~320 km from the coast
+  (a passive-margin shelf and slope), cratons included. `landFraction` is the fraction of
+  cells that are continental crust; the emergent fraction is a few points lower.
 - Oceanic crust elsewhere with ages ramped from 2–4 seed ridges, so the initial ocean has
   ridges, flanks and old abyssal plain rather than a uniform slab.
 - **Subduction zones around the supercontinent margin** where the ocean is oldest — a
