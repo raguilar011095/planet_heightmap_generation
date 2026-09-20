@@ -341,6 +341,22 @@ rivers and break-up). The supercontinent break-up is the first and largest insta
 - **Arc magmatism is ~4% of subducted crust**, not 15%: with the floor recycling ~12×
   per Gyr the larger figure added ~28 km to every continental cell and turned every
   continent into a plateau. Earth's ~5 km per Gyr sets the rate.
+- **Rifts stretch before they spread.** A gap opening inside a continent is first filled
+  with thinned continental crust drawn mass-exactly from the surrounding margin (donors
+  never below ~26 km); only when the margin is exhausted does seafloor spreading begin.
+  This is how rifted margins and shelves form, and it is the area-recovery mechanism that
+  balances the area collisions consume: mean continental thickness over a Gyr settles near
+  39 km instead of 47, and delamination drops fivefold.
+- **Collision dominance is per plate pair** (more continental crust overrides; a craton
+  always overrides non-craton crust), so a suture is a line, not a fractal mix. This also
+  removed the single-cell towers: max thickness 60–65 km, highest points 4–6 km.
+- **Coherence is measured**, not eyeballed: `scripts/fragments.mjs` counts connected
+  continental pieces. Hotspot tracks, arcs and margin fringe were producing ~70 one-to-
+  three-cell "micro-continents" per world; fewer hotspots, higher island/arc/margin
+  conversion thresholds (seamount chains, only the biggest edifices emerging), a
+  refractory period after rifting, and `crust.consolidate` (an isolated thin continental
+  cell is a seamount) bring that to a handful. Weak crustal diffusion in `orogeny.spread`
+  erases single-cell thickness noise that read as blur.
 
 ### 5.6 Plumes, hotspots, LIPs
 
