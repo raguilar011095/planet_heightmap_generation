@@ -3,13 +3,14 @@
 // node:zlib. Usage:
 //   node scripts/render-field.mjs [--app static|prescribed] [--n 20000] [--seed 1] [--field surface.elevation]
 //        [--map elevation|gray|categorical] [--width 1024] [--steps 1]
-//        [--frames 50,100,200] [--param pass.id:name=value ...] [--out /path/file.png]
+//        [--frames 50,100,200] [--sample particles|cells] [--param pass.id:name=value ...] [--out /path/file.png]
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { buildStaticCrust } from '../app/static-crust.js';
 import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
 import { buildHistory } from '../app/history.js';
+import { CellLocator } from '../core/fibonacci-sphere.js';
 
 function build(a, opts) {
   const app = a.app ?? 'static';
@@ -86,7 +87,15 @@ function color(v) {
 }
 
 const rgb = new Uint8Array(width * height * 3);
-const loc = world.grid.locator;
+// Sample by nearest crust PARTICLE (true position) rather than nearest storage cell: the
+// simulation knows exactly where each piece of crust is, so deformed shapes render crisp.
+const byParticle = args.sample !== 'cells' && world.fields['crust.posX'];
+let loc = world.grid.locator;
+if (byParticle) {
+  const pos = new Float32Array(3 * world.cellCount), px = world.fields['crust.posX'], py = world.fields['crust.posY'], pz = world.fields['crust.posZ'];
+  for (let i = 0; i < world.cellCount; i++) { pos[3 * i] = px[i]; pos[3 * i + 1] = py[i]; pos[3 * i + 2] = pz[i]; }
+  loc = new CellLocator(pos, world.cellCount);
+}
 for (let py = 0; py < height; py++) {
   const lat = Math.PI / 2 - (py + 0.5) / height * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
   for (let px = 0; px < width; px++) {

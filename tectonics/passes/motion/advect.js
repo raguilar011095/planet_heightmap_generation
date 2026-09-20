@@ -122,7 +122,14 @@ export default definePass({
         for (const i of oce) consumed[j] += oThick[i];
         kind[j] = BOUNDARY.OC;
       } else {                                              // CC (+ any ocean caught between)
-        keep = cont.reduce((a, b) => (oCraton[b] > oCraton[a] || (oCraton[b] === oCraton[a] && oThick[b] > oThick[a])) ? b : a);
+        // One plate consistently overrides the other along the whole front, so the suture
+        // stays a line instead of a per-cell fractal mix: the plate with more continental
+        // crust wins; a craton always wins over non-craton crust on the other side.
+        keep = cont.reduce((a, b) => {
+          if (oCraton[b] !== oCraton[a]) return oCraton[b] > oCraton[a] ? b : a;
+          const wa = world.plates[oPlate[a]]?.stats?.contArea ?? oThick[a], wb = world.plates[oPlate[b]]?.stats?.contArea ?? oThick[b];
+          return wb > wa || (wb === wa && oPlate[b] < oPlate[a]) ? b : a;
+        });
         for (const i of cont) if (i !== keep) excess[j] += oThick[i];
         for (const i of oce) consumed[j] += oThick[i];
         kind[j] = BOUNDARY.CC;
@@ -285,6 +292,15 @@ export default definePass({
     ctx.diag('massAfterKm', new Float32Array([massAfter]));
     ctx.diag('counts', new Float32Array([relocate.length, shortened, gaps, orphans, farPairs, farMaxCells, interior, dilated]));
     ctx.diag('massFlows', new Float32Array([mFold, mDilateIn, mDilateOut]));
+    // How far particles sit from the cell that stores them, in cells: [≤0.7, ≤1.5, ≤3, >3].
+    {
+      const px = next['crust.posX'], py = next['crust.posY'], pz = next['crust.posZ'], h = new Float32Array(4);
+      for (let i = 0; i < n; i++) {
+        const d = Math.acos(Math.min(1, px[i] * xyz[3 * i] + py[i] * xyz[3 * i + 1] + pz[i] * xyz[3 * i + 2])) / spacingRad;
+        h[d <= 0.7 ? 0 : d <= 1.5 ? 1 : d <= 3 ? 2 : 3]++;
+      }
+      ctx.diag('storageOffsetCells', h);
+    }
     tick('commit');
     ctx.diag('sectionMs', new Float32Array(T.slice(1).map(([, t], k) => t - T[k][1])));
     ctx.diag('sectionNames', T.slice(1).map(([l]) => l));
