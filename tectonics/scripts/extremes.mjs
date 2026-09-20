@@ -4,12 +4,14 @@
 
 import { buildStaticCrust } from '../app/static-crust.js';
 import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
+import { buildHistory } from '../app/history.js';
 
 function build(a, opts) {
   const app = a.app ?? 'static';
   if (a.nodev) opts = { ...opts, dev: false };
   if (app === 'static') return buildStaticCrust(opts);
   if (app === 'prescribed') return buildPrescribedMotion(opts);
+  if (app === 'history') return buildHistory(opts);
   throw new Error(`unknown --app ${app}`);
 }
 

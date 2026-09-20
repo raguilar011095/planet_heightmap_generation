@@ -3,18 +3,20 @@
 // node:zlib. Usage:
 //   node scripts/render-field.mjs [--app static|prescribed] [--n 20000] [--seed 1] [--field surface.elevation]
 //        [--map elevation|gray|categorical] [--width 1024] [--steps 1]
-//        [--param pass.id:name=value ...] [--out /path/file.png]
+//        [--frames 50,100,200] [--param pass.id:name=value ...] [--out /path/file.png]
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { buildStaticCrust } from '../app/static-crust.js';
 import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
+import { buildHistory } from '../app/history.js';
 
 function build(a, opts) {
   const app = a.app ?? 'static';
   if (a.nodev) opts = { ...opts, dev: false };
   if (app === 'static') return buildStaticCrust(opts);
   if (app === 'prescribed') return buildPrescribedMotion(opts);
+  if (app === 'history') return buildHistory(opts);
   throw new Error(`unknown --app ${app}`);
 }
 
@@ -39,8 +41,16 @@ for (const spec of multi('param')) {
 
 const t0 = performance.now();
 const { world, scheduler } = build(args, { n, seed, params });
-scheduler.run(steps);
-if ((args.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
+const frames = args.frames ? String(args.frames).split(',').map(Number) : [steps];
+let done = 0;
+for (const target of frames) {
+  scheduler.run(target - done); done = target;
+  if ((args.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
+  const path = frames.length > 1 ? out.replace(/\.png$/, `-${String(target).padStart(4, '0')}.png`) : out;
+  renderFrame(path);
+}
+function renderFrame(out) {
+const t0 = performance.now();
 const arr = world.fields[field] ?? world.diag[field];
 if (!arr) throw new Error(`no field or diag "${field}"; fields: ${Object.keys(world.fields)}; diag: ${Object.keys(world.diag)}`);
 const map = args.map ?? (field === 'surface.elevation' ? 'elevation' : field.endsWith('Id') || field.endsWith('type') ? 'categorical' : 'gray');
@@ -101,6 +111,8 @@ for (let y = 0; y < height; y++) { raw[y * (width * 3 + 1)] = 0; raw.set(rgb.sub
 const ihdr = Buffer.alloc(13); ihdr.writeUInt32BE(width, 0); ihdr.writeUInt32BE(height, 4); ihdr[8] = 8; ihdr[9] = 2;
 fs.writeFileSync(out, Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', zlib.deflateSync(raw)), chunk('IEND', Buffer.alloc(0))]));
 
+  console.log(`${out}  range=[${lo.toFixed(1)}, ${hi.toFixed(1)}] t=${world.clock.timeMa} Ma plates=${world.plates.filter(p => !p.dead).length}`);
+}
 const ms = (performance.now() - t0).toFixed(0);
-console.log(`${out}  field=${field} map=${map} range=[${lo.toFixed(1)}, ${hi.toFixed(1)}] n=${n} seed=${seed} total=${ms}ms`);
+console.log(`field=${field} n=${n} seed=${seed} total=${ms}ms`);
 if (args.timing) for (const t of scheduler.lastTimings) console.log(`   ${t.id.padEnd(28)} ${t.ms.toFixed(1)} ms`);

@@ -151,6 +151,7 @@ export class Scheduler {
     const base = {
       passId: pass.id, passHash: pass.hash, step: stepIndex, timeMa, dtMyr: this.dtMyr,
       cellCount: world.cellCount, isPolicyStep: this.isPolicyStep(stepIndex),
+      policyIndex: Math.floor(stepIndex / this.substepsPerPolicy), substepsPerPolicy: this.substepsPerPolicy,
       rand: (cell, k = 0) => rand01(seed, pass.hash, stepIndex, cell, k),
       randPlate: (plateId, k = 0) => rand01(seed, pass.hash ^ PLATE_NS, stepIndex, plateId, k),
       diag: (name, arr) => { world.diag[`${pass.id}.${name}`] = arr; },

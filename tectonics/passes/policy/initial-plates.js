@@ -7,6 +7,28 @@ import { definePass } from '../../sim/define-pass.js';
 import { addPlate } from '../../state/plates.js';
 import { cmPerYrToDegPerMyr } from '../../core/rotation.js';
 import { radiusNeighbors } from '../../state/neighbors.js';
+import { CRUST } from '../../state/crust-fields.js';
+
+// Blog opening position: one continental plate, ocean plates bounded by the ridges,
+// subduction implied all round the continent (ocean plates get slab pull toward it).
+function supercontinentPartition(world, ctx, plateId) {
+  const n = world.cellCount, xyz = world.grid.xyz;
+  const type = ctx.read('crust.type');
+  const ridges = world.mantle.ridges;
+  addPlate(world, { bornMa: world.clock.timeMa });                     // plate 0: the continent
+  const keyToPlate = new Map();
+  for (let i = 0; i < n; i++) {
+    if (type[i] === CRUST.CONTINENTAL) { plateId[i] = 0; continue; }
+    let key = 0;
+    for (let r = 0; r < ridges.length; r++) {
+      const s = xyz[3 * i] * ridges[r][0] + xyz[3 * i + 1] * ridges[r][1] + xyz[3 * i + 2] * ridges[r][2];
+      if (s > 0) key |= 1 << r;
+    }
+    let id = keyToPlate.get(key);
+    if (id === undefined) { id = addPlate(world, { bornMa: world.clock.timeMa }); keyToPlate.set(key, id); }
+    plateId[i] = id;
+  }
+}
 
 export default definePass({
   id: 'policy.initialPlates',
@@ -16,10 +38,11 @@ export default definePass({
         craton whole on the plate holding most of it, and assigns each plate a random pole and a
         speed uniform in [speedMin, speedMax] cm/yr with random sense. Prescribed motion for P1;
         P2 supplies the policy.`,
-  reads: ['crust.terraneId', 'crust.isCraton'],
+  reads: ['crust.terraneId', 'crust.isCraton', 'crust.type'],
   writes: ['crust.plateId'],
   params: {
-    plateCount:      { value: 8, range: [1, 24], unit: '',      doc: 'Number of plates.' },
+    supercontinent:  { value: false, doc: 'If true, the continent (all continental cells) is one plate and the ocean is split into plates by the initial ridges; no rotations are assigned (policy.rotations does). If false, Voronoi partition with random rotations (P1).' },
+    plateCount:      { value: 8, range: [1, 24], unit: '',      doc: 'Number of plates (Voronoi mode).' },
     speedMinCmPerYr: { value: 1, range: [0, 10], unit: 'cm/yr', doc: 'Slowest plate.' },
     speedMaxCmPerYr: { value: 5, range: [0, 12], unit: 'cm/yr', doc: 'Fastest plate (relative convergence can reach twice this).' },
     smoothRounds:    { value: 3, range: [0, 8],  unit: '',      doc: 'Majority-vote smoothing sweeps over the partition after cratons are made whole.' },
@@ -27,6 +50,7 @@ export default definePass({
   run(world, p, ctx) {
     const n = world.cellCount, xyz = world.grid.xyz;
     const plateId = ctx.write('crust.plateId');
+    if (p.supercontinent) { supercontinentPartition(world, ctx, plateId); return; }
     const count = Math.max(1, Math.round(p.plateCount));
 
     // Farthest-point seeds.

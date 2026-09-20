@@ -16,11 +16,12 @@ export default definePass({
         neighbours may differ by more than the steepest sustainable gradient. Cratons only
         receive up to cratonMaxKm. Produces plateaus and keeps collision zones from becoming
         single-cell towers.`,
-  reads: ['crust.type', 'crust.isCraton', 'crust.thickness'],
-  writes: ['crust.thickness'],
+  reads: ['crust.type', 'crust.isCraton', 'crust.thickness', 'crust.plateId'],
+  writes: ['crust.thickness', 'crust.type', 'crust.terraneId'],
   params: {
-    flowThresholdKm: { value: 55,  range: [45, 90],  unit: 'km',  doc: 'Crust above this thickness flows.' },
-    spreadRate:      { value: 0.4, range: [0, 0.8],  unit: '',    doc: 'Fraction of the excess above threshold moved to neighbours per substep.' },
+    flowThresholdKm: { value: 50,  range: [40, 90],  unit: 'km',  doc: 'Crust above this thickness flows.' },
+    spreadRate:      { value: 0.5, range: [0, 0.8],  unit: '',    doc: 'Fraction of the excess above threshold moved to neighbours per substep.' },
+    marginOutflowKm: { value: 20,  range: [12, 30],  unit: 'km',  doc: 'Thick crust also flows onto same-plate oceanic neighbours; one that reaches this thickness becomes continental. This is how collision-thickened crust re-widens, so continental area is not consumed forever.' },
     reachCells:      { value: 1.6, range: [1, 3],    unit: 'cells', doc: 'Neighbourhood radius for flow.' },
     maxGradientKmPer100Km: { value: 20, range: [5, 60], unit: 'km/100km', doc: 'Steepest sustainable crustal thickness gradient (Himalayan front ≈ 23). Steeper pairs exchange crust until they comply.' },
     gradientRounds:  { value: 4,   range: [1, 8],    unit: '',    doc: 'Relaxation sweeps per substep.' },
@@ -28,8 +29,8 @@ export default definePass({
   },
   run(world, p, ctx) {
     const n = world.cellCount, { xyz, locator, spacingRad } = world.grid;
-    const type = ctx.read('crust.type'), isCraton = ctx.read('crust.isCraton');
-    const thickness = ctx.write('crust.thickness');
+    const type = ctx.write('crust.type'), isCraton = ctx.read('crust.isCraton'), plateId = ctx.read('crust.plateId');
+    const thickness = ctx.write('crust.thickness'), terraneId = ctx.write('crust.terraneId');
     const delta = new Float32Array(n);
     const maxStep = p.maxGradientKmPer100Km * world.grid.spacingKm / 100;
     // Pairwise flux from thicker to thinner, divided by a nominal neighbour count so a
@@ -39,6 +40,15 @@ export default definePass({
       for (let i = 0; i < n; i++) {
         if (type[i] !== CRUST.CONTINENTAL) continue;
         locator.forEachWithin(xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2], p.reachCells * spacingRad, (c, d) => {
+          if (c === i) return;
+          // Outflow onto the plate's own oceanic margin, from crust above the flow threshold only.
+          // This is how collision-thickened crust re-widens instead of being consumed forever.
+          if (type[c] === CRUST.OCEANIC) {
+            if (plateId[c] !== plateId[i] || thickness[i] <= p.flowThresholdKm) return;
+            const move = p.spreadRate * (thickness[i] - p.flowThresholdKm) / 12;
+            delta[i] -= move; delta[c] += move;
+            return;
+          }
           // Any two continental cells in contact may exchange: within a plate this is
           // crustal flow, across plates it is a suture zone. Plate labels do not matter.
           if (c <= i || type[c] !== CRUST.CONTINENTAL) return;
@@ -55,7 +65,10 @@ export default definePass({
           delta[hi] -= move; delta[lo] += move;
         });
       }
-      for (let i = 0; i < n; i++) thickness[i] += delta[i];
+      for (let i = 0; i < n; i++) {
+        thickness[i] += delta[i];
+        if (type[i] === CRUST.OCEANIC && thickness[i] >= p.marginOutflowKm) { type[i] = CRUST.CONTINENTAL; terraneId[i] = world.counters.terrane++; }
+      }
     }
   },
 });

@@ -259,9 +259,16 @@ export default definePass({
         if (nType[j] === CRUST.CONTINENTAL) {
           let sum = 0, cnt = 0;
           for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) { const c = nb2.idx[k]; if (c !== j && filled[c] === 1 && nPlate[c] === p0 && nType[c] === CRUST.CONTINENTAL) { sum += nThick[c]; cnt++; } }
-          const t = cnt ? sum / cnt : nThick[j];
-          nThick[j] = t; mDilateIn += t; if (cnt) mDilateOut += t;
-          if (cnt) for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) { const c = nb2.idx[k]; if (c !== j && filled[c] === 1 && nPlate[c] === p0 && nType[c] === CRUST.CONTINENTAL) nThick[c] -= t / cnt; }
+          if (!cnt) { newOcean(j, p0); kind[j] = BOUNDARY.NONE; filled[j] = 2; gaps++; continue; }   // no continental crust to dilate from
+          // Each donor gives at most half of what it has (donors can be shared between holes);
+          // the hole receives exactly what was collected, so mass is exact and nothing goes negative.
+          const share = sum / cnt / cnt;
+          let taken = 0;
+          for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) {
+            const c = nb2.idx[k];
+            if (c !== j && filled[c] === 1 && nPlate[c] === p0 && nType[c] === CRUST.CONTINENTAL) { const g = Math.min(share, 0.5 * nThick[c]); nThick[c] -= g; taken += g; }
+          }
+          nThick[j] = taken; mDilateIn += taken; mDilateOut += taken;
         }
         filled[j] = 3; dilated++;
       }
