@@ -21,7 +21,8 @@ export default definePass({
   params: {
     flowThresholdKm: { value: 42,  range: [36, 90],  unit: 'km',  doc: 'Crust above this thickness flows (orogens collapse toward ~40 km over ~100 Myr; a higher threshold let collisions pile crust to the delamination cap and lose a third of all continental mass per Gyr).' },
     spreadRate:      { value: 0.5, range: [0, 0.8],  unit: '',    doc: 'Fraction of the excess above threshold moved to neighbours per substep.' },
-    marginOutflowKm: { value: 20,  range: [12, 30],  unit: 'km',  doc: 'Thick crust also flows onto same-plate oceanic neighbours; one that reaches this thickness becomes continental. This is how collision-thickened crust re-widens, so continental area is not consumed forever.' },
+    diffusion:       { value: 0.05, range: [0, 0.2], unit: '',    doc: 'Weak crustal diffusion per substep between non-craton continental neighbours of the same plate: erases single-cell thickness noise (the speckle at coasts) while a belt several cells wide barely notices.' },
+    marginOutflowKm: { value: 25,  range: [12, 35],  unit: 'km',  doc: 'Thick crust also flows onto same-plate oceanic neighbours; one that reaches this thickness becomes continental. This is how collision-thickened crust re-widens, so continental area is not consumed forever.' },
     reachCells:      { value: 1.6, range: [1, 3],    unit: 'cells', doc: 'Neighbourhood radius for flow.' },
     maxGradientKmPer100Km: { value: 20, range: [5, 60], unit: 'km/100km', doc: 'Steepest sustainable crustal thickness gradient (Himalayan front ≈ 23). Steeper pairs exchange crust until they comply.' },
     gradientRounds:  { value: 4,   range: [1, 8],    unit: '',    doc: 'Relaxation sweeps per substep.' },
@@ -59,9 +60,10 @@ export default definePass({
           const flow = p.spreadRate * Math.min(Math.max(0, thickness[hi] - p.flowThresholdKm), diff);   // plateau flow
           const limit = maxStep * (d / spacingRad);
           const slump = Math.max(0, diff - limit);                                                      // gradient limit
+          const smooth = (!isCraton[hi] && !isCraton[lo] && plateId[hi] === plateId[lo]) ? p.diffusion * diff : 0;   // noise damping
           // Flow shares the cell among ~12 pair-updates; the slump term may move faster
           // (≤ 6 neighbours each giving (diff−limit)/6 cannot lift a cell past any of them).
-          const move = flow / 12 + slump / 6;
+          const move = flow / 12 + slump / 6 + smooth / 12;
           delta[hi] -= move; delta[lo] += move;
         });
       }

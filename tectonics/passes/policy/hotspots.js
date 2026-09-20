@@ -21,8 +21,8 @@ export default definePass({
   params: {
     addKm:          { value: 6,    range: [0, 15],    unit: 'km',  doc: 'Crust added at the hotspot centre per substep.' },
     radiusKm:       { value: 120,  range: [50, 400],  unit: 'km',  doc: 'Hotspot volcanism radius.' },
-    islandKm:       { value: 20,   range: [12, 30],   unit: 'km',  doc: 'Oceanic crust thicker than this becomes an island terrane.' },
-    lipProbability: { value: 0.05, range: [0, 0.5],   unit: '',    doc: 'Chance per hotspot per policy step of a large igneous province.' },
+    islandKm:       { value: 28,   range: [12, 40],   unit: 'km',  doc: 'Oceanic crust thicker than this becomes an island terrane; below it the track is a chain of submerged seamounts (only the biggest edifices emerge, as on Earth).' },
+    lipProbability: { value: 0.03, range: [0, 0.5],   unit: '',    doc: 'Chance per hotspot per policy step of a large igneous province.' },
     lipRadiusKm:    { value: 700,  range: [200, 1500],unit: 'km',  doc: 'LIP radius.' },
     lipKm:          { value: 8,    range: [2, 20],    unit: 'km',  doc: 'Crust added at a LIP centre.' },
   },

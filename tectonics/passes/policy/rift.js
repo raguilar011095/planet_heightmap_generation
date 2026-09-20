@@ -24,6 +24,7 @@ export default definePass({
   writes: ['crust.plateId', 'crust.thickness'],
   params: {
     riftProbability:  { value: 0.12,  range: [0, 1],     unit: '',      doc: 'Base chance per continental plate per policy step.' },
+    refractoryPolicySteps: { value: 3, range: [0, 10],  unit: '',      doc: 'A plate that has just rifted (either side) cannot rift again for this many policy steps; repeated cuts slice continents into wedges.' },
     largeFraction:    { value: 0.08,  range: [0.02, 0.3],unit: '',      doc: 'A plate with more continental cells than this fraction of all cells is "large".' },
     largeBoost:       { value: 2,     range: [1, 5],     unit: '',      doc: 'Probability multiplier for large plates.' },
     lipBoost:         { value: 4,     range: [1, 10],    unit: '',      doc: 'Probability multiplier when a recent LIP underlies the plate.' },
@@ -42,6 +43,7 @@ export default definePass({
     const plates = world.plates.slice();
     for (const pl of plates) {
       if (pl.dead || !pl.stats || pl.stats.contArea < 2 * minPiece) continue;
+      if (pl.lastRift !== undefined && ctx.policyIndex - pl.lastRift < p.refractoryPolicySteps) continue;
       const lip = world.mantle.lips.find(l => ctx.timeMa - l.timeMa < p.lipMemoryMa && plateId[locator.nearest(l.x, l.y, l.z)] === pl.id);
       let prob = p.riftProbability;
       if (pl.stats.contArea > p.largeFraction * n) prob *= p.largeBoost;
@@ -102,6 +104,7 @@ export default definePass({
       };
       assign(q, qx, qy, qz, sign);
       assign(pl.id, px, py, pz, -sign);
+      world.plates[q].lastRift = ctx.policyIndex; pl.lastRift = ctx.policyIndex;
       splits++;
     }
     ctx.diag('events', new Float32Array([splits, failed]));

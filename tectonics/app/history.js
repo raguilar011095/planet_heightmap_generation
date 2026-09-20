@@ -22,6 +22,7 @@ import thicken from '../passes/orogeny/thicken.js';
 import spread from '../passes/orogeny/spread.js';
 import delaminate from '../passes/orogeny/delaminate.js';
 import age from '../passes/crust/age.js';
+import consolidate from '../passes/crust/consolidate.js';
 import isostasy from '../passes/surface/isostasy.js';
 import thermalSubsidence from '../passes/surface/thermal-subsidence.js';
 
@@ -34,7 +35,7 @@ export function buildHistory({ n = 20000, seed = 1, dev = true, dtMyr = 5, start
   const scheduler = new Scheduler(world, { dev, phases: PHASES, dtMyr, startMa, substepsPerPolicy: 10 });
   scheduler.register(initialCondition).register(initialPlates)
     .register(plateStats).register(rotations).register(subductionInit).register(rift).register(suture).register(hotspots)
-    .register(advect).register(thicken).register(spread).register(delaminate).register(age)
+    .register(advect).register(thicken).register(spread).register(delaminate).register(age).register(consolidate)
     .register(isostasy).register(thermalSubsidence);
   scheduler.setParam('policy.initialPlates', 'supercontinent', true);
   for (const [id, kv] of Object.entries(params)) for (const [k, v] of Object.entries(kv)) scheduler.setParam(id, k, v);

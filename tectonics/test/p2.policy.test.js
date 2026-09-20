@@ -29,7 +29,7 @@ test('supercontinent partition: one continental plate, ocean plates bounded by r
     else assert.notEqual(f['crust.plateId'][i], 0);
   }
   assert.ok(world.plates.length >= 3 && world.plates.length <= 9, `${world.plates.length} plates`);
-  assert.equal(world.mantle.hotspots.length, 5);
+  assert.equal(world.mantle.hotspots.length, 3);
   // step 0's policy ran: every plate has stats and a speed in band, ocean plates head for the continent
   for (const pl of alive(world)) {
     const s = plateSpeedCmPerYr(pl);

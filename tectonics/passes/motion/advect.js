@@ -46,6 +46,8 @@ export default definePass({
     oceanThicknessKm:   { value: 7,   range: [5, 10],    unit: 'km',    doc: 'Thickness of newly created ocean floor at divergent gaps.' },
     relocateRadiusCells:{ value: 1.6, range: [1, 3],     unit: 'cells', doc: 'How far a same-plate overlap may be relocated to find a gap of its own plate.' },
     farRadiusCells:     { value: 6,   range: [3, 12],    unit: 'cells', doc: 'Outer limit for pairing a duplicate with a same-plate gap; beyond this it counts as shortening.' },
+    riftCellKm:         { value: 22,  range: [15, 30],   unit: 'km',    doc: 'Thickness of a new stretched-continental cell at a rift opening inside a continent.' },
+    marginFloorKm:      { value: 26,  range: [18, 34],   unit: 'km',    doc: 'Donor cells never thin below this while supplying a rift; when none can supply, seafloor spreading takes over.' },
   },
   invariants: ['continentalMassConserved'],
   run(world, p, ctx) {
@@ -245,7 +247,28 @@ export default definePass({
       next['crust.orogenAge'][j] = 3000; next['crust.sediment'][j] = 0;
       next['crust.posX'][j] = xyz[3 * j]; next['crust.posY'][j] = xyz[3 * j + 1]; next['crust.posZ'][j] = xyz[3 * j + 2];
     };
-    let gaps = 0, orphans = 0;
+    let gaps = 0, orphans = 0, stretched = 0;
+    // Try to create a thinned continental cell at gap j from same-plate continental donors
+    // in nb2 that are above marginFloorKm. Returns false if they cannot supply riftCellKm.
+    const stretchInto = (j, plate) => {
+      let avail = 0;
+      for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) { const c = nb2.idx[k]; if (filled[c] === 1 && nPlate[c] === plate && nType[c] === CRUST.CONTINENTAL) avail += Math.max(0, nThick[c] - p.marginFloorKm); }
+      if (avail < p.riftCellKm) return false;
+      let src = -1, srcD = Infinity, ageSum = 0, ageN = 0;
+      for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) {
+        const c = nb2.idx[k];
+        if (filled[c] !== 1 || nPlate[c] !== plate || nType[c] !== CRUST.CONTINENTAL) continue;
+        const room = Math.max(0, nThick[c] - p.marginFloorKm);
+        nThick[c] -= p.riftCellKm * room / avail;
+        ageSum += next['crust.ageMa'][c]; ageN++;
+        if (nb2.dist[k] < srcD) { srcD = nb2.dist[k]; src = c; }
+      }
+      nPlate[j] = plate; nType[j] = CRUST.CONTINENTAL; nThick[j] = p.riftCellKm;
+      next['crust.ageMa'][j] = ageN ? ageSum / ageN : 0; next['crust.terraneId'][j] = next['crust.terraneId'][src];
+      next['crust.isCraton'][j] = 0; next['crust.orogenAge'][j] = 3000; next['crust.sediment'][j] = 0;
+      next['crust.posX'][j] = xyz[3 * j]; next['crust.posY'][j] = xyz[3 * j + 1]; next['crust.posZ'][j] = xyz[3 * j + 2];
+      return true;
+    };
     for (const nb of [nb1, nb2]) {
       for (const j of gapList) {
         if (filled[j]) continue;
@@ -257,7 +280,15 @@ export default definePass({
           if (p0 === -2) { p0 = nPlate[c]; plates = 1; } else if (nPlate[c] !== p0 && plates === 1) plates = 2;
         }
         if (best < 0) continue;
-        if (plates >= 2) { newOcean(j, nPlate[best]); kind[j] = BOUNDARY.DIVERGENT; filled[j] = 2; gaps++; continue; }
+        if (plates >= 2) {
+          // A gap between two plates is spreading. If it opens INSIDE a continent the first
+          // new crust is stretched continental crust drawn from the surrounding margin
+          // (mass-exact), not seafloor: this is how rifted margins form, and it is what
+          // gives continental area back after collisions consume it. Once the margin has
+          // thinned to marginFloorKm the supply is gone and true seafloor spreading begins.
+          if (nType[best] === CRUST.CONTINENTAL && stretchInto(j, nPlate[best])) { kind[j] = BOUNDARY.DIVERGENT; filled[j] = 2; stretched++; continue; }
+          newOcean(j, nPlate[best]); kind[j] = BOUNDARY.DIVERGENT; filled[j] = 2; gaps++; continue;
+        }
         // Interior hole: rounding dilation. Copy the nearest same-plate neighbour AS IT IS
         // NOW (new layout — `copy` reads old-layout sources and must not be used here), then
         // for continental crust take the thickness from the surrounding cells so mass is exact.
@@ -290,7 +321,7 @@ export default definePass({
     for (let i = 0; i < n; i++) massAfter += excess[i];
     ctx.diag('massBeforeKm', new Float32Array([massBefore]));
     ctx.diag('massAfterKm', new Float32Array([massAfter]));
-    ctx.diag('counts', new Float32Array([relocate.length, shortened, gaps, orphans, farPairs, farMaxCells, interior, dilated]));
+    ctx.diag('counts', new Float32Array([relocate.length, shortened, gaps, orphans, farPairs, farMaxCells, interior, dilated, stretched]));
     ctx.diag('massFlows', new Float32Array([mFold, mDilateIn, mDilateOut]));
     // How far particles sit from the cell that stores them, in cells: [≤0.7, ≤1.5, ≤3, >3].
     {

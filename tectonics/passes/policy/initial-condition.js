@@ -51,7 +51,7 @@ export default definePass({
     halfSpreadCmPerYr:     { value: 3,    range: [1, 8],       unit: 'cm/yr', doc: 'Half spreading rate used to convert distance-from-ridge into crust age.' },
     maxOceanAgeMa:         { value: 180,  range: [60, 300],    unit: 'Myr', doc: 'Oldest ocean floor in the initial condition; older floor would have subducted.' },
     positionJitterCells:   { value: 0.45, range: [0, 0.5],     unit: 'cells', doc: 'Crust particles start offset from their cell centres by up to this much, so the particle cloud never aligns with the grid and rounding defects stay local instead of piling up at the poles.' },
-    hotspotCount:          { value: 5,    range: [0, 12],      unit: '',    doc: 'Fixed-frame mantle hotspots seeded at start (the blog suggests a handful).' },
+    hotspotCount:          { value: 3,    range: [0, 12],      unit: '',    doc: 'Fixed-frame mantle hotspots seeded at start (the blog suggests a handful; more than ~3 litters the ocean with island specks).' },
   },
   run(world, p, ctx) {
     const n = world.cellCount, xyz = world.grid.xyz;

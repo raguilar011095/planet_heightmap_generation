@@ -28,7 +28,7 @@ export default definePass({
     ocBeltWidthKm:      { value: 200, range: [60, 700],  unit: 'km', doc: 'Full width (2σ) of the arc thickening belt.' },
     arcOffsetKm:        { value: 150, range: [50, 400],  unit: 'km', doc: 'Distance from the trench to the arc axis on the overriding plate.' },
     arcMagmaFraction:   { value: 0.04, range: [0, 0.5],  unit: '',   doc: 'Fraction of subducted crustal thickness returned as arc crust. Earth adds ~5 km of arc crust per continental cell per Gyr; with the floor recycling ~12× per Gyr that is ~0.04, and 0.15 turned every continent into a plateau.' },
-    arcContinentalKm:   { value: 20,  range: [12, 30],   unit: 'km', doc: 'Oceanic crust thickened past this becomes a continental arc terrane.' },
+    arcContinentalKm:   { value: 28,  range: [12, 40],   unit: 'km', doc: 'Oceanic crust thickened past this becomes a continental arc terrane; thinner arcs stay as oceanic ridges.' },
     orogenResetKm:      { value: 0.2, range: [0.01, 2],  unit: 'km', doc: 'Crust added in one substep that counts as active orogeny (resets orogenAge).' },
     minBeltCells:       { value: 1.5, range: [0.5, 4],   unit: 'cells', doc: 'Belt σ is never narrower than this many cell spacings; a belt the grid cannot resolve would be a single-cell wall.' },
     maxAddKm:           { value: 12,  range: [3, 40],     unit: 'km', doc: 'Most crust any one cell may gain from one boundary cell in one substep; the belt widens until this holds.' },
