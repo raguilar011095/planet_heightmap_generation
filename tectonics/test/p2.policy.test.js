@@ -48,9 +48,11 @@ test('supercontinent partition: one continental plate, ocean plates bounded by r
 
 test('a full 1 Gyr history at 8k cells stays in range, conserves mass, keeps the ocean young and the plate count sane', () => {
   const { world, scheduler } = buildHistory({ n: 8000, seed: 7 });
-  let splits = 0, inits = 0, merges = 0, failed = 0, lips = 0;
+  let splits = 0, inits = 0, merges = 0, failed = 0, lips = 0, arcKm = 0, hotKm = 0, delamKm = 0;
+  const sum = a => { let t = 0; for (const v of a) t += v; return t; };
   for (let s = 0; s < 200; s++) {
     scheduler.step();                                        // dev mode: range checks + mass invariant every substep
+    arcKm += world.diag['orogeny.thicken.arcAddedKm'][0]; hotKm += world.diag['policy.hotspots.addedKm'][0]; delamKm += world.diag['orogeny.delaminate.toMantleKm'][0];
     if (world.diag['policy.rift.events']) { splits += world.diag['policy.rift.events'][0]; failed += world.diag['policy.rift.events'][1]; }
     if (world.diag['policy.subductionInit.created']) inits += world.diag['policy.subductionInit.created'][0];
     if (world.diag['policy.suture.merged']) merges += world.diag['policy.suture.merged'][0];
@@ -65,7 +67,9 @@ test('a full 1 Gyr history at 8k cells stays in range, conserves mass, keeps the
     maxT = Math.max(maxT, f['crust.thickness'][i]); maxE = Math.max(maxE, f['surface.elevation'][i]);
   }
   const plates = alive(world).length;
+  let contMass = 0; for (let i = 0; i < 8000; i++) if (f['crust.type'][i] === CRUST.CONTINENTAL) contMass += f['crust.thickness'][i];
   console.log(`   1 Gyr: plates ${plates} splits ${splits} failedRifts ${failed} subductionInits ${inits} sutures ${merges} lips ${lips} cont ${(100 * cont / 8000).toFixed(1)}% emergent ${(100 * emergent / 8000).toFixed(1)}% meanOceanAge ${(oceanAge / oceanN).toFixed(0)} maxT ${maxT.toFixed(0)} maxE ${maxE.toFixed(0)}`);
+  console.log(`   mass budget (km·cell): continental now ${contMass.toFixed(0)} (mean ${(contMass / cont).toFixed(1)} km); added by arcs ${arcKm.toFixed(0)}, hotspots ${hotKm.toFixed(0)}; delaminated ${delamKm.toFixed(0)}`);
   assert.ok(plates >= 3 && plates <= 30, `plates ${plates}`);
   assert.ok(splits + inits >= 3, 'the policy should have split plates over a Gyr');
   assert.ok(cont / 8000 > 0.10 && cont / 8000 < 0.40, `continental fraction ${cont / 8000}`);   // hard floor; the 18-40% target is the todo test below
@@ -75,7 +79,7 @@ test('a full 1 Gyr history at 8k cells stays in range, conserves mass, keeps the
   for (const pl of alive(world)) { const s = plateSpeedCmPerYr(pl); assert.ok(s <= 10.1, `plate ${pl.id} speed ${s}`); }
 });
 
-test('continental area stays within the design band (18-40%) over a Gyr', { todo: 'collision consumes area faster than outflow re-widens it; P3 erosion redistributes mass laterally' }, () => {
+test('continental area stays within the design band (18-40%) over a Gyr', () => {
   assert.ok(globalThis.__contFraction > 0.18, `continental fraction ${globalThis.__contFraction}`);
 });
 

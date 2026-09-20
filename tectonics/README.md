@@ -34,13 +34,15 @@ Dependency direction is `core ← state ← sim ← passes ← app`, enforced by
 
 ## Status
 
-P−1 (harness), P0 (static crust) complete; P1 (motion + collision with prescribed rotations)
-kinematics built and tested — exact-position scatter advection, plate partition that keeps
-cratons whole, convergence resolution, belt thickening with craton routing, crustal flow,
-delamination — with the visual gate still being evaluated. 39 tests. Next: P1 visual
-sign-off, then P2 (policy). See `DESIGN.md` §10 for phases.
+P−1 (harness), P0 (static crust), P1 (motion + collision) and P2 (the policy) are built and
+tested: a seed-generated supercontinent breaks up, disperses and re-assembles over 1 Gyr under
+the blog's rules of thumb — rotation policy, subduction initiation, rifting (including failed
+rifts), suturing, hotspots and LIPs — with an Earth-like young ocean floor and continental
+area holding in the design band. 44 tests. Next: P3 (erosion, sediment, ageing), then the
+event record and scrubber. See `DESIGN.md` §10 for phases and §5.x for as-built notes.
 
 ```
-node scripts/render-field.mjs --n 80000 --seed 3 --out /tmp/elev.png   # equirectangular PNG of any field
+node scripts/render-field.mjs --app history --n 80000 --seed 7 --frames 50,100,150,200 --out /tmp/h.png   # 1 Gyr history, 4 frames
+node scripts/render-field.mjs --n 80000 --seed 3 --out /tmp/elev.png   # equirectangular PNG of any field (static crust)
 node scripts/extremes.mjs --seed 3                                       # where the extremes are, hypsometry
 ```

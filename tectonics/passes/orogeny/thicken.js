@@ -27,7 +27,7 @@ export default definePass({
     ccBeltWidthKm:      { value: 300, range: [80, 900],  unit: 'km', doc: 'Full width (2σ) of the collisional thickening belt.' },
     ocBeltWidthKm:      { value: 200, range: [60, 700],  unit: 'km', doc: 'Full width (2σ) of the arc thickening belt.' },
     arcOffsetKm:        { value: 150, range: [50, 400],  unit: 'km', doc: 'Distance from the trench to the arc axis on the overriding plate.' },
-    arcMagmaFraction:   { value: 0.15, range: [0, 0.5],  unit: '',   doc: 'Fraction of subducted crustal thickness returned as arc crust.' },
+    arcMagmaFraction:   { value: 0.04, range: [0, 0.5],  unit: '',   doc: 'Fraction of subducted crustal thickness returned as arc crust. Earth adds ~5 km of arc crust per continental cell per Gyr; with the floor recycling ~12× per Gyr that is ~0.04, and 0.15 turned every continent into a plateau.' },
     arcContinentalKm:   { value: 20,  range: [12, 30],   unit: 'km', doc: 'Oceanic crust thickened past this becomes a continental arc terrane.' },
     orogenResetKm:      { value: 0.2, range: [0.01, 2],  unit: 'km', doc: 'Crust added in one substep that counts as active orogeny (resets orogenAge).' },
     minBeltCells:       { value: 1.5, range: [0.5, 4],   unit: 'cells', doc: 'Belt σ is never narrower than this many cell spacings; a belt the grid cannot resolve would be a single-cell wall.' },
@@ -84,7 +84,7 @@ export default definePass({
       }
       add[j] += massKm; fallback += massKm;
     }
-    let fallback = 0;
+    let fallback = 0, arcAdded = 0;
 
     for (let j = 0; j < n; j++) {
       const k = kind[j];
@@ -95,6 +95,7 @@ export default definePass({
           c => type[c] === CRUST.CONTINENTAL && !isCraton[c]);
       }
       if (consumed[j] > 0 && p.arcMagmaFraction > 0) {
+        arcAdded += consumed[j] * p.arcMagmaFraction;
         spread(j, consumed[j] * p.arcMagmaFraction, p.arcOffsetKm, p.ocBeltWidthKm / 2,
           c => plateId[c] === over && !isCraton[c]);
       }
@@ -129,5 +130,6 @@ export default definePass({
     }
     ctx.diag('addedKm', add);
     ctx.diag('fallbackKm', new Float32Array([fallback]));
+    ctx.diag('arcAddedKm', new Float32Array([arcAdded]));
   },
 });

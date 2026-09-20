@@ -19,7 +19,7 @@ export default definePass({
   reads: ['crust.type', 'crust.isCraton', 'crust.thickness', 'crust.plateId'],
   writes: ['crust.thickness', 'crust.type', 'crust.terraneId'],
   params: {
-    flowThresholdKm: { value: 50,  range: [40, 90],  unit: 'km',  doc: 'Crust above this thickness flows.' },
+    flowThresholdKm: { value: 42,  range: [36, 90],  unit: 'km',  doc: 'Crust above this thickness flows (orogens collapse toward ~40 km over ~100 Myr; a higher threshold let collisions pile crust to the delamination cap and lose a third of all continental mass per Gyr).' },
     spreadRate:      { value: 0.5, range: [0, 0.8],  unit: '',    doc: 'Fraction of the excess above threshold moved to neighbours per substep.' },
     marginOutflowKm: { value: 20,  range: [12, 30],  unit: 'km',  doc: 'Thick crust also flows onto same-plate oceanic neighbours; one that reaches this thickness becomes continental. This is how collision-thickened crust re-widens, so continental area is not consumed forever.' },
     reachCells:      { value: 1.6, range: [1, 3],    unit: 'cells', doc: 'Neighbourhood radius for flow.' },

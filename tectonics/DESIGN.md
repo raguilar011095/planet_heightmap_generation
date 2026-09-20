@@ -314,6 +314,34 @@ Assign the two sides divergent rotations. With probability p, mark the rift **fa
 record it, stop divergence, leave a thinned-crust scar (a real aulacogen; steers later
 rivers and break-up). The supercontinent break-up is the first and largest instance.
 
+### 5.x As built in P2 — where the policy departs from the sketch above
+
+- **A trench is not an object.** In a kinematic model convergence *is* the trench, so
+  "initiate subduction offshore of a moving continent" is implemented as splitting the
+  ocean ahead of the continent (which rides on the continental plate as a passive margin)
+  into its own plate with slab pull toward the continent (`policy.subductionInit`). Trench
+  death needs no pass: when a continent arrives the OC boundary becomes CC and suturing
+  eventually merges the plates.
+- **Motion is a desired velocity at the centroid**, converted to an Euler pole
+  (`rotationForVelocity`): blend of previous direction (persistence), slab-pull and
+  ridge-push direction sums from `policy.plateStats`, and wobble; speed from base + slab
+  gain − continental drag, cut in collision, clamped to the band, then most of the net
+  lithospheric rotation removed and the band re-applied.
+- **The initial condition is the blog's opening position**: one continental plate, ocean
+  plates bounded by the seed ridges; the ocean plates' "potential" slab pull toward the
+  continent gives subduction all round it from step 0 without hand-placing trenches.
+- **Rifts are interior-biased** (the random centre is pulled halfway to the continental
+  centroid, strike retried until both pieces are viable) — otherwise most rifts clip a
+  corner and "fail".
+- **Suturing is measured in km of colliding front**, not cells; a cell-fraction threshold
+  was not scale-invariant and either collapsed the plate count (8k) or never fired (80k).
+- **Collision-thickened crust must re-widen** or continental area is consumed forever:
+  `orogeny.spread` lets over-thick crust flow onto the plate's own oceanic margin and
+  converts it at 20 km. Continental area then holds at ~23% over a Gyr.
+- **Arc magmatism is ~4% of subducted crust**, not 15%: with the floor recycling ~12×
+  per Gyr the larger figure added ~28 km to every continental cell and turned every
+  continent into a plateau. Earth's ~5 km per Gyr sets the rate.
+
 ### 5.6 Plumes, hotspots, LIPs
 
 Hotspots are fixed in the mantle frame; crust drifting over them gets a small volcanic
