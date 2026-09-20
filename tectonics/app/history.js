@@ -16,6 +16,7 @@ import rotations from '../passes/policy/rotations.js';
 import subductionInit from '../passes/policy/subduction-init.js';
 import rift from '../passes/policy/rift.js';
 import suture from '../passes/policy/suture.js';
+import backArc from '../passes/policy/back-arc.js';
 import hotspots from '../passes/policy/hotspots.js';
 import advect from '../passes/motion/advect.js';
 import thicken from '../passes/orogeny/thicken.js';
@@ -23,20 +24,22 @@ import spread from '../passes/orogeny/spread.js';
 import delaminate from '../passes/orogeny/delaminate.js';
 import age from '../passes/crust/age.js';
 import consolidate from '../passes/crust/consolidate.js';
+import coalescePlates from '../passes/crust/coalesce-plates.js';
 import isostasy from '../passes/surface/isostasy.js';
 import thermalSubsidence from '../passes/surface/thermal-subsidence.js';
+import volcanoes from '../passes/surface/volcanoes.js';
 
 export const PHASES = ['init', 'policy', 'motion', 'orogeny', 'crust', 'surface'];
-export const SURFACE_PASSES = ['surface.isostasy', 'surface.thermalSubsidence'];
+export const SURFACE_PASSES = ['surface.isostasy', 'surface.thermalSubsidence', 'surface.volcanoes'];
 
 export function buildHistory({ n = 20000, seed = 1, dev = true, dtMyr = 5, startMa = -1000, params = {} } = {}) {
   defineCrustFields(); defineSurfaceFields(); defineBoundaryFields();
   const world = createGridWorld(n, { seed });
   const scheduler = new Scheduler(world, { dev, phases: PHASES, dtMyr, startMa, substepsPerPolicy: 10 });
   scheduler.register(initialCondition).register(initialPlates)
-    .register(plateStats).register(rotations).register(subductionInit).register(rift).register(suture).register(hotspots)
-    .register(advect).register(thicken).register(spread).register(delaminate).register(age).register(consolidate)
-    .register(isostasy).register(thermalSubsidence);
+    .register(plateStats).register(rotations).register(subductionInit).register(rift).register(backArc).register(suture).register(hotspots)
+    .register(advect).register(thicken).register(spread).register(delaminate).register(age).register(consolidate).register(coalescePlates)
+    .register(isostasy).register(thermalSubsidence).register(volcanoes);
   scheduler.setParam('policy.initialPlates', 'supercontinent', true);
   for (const [id, kv] of Object.entries(params)) for (const [k, v] of Object.entries(kv)) scheduler.setParam(id, k, v);
   return { world, scheduler };

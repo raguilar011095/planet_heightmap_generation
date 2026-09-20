@@ -29,6 +29,12 @@ export function defineCrustFields() {
   defineField('crust.orogenAge', { type: Float32Array, unit: 'Myr', range: [0, 5000],
     doc: 'Time since the last significant thickening event. Drives the erosion state of a belt.' });
 
+  defineField('crust.magmaAge', { type: Float32Array, unit: 'Myr', range: [0, 5000], initial: 5000,
+    doc: 'Time since this cell last received arc or hotspot magma. Young = an active volcanic arc or hotspot: thermally supported, with edifices. 5000 = never.' });
+
+  defineField('crust.volcano', { type: Float32Array, unit: '', range: [0, 1], initial: 0,
+    doc: 'Sub-grid volcanic edifice size, 0-1, assigned when a cell first turns magmatic and carried with the crust. Rendered as extra height by surface.volcanoes.' });
+
   defineField('crust.sediment', { type: Float32Array, unit: 'km', range: [0, 30],
     doc: 'Deposited material: passive-margin wedges and foreland fill.' });
 

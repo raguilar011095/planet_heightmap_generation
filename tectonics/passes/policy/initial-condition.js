@@ -30,7 +30,7 @@ export default definePass({
         placed beyond the continental edge. The blog's supercontinent-plus-cratons opening
         position, rolled from the seed instead of drawn.`,
   writes: ['crust.type', 'crust.thickness', 'crust.ageMa', 'crust.isCraton',
-           'crust.terraneId', 'crust.orogenAge', 'crust.sediment',
+           'crust.terraneId', 'crust.orogenAge', 'crust.magmaAge', 'crust.volcano', 'crust.sediment',
            'crust.posX', 'crust.posY', 'crust.posZ'],
   params: {
     landFraction:          { value: 0.25, range: [0.10, 0.45], unit: '',    doc: 'Fraction of the sphere that is continental. Above ~0.4 continents cannot manoeuvre; above 0.5 tectonics locks up.' },
@@ -58,6 +58,7 @@ export default definePass({
     const type = ctx.write('crust.type'), thickness = ctx.write('crust.thickness');
     const ageMa = ctx.write('crust.ageMa'), isCraton = ctx.write('crust.isCraton');
     const terraneId = ctx.write('crust.terraneId'), orogenAge = ctx.write('crust.orogenAge');
+    const magmaAge = ctx.write('crust.magmaAge'), volcano = ctx.write('crust.volcano');
     const sediment = ctx.write('crust.sediment');
     const seed = (world.seed ^ ctx.passHash) >>> 0;
     const coastNoise = makeSphereNoise({ seed, tag: 1, baseFreq: 2.5, octaves: 5 });
@@ -108,7 +109,7 @@ export default definePass({
       const inland = p.marginTaperRad > 0 ? Math.min(1, dOcean / p.marginTaperRad) : 1;
       const interior = p.continentThicknessKm + p.continentNoiseKm * thickNoise(x, y, z);
       thickness[i] = p.marginThicknessKm + (interior - p.marginThicknessKm) * inland;
-      isCraton[i] = 0; terraneId[i] = -1; ageMa[i] = 1000; orogenAge[i] = 3000; sediment[i] = 0;
+      isCraton[i] = 0; terraneId[i] = -1; ageMa[i] = 1000; orogenAge[i] = 3000; magmaAge[i] = 5000; volcano[i] = 0; sediment[i] = 0;
       for (let q = 0; q < centres.length; q++) {
         const [cx, cy, cz, ux, uy, uz, aspect] = centres[q];
         // Distance in the tangent plane at the craton centre, stretched along its axis.
@@ -144,7 +145,7 @@ export default definePass({
       for (const rn of ridges) dist = Math.min(dist, Math.asin(Math.abs(rn[0] * x + rn[1] * y + rn[2] * z)));
       thickness[i] = p.oceanThicknessKm;
       ageMa[i] = Math.min(p.maxOceanAgeMa, dist * EARTH_RADIUS_KM / kmPerMyr);
-      isCraton[i] = 0; terraneId[i] = -1; orogenAge[i] = 3000; sediment[i] = 0;
+      isCraton[i] = 0; terraneId[i] = -1; orogenAge[i] = 3000; magmaAge[i] = 5000; volcano[i] = 0; sediment[i] = 0;
     }
     // 5. Exact particle positions: cell centres jittered within the cell.
     const posX = ctx.write('crust.posX'), posY = ctx.write('crust.posY'), posZ = ctx.write('crust.posZ');

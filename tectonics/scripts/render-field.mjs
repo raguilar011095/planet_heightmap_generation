@@ -3,13 +3,13 @@
 // node:zlib. Usage:
 //   node scripts/render-field.mjs [--app static|prescribed] [--n 20000] [--seed 1] [--field surface.elevation]
 //        [--map elevation|gray|categorical] [--width 1024] [--steps 1]
-//        [--frames 50,100,200] [--sample particles|cells] [--param pass.id:name=value ...] [--out /path/file.png]
+//        [--frames 50,100,200] [--sample particles|cells] [--param pass.id:name=value ...] [--disable pass.id ...] [--out /path/file.png]
 
 import fs from 'node:fs';
 import zlib from 'node:zlib';
 import { buildStaticCrust } from '../app/static-crust.js';
-import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
-import { buildHistory } from '../app/history.js';
+import { buildPrescribedMotion, SURFACE_PASSES as PRESCRIBED_SURFACE } from '../app/prescribed-motion.js';
+import { buildHistory, SURFACE_PASSES as HISTORY_SURFACE } from '../app/history.js';
 import { CellLocator } from '../core/fibonacci-sphere.js';
 
 function build(a, opts) {
@@ -42,11 +42,13 @@ for (const spec of multi('param')) {
 
 const t0 = performance.now();
 const { world, scheduler } = build(args, { n, seed, params });
+for (const id of multi('disable')) scheduler.disable(id);
 const frames = args.frames ? String(args.frames).split(',').map(Number) : [steps];
 let done = 0;
 for (const target of frames) {
   scheduler.run(target - done); done = target;
-  if ((args.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
+  if (args.app === 'history') scheduler.refresh(...HISTORY_SURFACE);
+  else if ((args.app ?? 'static') !== 'static') scheduler.refresh(...PRESCRIBED_SURFACE);
   const path = frames.length > 1 ? out.replace(/\.png$/, `-${String(target).padStart(4, '0')}.png`) : out;
   renderFrame(path);
 }

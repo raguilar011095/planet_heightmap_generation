@@ -3,8 +3,8 @@
 // number came from. Usage: node scripts/extremes.mjs [--n 80000] [--seed 3] [--field surface.elevation]
 
 import { buildStaticCrust } from '../app/static-crust.js';
-import { buildPrescribedMotion, SURFACE_PASSES } from '../app/prescribed-motion.js';
-import { buildHistory } from '../app/history.js';
+import { buildPrescribedMotion, SURFACE_PASSES as PRESCRIBED_SURFACE } from '../app/prescribed-motion.js';
+import { buildHistory, SURFACE_PASSES as HISTORY_SURFACE } from '../app/history.js';
 
 function build(a, opts) {
   const app = a.app ?? 'static';
@@ -20,7 +20,8 @@ const n = Number(a.n ?? 80000), seed = Number(a.seed ?? 3), field = a.field ?? '
 const steps = Number(a.steps ?? 1);
 const { world, scheduler } = build(a, { n, seed });
 scheduler.run(steps);
-if ((a.app ?? 'static') !== 'static') scheduler.refresh(...SURFACE_PASSES);
+if (a.app === 'history') scheduler.refresh(...HISTORY_SURFACE);
+else if ((a.app ?? 'static') !== 'static') scheduler.refresh(...PRESCRIBED_SURFACE);
 const f = world.fields, v = f[field] ?? world.diag[field], e = f['surface.elevation'];
 const { locator, xyz, spacingKm } = world.grid;
 

@@ -19,7 +19,7 @@ export function fillGaps({ world, p, next, filled, gapList, nb1, nb2, kind, CRUS
     nPlate[j] = plate; nType[j] = CRUST.OCEANIC;
     next['crust.thickness'][j] = p.oceanThicknessKm; next['crust.ageMa'][j] = 0;
     next['crust.terraneId'][j] = -1; next['crust.isCraton'][j] = 0;
-    next['crust.orogenAge'][j] = 3000; next['crust.sediment'][j] = 0;
+    next['crust.orogenAge'][j] = 3000; next['crust.magmaAge'][j] = 5000; next['crust.volcano'][j] = 0; next['crust.sediment'][j] = 0;
     next['crust.posX'][j] = xyz[3 * j]; next['crust.posY'][j] = xyz[3 * j + 1]; next['crust.posZ'][j] = xyz[3 * j + 2];
   };
   let gaps = 0, orphans = 0, stretched = 0, dilated = 0, mDilateIn = 0, mDilateOut = 0;
@@ -40,7 +40,7 @@ export function fillGaps({ world, p, next, filled, gapList, nb1, nb2, kind, CRUS
     }
     nPlate[j] = plate; nType[j] = CRUST.CONTINENTAL; nThick[j] = p.riftCellKm;
     next['crust.ageMa'][j] = ageN ? ageSum / ageN : 0; next['crust.terraneId'][j] = next['crust.terraneId'][src];
-    next['crust.isCraton'][j] = 0; next['crust.orogenAge'][j] = 3000; next['crust.sediment'][j] = 0;
+    next['crust.isCraton'][j] = 0; next['crust.orogenAge'][j] = 3000; next['crust.magmaAge'][j] = 5000; next['crust.volcano'][j] = 0; next['crust.sediment'][j] = 0;
     next['crust.posX'][j] = xyz[3 * j]; next['crust.posY'][j] = xyz[3 * j + 1]; next['crust.posZ'][j] = xyz[3 * j + 2];
     return true;
   };

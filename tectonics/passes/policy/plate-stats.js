@@ -15,8 +15,9 @@ export default definePass({
   doc: `Summarises each plate for the policy: area, continental area, centroid, boundary cell
         count, and direction sums for slab pull (its oceanic cells being subducted under a
         neighbour, plus a weaker "potential" term where its ocean meets another plate's
-        continent) and ridge push (its divergent or young boundary cells), plus collision
-        partners. Written to world.plates[*].stats.`,
+        continent) and ridge push (its divergent or young boundary cells), collision partners,
+        and the cells where it overrides a subducting ocean (its trench fronts, per subducting
+        neighbour). Written to world.plates[*].stats.`,
   reads: ['crust.plateId', 'crust.type', 'crust.ageMa', 'boundary.kind', 'boundary.overridingPlate'],
   writes: [],
   params: {
@@ -30,7 +31,8 @@ export default definePass({
     const nb = radiusNeighbors(world, 1.3 * spacingRad);
     for (const pl of world.plates) {
       pl.stats = { area: 0, contArea: 0, cx: 0, cy: 0, cz: 0, slab: [0, 0, 0], ridge: [0, 0, 0],
-                   boundaryCells: 0, subductingCells: 0, collisionCells: 0, collisionWith: new Map(), neighbors: new Map(), isOceanic: true, centroid: [0, 0, 1] };
+                   boundaryCells: 0, subductingCells: 0, collisionCells: 0, collisionWith: new Map(), neighbors: new Map(), isOceanic: true, centroid: [0, 0, 1],
+                   overridingCells: [], overridingWith: new Map() };
     }
     const qs = new Int32Array(16), qc = new Int32Array(16);
     for (let i = 0; i < n; i++) {
@@ -41,6 +43,7 @@ export default definePass({
       s.area++; if (type[i] === CRUST.CONTINENTAL) s.contArea++;
       s.cx += x; s.cy += y; s.cz += z;
       let nx = 0, ny = 0, nz = 0, nq = 0, subducting = false, collision = kind[i] === BOUNDARY.CC, diverging = kind[i] === BOUNDARY.DIVERGENT, facesContinent = false;
+      const overridesHere = kind[i] === BOUNDARY.OC && overriding[i] === P;
       for (let k = nb.offset[i], ke = nb.offset[i + 1]; k < ke; k++) {
         const j = nb.idx[k], Q = plateId[j];
         if (Q === P || Q < 0) continue;
@@ -68,6 +71,7 @@ export default definePass({
       }
       if (diverging || ageMa[i] < p.youngRidgeAgeMa) { s.ridge[0] -= nx; s.ridge[1] -= ny; s.ridge[2] -= nz; }
       if (collision) { s.collisionCells++; s.collisionWith.set(Q, (s.collisionWith.get(Q) ?? 0) + 1); }
+      if (overridesHere) { s.overridingCells.push(i); s.overridingWith.set(Q, (s.overridingWith.get(Q) ?? 0) + 1); }
     }
     for (const pl of world.plates) {
       const s = pl.stats;

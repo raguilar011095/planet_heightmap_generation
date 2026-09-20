@@ -82,6 +82,8 @@ crust.thickness    Float32   km — the conserved mass quantity (area is fixed p
 crust.ageMa        Float32   time since formation (oceanic) or last thermal reset
 crust.isCraton     Uint8     the blog's "rarely broken or deformed" flag
 crust.orogenAge    Float32   time since last thickening event; drives erosion state
+crust.magmaAge     Float32   time since last arc or hotspot magma; thermal support, edifices (P2b)
+crust.volcano      Float32   0–1 sub-grid edifice size, rolled once when a cell turns magmatic (P2b)
 crust.sediment     Float32   km; deposited material (passive margins, forelands)
 ```
 
@@ -357,6 +359,47 @@ rivers and break-up). The supercontinent break-up is the first and largest insta
   refractory period after rifting, and `crust.consolidate` (an isolated thin continental
   cell is a seamount) bring that to a handful. Weak crustal diffusion in `orogeny.spread`
   erases single-cell thickness noise that read as blur.
+
+**As built in P2b (island chains and plate coherence):**
+
+- **Plates are connected bodies** (`crust.coalescePlates`). Transport on a grid leaves
+  speckle behind it — a duplicate relocated into a gap inside another plate, a hole filled
+  with a neighbour's id — and each stray fragment then moves with a plate it is not attached
+  to, cutting fake boundaries (and fake trenches and arcs) through its host. Worse, a
+  fragment on a ridge accretes new floor and grows into a fake plate; that was where most
+  of the "young ocean" in P2 came from. Every substep, each connected component of a plate
+  other than its largest is captured by the plate it touches most; a component larger than
+  a microplate (a plate genuinely cut in two) becomes a new plate with its parent's motion;
+  a whole plate smaller than the Juan de Fuca is captured. Ocean plate maps went from ~300
+  components for 6 plates to one per plate.
+- **Subduction initiation looks all round the continent**, not only ahead of it: the
+  best-scoring of eight sectors (mean floor age, with a bonus in the direction of motion)
+  is split off. Once plates were coherent the floor attached to slow continents simply
+  aged (mean 290 Myr) because nothing ever took it; the Atlantic does not stay passive
+  forever. Only real continents (≥ 8e6 km² of continental crust) initiate, sectors must be
+  ≥ 3e6 km², and a plate waits two policy steps between initiations. Mean floor age is now
+  80–150 Myr with the histogram skewed young.
+- **Back-arc detachment** (`policy.backArc`): a plate that has overridden the same ocean
+  along ≥ 1200 km of trench for two policy steps, and is not advancing on it, sheds the
+  strip within 280 km of the trench as an arc plate moving 2 cm/yr oceanward. The gap
+  behind it stretches then spreads (the ordinary rift mechanism) into a back-arc basin;
+  the strip keeps its terrane identity and its trench. Japan, Scotia, the Marianas.
+- **Island arcs are magmatic, thermally supported and volcanic.** Airy isostasy plus
+  thermal subsidence puts a 20 km intra-oceanic arc at −4 km and a 28 km arc terrane at
+  −1 km: real arcs sit near sea level because they ride hot mantle, and their islands are
+  volcanoes (sub-grid: 30 km wide, 2–3 km high). Two crust fields carry this: `magmaAge`
+  (time since arc or hotspot magma, reset by `orogeny.thicken`'s arc belts and by
+  `policy.hotspots`) and `volcano` (an edifice size rolled once when a cell turns magmatic,
+  transported with the crust). `surface.thermalSubsidence` uses min(crust age, magmaAge)
+  as the thermal age of oceanic cells and lifts magmatic continental cells by 800 m,
+  decaying over 40 Myr; `surface.volcanoes` adds up to 2.5 km × volcano while active,
+  eroding away over ~60 Myr once extinct (a hotspot track becomes seamounts and guyots).
+  Ocean–ocean subduction builds arc crust at 8% of subducted thickness in a 120 km belt
+  (the Izu-Bonin-Mariana rate: ~20 km in 50 Myr); continental margins at 2%. Gross arc
+  production is then ≈ Earth's 3e9 km³/Gyr — and, with no sediment sink yet (P3), that
+  lifts mean continental thickness to ~42 km over a Gyr. The thickness cap now spills onto
+  same-plate neighbours of any type, and drops melt it cannot place instead of stacking a
+  160 km tower on an over-supplied trench.
 
 ### 5.6 Plumes, hotspots, LIPs
 

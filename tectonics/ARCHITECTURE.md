@@ -215,9 +215,10 @@ tectonics/
   sim/         # pass contract (definePass), invariants, Scheduler
   passes/      # ALL simulation behaviour; one concern per file
     motion/    #   scatter advection, boundary classification, gap filling
-    convergence/ # subduction, thickening, accretion, arc growth
-    surface/   #   isostasy, flexure, thermal subsidence, erosion, deposition
-    policy/    #   initial condition, rotation policy, subduction init/death, rifting, plumes
+    orogeny/   #   thickening (collision belts, arcs), crustal flow, delamination
+    crust/     #   ageing, consolidation, plate coalescing
+    surface/   #   isostasy, flexure, thermal subsidence, volcanoes, erosion, deposition
+    policy/    #   initial condition, rotation policy, subduction init, rifting, back-arcs, plumes
     debug/     #   harness smoke-test passes
   app/         # wires passes into a Scheduler for a given run configuration
   render/      # the ONLY place allowed to import three.js

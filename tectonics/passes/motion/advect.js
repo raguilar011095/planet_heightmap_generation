@@ -25,8 +25,8 @@ import { fromPole } from '../../core/rotation.js';
 
 const DEG = Math.PI / 180;
 const CRUST_FIELDS = ['crust.plateId', 'crust.terraneId', 'crust.type', 'crust.thickness',
-                      'crust.ageMa', 'crust.isCraton', 'crust.orogenAge', 'crust.sediment',
-                      'crust.posX', 'crust.posY', 'crust.posZ'];
+                      'crust.ageMa', 'crust.isCraton', 'crust.orogenAge', 'crust.magmaAge',
+                      'crust.volcano', 'crust.sediment', 'crust.posX', 'crust.posY', 'crust.posZ'];
 
 function scratch(world, name, ctor, n) {
   const s = (world.grid.scratch ??= Object.create(null));
