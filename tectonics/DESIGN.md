@@ -236,8 +236,8 @@ own parameters and RNG, so any of them can be disabled or replaced.
   ridges, flanks and old abyssal plain rather than a uniform slab.
 - **Subduction zones around the supercontinent margin** where the ocean is oldest — a
   supercontinent that has assembled *has* subduction around it; that is how it assembled.
-  This is an authored initial condition and is stated as such. (Revision 2 omitted it and
-  would have started with nothing moving.)
+  Generated from the seed like every other part of the initial condition; nothing is
+  hand-placed. (Revision 2 omitted it and would have started with nothing moving.)
 - 3–8 fixed-frame hotspots; a degree-2 mantle pattern biasing where break-up wants to start
   `[recalled — the blog discusses degree-1→2 transition at late supercontinent stage]`.
 
@@ -401,7 +401,7 @@ aesthetic question first.
 
 | Finding | Disposition |
 |---|---|
-| Supercontinent start → nothing moves | Initial subduction around the supercontinent is authored (§5.1); motion is a policy, not a force balance, so it never depends on forces existing |
+| Supercontinent start → nothing moves | Initial subduction around the supercontinent is generated from the seed (§5.1); motion is a policy, not a force balance, so it never depends on forces existing |
 | Particle mass model unspecified | Fixed-area cells; `thickness` is the mass field; overlap sums it (§1.1, §3) |
 | Airy can't make forelands | Flexure pass added (§4.2) |
 | Simulated planets look like simulations | Belt geometry is designed and art-directable (§4.1); phases reordered so mountains appear at P1 (§10) |

@@ -210,32 +210,35 @@ well.
 ```
 tectonics/
   core/        # pure math, zero imports from elsewhere in the project
-               #   sphere geometry, finite rotations, RNG, Delaunay wrapper, units
-  state/       # World, field registry, SoA storage, snapshots, serialisation
+               #   Fibonacci cell grid + locator, finite rotations, addressed RNG
+  state/       # field registry, World (SoA storage, clock, diag), crust field definitions
+  sim/         # pass contract (definePass), invariants, Scheduler
   passes/      # ALL simulation behaviour; one concern per file
-    forces/    #   slab pull, ridge push, basal drag, torque solve
-    motion/    #   advection, re-tessellation, boundary classification
-    convergence/ # subduction, thickening, accretion, arc volcanism
-    surface/   #   isostasy, thermal subsidence, erosion, deposition
-    mantle/    #   plumes, hotspots, LIPs
-    topology/  #   plate split/merge, subduction initiation, rotation-tree edits
-  sim/         # scheduler, pass registry, invariant runner, history recorder
+    motion/    #   scatter advection, boundary classification, gap filling
+    convergence/ # subduction, thickening, accretion, arc growth
+    surface/   #   isostasy, flexure, thermal subsidence, erosion, deposition
+    policy/    #   initial condition, rotation policy, subduction init/death, rifting, plumes
+    debug/     #   harness smoke-test passes
+  app/         # wires passes into a Scheduler for a given run configuration
   render/      # the ONLY place allowed to import three.js
   ui/          # controls, scrubber, overlays
-  dev/         # inspector, field viewer, pass toggles, diff view, torque overlay
+  dev/         # inspector, field viewer, pass toggles, diff view
+  scripts/     # check-deps, check-size
   test/
 ```
 
-**Dependency rule, enforced by a check script in CI:**
+**Dependency rule, enforced by `scripts/check-deps.mjs`:**
 
 ```
-core  ←  state  ←  passes  ←  sim  ←  render / ui / dev
+core  ←  state  ←  sim  ←  passes  ←  app / render / ui / dev
 ```
 
-Imports only ever point left. `core/` imports nothing from the project. **Nothing under
-`core/`, `state/`, `passes/` or `sim/` may import three.js or touch the DOM** — that is what
-makes the whole simulation headless and testable (§6), and it is the rule most likely to be
-violated by accident, so the checker matters.
+Imports only ever point left. `sim/` sits *below* `passes/` because passes call `definePass`
+and the Scheduler never imports a pass — `app/` is what registers passes with a Scheduler.
+`core/` imports nothing from the project. **Nothing under `core/`, `state/`, `sim/` or
+`passes/` may import three.js, any package, or touch the DOM** — that is what makes the whole
+simulation headless and testable (§6), and it is the rule most likely to be violated by
+accident, so the checker matters.
 
 ---
 
