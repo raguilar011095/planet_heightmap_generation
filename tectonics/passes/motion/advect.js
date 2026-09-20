@@ -185,7 +185,20 @@ export default definePass({
       for (let k = k0; k < k1; k++) { const c = nb2.idx[k]; if (filled[c] === 1 && nPlate[c] === plate && nType[c] === CRUST.CONTINENTAL) nThick[c] += massKm / cnt; }
     };
     let interior = 0, dilated = 0, mFold = 0, mDilateIn = 0, mDilateOut = 0;
-    for (const i of relocate) {
+    // Greedy order matters: a duplicate whose gap is adjacent should claim it before a
+    // farther one takes it. Sort by nearest-gap distance (all gaps are still free here).
+    const gapDist = new Float32Array(relocate.length);
+    for (let r = 0; r < relocate.length; r++) {
+      const j = dest[relocate[r]];
+      let d = Infinity;
+      for (let k = nb2.offset[j], ke = nb2.offset[j + 1]; k < ke; k++) if (!filled[nb2.idx[k]] && nb2.dist[k] < d) d = nb2.dist[k];
+      gapDist[r] = d;
+    }
+    const order = new Int32Array(relocate.length);
+    for (let r = 0; r < order.length; r++) order[r] = r;
+    order.sort((a, b) => gapDist[a] - gapDist[b]);
+    for (let r = 0; r < order.length; r++) {
+      const i = relocate[order[r]];
       // Search around where the cell LANDED (its destination), not where it came from.
       const j = dest[i], plate = oPlate[i];
       let best = nearestGap(nb1, j, -3);
