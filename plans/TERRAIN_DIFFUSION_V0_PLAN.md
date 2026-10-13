@@ -96,7 +96,7 @@ node v2/tools/export-planet.mjs --seed 42 --sim 20000 --finish 10000000 --myr 12
 ```
 
 with a `package.json` so `npm install` resolves Delaunator. This alone lets them delete the Node shim, the AST-rewriting
-CUDA adapter and the upstream-tracking process. The same code path serves the page's own export (§5), so it is one
+CUDA adapter and the upstream-tracking process. The same code path serves the page's own export (§6, step 4), so it is one
 implementation, not two. A `--stage` switch emits the pre-carve tectonic surface, the finished surface, or both; a
 `climate-only --heightmap other.tif` command runs V2's climate on a surface they eroded themselves (they do this today for
 their GPU erosion) — `computeClimate` already takes heights and a land mask per cell.
