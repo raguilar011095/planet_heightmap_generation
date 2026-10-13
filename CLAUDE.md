@@ -22,7 +22,7 @@ User feedback consistently highlights these as World Orogen's core strengths. An
 
 2. **Instant, in-browser, zero-friction** — No install, no account, no build step. Users love that they can open a URL and have a planet in seconds. Never add mandatory sign-up, downloads, or server dependencies. Keep generation fast — if a feature risks slowing generation significantly, make it optional or deferred (like the existing on-demand climate above 300K).
 
-3. **Interactive plate editing** — Users say "haven't seen this functionality anywhere else." The Ctrl-click multi-select → Rebuild workflow is a key differentiator. Don't break this interaction pattern. Extend it (e.g. plate direction editing) rather than replacing it.
+3. **Customizability** — Users want to steer the world, not just roll dice. On the Generate page that is the Ctrl-click multi-select → Rebuild plate editing ("haven't seen this functionality anywhere else"); on the Evolution page it is the seed, the sliders, the timeline (scrub, choose an ending, keep going) and the finish settings. Don't break an existing way of steering; extend it (e.g. plate direction editing, editing a moment of the history) rather than replacing it, and give every new generator its own way to steer.
 
 4. **True globe with proper wrapping** — Users who came from Azgaar specifically cite the globe as a reason they switched. The globe-first experience, equirectangular map as secondary view, and seamless wrapping matter. Don't make the map view primary or break globe rendering.
 

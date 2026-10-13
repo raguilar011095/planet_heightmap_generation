@@ -143,9 +143,26 @@ without reading our code.
 ### 4.6 What we deliberately do not do
 
 No server, no model weights on orogen.studio, no GPU dependency on the generate path, no change to the live timeline.
-Diffusion never touches the planet shown on the page; it refines an *export*. If their in-page inference lands, a
-"Refine region" button that loads *their* quantised weights through ONNX Runtime Web is a possible later step, desktop
-only, opt-in, after a measured spike — see §7.
+Diffusion never touches the planet shown on the page; it refines an *export*.
+
+### 4.7 The door left open: from a file hand-off to one app
+
+The pack is the floor, not the ceiling. Three rungs of collaboration, each only with the Neural Earth developer's
+agreement and with credit to both projects wherever the other's work appears:
+
+1. **Files** (this V0): V2 writes the pack; their `terrain_conditioning.py` reads it. No code shared, no coupling.
+2. **A shared contract**: the manifest and channel set become a small spec both repos test against (a fixture pack in
+   each), so either side can change internals without breaking the other. Their Orogen snapshot is replaced by V2's CLI as
+   the generator behind their server.
+3. **One page or app**: their in-page inference (ONNX Runtime Web, their quantised weights, their renderer's tiles) running
+   on V2's planet inside one experience — a "Refine region" on a finished moment that streams 30 m tiles onto the globe,
+   or World Orogen embedded as the world generator inside Neural Earth. Who hosts what, which repo owns which code, and
+   how both names and licences are shown are decisions for that conversation, not this plan. The technical precondition
+   is the same as rung 2: a stable contract between "the planet" and "the refinement". The ethos constraints of §5 hold on
+   our side of any such page: opt-in, desktop-GPU only, the plain planet always available without it.
+
+The measured spike that would precede rung 3 is small: load their exported ONNX models in Chrome on a desktop GPU, time one
+forward of each network, and multiply by the tile counts of §1. Go only if a 300 km region at 90 m lands under ~2 minutes.
 
 ## 5. The ethos check
 
@@ -155,7 +172,9 @@ CLAUDE.md's seven strengths, against this plan:
    seasons go out as layers. Nothing is simplified.
 2. **Instant, in-browser, zero-friction** — unchanged: the pack is one more Export type; the CLI is for servers and
    partners; the model never runs on the generate path and no download is required to use the site.
-3. **Interactive plate editing** — untouched (V2's history has its own controls; V1 unchanged).
+3. **Customizability** — untouched today (V1's plate editing and V2's seed, sliders, timeline and finish settings all
+   stay); the pack's region picker and model choice are one more way to steer, and a later in-page refine would add the
+   SNR knobs (how closely the model follows the planet) rather than take control away.
 4. **True globe** — unchanged; the rotated regional chart exists *because* the globe is primary and the model is flat.
 5. **Free and open source** — unchanged; the export is a format, not a gate. GPL-3 stays; the weights' licence is
    Neural Earth's problem until we ever load them.
@@ -180,7 +199,8 @@ the model was trained on, computed from V2's own climate, not faked.
    size in km, 30 m / 90 m) or whole planet; a ZIP of the files. Desktop and bottom-sheet layouts; phones 90 m only.
    README, tutorial, What's New per CLAUDE.md.
 5. **Hand-off**: open an issue on `dunkean/neural-earth` with a sample pack and the manifest; the ask is that their
-   `terrain_conditioning.py` grows an `orogen-v2` source that reads the files directly. Their side, not ours.
+   `terrain_conditioning.py` grows an `orogen-v2` source that reads the files directly. Their side, not ours. The same
+   conversation is where rungs 2 and 3 of §4.7 get raised, if they want them.
 6. **Optional, for users without Neural Earth**: `tools/diffuse/refine.py`, ~200 lines on upstream's `tiff_export.py`, that
    turns a pack into a 30 m / 90 m 16-bit heightmap on a local GPU. Keep it a documented script, never a site dependency.
 
