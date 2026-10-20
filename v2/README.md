@@ -159,6 +159,7 @@ continental crust, how many landmasses, the heat left under the last supercontin
 node v2/tools/check-phase1.mjs         # … 2, 3, 4, 5, 5b, 6, 6b, 7, 7b, 7c, 8a, 8b, 9, 10, 11, 13 — headless acceptance checks, PASS/FAIL, exit code
 node v2/tools/check-invariants.mjs     # invariants through whole histories: land never vanishes, dead plates empty, terrane ids, cratons
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
+node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md): the record changes no history; seas, cover, wear
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
 node v2/tools/render-frames.mjs tug plates            # PNG frames of a scene → v2/out/
@@ -185,7 +186,8 @@ js/core/           geometry with no tectonics in it: rotations, sphere index, si
 js/tectonics/
   config.js        every tunable, in physical units (km, Myr, cm/yr); MECHANISMS = each mechanism's off-switch
   model/           crust.js (CrustRaster: per-plate cells in the plate's own frame; CELL_FIELDS; the type / flag /
-                   orogeny / volcanic enums) · plate.js (Plate) · world.js (TectonicWorld, EventKind, BoundaryKind)
+                   orogeny / volcanic enums) · plate.js (Plate) · world.js (TectonicWorld, EventKind, BoundaryKind) ·
+                   geology.js (GeoFlag; how a frame packs the geological record into bytes, and unpacks it)
   init/            the start world: cratons → landmass → apron + rim trench → world; and its measurer
   step/            the stages of a step —
                      motion & view: kinematics, gather, resolve (subduct + grow), occupancy (coarse bins that let the
@@ -208,6 +210,9 @@ js/tectonics/
                                     their erosion by latitude — records only, the history never reads them
                      rivers:        the history's rivers: drained every few Myr, cutting as they go (gorges
                                     where land rose under them) — records only too
+                     geology:       the geological record (plans/V2_GEOLOGY_PLAN.md): the rock column (sediment
+                                    cover and its make-up, how deep the basement is worn), the sea's stand and the
+                                    shallow seas, forelands and rift basins, time in live arcs — records only too
   ops/             plate surgery, called by the event stages: rift (path + split), merge-plates (suture with the
                    outline redraw), accrete-terrane (docking), scrape-arc, collapse-arc (fore-arc closure),
                    birth-ocean-plate (a plate carved out of the passive ocean), tidy-plates (integrity: fragments,
@@ -216,6 +221,10 @@ js/tectonics/
   simulate.js      the loop        snapshot.js   Frame (what everything downstream reads)
   ending.js        choose your ending: a history run on until it is in a stage of the supercontinent cycle
   measure.js       measurements on Frames (margins, tallies, force situations), shared by the lab and the checks
+js/geology/        the finish's geology (plans/V2_GEOLOGY_PLAN.md): geology-config (its tunables, in km, with their ranges;
+                   guideRules — where the science overrode Madeline James's guide, each switchable back), rocks (each
+                   finished cell's kind of rock: the frame's rock column read where the terrain read it, with the finish's
+                   cuts and young sediment — G2)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
   anchor           the fine detail belongs to the crust: plate-frame positions for noise, per-crust-cell random streams
@@ -320,6 +329,27 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    thin-skinned fold-thrust belt over the shield's edge, with no thickening). So orogenies accumulate, and an old belt that drifted through the
    tropics keeps the wear it took there. Constants: terrain-config.js (`upliftBuildKm`, `reliefTauMyr`,
    `thickTauMyr`, `ruggedTauMyr`, `diffusionKm2PerMyr`); a world may carry its own in `world.config.heights`.
+10. **The geological record** (`step/geology.js`, `model/geology.js`; plans/V2_GEOLOGY_PLAN.md G1; records only —
+   `check-geology.mjs` runs a history with `config.geology.records` on and off and finds every frame the same). Each
+   land cell keeps a rock column: sediment cover (`coverKm`, its deepest burial and when, its top's make-up —
+   carbonate, salt, coal, organic-rich mud — by the latitude it was laid at) over the basement, and how deep the
+   basement is worn (`exhumKm`; `unroofKm` since its belt was last active). The heights' wear strips the cover first
+   (heights.js `recordWear`); belts thicken the cover with the crust (orogeny.js `thickenCover`); shelves, inland seas
+   at a high stand, forelands in front of active belts and young rift basins lay it down (every `geology.everyMyr`).
+   The sea's stand comes from the ocean floor's mean depth (GDH1): the lowest land joined to the sea floods, up to
+   `floodShareMax` of it when the oceans are young. Plus the time spent under shallow sea and in a live arc, and the
+   settings the other records forget (`GeoFlag`). The start world's crust is seeded worn deep, half under platform
+   cover (`seedGeology`). Frames carry it a byte or two a cell (~11 % of a packed frame). Constants: config.js
+   `geology`. The finish turns it into rocks (`geology/rocks.js`, its `geology` stage): per cell, the record where the
+   terrain read it (the surface hands over each cell's record cell: synthesize.js `recCell`), read smoothly and through a
+   fractal warp (contacts that wander but stay whole). The basement by its last setting and depth (an arc's volcanics
+   bared to granite, a belt's slate and schist to gneiss, a shield's domes and greenstone keels, ophiolite); the cover as
+   beds cut by the finished surface — older beds crop out where the ground lies below the land around it, so outcrops
+   follow the valleys, and a fold belt's folds bare them in stripes along it; young sediment over both (floodplains: the
+   low ground along rivers over `floodplainQ`, wider down bigger ones; deltas and basin floors, `plainsShare` of the
+   land; dunes, loess, moraines) and flood basalt; a majority filter for specks. The land's families come out near
+   Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's record views read
+   each pixel's record cell too, and its rock (bare basement or cover).
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

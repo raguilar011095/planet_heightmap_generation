@@ -6,6 +6,7 @@ import { CrustType, CrustFlag, VolcanicType } from './model/crust.js';
 import { BoundaryKind, Provisional } from './model/world.js';
 import { speedCmYrAt } from './step/kinematics.js';
 import { classifyMargins } from './measure.js';
+import { encodeCoverKm, encodeAge, encodeFacies, encodeExhumKm, encodeUnroofKm, encodeFloodMyr, encodeFloodAge, encodeArcMyr } from './model/geology.js';
 
 const LIVE_TRENCH_HOPS = 2;   // a flagged cell this close to an overriding edge counts as part of the live trench:
                               // the visible edge of a rotated raster jitters by about a cell from step to step
@@ -79,6 +80,9 @@ export function captureFrame(world, reuse = null) {
         volcType: new Uint8Array(n), volcAt: new Float32Array(n), volcKm: new Float32Array(n), volcSource: new Uint16Array(n),
         mantleHeat: new Uint8Array(n),                      // 0…255 for 0…1 (a frame need not carry it at full precision)
         margin: new Uint8Array(n),                          // what kind of coast each coastal land cell is (measure.js Margin)
+        // the geological record (step/geology.js), a byte or two per cell, land only (model/geology.js: the encodings)
+        geoFlags: new Uint8Array(n), coverKm: new Uint8Array(n), coverMaxKm: new Uint8Array(n), coverMaxAge: new Uint8Array(n), facies: new Uint16Array(n),
+        exhumKm: new Uint8Array(n), unroofKm: new Int8Array(n), floodMyr: new Uint8Array(n), floodAge: new Uint8Array(n), arcMyr: new Uint8Array(n),
     };
     f.time = world.time;
     // mark every raster cell that is some world cell's nearest; the rest are hidden between world cells (see below)
@@ -103,6 +107,7 @@ export function captureFrame(world, reuse = null) {
         f.rootKm[w] = 0; f.upliftKm[w] = 0; f.baseKm[w] = 0; f.rugged[w] = 0; f.prevRugged[w] = 0; f.volcWornKm[w] = 0; f.riverIncKm[w] = 0;
         f.riverKm2[w] = world.riverKm2 ? world.riverKm2[w] : 0;
         f.fzU[w] = 0;
+        f.geoFlags[w] = 0; f.coverKm[w] = 0; f.coverMaxKm[w] = 0; f.coverMaxAge[w] = 0; f.facies[w] = 0; f.exhumKm[w] = 0; f.unroofKm[w] = 0; f.floodMyr[w] = 0; f.floodAge[w] = 0; f.arcMyr[w] = 0;
         if (owner[w] < 0) { f.type[w] = 0; f.formedAt[w] = 0; f.flags[w] = 0; f.terrane[w] = 0; f.slabKm[w] = 0; f.oroType[w] = 0; f.oroWork[w] = 0; f.oroStart[w] = 0; f.oroLast[w] = 0; f.thickKm[w] = 0; continue; }
         const crust = plates[owner[w]].crust, c = ownerCell[w];
         if (provisional[w] === Provisional.NEWBORN) {          // the ridge axis: crust forming right now
@@ -122,6 +127,15 @@ export function captureFrame(world, reuse = null) {
         f.rootKm[w] = crust.rootKm[c]; f.upliftKm[w] = crust.upliftKm[c]; f.rugged[w] = crust.rugged[c]; f.prevRugged[w] = crust.prevRugged[c]; f.volcWornKm[w] = crust.volcWornKm[c];
         f.riverIncKm[w] = crust.riverIncKm[c]; f.baseKm[w] = crust.baseKm[c];
         f.volcType[w] = crust.volcType[c]; f.volcAt[w] = crust.volcAt[c]; f.volcKm[w] = crust.volcKm[c]; f.volcSource[w] = crust.volcSource[c];
+        if (crust.type[c] !== CrustType.OCEAN) {
+            const t = world.time;
+            f.geoFlags[w] = crust.geoFlags[c]; f.arcMyr[w] = encodeArcMyr(crust.arcMyr[c]);
+            f.coverKm[w] = encodeCoverKm(crust.coverKm[c]); f.coverMaxKm[w] = encodeCoverKm(crust.coverMaxKm[c]);
+            f.coverMaxAge[w] = crust.coverMaxKm[c] > 0 ? encodeAge(t - crust.coverMaxAt[c]) : 0;
+            f.facies[w] = crust.coverKm[c] > 0 ? encodeFacies(crust.coverCarb[c], crust.coverSalt[c], crust.coverCoal[c], crust.coverOrganic[c]) : 0;
+            f.exhumKm[w] = encodeExhumKm(crust.exhumKm[c]); f.unroofKm[w] = encodeUnroofKm(crust.unroofKm[c]);
+            f.floodMyr[w] = encodeFloodMyr(crust.floodMyr[c]); f.floodAge[w] = encodeFloodAge(crust.floodLast[c], t, crust.floodMyr[c] > 0);
+        }
         // A hotspot track is a THIN record — about a cell wide on the plate's own lattice — and that lattice is rotated
         // against the world's, so some of its cells are nobody's nearest and a nearest-cell gather would show the chain
         // as dashes. Such a HIDDEN track cell is shown instead by a world cell next to it whose own raster cell carries
@@ -177,6 +191,7 @@ export function captureFrame(world, reuse = null) {
     }
     if (ci < crustCount) { f.crustCells = f.crustCells.slice(0, ci); f.crustType = f.crustType.slice(0, ci); f.crustBelt = f.crustBelt.slice(0, 6 * ci); f.crustReach = f.crustReach.slice(0, 2 * ci); }
     f.margin.set(classifyMargins(f, mesh, world.config));      // (needs the plates’ motion, so last)
+    f.geoSea = world.geoSea ? { ...world.geoSea } : null;     // the sea's stand when last looked at (step/geology.js)
     f.budget = { ...world.budget };
     f.events = world.events.slice();
     return f;

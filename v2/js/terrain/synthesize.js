@@ -285,10 +285,10 @@ function curveOf(mesh, m, field, a, b, c, wa, wb, wc) {
 /**
  * The tectonic surface for terrain cells from…to−1: positions from `xyz`, sim-mesh corners and weights from sCells /
  * sWeights (sampleOnto), heights into heightKm (and the components into `parts`, the carving's inputs into `carve`,
- * if given) — all indexed alike. Every cell depends only on its own position and the plan, so any split of the cells
- * gives the same heights.
+ * the world cell whose record each point shows into `recCell`, if given) — all indexed alike. Every cell depends only
+ * on its own position and the plan, so any split of the cells gives the same heights.
  */
-export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, from, to, heightKm, parts = null, carve = null) {
+export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, from, to, heightKm, parts = null, carve = null, recCell = null) {
     const { rec, Ks, V, A, L, mesh: simMesh } = plan, { cell } = A, p = [0, 0, 0], d = [0, 0, 0], cross = [0, 0];
     const warpN = warpField(seed, cfg, simMesh.edgeKm), loc3 = [0, 0, 0], locw3 = [0, 0, 0], local = [0, 0, 0], warped = [0, 0, 0], r3 = [0, 0, 0], rw3 = [0, 0, 0], q3 = [0, 0, 0], qw3 = [0, 0, 0];
     const anchorOn = cfg.anchorRecords !== false;
@@ -785,6 +785,12 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
         }
         const cone = coneAt(V, cn, px, py, pz, h);
         heightKm[t] = h + cone;
+        if (recCell) {
+            // the world cell whose record this point shows (for the geology: geology/rocks.js) — the land corner with the
+            // largest noisy share, as the platform interfingers; with no land corner, the heaviest
+            const n0 = land[c0] ? noisy(c0, w0) : 0, n1 = land[c1] ? noisy(c1, w1) : 0, n2 = land[c2] ? noisy(c2, w2) : 0;
+            recCell[t - from] = n0 + n1 + n2 > 0 ? (n0 >= n1 && n0 >= n2 ? c0 : n1 >= n2 ? c1 : c2) : (w0 >= w1 && w0 >= w2 ? c0 : w1 >= w2 ? c1 : c2);
+        }
         if (carve) {
             // the carving's inputs here: rock uplift (active belts rise, by their relief, fading once quiet), how easily
             // it erodes (shields and ridge crests are hard), the rain its drainage brings, the hillslope gradient, and the

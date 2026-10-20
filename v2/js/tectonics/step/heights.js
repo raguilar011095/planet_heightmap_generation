@@ -21,8 +21,9 @@ import { ISLAND_EROSION_KM_PER_MYR } from '../measure.js';
 import { TERRAIN, erosionAtLatitude, erosionAtHeight } from '../../terrain/terrain-config.js';
 import { broadProfile } from '../../terrain/profiles.js';
 import { FastNoise } from '../../core/fast-noise.js';
+import { recordWear } from './geology.js';
 
-const R = 6371;
+const R = 6371, DEG = 180 / Math.PI;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** The height constants a world runs with. */
@@ -79,7 +80,7 @@ export function seedBaseRelief(world) {
 /** Erosion and hillslope smoothing, once per step over every plate. @returns {number} 0 (it never changes crust) */
 export function evolveHeights(world, dt) {
     if (dt <= 0) return 0;
-    const { mesh, plates, time } = world, H = heightsOf(world.config);
+    const { mesh, plates, time } = world, H = heightsOf(world.config), geo = world.config.geology?.records ? world.config.geology : null;
     const { adjOffset, adjList, xyz, edgeKm } = mesh;
     const rate = rateTable(H), lift = isoLiftTable(H);
     const spread = H.diffusionKm2PerMyr * dt * (2 / 3) / (edgeKm * edgeKm);      // hexagonal-lattice Laplacian, per step
@@ -114,12 +115,20 @@ export function evolveHeights(world, dt) {
             // an escarpment that retreats at its own pace, whatever its height.
             const height = Math.max(0, up) + baseKm[c] + lift[Math.min(LIFT_TABLE - 1, Math.round(rootKm[c] * (type[c] === CrustType.ARC ? 0.25 : 1) * LIFT_PER_KM))];
             const e = rate[bin] * dt * (rift || up < 0 ? 1 : erosionAtHeight(height, H));
+            const u0 = upliftKm[c], r0 = rootKm[c], g0 = rugged[c] + prevRugged[c], b0 = baseKm[c];
             upliftKm[c] = up * wear(e / (rift ? H.riftReliefTauMyr : H.reliefTauMyr));     // (a basin fills back toward 0 as a range wears down to it)
             rootKm[c] *= wear(e / H.thickTauMyr);
             rugged[c] *= wear(e / (rift ? H.riftReliefTauMyr : H.ruggedTauMyr));
             prevRugged[c] *= wear(e / H.ruggedTauMyr);
             riverIncKm[c] *= wear(e / H.ruggedTauMyr);              // (a gorge's walls wear back like the belt's crests)
             if (baseKm[c] > 0) baseKm[c] *= wear(e / H.baseReliefTauMyr);
+            // (the geological record, step/geology.js: the rock this wear took off the top — the relief, the root, a share
+            // of the crests, the swells — or, in a basin, how deep it is sunk; records only)
+            if (geo) {
+                // (a basin takes nothing off its top as its root wears: it fills; its rebound is not erosion)
+                const worn = u0 < 0 ? 0 : Math.max(0, u0 - Math.max(0, upliftKm[c])) + (r0 - rootKm[c]) + geo.crestShare * (g0 - rugged[c] - prevRugged[c]) + (b0 > 0 ? b0 - baseKm[c] : 0);
+                recordWear(plate.crust, c, worn, Math.max(0, -u0), Math.abs(Math.asin(Math.max(-1, Math.min(1, z)))) * DEG, time, dt, geo);
+            }
         }
     }
     return 0;

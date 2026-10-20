@@ -258,6 +258,13 @@
             <option value="wind">Wind</option>
             <option value="currents">Currents</option>
         </optgroup>
+        <optgroup id="mobileGeology" label="Geology">
+            <option value="geoRocks">Rocks</option>
+            <option value="geoBelts">Mountain belts</option>
+            <option value="geoSeas">Past seas</option>
+            <option value="geoCover">Sediment</option>
+            <option value="geoWear">Erosion depth</option>
+        </optgroup>
         <optgroup label="Climate: more">
             <option value="pressure">Pressure</option>
             <option value="upwelling">Upwelling</option>
@@ -274,6 +281,7 @@
             <button class="map-tab active" data-layer="terrain">Terrain</button>
             <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
             <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
+            <button class="map-tab" data-layer="geology" title="What the history left in the rock: its mountain belts, active, worn and long gone; where shallow seas lay over the continents; the sediment on them; how deep erosion has cut. Comes with Add detail">Geology</button>
             <button class="map-tab" data-layer="heightmap">Heightmap</button>
             <button class="map-tab" data-layer="plates">Plates</button>
         </div>
@@ -302,6 +310,13 @@
                     <option value="rainSeason">Rain Seasonality</option>
                 </optgroup>
             </select>
+            <div class="map-tabs" id="geologyTabs" hidden>
+                <button class="map-tab" data-layer="geoRocks" title="What the land is made of at the surface: sediment and sedimentary rock, volcanic rock, granite, metamorphic rock and the ancient shields — from the history's rock record">Rocks</button>
+                <button class="map-tab" data-layer="geoBelts" title="Mountain belts by when each was last active: red while active, orange while its range stands, tan as it wears, violet once worn flat">Mountain belts</button>
+                <button class="map-tab" data-layer="geoSeas" title="Where shallow seas lay over the continents, and when: the sea rises when the ocean floor is young and falls under a supercontinent">Past seas</button>
+                <button class="map-tab" data-layer="geoCover" title="The sediment laid on the continents — sand and mud, limestone, salt, coal, black shale — by its top, deeper the thicker">Sediment</button>
+                <button class="map-tab" data-layer="geoWear" title="How deep erosion has cut into the basement: the rock now at the surface once lay this deep">Erosion depth</button>
+            </div>
             <select id="season" aria-label="Season">
                 <option value="year" selected>Year</option>
                 <option value="jan">January</option>
@@ -364,12 +379,12 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Add Detail</h3>
-                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong> view. It takes from a few seconds to about a minute.</p>
+                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong> and <strong>Geology</strong> views. It takes from a few seconds to about a minute.</p>
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> — hover for how each came to be there — its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut.</p>
                 <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. <strong>Export All</strong> saves one of each in a ZIP, at any width up to 16384 px.</p>
             </div>
             <div class="tutorial-step" data-step="4">

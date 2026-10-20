@@ -24,6 +24,7 @@ import { growMarginIsles } from './step/margin-isles.js';
 import { captureFrame } from './snapshot.js';
 import { evolveHeights, seedBaseRelief } from './step/heights.js';
 import { evolveRivers } from './step/rivers.js';
+import { seedGeology, evolveGeology } from './step/geology.js';
 import { CM_PER_YR_TO_RAD_PER_MYR } from './config.js';
 
 /**
@@ -76,6 +77,7 @@ function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snap
         if (events && tidyPlates(world)) resolve(world);         // a scene may hand a plate cells that are not joined to it: settle that before anything moves
         classifyBoundaries(world, 0);
         if (world.time === 0 && !world.baseSeeded) { seedBaseRelief(world); world.baseSeeded = true; }   // (records only)
+        if (world.time === 0 && !world.geologySeeded) { seedGeology(world); world.geologySeeded = true; }   // (records only)
         if (events && !world.hotspotsReady) insulateAtStart(world);   // (the first frame shows the start's mantle heat; step 1 sets it again)
         if (events) trackCycle(world);                            // (is the start a supercontinent? — then the mantle already flows out from under it)
         drive(world);
@@ -129,6 +131,7 @@ function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snap
         }
         if (slow) evolveHeights(world, slowDt);  // heights wear down and spread (records only: nothing below reads them)
         evolveRivers(world, dt);                            // rivers drain the land and cut into it (records only too; on a clock of their own)
+        evolveGeology(world, dt);                           // the geological record: the sea's stand, shallow seas, basins, arcs (records only; its own clock)
         drive(world);
         steerBackArcStrips(world);                          // a back-arc strip follows its retreating trench, whatever drives the rest
         // (each plate's rotation averaged over ~SLOW_ROTATION_MYR: the spreading poles fracture zones are measured about —

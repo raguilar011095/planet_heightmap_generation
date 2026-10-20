@@ -50,7 +50,8 @@ export const CrustFlag = Object.freeze({
 // added to the constructor must be added here too (check-invariants.mjs fails if one is missing).
 export const CELL_FIELDS = Object.freeze(['type', 'flags', 'formedAt', 'terrane', 'slabKm', 'wingKm', 'oroType', 'oroWork', 'oroStart',
     'oroLast', 'thickKm', 'beltU', 'beltReach', 'beltAt', 'beltSide', 'beltShear', 'prevType', 'prevLast', 'prevU', 'prevReach', 'prevSide',
-    'prevShear', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'volcType', 'volcAt', 'volcKm', 'volcSource', 'fzU']);
+    'prevShear', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'volcType', 'volcAt', 'volcKm', 'volcSource', 'fzU',
+    'geoFlags', 'coverKm', 'coverMaxKm', 'coverMaxAt', 'coverCarb', 'coverSalt', 'coverCoal', 'coverOrganic', 'exhumKm', 'unroofKm', 'floodMyr', 'floodLast', 'arcMyr', 'riftAt']);
 
 export class CrustRaster {
     constructor(numCells) {
@@ -101,6 +102,23 @@ export class CrustRaster {
         this.volcKm = new Float32Array(numCells);      // thickness of the volcanic pile (km): flood basalt, or a volcano's edifice
         this.volcSource = new Uint16Array(numCells);   // the plume that built it: hotspot id + 1 (0 = none)
         this.fzU = new Float32Array(numCells);         // where along its ridge ocean floor formed, in segment lengths (model/segments.js; records only: fracture zones)
+        // The geological record (model/geology.js, step/geology.js; records only — the history never reads them): the
+        // sediment laid on the crust and its make-up, how deep erosion has cut, how long it lay under shallow sea, how long
+        // it stood in a live arc. Continental crust only (and arcs' flags): ocean floor keeps none.
+        this.geoFlags = new Uint8Array(numCells);      // GeoFlag bits: settings it has been in
+        this.coverKm = new Float32Array(numCells);     // sediment on top of the basement (km): laid in basins and shallow seas, stripped first by erosion
+        this.coverMaxKm = new Float32Array(numCells);  // …the most there has ever been (its deepest layers' burial: oil and coal mature with it)…
+        this.coverMaxAt = new Float32Array(numCells);  // …and when that was
+        this.coverCarb = new Float32Array(numCells);   // the cover's make-up near its top, as shares (the rest sand and mud): carbonate,
+        this.coverSalt = new Float32Array(numCells);   // salt,
+        this.coverCoal = new Float32Array(numCells);   // coal,
+        this.coverOrganic = new Float32Array(numCells); // organic-rich mud (oil and gas source rock)
+        this.exhumKm = new Float32Array(numCells);     // basement worn away beneath the cover and lavas, in all (km): how deep the rock now at the surface once lay
+        this.unroofKm = new Float32Array(numCells);    // erosion less burial since the latest belt was last active (km; < 0: buried deeper)
+        this.floodMyr = new Float32Array(numCells);    // time spent under shallow sea (Myr)…
+        this.floodLast = new Float32Array(numCells);   // …and when last (valid where floodMyr > 0)
+        this.arcMyr = new Float32Array(numCells);      // time spent in a live subduction belt — an arc or an Andean margin (Myr)
+        this.riftAt = new Float32Array(numCells);      // when a rift opened here — a new margin, a failed arm (ops/rift.js; valid where flagged)
         this.count = 0;                                // number of masked cells
         this.fields = CELL_FIELDS.map(name => this[name]);
     }

@@ -30,14 +30,14 @@ self.onmessage = async ({ data }) => {
         const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: true, climateOptions, onStage: stage => self.postMessage({ type: 'stage', id, stage }) });
         self.postMessage({ type: 'stage', id, stage: 'picture' });
         const t0 = performance.now();
-        const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell);
+        const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology);
         out.ms.picture = performance.now() - t0;
         // (the finished moment's climate: the grid's fields, and its own picture of the land's climate)
         const climate = { ...out.climate.page, raster: raster.climate };
         delete raster.climate;
         const rv = out.rivers;
         self.postMessage({ type: 'done', id, raster, rivers: rv, climate, stats: out.stats, ms: out.ms },
-            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
+            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, ...(raster.geology ? [raster.geology.rock.buffer, ...(raster.geology.rec ? [raster.geology.rec.buffer] : [])] : []), rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
                 ...(rv.regime ? [rv.regime.buffer, rv.floodFrom.buffer, rv.floodTo.buffer, rv.farFed.buffer] : []), ...climateTransfers(climate)]);
     } catch (err) {
         self.postMessage({ type: 'error', id, message: err?.stack ?? String(err) });

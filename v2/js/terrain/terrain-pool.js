@@ -115,7 +115,8 @@ export class TerrainPool {
     /**
      * synthesizeTerrain(frame, simMesh, tMesh, { cfg, seed, parts }) on the pool: same result (heightKm, parts, rec,
      * sampler, kernels, volcanoes), bit for bit. `records: false` leaves out the records (rec null): heights only, and
-     * nothing of the job runs on the caller's thread.
+     * nothing of the job runs on the caller's thread. `recCells: true` adds recCell: the world cell whose record each
+     * terrain cell shows (for the geology).
      */
     synthesize(frame, tMesh, opts) {
         const run = this.queue.then(() => this.run(frame, tMesh, opts));
@@ -123,11 +124,11 @@ export class TerrainPool {
         return run;
     }
 
-    async run(frame, tMesh, { cfg, seed = 0, parts: wantParts = false, records = true, carveInputs = false }) {
+    async run(frame, tMesh, { cfg, seed = 0, parts: wantParts = false, records = true, carveInputs = false, recCells = false }) {
         this.open();
         const started = performance.now(), W = this.workers.length, n = tMesh.numCells;
         for (const w of this.workers) w.hold(true);
-        try { return await this.runHeld(frame, tMesh, { cfg, seed, wantParts, records, carveInputs }, started, W, n); } finally { for (const w of this.workers) w.hold(false); }
+        try { return await this.runHeld(frame, tMesh, { cfg, seed, wantParts, records, carveInputs, recCells }, started, W, n); } finally { for (const w of this.workers) w.hold(false); }
     }
 
     /**
@@ -215,7 +216,7 @@ export class TerrainPool {
         } finally { worker.hold(false); }
     }
 
-    async runHeld(frame, tMesh, { cfg, seed, wantParts, records, carveInputs: wantCarve }, started, W, n) {
+    async runHeld(frame, tMesh, { cfg, seed, wantParts, records, carveInputs: wantCarve, recCells: wantRec }, started, W, n) {
         let mesh = this.meshes.get(tMesh);
         if (!mesh) {                              // first time on this mesh: deal out its chunks, and each worker's positions
             const count = W * CHUNKS_PER_WORKER, chunks = [];
@@ -231,7 +232,7 @@ export class TerrainPool {
         const sampler = reuseSampler ? mesh.sampler : { cells: new Int32Array(3 * n), weights: new Float32Array(3 * n), key: samplerKey };
         const heightKm = new Float32Array(n);
         const parts = wantParts ? surfaceParts(n) : null;
-        const carveIn = wantCarve ? carveInputs(n) : null;
+        const carveIn = wantCarve ? carveInputs(n) : null, recCell = wantRec ? new Int32Array(n) : null;
         const byId = new Map(mesh.chunks.map(c => [c.id, c]));
         const jobId = this.nextJob++, slim = Object.fromEntries(FRAME_FIELDS.map(k => [k, frame[k]]));      // (to the planner only)
         slim.plates = frame.plates.map(p => p && { quat: p.quat });           // (the plates' rotations: detail is anchored to the crust)
@@ -246,17 +247,18 @@ export class TerrainPool {
                 heightKm.set(msg.heightKm, c.from);
                 if (parts) for (const k of Object.keys(parts)) parts[k].set(msg.parts[k], c.from);
                 if (carveIn) for (const k of Object.keys(carveIn)) carveIn[k].set(msg.carve[k], c.from);
+                if (recCell) recCell.set(msg.rec, c.from);
                 if (msg.cells) { sampler.cells.set(msg.cells, 3 * c.from); sampler.weights.set(msg.weights, 3 * c.from); }
             });
         });
-        this.workers.forEach((w, wi) => w.post({ type: 'job', jobId, frame: wi === 0 ? slim : null, cfg, seed, edgeKm: tMesh.edgeKm, parts: wantParts, carve: wantCarve, samplerKey,
+        this.workers.forEach((w, wi) => w.post({ type: 'job', jobId, frame: wi === 0 ? slim : null, cfg, seed, edgeKm: tMesh.edgeKm, parts: wantParts, carve: wantCarve, recCells: wantRec, samplerKey,
             chunkIds: mesh.chunks.filter((_, i) => i % W === wi).map(c => c.id) }));
         // meanwhile, the plan here too: the caller reads the records (ridge directions, belt kinds) as well as the heights
         // (unless it asked for heights only — a frame built ahead, in the background, keeps the page's thread free)
         const t0 = performance.now(), plan = records ? preparePlan(frame, this.sim, cfg, seed, tMesh.edgeKm) : null, planMs = performance.now() - t0;
         await finished;
         mesh.sampler = sampler;
-        return { heightKm, parts, carveIn, rec: plan?.rec ?? null, sampler, ms: { records: planMs, pooled: performance.now() - started, workers: W },
+        return { heightKm, parts, carveIn, recCell, rec: plan?.rec ?? null, sampler, ms: { records: planMs, pooled: performance.now() - started, workers: W },
             kernels: counts.kernels, volcanoes: counts.volcanoes };
     }
 }

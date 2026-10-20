@@ -159,8 +159,8 @@
 .evo-card-ghost:disabled { opacity: 0.65; cursor: default; }
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
-/* Satellite comes with detail: its tab locked on previews */
-.map-tab[data-layer="satellite"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
+/* Satellite and Geology come with detail: their tabs locked on previews */
+.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
 .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
 /* the layers, over the planet: Terrain · Satellite · Climate (its own row: the five maps) · Heightmap · Plates; the season */
@@ -175,7 +175,7 @@
 }
 .evo-layerbar .map-tab { flex: none; padding: 7px 16px; font-size: 13px; }
 .evo-subbar { display: flex; align-items: center; gap: 8px; }
-.evo-subbar[hidden], #climateTabs[hidden], #climateMore[hidden], #season[hidden] { display: none; }
+.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #climateMore[hidden], #season[hidden] { display: none; }
 .evo-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
 .evo-subbar select {
     background: rgba(8,8,28,0.86); color: #cde; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
@@ -260,7 +260,7 @@
     .evo-act { min-height: 44px; }
     /* the layers: the switch at the top (V1's), the season beneath it; the legend under that */
     .evo-layerbar { top: 92px; }
-    .evo-layerbar #mapTabs, #climateTabs, #climateMore { display: none !important; }
+    .evo-layerbar #mapTabs, #climateTabs, #geologyTabs, #climateMore { display: none !important; }
     .evo-subbar select { min-height: 44px; }
     .evo-legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }

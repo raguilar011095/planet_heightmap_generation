@@ -24,6 +24,7 @@ import { pageClimate } from '../evolution/climate-fields.js';
 import { cellStatsCollector, STAT_KEYS } from '../climate/cell-stats.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { locate } from '../core/mesh-locate.js';
+import { classifyRocks } from '../geology/rocks.js';
 
 const R = 6371;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -38,7 +39,7 @@ export function erosionAt(F, cfg) {
 }
 
 /** The stages, in order, with their rough share of the time (for the progress bar). */
-export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['final climate', 0.03], ['picture', 0.09]];
+export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['final climate', 0.03], ['geology', 0.03], ['picture', 0.09]];
 
 /**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
@@ -60,10 +61,12 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     let warped = { numCells: n, xyz: warpPositions(mesh, seed, F), edgeKm: mesh.edgeKm };
     // (the carving's inputs at the finish's erosion strength: its stream power's k, its crests' hardness)
     const E = erosionAt(F, cfg);
-    let surf = await pool.synthesize(frame, warped, { cfg: { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness }, seed, records: false, carveInputs: true });
+    let surf = await pool.synthesize(frame, warped, { cfg: { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness }, seed, records: false, carveInputs: true, recCells: !!frame.coverKm });
     if (closePool) pool.terminate();                                  // (its workers' memory back before the heavy stages)
     pool.forget?.(warped);
     let carveIn = surf.carveIn;
+    // (for the geology: the world cell whose record each cell shows, as the surface read it — geology/rocks.js)
+    const recCell = surf.recCell;
     const z = surf.heightKm, fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / mesh.edgeKm);
     surf = null; warped = null;
     roughen(mesh, z, seed, F, fade);
@@ -149,7 +152,14 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
 
     // ── F2: sediment, then hillslopes by climate ──
     onStage('sediment');
+    // (for the geology: how deep the rivers cut here — the carving and its dissection, from the surface before — and how
+    // much sediment they lay; a byte each: 20 m, and 2 m, steps)
+    const geo = frame.coverKm ? { cut: new Uint8Array(n), cutStepKm: 0.02, alluv: new Uint8Array(n), alluvStepKm: 0.002 } : null;
+    if (geo) for (let c = 0; c < n; c++) geo.cut[c] = Math.min(255, Math.max(0, Math.round((before[c] - C.z[c]) / geo.cutStepKm)));
+    let zPre = geo ? C.z.slice() : null;
     stats.deltas = depositSediment(mesh, before, C, B.sink, cellKm2, F).deltas;
+    if (geo) for (let c = 0; c < n; c++) geo.alluv[c] = Math.min(255, Math.max(0, Math.round((C.z[c] - zPre[c]) / geo.alluvStepKm)));
+    zPre = null;
     lap('sediment');
     onStage('hillslopes');
     creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm });
@@ -241,9 +251,23 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // (and toward each climate's own colours, regionally — on a coarser grid: the correction is smooth, ~100 km)
     biasTowardClimate(sat, cellsClimate.koppen, lat, lon, c => land[c] === 1 && cellsClimate.koppen[c] > 0, new LatLonGrid(0.5), seed);
     lap('final climate');
+
+    // ── the geology (plans/V2_GEOLOGY_PLAN.md G2): what each place is made of at the surface — the history's rock column
+    // (the frame's geological record), read where the terrain read it, with the cuts and the young sediment of this
+    // surface (geology/rocks.js) ──
+    let geology = null;
+    if (geo) {
+        onStage('geology');
+        const G = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
+            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q } });
+        geology = { rock: G.rock, rec: G.rec, simCells: simMesh.numCells };
+        forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
+        stats.rocks = Array.from(G.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(G.youngBy, v => +v.toFixed(4));
+        lap('geology');
+    }
     const flow = new Float32Array(n);
     for (let c = 0; c < n; c++) flow[c] = Math.log10(Math.max(1, Hy.area[c]));
-    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, ms, stats,
+    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, ms, stats, geology,
         climate: { page: pageC, cell: { koppen: cellsClimate.koppen, tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, sat, cover, stats: cellStats.stats, mottleSeed: ((seed | 0) * 0x2f71 + 0x6d) >>> 0,
             flow, young, rivers: Hy.rivers, ripSat } },
         layers: debug ? { ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
@@ -362,7 +386,7 @@ export function oceanMask(mesh, z, seaSeedKm2 = FINISH.seaSeedKm2, deepKm = FINI
  * east), 16-bit metres, and the ocean (1) — for the page to paint and shade, and to export. Heights blended over the
  * mesh triangle under each pixel; `onRow` reports progress.
  */
-export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeLevel = null, climate = null) {
+export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeLevel = null, climate = null, geology = null) {
     const h = w >> 1, heightM = new Int16Array(w * h), sea = new Uint8Array(w * h), water = new Uint8Array(w * h), c3 = [0, 0, 0], w3 = [0, 0, 0];
     // (the climate's picture: at most as wide as the page's sharpest texture — every f-th pixel of the heights' — the
     // land's Köppen class (its weightiest land cell's), °C × 100 and mm a year (its land cells' weighted mean); the sea
@@ -376,6 +400,9 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     const ripPx = sat && climate.ripSat ? climate.ripSat.map(() => new Uint8Array(3 * cw * ch)) : null;
     // (and the land's measures beyond Köppen, cell-stats.js bytes — the weightiest land cell's)
     const statPx = cw && climate.stats ? Object.fromEntries(STAT_KEYS.map(k => [k, new Uint8Array(cw * ch)])) : null;
+    // (and the geology's rocks, on the climate's picture — its weightiest land cell's, as the Köppen class — and the
+    // history's record cell each shows, for the Geology tab's other views)
+    const rockPx = cw && geology?.rock ? new Uint8Array(cw * ch) : null, recPx = rockPx && geology.rec ? new (geology.simCells < 65536 ? Uint16Array : Int32Array)(cw * ch) : null, dither = rockPx ? new FastNoise(0x6e0c) : null, ditherF = R / (1.5 * (mesh.edgeKm ?? 30));
     // (each column's longitude's cosine and sine, once)
     const cosLon = new Float64Array(w), sinLon = new Float64Array(w);
     for (let px = 0; px < w; px++) { const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI; cosLon[px] = Math.cos(lon); sinLon[px] = Math.sin(lon); }
@@ -401,6 +428,27 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
                     const k = (py / f) * cw + px / f;
                     kop[k] = climate.koppen[best]; tA[k] = Math.round(100 * t / ws); pA[k] = Math.min(65535, Math.round(p / ws));
                     if (statPx) for (const key of STAT_KEYS) statPx[key][k] = climate.stats[key][best];
+                    if (rockPx) {
+                        // (the rock: where the pixel's cells differ, the one with the largest share scaled by a noise of
+                        // its own about a cell across — contacts ragged within a cell, never the mesh's straight edges)
+                        let pick = best, pv = -1;
+                        const r0 = geology.rock[best];
+                        for (let j = 0; j < 3; j++) {
+                            const c = c3[j];
+                            if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c]) || geology.rock[c] === r0) continue;
+                            pick = -1;
+                            break;
+                        }
+                        if (pick < 0) for (let j = 0; j < 3; j++) {
+                            const c = c3[j];
+                            if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c])) continue;
+                            const x = cl * cosLon[px] * ditherF + (c % 101) * 1.37, y = cl * sinLon[px] * ditherF + (c % 89) * 2.11, zz = sl * ditherF + (c % 83) * 0.73;
+                            const v = w3[j] * Math.exp(1.6 * dither.noise3D(x, y, zz));
+                            if (v > pv) { pv = v; pick = c; }
+                        }
+                        rockPx[k] = geology.rock[pick];
+                        if (recPx) recPx[k] = geology.rec[pick];
+                    }
                     if (sat) {
                         // (a fine mottling of the brightness, per pixel — the same in every view)
                         const mf = fineMottle(cl * cosLon[px], cl * sinLon[px], sl, mottle);
@@ -434,7 +482,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     }
     // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
     if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
-    return { w, h, heightM, ocean: sea, water, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
+    return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
 }
 
 /** The widest climate picture a finish makes: the page's sharpest texture (finer would not be seen). */
