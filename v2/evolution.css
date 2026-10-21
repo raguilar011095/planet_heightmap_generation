@@ -163,6 +163,10 @@
 .map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
 .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
+/* the Ages legend's entries are its switch: tap one to see it alone */
+.evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
+.evo-age-chips [data-age-res]:hover { background: rgba(255,255,255,0.06); }
+.evo-age-chips [data-age-res].on { background: rgba(100,160,255,0.18); box-shadow: inset 0 0 0 1px rgba(100,160,255,0.45); }
 /* the layers, over the planet: Terrain · Satellite · Climate (its own row: the five maps) · Heightmap · Plates; the season */
 .evo-layerbar {
     position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 20;
@@ -175,7 +179,7 @@
 }
 .evo-layerbar .map-tab { flex: none; padding: 7px 16px; font-size: 13px; }
 .evo-subbar { display: flex; align-items: center; gap: 8px; }
-.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #climateMore[hidden], #season[hidden] { display: none; }
+.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #climateMore[hidden], #season[hidden], #depositPick[hidden], #agePick[hidden], #ageRes[hidden], #districtToggle[hidden] { display: none; }
 .evo-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
 .evo-subbar select {
     background: rgba(8,8,28,0.86); color: #cde; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
@@ -262,6 +266,7 @@
     .evo-layerbar { top: 92px; }
     .evo-layerbar #mapTabs, #climateTabs, #geologyTabs, #climateMore { display: none !important; }
     .evo-subbar select { min-height: 44px; }
+    .evo-age-chips [data-age-res] { min-height: 32px; display: inline-flex; align-items: center; }
     .evo-legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }

@@ -6,13 +6,16 @@
 // width: its own, averaged down, or enlarged for use downstream (developer, 2026-10-17: "allow the different sizes even if
 // it enlarges the pixels … some smart interpolation"): heights by a clamped bicubic, coasts, lakes and climate zones by the
 // weighted majority of the nearest pixels, satellite colours blended — then painted at the full width, so the hillshade,
-// the coasts and the rivers' lines stay sharp.
+// the coasts and the rivers' lines stay sharp. And the geology's (geology-export.js): the rocks, the deposits and each
+// age's map, a mask per resource, the districts as GeoJSON and CSV, a resource atlas in words.
 
 import { paintFinished, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor } from './climate-view.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { encodeGrayPng, encodeRgbPng, canvasOf, canvasPng } from '../view/png.js';
 import { zipFiles } from '../view/zip.js';
+import { geologyMap, resourceMasks, districtRows, districtsGeoJson, districtsCsv, resourceAtlas, textBlob } from './geology-export.js';
+import { AGES } from '../geology/ages.js';
 
 export const EXPORT_TYPES = [
     { id: 'color', label: 'Colour Map (as shown)' },
@@ -24,9 +27,18 @@ export const EXPORT_TYPES = [
     { id: 'landheightmap', label: 'Land Heightmap (16-bit)' },
     { id: 'landmask', label: 'Land Mask' },
     { id: 'rivers', label: 'Rivers & Lakes (transparent)' },
+    { id: 'rocks', label: 'Rocks', needs: 'geology' },
+    { id: 'deposits', label: 'Deposits (as shown)', needs: 'deposits' },
+    ...AGES.map(a => ({ id: `age-${a.id}`, label: `${a.name} map`, needs: 'deposits' })),
+    { id: 'masks', label: 'Resource masks (greyscale, ZIP)', needs: 'deposits', ext: 'zip' },
+    { id: 'districts-geojson', label: 'Districts (GeoJSON)', needs: 'deposits', ext: 'geojson' },
+    { id: 'districts-csv', label: 'Districts (CSV)', needs: 'deposits', ext: 'csv' },
+    { id: 'atlas', label: 'Resource atlas (text)', needs: 'deposits', ext: 'md' },
 ];
 /** What Export All puts in its ZIP: every kind of map once (the Satellite view for the year). */
-export const EXPORT_ALL = ['color', 'satellite-year', 'koppen', 'heightmap', 'landheightmap', 'landmask', 'rivers'];
+export const EXPORT_ALL = ['color', 'satellite-year', 'koppen', 'heightmap', 'landheightmap', 'landmask', 'rivers', 'rocks', 'deposits', ...AGES.map(a => `age-${a.id}`), 'masks', 'districts-geojson', 'districts-csv', 'atlas'];
+/** A type's file extension. */
+export const exportExt = type => EXPORT_TYPES.find(t => t.id === type)?.ext ?? 'png';
 /** The heightmap's scale: black −11 km (below the deepest trench), white +9 km (above the highest peak), linear. */
 export const HEIGHT_RANGE_M = [-11000, 9000];
 /** The land heightmap's: the sea black (0), land from 0 m (1) to +9 km (65535), linear. */
@@ -35,10 +47,12 @@ export const LAND_TOP_M = 9000;
 export const EXPORT_MAX = 16384, EXPORT_MAX_TOUCH = 4096;
 const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v)));
 
-/** The maps a finished moment can give: the climate's only where it has its climate (and Satellite its colours). */
+/** The maps a finished moment can give: the climate's only where it has its climate (and Satellite its colours), the
+ *  geology's where it has its rocks and deposits. */
 export function exportTypes(fin) {
-    const R = fin.climate?.raster;
-    return EXPORT_TYPES.filter(t => !t.needs || (t.needs === 'climate' ? !!R?.koppen : !!R?.sat));
+    const R = fin.climate?.raster, G = fin.raster.geology;
+    const has = { climate: !!R?.koppen, satellite: !!R?.sat, geology: !!G?.rock, deposits: !!G?.deposits?.land };
+    return EXPORT_TYPES.filter(t => !t.needs || has[t.needs]);
 }
 
 /**
@@ -167,7 +181,9 @@ export async function riversMap(fin, W, look) {
 const tick = () => new Promise(res => setTimeout(res, 0));          // (the progress shows before the work)
 
 /**
- * One map of a finished moment as a PNG. `onProgress(share, label)`.
+ * One map of a finished moment as a PNG (or the geology's files: the masks a ZIP, the districts GeoJSON or CSV, the atlas
+ * text). `look` carries the view's choices — and for the geology the moment's record (`frame`) and the seed.
+ * `onProgress(share, label)`.
  * @returns {Promise<Blob>}
  */
 export async function exportMap(type, fin, W, look, onProgress = () => {}) {
@@ -175,6 +191,13 @@ export async function exportMap(type, fin, W, look, onProgress = () => {}) {
     onProgress(0.05, W > r.w ? `Drawing (enlarged from ${r.w} px)…` : 'Drawing…');
     await tick();
     if (type === 'color') return colorMap(fin, W, look);
+    if (type === 'rocks') return geologyMap(fin, W, 'geoRocks', look);
+    if (type === 'deposits') return geologyMap(fin, W, 'geoDeposits', look, { pick: look.deposit ?? 'all' });
+    if (type.startsWith('age-')) return geologyMap(fin, W, 'geoAges', look, { age: type.slice(4), agePick: 'all' });
+    if (type === 'masks') return zipFiles(await resourceMasks(fin, W, onProgress));
+    if (type === 'districts-geojson') return textBlob(districtsGeoJson(districtRows(fin, look.frame)), 'application/geo+json');
+    if (type === 'districts-csv') return textBlob(districtsCsv(districtRows(fin, look.frame)), 'text/csv');
+    if (type === 'atlas') return textBlob(resourceAtlas(fin, look.frame, { seed: look.seed }), 'text/markdown');
     if (type.startsWith('satellite-')) return satelliteMap(fin, W, type.slice(10), look);
     if (type === 'koppen') return koppenMap(fin, W);
     if (type === 'rivers') return riversMap(fin, W, look);
@@ -192,9 +215,10 @@ export async function exportMap(type, fin, W, look, onProgress = () => {}) {
 export async function exportAll(fin, W, look, names, onProgress = () => {}) {
     const have = new Set(exportTypes(fin).map(t => t.id)), types = EXPORT_ALL.filter(t => have.has(t)), files = [];
     for (let i = 0; i < types.length; i++) {
-        const label = EXPORT_TYPES.find(t => t.id === types[i]).label;
-        const blob = await exportMap(types[i], fin, W, look, (p) => onProgress((i + 0.9 * p) / (types.length + 1), `${label} (${i + 1} of ${types.length})…`));
-        files.push({ name: names(types[i]), blob });
+        const label = EXPORT_TYPES.find(t => t.id === types[i]).label, progress = p => onProgress((i + 0.9 * p) / (types.length + 1), `${label} (${i + 1} of ${types.length})…`);
+        // (the masks in a folder of their own)
+        if (types[i] === 'masks') { for (const f of await resourceMasks(fin, W, progress)) files.push({ name: `masks/${f.name}`, blob: f.blob }); continue; }
+        files.push({ name: names(types[i]), blob: await exportMap(types[i], fin, W, look, progress) });
         await tick();
     }
     onProgress(types.length / (types.length + 1), 'Packing the ZIP…');

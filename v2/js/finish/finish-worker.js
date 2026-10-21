@@ -37,7 +37,7 @@ self.onmessage = async ({ data }) => {
         delete raster.climate;
         const rv = out.rivers;
         self.postMessage({ type: 'done', id, raster, rivers: rv, climate, stats: out.stats, ms: out.ms },
-            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, ...(raster.geology ? [raster.geology.rock.buffer, ...(raster.geology.rec ? [raster.geology.rec.buffer] : [])] : []), rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
+            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, ...(raster.geology ? [raster.geology.rock.buffer, ...(raster.geology.rec ? [raster.geology.rec.buffer] : []), ...(raster.geology.deposits ? [raster.geology.deposits.cells.buffer, raster.geology.deposits.data.buffer, raster.geology.deposits.land.buffer] : [])] : []), rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
                 ...(rv.regime ? [rv.regime.buffer, rv.floodFrom.buffer, rv.floodTo.buffer, rv.farFed.buffer] : []), ...climateTransfers(climate)]);
     } catch (err) {
         self.postMessage({ type: 'error', id, message: err?.stack ?? String(err) });

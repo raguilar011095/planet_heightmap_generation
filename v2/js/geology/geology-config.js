@@ -10,8 +10,9 @@ export const GEOLOGY = {
     guideRules: {
         arcRockByCrust: true,   // arcs grow more felsic as the crust under them thickens (island arcs basalt–andesite,
                                 // continental arcs andesite–rhyolite); false: her "shallow subduction → andesite, steep → rhyolite"
-        coalByWetBelts: true,   // (G4) coal where a basin lay in a wet belt; false: her last supercontinent's 45°N–45°S
-        iceStripsPlacers: true, // (G4) ice strips placers, the unglaciated hills richest; false: richest by the old ice
+        coalByWetBelts: true,   // coal where a basin lay in a wet belt; false: her rule, within 45° of the equator (the
+                                // history lays it: tectonics config geology.coalByWetBelts takes it from here — a new world)
+        iceStripsPlacers: true, // ice strips placers, the unglaciated hills richest; false: richest by the old ice
         graniteIntrusive: true, // granite only where erosion has bared it (it is intrusive); false: her granitic rock at every orogeny
     },
 
@@ -69,6 +70,49 @@ export const GEOLOGY = {
     saltShare: 0.5,             // a bed is salt by the cover's salt share × this (it dissolves at the surface: rarely seen)
     basalSand: 0.5,             // the lowest bed, laid as the sea first spread over the basement, sandier by this
     patchKm: 110,               // the patches each kind of rock comes in (noise, so edges are ragged, never the sim's cells)
+
+    // ── deposits (deposits.js; research §2, §4–6) ──
+    deposits: {
+        gridDeg: 0.25,              // kept on a grid this fine (each cell the richest of its cells): soft districts
+        grades: [0.15, 0.4, 0.7],   // richness 0…1 banded poor · moderate · rich
+        shelfKm: -0.25,             // the shelf (oil and gas offshore): sea over continental crust no deeper than this
+        liveWearKmPerMyr: 0.1,      // a live arc's top wears this fast as it rises (its porphyries bared in ~10–40 Myr)
+        ancientCratonShare: 0.6,    // cratons that are Archean (diamonds only on those)…
+        diamondCratonShare: 0.55,   // …of which this share carry diamonds (some rich, some barren)
+        bifCratonShare: 0.7,        // cratons with banded iron
+        layeredCratonShare: 0.3,    // cratons with an old layered intrusion of their own (a Bushveld)
+        kimberliteFieldKm: 260,     // kimberlite fields ~40 km across, about this far apart
+        layeredKm: 900,             // layered intrusions: one in a craton's spot of this size (Bushveld: 350 × 250 km)
+        reefKm: 500,                // the fossil gold reef: one basin about this size
+        placerKm: { gold: 25, tin: 20, diamond: 250, gem: 60 },  // placers fade down a river over about this (km)
+        placerBandKm: 7,            // …in gravels this far either side of it
+        province: [1000, 0.35],     // a metal's provinces: [their spacing (km), the share of its ground they take]
+        // districts: [their spacing (km), the share of a system's permissive ground they take] — small: a deposit is a find;
+        // iron's wide (developer, 2026-10-20: "iron is a bit under represented" — the commonest ore: the Iron Age's need was fuel)
+        // (developer, 2026-10-20: "orogenic gold covering like 6% of the world just feels crazy for how valuable gold should be")
+        district: { default: [220, 0.25], porphyry: [200, 0.18], epithermal: [150, 0.15], orogenicGold: [240, 0.07], vms: [200, 0.25], skarn: [140, 0.07],
+            mvt: [220, 0.2], sedex: [220, 0.2], tin: [260, 0.12], nativeCopper: [200, 0.2], kimberlite: [300, 1], greenstoneGold: [200, 0.35], bif: [300, 0.45], reef: [400, 0.6],
+            oil: [320, 0.35], gas: [320, 0.35], bitumen: [260, 0.3], bauxite: [260, 0.4], ironLaterite: [260, 0.45], salt: [200, 0.4], ironstone: [220, 0.35],
+            coal: [280, 0.4], peat: [180, 0.45], bogIron: [160, 0.6],
+            flint: [200, 0.55], obsidian: [160, 0.35], jade: [200, 0.2], agate: [220, 0.25],
+            // (G7: gems are finds — small districts, a small share of their ground; emerald and lapis the rarest)
+            pegmatite: [220, 0.14], emerald: [180, 0.05], corundum: [180, 0.08], lapis: [160, 0.06], basaltGems: [200, 0.25], amethyst: [220, 0.1],
+            opal: [240, 0.06], turquoise: [180, 0.14], garnet: [220, 0.1] },
+        // each deposit fades with the time since it formed (its arc or its belt quiet, its basin's deepest burial) — even where
+        // erosion is slow: ~60 % of Earth's Phanerozoic porphyries are gone, a half-life of ~160 Myr (research §2); shallow
+        // ores go fastest, deep veins last (Myr)
+        halfLifeMyr: { porphyry: 160, epithermal: 25, orogenicGold: 450, vms: 500, skarn: 200, tin: 300, mvt: 300, sedex: 600, iocg: 800,
+            // (G7: pegmatites and marble formed deep, and last; a hotspot's basalt field is young — Cenozoic, mostly — a fold
+            // belt's brines as its belt is)
+            pegmatite: 400, marble: 700, basaltGems: 80, foldShale: 150 },
+        prehistoricGold: 0.1,       // the start world's own belts: little gold left in them (most of it long gone)
+        // each system's richness × this (calibration: tin far rarer than copper — research §2)
+        scale: { porphyry: 1, epithermal: 0.65, orogenicGold: 0.8, vms: 1, skarn: 1.6, mvt: 1, sedex: 1, tin: 1.6, iocg: 0.9, magmatic: 1, layered: 1,
+            nativeCopper: 1, kimberlite: 1, greenstoneGold: 1, bif: 1, reef: 1, oil: 1.4, gas: 1.4, bitumen: 1.2, bauxite: 1.2, niLaterite: 1.2,
+            ironLaterite: 1.1, supergene: 1, gossan: 0.4, placerGold: 1.4, placerTin: 2.2, placerDiamond: 1, salt: 1, ironstone: 0.75, bogIron: 1.2,
+            coal: 1.3, peat: 1, wood: 1,
+            pegmatite: 1, emerald: 0.7, corundum: 1, lapis: 1, basaltGems: 1, amethyst: 1, opal: 1, turquoise: 1, garnet: 1, gemPlacer: 2 },
+    },
 };
 
 export const PRIORS = {

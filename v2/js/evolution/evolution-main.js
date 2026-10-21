@@ -24,11 +24,12 @@ import { TerrainPlayer } from './terrain-player.js';
 import { paintPalette, heightLutOf, PALETTES, CRUST_WORDS, settingOf } from './looks.js';
 import { ClimateService, CLIMATE_LAYERS, SEASONAL_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paintUnavailable, drawArrows, drawItcz, drawLegend, readoutLines, finishedClimateColor, finishedClimateLines } from './climate-view.js';
 import { FinishService, paintFinished, riverPaths, drawRivers, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from './finish-view.js';
-import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt } from './geology-view.js';
-import { GEO_FRAME_FIELDS } from '../tectonics/model/geology.js';
+import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines, districtSymbols, drawDistrictSymbols } from './geology-view.js';
+import { AGES } from '../geology/ages.js';
+import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
-import { exportTypes, exportWidths, exportFileName, exportMap, exportAll, EXPORT_MAX, EXPORT_MAX_TOUCH } from './export.js';
+import { exportTypes, exportWidths, exportFileName, exportExt, exportMap, exportAll, EXPORT_MAX, EXPORT_MAX_TOUCH } from './export.js';
 import { downloadBlob } from '../view/png.js';
 import { SMALL_DEVICE } from '../core/device.js';
 
@@ -170,7 +171,7 @@ let glinting = false, glintFrom = null;
 let lines = null, linesKey = null;      // the GPU's overlay: the grid and a climate layer's arrows, drawn again only when they change
 const PALETTE_KEY = 'orogen.evolution.palette';
 const storedPalette = (() => { try { return localStorage.getItem(PALETTE_KEY); } catch { return null; } })();
-const view = { layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, season: 'year', finished: true,
+const view = { deposit: 'all', age: 'bronze', ageRes: 'all', districts: true, layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, season: 'year', finished: true,
     water: true, riverQ: 40, byRegime: false };                      // (rivers and lakes on finished moments: the density's threshold, m³/s; coloured by regime)
 const climate = new ClimateService();   // the climate, on request, for the moment shown (climate-view.js)
 const finisher = new FinishService();   // the Finish step, on request, for the moment shown (finish-view.js)
@@ -538,18 +539,20 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology views
     // their lakes too, as water)
     paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo,
-        colorAt: geo ? finishedGeologyColor(view.layer, frame, B.simMesh, t.width, fin) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+        colorAt: geo ? finishedGeologyColor(view.layer, frame, B.simMesh, t.width, fin, view.deposit, view.age, view.ageRes) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
     if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
     t.ctx.putImageData(t.image, 0, 0);
     // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
     // (the rivers' lines on the Terrain view; from space they are ground, not lines — the Satellite view draws none)
     if (water && view.layer === 'terrain' && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime); t.ctx.restore(); }
+    // (the Deposits and Ages views' districts: an atlas's symbols on their richest — G6)
+    if (view.districts && (view.layer === 'geoDeposits' || view.layer === 'geoAges')) drawDistrictSymbols(t.ctx, t.width, districtSymbols(fin, view.layer, view.deposit, view.age, view.ageRes));
     drawLines(t, C);
     show(t);
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
-    const legend = $('climateLegend'), legendKey = C || geo ? `finished|${view.layer}|${view.season}|${frame.time}|${fin.cells}` : '';
+    const legend = $('climateLegend'), legendKey = C || geo ? `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}` : '';
     if (legend.dataset.key !== legendKey) {
-        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, frame, fin);
+        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, frame, fin, view.deposit, view.age, view.ageRes);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
         legend.dataset.key = legendKey;
@@ -575,7 +578,7 @@ async function finishMoment(again = null) {
     b.finishJob = { frame, cells, stage: 'starting', share: 0, startedAt: performance.now() };
     updateClimateUi();
     // (the terrain's fields, and the geological record for the rocks: geology/rocks.js)
-    const slim = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS].map(k => [k, frame[k]]));
+    const slim = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS, ...GEOLOGY_READS].map(k => [k, frame[k]]));
     slim.plates = frame.plates.map(p => p && { quat: p.quat });
     // (progress: the stages' shares so far, and the picture's own)
     let before = 0;
@@ -735,11 +738,13 @@ async function runExport(all = false) {
     try {
         // (the colour map as the Terrain view shows it: the palette chosen, Rivers & Lakes as set; the rivers-and-lakes
         // layer with the same density and colouring)
-        const look = { lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime };
+        // (the geology's: the Deposits view's pick, the districts' symbols on or off, the moment's record for the stories)
+        const look = { lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime,
+            deposit: view.deposit, districts: view.districts, frame: ex.frame, seed: ex.seed };
         const t0 = performance.now();
-        const blob = all ? await exportAll(ex.fin, W, look, t => exportFileName(ex.seed, ex.frame.time, t), onProgress)
+        const blob = all ? await exportAll(ex.fin, W, look, t => exportFileName(ex.seed, ex.frame.time, t, exportExt(t)), onProgress)
             : await exportMap(type, ex.fin, W, look, onProgress);
-        const name = all ? exportFileName(ex.seed, ex.frame.time, null, 'zip') : exportFileName(ex.seed, ex.frame.time, type);
+        const name = all ? exportFileName(ex.seed, ex.frame.time, null, 'zip') : exportFileName(ex.seed, ex.frame.time, type, exportExt(type));
         downloadBlob(blob, name);
         onProgress(1, `Saved ${name} · ${(blob.size / 2 ** 20).toFixed(1)} MB`);
         console.info(`[evolution] export ${name}: ${W} × ${W >> 1}, ${(blob.size / 2 ** 20).toFixed(1)} MB in ${((performance.now() - t0) / 1000).toFixed(1)} s`);
@@ -915,6 +920,9 @@ function setLayer(layer) {
     $('climateTabs').hidden = $('climateMore').hidden = !CLIMATE_SUB.has(layer);
     $('geologyTabs').hidden = !geo;
     $('season').hidden = !SEASONAL_LAYERS.has(layer);
+    $('depositPick').hidden = layer !== 'geoDeposits';
+    $('districtToggle').hidden = layer !== 'geoDeposits' && layer !== 'geoAges';
+    $('agePick').hidden = $('ageRes').hidden = layer !== 'geoAges';
     updateClimateUi();
 }
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
@@ -935,6 +943,22 @@ $('cardDetailed').addEventListener('click', e => {
 });
 $('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
 $('season').addEventListener('change', e => { view.season = e.target.value; dirty = true; });
+$('depositPick').addEventListener('change', e => { view.deposit = e.target.value; dirty = true; });
+// (the districts' symbols on the Deposits and Ages views: on, or off for the washes alone)
+$('districtToggle').addEventListener('click', () => { view.districts = !view.districts; $('districtToggle').classList.toggle('active', view.districts); $('districtToggle').setAttribute('aria-pressed', String(view.districts)); dirty = true; });
+// the Ages view: the age, then its resources (all, one alone, or its potential) — the legend's entries switch them too
+function fillAgeRes() {
+    const age = AGES.find(a => a.id === view.age), sel = $('ageRes');
+    sel.innerHTML = '<option value="all">All its resources</option>' + age.resources.map(r => `<option value="${r.id}">${r.name}</option>`).join('') +
+        (age.potential ? `<option value="potential">${age.potential.name} potential</option>` : '');
+    sel.value = view.ageRes;
+}
+fillAgeRes();
+$('agePick').addEventListener('change', e => { view.age = e.target.value; view.ageRes = 'all'; fillAgeRes(); dirty = true; });
+$('ageRes').addEventListener('change', e => { view.ageRes = e.target.value; dirty = true; });
+const pickAgeRes = el => { if (view.layer !== 'geoAges') return; view.ageRes = view.ageRes === el.dataset.ageRes ? 'all' : el.dataset.ageRes; $('ageRes').value = view.ageRes; dirty = true; };
+$('climateLegend').addEventListener('click', e => { const el = e.target.closest('[data-age-res]'); if (el) pickAgeRes(el); });
+$('climateLegend').addEventListener('keydown', e => { const el = e.target.closest('[data-age-res]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pickAgeRes(el); } });
 $('palette').value = view.palette;
 $('palette').addEventListener('change', e => {
     view.palette = e.target.value; dirty = true;
@@ -1001,6 +1025,9 @@ function readout(e) {
         const rw = !at.ocean ? recAt(fin, p[0], p[1]) : -1, wr = rw >= 0 ? rw : w;
         const rl = !at.ocean ? rockLine(rockAt(fin, p[0], p[1]), f, wr) : null;
         if (rl) lines.push(rl);
+        if (view.layer === 'geoDeposits') lines.push(...depositLines(fin, p[0], p[1], !!at.ocean, view.deposit));
+        if (view.layer === 'geoAges') lines.push(...ageLines(fin, view.age, p[0], p[1], !!at.ocean));
+        if ((view.layer === 'geoDeposits' || view.layer === 'geoAges') && !at.ocean) lines.push(...districtLines(fin, f, view.layer, view.deposit, view.age, view.ageRes, p[0], p[1]));
         lines.push(...geologyLines(f, wr));
         ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
         return;

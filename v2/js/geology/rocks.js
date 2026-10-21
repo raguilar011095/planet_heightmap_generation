@@ -57,7 +57,7 @@ export const ROCK_INFO = [
 export const EARTH_FAMILIES = { loose: 0.28, sedimentary: 0.42, metamorphic: 0.15, plutonic: 0.075, volcanic: 0.075 };
 
 // the basement's kinds, per sim cell (scores 0…1), then shaped per point by patterns
-const B_VOLC = 0, B_BASALT = 1, B_GRANITE = 2, B_SLATE = 3, B_GNEISS = 4, B_SHIELD = 5, B_OPHIO = 6, NB = 7;
+export const B_VOLC = 0, B_BASALT = 1, B_GRANITE = 2, B_SLATE = 3, B_GNEISS = 4, B_SHIELD = 5, B_OPHIO = 6, NB = 7;
 const ARC_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.ARC]);
 const COLLISION_BELTS = new Set([OrogenyType.URAL, OrogenyType.HIMALAYAN, OrogenyType.TRANSPRESSION]);
 
@@ -157,7 +157,7 @@ function despeckle(mesh, rock, ocean, counts) {
 }
 
 /** 0…1 from a seed and an id (a craton keeps its own character). */
-function hash01(seed, id) {
+export function hash01(seed, id) {
     let h = (seed ^ Math.imul(id + 0x9e37, 0x85ebca6b)) >>> 0;
     h = Math.imul(h ^ (h >>> 16), 0x7feb352d); h = Math.imul(h ^ (h >>> 15), 0x846ca68b); h ^= h >>> 16;
     return (h >>> 0) / 4294967296;
@@ -221,14 +221,16 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     const score = new Float64Array(ROCK_COUNT);
     // ── the record, smooth: its cover, the cover's make-up, its folding — each cell's record cell's, averaged over a sim
     // cell or so (where the terrain read them: belts and basins sit where the terrain put them) ──
-    const isRecLand = c => !ocean[c] && S.land[rec[c]] === 1, isLand = c => !ocean[c], tmp = new Float32Array(n);
+    const isRecLand = c => !ocean[c] && S.land[rec[c]] === 1, isLand = c => !ocean[c];
     const recordKm = G.recordBlurCells * simMesh.edgeKm, coarse = new LatLonGrid(0.5);        // (smooth fields: a coarser grid)
-    const smoothed = (f, km = recordKm) => { for (let c = 0; c < n; c++) tmp[c] = f[rec[c]]; return coarse.blur(coarse.average(lat, lon, tmp, isRecLand), km); };
-    const F = { cover: smoothed(S.cover), carb: smoothed(S.carb), salt: smoothed(S.salt), organic: smoothed(S.organic), marine: smoothed(S.marine), fold: smoothed(S.fold), dKm: smoothed(S.dKm), suture: smoothed(S.suture) };
+    // (all in one pass over the cells: each cell's record cell's values, averaged per grid cell, then blurred)
+    const NAMES = ['cover', 'carb', 'salt', 'organic', 'marine', 'fold', 'dKm', 'suture'], nSim = simMesh.numCells;
+    const baseK = Array.from({ length: NB }, (_, k) => { const a = new Float32Array(nSim); for (let w = 0; w < nSim; w++) a[w] = S.base[NB * w + k]; return a; });
+    const means = coarse.blurMany(coarse.averageMapped(lat, lon, rec, [...NAMES.map(k => S[k]), ...baseK], isRecLand), recordKm);
+    const F = Object.fromEntries(NAMES.map((k, i) => [k, means[i]]));
     // (and the basement's kinds, so a belt's zones — its grades, its batholiths, its volcanic front — run along it as its
     // record does, their contacts wandering, rather than a patchwork of the sim's cells)
-    const FB = [];
-    for (let k = 0; k < NB; k++) { for (let c = 0; c < n; c++) tmp[c] = S.base[NB * rec[c] + k]; FB.push(coarse.blur(coarse.average(lat, lon, tmp, isRecLand), recordKm)); }
+    const FB = means.slice(NAMES.length);
     // ── the finished surface: each place's relief (its height over the land around it), and over its region (~50 km)
     // the height and the rivers' cuts (whether the cover is gone is a region's matter — high ground shedding it, a canyon
     // country cut through it) ──
@@ -260,7 +262,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     const foldWaves = [[G.foldKm * 2.6, 0.6], [G.foldKm, smooth(1.5, 3, G.foldKm / mesh.edgeKm)]].filter(([, a]) => a > 0.01);
     const fbm = (O, x, y, zz, off) => { let s = 0; for (let o = 0; o < O.length; o++) { const [f, a] = O[o]; s += a * nz.noise3D(x * f + off + 1.3 * o, y * f + 2 * off + 2.9 * o, zz * f + 3 * off + 0.7 * o); } return s; };
     let land = 0;
-    const youngBy = new Float64Array(4);
+    const youngBy = new Float64Array(4), ci = new Int32Array(4), cw = new Float64Array(4), ti = new Int32Array(4), tw = new Float64Array(4);
     // the river plains: along the big rivers (floodplains); and deltas and basin floors — the land where the rivers laid
     // the most, about plainsShare of it (how much they lay differs with the detail; where they lay it does not), never where
     // they laid less than alluviumKm[0] — a cell's deposit with its neighbours' (a plain, not a speck)
@@ -303,14 +305,16 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         // ── where the surface meets the rock column: s km above the basement. The cover's top less what the region shed;
         // down into older beds where the ground lies below the land around it (a valley — steeply in a fold belt, its
         // beds on edge: stripes along its ridges); the contact wandering, as far as there is cover to wander ──
-        const T = coarse.at(F.cover, la, lo), fold = coarse.at(F.fold, la, lo), r = zs[c] - grid.at(ref, tla, tlo);
-        const strip = (cutReg ? coarse.at(cutReg, tla, tlo) * cutStepKm : 0) + (glaciated && glaciated[c] ? G.glacialStripKm : 0) + G.highStripPerKm * Math.max(0, coarse.at(hReg, tla, tlo) - G.highStripFromKm);
+        coarse.corners(la, lo, ci, cw); coarse.corners(tla, tlo, ti, tw);
+        const at = f => coarse.atCorners(f, ci, cw);
+        const T = at(F.cover), fold = at(F.fold), r = zs[c] - grid.at(ref, tla, tlo);
+        const strip = (cutReg ? coarse.atCorners(cutReg, ti, tw) * cutStepKm : 0) + (glaciated && glaciated[c] ? G.glacialStripKm : 0) + G.highStripPerKm * Math.max(0, coarse.atCorners(hReg, ti, tw) - G.highStripFromKm);
         const top = T - strip;
         // (a fold belt: across it, synclines keep the top beds, anticlines bare older ones — stripes along the belt, its
         // basement in the anticlines' cores where the cover is thin; −1 in an anticline … +1 in a syncline)
         let syn = 0;
         if (fold > 0.02 && foldWaves.length) {
-            const d = coarse.at(F.dKm, la, lo) / Math.max(0.05, fold), wander = 2 * nz.noise3D(x * wanderF + 4.2, y * wanderF + 8.8, zz * wanderF + 0.6) + 0.5 * fbm(contactO, x, y, zz, 17.3);
+            const d = at(F.dKm) / Math.max(0.05, fold), wander = 2 * nz.noise3D(x * wanderF + 4.2, y * wanderF + 8.8, zz * wanderF + 0.6) + 0.5 * fbm(contactO, x, y, zz, 17.3);
             let sum = 0, amp = 0;
             for (const [lam, a] of foldWaves) { sum += a * Math.cos(2 * Math.PI * d / lam + wander); amp += a; }
             syn = fold * sum / amp;
@@ -322,7 +326,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             // sand and mud — mud more where laid in the sea or rich in organic matter; the lowest bed sandier), each bed
             // its own pattern across country
             const i = bedOf(s + 0.5 * G.bedJitterKm * fbm(bedO, x, y, zz, 7.7));
-            const carb = coarse.at(F.carb, la, lo), salt = G.saltShare * coarse.at(F.salt, la, lo), organic = coarse.at(F.organic, la, lo), marine = coarse.at(F.marine, la, lo);
+            const carb = at(F.carb), salt = G.saltShare * at(F.salt), organic = at(F.organic), marine = at(F.marine);
             const clastic = Math.max(0, 1 - carb - salt), shaleShare = Math.min(0.9, G.shaleLand + (G.shaleMarine - G.shaleLand) * marine + 0.6 * organic);
             let sand = clastic * (1 - shaleShare) + (i === 0 ? G.basalSand : 0), shale = clastic * shaleShare;
             const sum = carb + salt + sand + shale || 1;
@@ -333,7 +337,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             // ── the basement, by the record cell's setting: granite plutons as blobs, standing high (an arc's instead
             // bared in its valleys, under its volcanoes' lid); deeper grades in the valleys; a shield's greenstone keels
             // between domes (or in belts); ophiolite slivers along a suture ──
-            const bz = k => Math.max(0, coarse.at(FB[k], la, lo)), hi = Math.max(-1, Math.min(1, r / 0.4));
+            const bz = k => Math.max(0, at(FB[k])), hi = Math.max(-1, Math.min(1, r / 0.4));
             const volc = bz(B_VOLC), arc = volc > 0.1, nA = fbm(contactO, x, y, zz, 11.1), nB = fbm(contactO, x, y, zz, 23.7);
             const pl = nz.noise3D(x * patchF * 0.8 + 5.5, y * patchF * 0.8 + 2.2, zz * patchF * 0.8 + 8.8) + 0.25 * nB + 0.1 * (arc ? -hi : hi);
             const granite = bz(B_GRANITE), blob = smooth(-0.15, 0.25, pl + (granite - 0.4));
@@ -343,7 +347,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             score[Rock.SLATE] = bz(B_SLATE) * rest * Math.exp(0.6 * nA + 0.1 * hi + 0.8 * syn); score[Rock.GNEISS] = bz(B_GNEISS) * rest * Math.exp(-0.6 * nA - 0.1 * hi - 0.8 * syn);
             score[Rock.VOLCANIC] = volc * rest * Math.exp(0.6 * nB + 0.2 * hi); score[Rock.BASALT] = bz(B_BASALT) * Math.exp(0.4 * nA);
             score[Rock.OPHIOLITE] = bz(B_OPHIO) * Math.exp(0.4 * nB);
-            const suture = coarse.at(F.suture, la, lo);
+            const suture = at(F.suture);
             if (suture > 0.01) {
                 const ridge = 1 - Math.abs(nz.noise3D(x * patchF * 0.6 + 1.4, y * patchF * 0.6 + 6.6, zz * patchF * 0.6 + 3.3) + 0.3 * nA);
                 score[Rock.OPHIOLITE] += suture * 2 * smooth(0.82, 0.95, ridge);

@@ -25,6 +25,9 @@ import { cellStatsCollector, STAT_KEYS } from '../climate/cell-stats.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { locate } from '../core/mesh-locate.js';
 import { classifyRocks } from '../geology/rocks.js';
+import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
+
+const DEPOSIT_IDS = DEPOSITS.map(d => d.id);
 
 const R = 6371;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -39,7 +42,7 @@ export function erosionAt(F, cfg) {
 }
 
 /** The stages, in order, with their rough share of the time (for the progress bar). */
-export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['final climate', 0.03], ['geology', 0.03], ['picture', 0.09]];
+export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['final climate', 0.03], ['geology', 0.03], ['deposits', 0.04], ['picture', 0.09]];
 
 /**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
@@ -225,6 +228,8 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     const relief = COVER.fullLapse ? (1 - CORE_DEFAULTS.terrainRelief) * gamma : 0, hLand = gridClimate.surface.meanLandKm, T12c = new Float64Array(12);
     // (and its measures beyond Köppen — cell-stats.js, one byte each — from the climate's own twelve months)
     const cellStats = cellStatsCollector(n, c => lat[c] * Math.PI / 180, { bytes: true });
+    // (and the deposits' climate tests: bauxite, laterites, salt, peat, enriched copper — geology/deposits.js)
+    const clim = geo ? climateTestArrays(n) : null;
     const cellsClimate = cellClimate(gridClimate, mesh.xyz, C.z, land, {}, (c, T12, P12) => {
         cellStats.add(c, T12, P12);
         let T = T12;
@@ -236,6 +241,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
             for (let m = 0; m < 12; m++) T12c[m] = T12[m] - dT;
             T = T12c;
         }
+        if (clim) climateTests(T, P12, c, clim);
         landCover(T, coverRainScale(P12, rainTarget[c], P12c), cv, F, COVER, lat[c]);
         placeVariety(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2], varyNoise, vy);
         placeGround(vy, W.erg[c], W.loess[c] / F.loessKm, basalt[c] / 255);
@@ -261,9 +267,17 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
         const G = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
             local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q } });
         geology = { rock: G.rock, rec: G.rec, simCells: simMesh.numCells };
-        forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
         stats.rocks = Array.from(G.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(G.youngBy, v => +v.toFixed(4));
+        forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
         lap('geology');
+        // the deposits (G3, G4): the history's mineral systems where they survive, the climate's and the rivers' — on a grid
+        onStage('deposits');
+        const Dp = depositFields({ mesh, z: C.z, ocean, frame, simMesh, seed, rock: G.rock, rec: G.rec, on: { grid, lat, lon },
+            local: { glaciated: I.ice, till: I.till, lake: Hy.lake, q: Hy.q, recv: Hy.recv, order: Hy.order, biome: cover, clim, ice } });
+        geology.deposits = Dp;
+        stats.deposits = Object.fromEntries(DEPOSIT_IDS.map((id, k) => [id, [+Dp.shares[3 * k].toFixed(4), +Dp.shares[3 * k + 1].toFixed(4), +Dp.shares[3 * k + 2].toFixed(4)]]));
+        stats.metals = Object.fromEntries(METALS.map((m, i) => [m.id, [+Dp.metalShares[3 * i].toFixed(4), +Dp.metalShares[3 * i + 1].toFixed(4), +Dp.metalShares[3 * i + 2].toFixed(4)]]));
+        lap('deposits');
     }
     const flow = new Float32Array(n);
     for (let c = 0; c < n; c++) flow[c] = Math.log10(Math.max(1, Hy.area[c]));
@@ -482,7 +496,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     }
     // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
     if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
-    return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
+    return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
 }
 
 /** The widest climate picture a finish makes: the page's sharpest texture (finer would not be seen). */

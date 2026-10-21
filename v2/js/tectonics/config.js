@@ -3,6 +3,8 @@
 // the lab's sliders or a tuning harness can override values per world without touching the defaults.
 // Values marked [WBP] come from Worldbuilding Pasta's Part Va rules of thumb.
 
+import { GEOLOGY } from '../geology/geology-config.js';          // (the guide's rules: the history's coal follows one)
+
 export const CM_PER_YR_TO_KM_PER_MYR = 10;          // 1 cm/yr = 10 km/Myr
 export const CM_PER_YR_TO_RAD_PER_MYR = 10 / 6371; // … = 10/6371 rad/Myr on an Earth-radius sphere
 
@@ -447,6 +449,7 @@ export const TECTONICS = {
         aridLat: [12, 18, 32, 38],  // the arid belt: rising over the first two latitudes, falling over the last two
         wetLat: [8, 14, 34, 40, 58, 66],   // ever-wet tropics (gone over the first two); humid mid-latitudes (between the rest)
         coalShare: 0.12,            // coal in a wet belt's basin fill, at most
+        coalByWetBelts: GEOLOGY.guideRules.coalByWetBelts,   // coal by the wet belts (science) or within 45° (her guide)
         saltShare: 0.4,             // salt in a restricted arid sea's or a young arid rift's
         organicShare: 0.35,         // organic-rich mud in a restricted sea at a high stand, or a young rift's lake
         crestShare: 0.3,            // of a belt's crests worn away, this share is rock taken off the whole cell

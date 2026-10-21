@@ -13,9 +13,12 @@ import { locate } from '../core/mesh-locate.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../geology/rocks.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { GEOLOGY } from '../geology/geology-config.js';
+import { DEPOSITS, METALS } from '../geology/deposits.js';
+import { AGES, resourceField, landShares, potentialField } from '../geology/ages.js';
+import { findDistricts, landmasses, landmassName, landmassShares, districtStory, districtSource, keptIndex, cellLatLon, fmtKm2, SYMBOL, BELT_KIND } from '../geology/districts.js';
 
-export const GEOLOGY_LAYERS = new Set(['geoRocks', 'geoBelts', 'geoSeas', 'geoCover', 'geoWear']);
-export const GEOLOGY_NAMES = { geoRocks: 'Rocks', geoBelts: 'Mountain belts', geoSeas: 'Past seas', geoCover: 'Sediment', geoWear: 'Erosion depth' };
+export const GEOLOGY_LAYERS = new Set(['geoRocks', 'geoDeposits', 'geoAges', 'geoBelts', 'geoSeas', 'geoCover', 'geoWear']);
+export const GEOLOGY_NAMES = { geoRocks: 'Rocks', geoDeposits: 'Deposits', geoAges: 'Ages', geoBelts: 'Mountain belts', geoSeas: 'Past seas', geoCover: 'Sediment', geoWear: 'Erosion depth' };
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 const mix = (a, b, t, out) => { for (let i = 0; i < 3; i++) out[i] = a[i] + (b[i] - a[i]) * t; return out; };
@@ -167,10 +170,457 @@ function recordColor(layer, frame, fin, W) {
     };
 }
 
+// ── Deposits (G3, G4): on the finish's grid (geology/deposits.js) — by metal (each metal all its sources together: what
+// the land yields), or by the kind of deposit (how it formed) — as a wash over the rocks muted: faint where poor, solid
+// where moderate, full where rich (grade by intensity, never by hue); "All": each place its richest metal (a tie to the
+// scarcer), the fuels left out ──
+const GRADE_WORDS = ['Poor', 'Moderate', 'Rich'];
+const DEP_ALL = 'all', SYS = DEPOSITS.length, METAL_PICK = 'm.';
+const ALL_METALS = METALS.map((m, i) => (m.group === 'metal' ? i : -1)).filter(i => i >= 0);
+/** A pick's row in the finish's grid and what it is: a metal (METAL_PICK + id) or a system (its id). */
+function pickOf(pick) {
+    if (pick.startsWith(METAL_PICK)) { const i = METALS.findIndex(m => m.id === pick.slice(METAL_PICK.length)); return i < 0 ? null : { row: SYS + i, item: METALS[i], metal: i }; }
+    const k = DEPOSITS.findIndex(d => d.id === pick);
+    return k < 0 ? null : { row: k, item: DEPOSITS[k], metal: -1 };
+}
+const depositGrids = new WeakMap();
+/** The full grid of a pick's richness (0…1) — for "All" the richest metal per cell and its richness — kept per finish. */
+function depositGrid(fin, pick) {
+    const Dp = fin.raster.geology.deposits;
+    let byPick = depositGrids.get(fin);
+    if (!byPick) depositGrids.set(fin, byPick = new Map());
+    if (byPick.has(pick)) return byPick.get(pick);
+    const K = Dp.cells.length, v = new Float32Array(Dp.w * Dp.h), sys = pick === DEP_ALL ? new Int16Array(Dp.w * Dp.h).fill(-1) : null;
+    let rgb = [0, 0, 0];
+    if (sys) {
+        // (scarcity: a metal's share of the land at moderate or better — the scarcer wins a tie of grades)
+        const share = METALS.map((m, i) => Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]), [p0, p1, p2] = GEOLOGY.deposits.grades;
+        const grade = x => (x >= p2 ? 3 : x >= p1 ? 2 : x >= p0 ? 1 : 0);
+        for (let j = 0; j < K; j++) {
+            let best = -1, bg = 0, bv = 0;
+            for (const i of ALL_METALS) {
+                const x = Dp.data[(SYS + i) * K + j] / 255, g = grade(x);
+                if (g > bg || (g === bg && g > 0 && share[i] < share[best])) { best = i; bg = g; bv = x; }
+            }
+            if (best >= 0) { v[Dp.cells[j]] = bv; sys[Dp.cells[j]] = best; }
+        }
+    } else {
+        const p = pickOf(pick);
+        if (p) { for (let j = 0; j < K; j++) v[Dp.cells[j]] = Dp.data[p.row * K + j] / 255; rgb = p.item.rgb; }
+    }
+    const grid = { w: Dp.w, h: Dp.h, step: Dp.step, v, sys, rgb };
+    byPick.set(pick, grid);
+    return grid;
+}
+/** A grid's richness at a place (bilinear over cell centres), and its colour — for "All" the four cells' metals' colours,
+ *  each by its weight and richness (soft where metals meet, never the grid's squares); out.k the strongest of them. */
+function depositAt(grid, la, lo, out) {
+    const x = (lo + 180) / grid.step - 0.5, y = Math.max(0, Math.min(grid.h - 1, (90 - la) / grid.step - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    const xa = ((x0 % grid.w) + grid.w) % grid.w, xb = (xa + 1) % grid.w, y1 = Math.min(grid.h - 1, y0 + 1), V = grid.v;
+    const i0 = y0 * grid.w + xa, i1 = y0 * grid.w + xb, i2 = y1 * grid.w + xa, i3 = y1 * grid.w + xb, w0 = (1 - fx) * (1 - fy), w1 = fx * (1 - fy), w2 = (1 - fx) * fy, w3 = fx * fy;
+    out.v = V[i0] * w0 + V[i1] * w1 + V[i2] * w2 + V[i3] * w3;
+    if (!grid.sys) { out.k = 0; out.rgb[0] = grid.rgb[0]; out.rgb[1] = grid.rgb[1]; out.rgb[2] = grid.rgb[2]; return out; }
+    let r = 0, g = 0, b = 0, sw = 0, best = -1, bw = 0;
+    for (const [i, w] of [[i0, w0], [i1, w1], [i2, w2], [i3, w3]]) {
+        const k = grid.sys[i], q = w * V[i];
+        if (k < 0 || !(q > 0)) continue;
+        const c = METALS[k].rgb;
+        r += q * c[0]; g += q * c[1]; b += q * c[2]; sw += q;
+        if (q > bw) { bw = q; best = k; }
+    }
+    out.k = best;
+    if (sw > 0) { out.rgb[0] = r / sw; out.rgb[1] = g / sw; out.rgb[2] = b / sw; }
+    return out;
+}
+function depositsColor(fin, W, pick) {
+    const G = fin.raster.geology, s = G.w / W, H = W >> 1, grid = depositGrid(fin, pick), at = { v: 0, k: -1, rgb: [0, 0, 0] }, [p0] = GEOLOGY.deposits.grades;
+    const offshore = ['oil', 'gas', METAL_PICK + 'oilGas'].includes(pick);
+    return (out, o, x, y, wet, kk, k3, v, lake) => {
+        const k = shadeK(kk);
+        if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; }
+        else {
+            // (the rocks, muted: their lightness only, pale)
+            const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s)), rr = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb;
+            const grey = 110 + 0.35 * (0.3 * rr[0] + 0.55 * rr[1] + 0.15 * rr[2]);
+            out[o] = grey * k; out[o + 1] = grey * k; out[o + 2] = grey * k; out[o + 3] = 255;
+        }
+        if (wet && !offshore) return;                                 // (at sea, oil and gas only: the shelf's)
+        depositAt(grid, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, at);
+        if (at.v < p0 || at.k < 0) return;
+        const c = at.rgb, a = 0.3 + 0.65 * smooth(p0, 0.75, at.v), kk2 = wet ? 1 : 0.55 + 0.45 * k;
+        out[o] = Math.min(255, out[o] + (c[0] * kk2 - out[o]) * a); out[o + 1] = Math.min(255, out[o + 1] + (c[1] * kk2 - out[o + 1]) * a); out[o + 2] = Math.min(255, out[o + 2] + (c[2] * kk2 - out[o + 2]) * a);
+    };
+}
+/** The metals under a place [u, v] of a finished moment, richest first, each with the kinds of deposit it comes from
+ *  there: the readout's lines (at sea, only the shelf's oil and gas, if any) — the kind of deposit picked first, if one is. */
+export function depositLines(fin, u, v, sea = false, pick = DEP_ALL) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.metalShares) return [];
+    const la = 90 - v * 180, lo = u * 360 - 180, at = { v: 0, k: -1, rgb: [0, 0, 0] }, [p0, p1, p2] = GEOLOGY.deposits.grades, found = [];
+    const sysAt = new Float32Array(SYS);
+    for (let k = 0; k < SYS; k++) sysAt[k] = depositAt(depositGrid(fin, DEPOSITS[k].id), la, lo, at).v;
+    METALS.forEach((m, i) => {
+        if (sea && m.id !== 'oilGas') return;
+        const x = depositAt(depositGrid(fin, METAL_PICK + m.id), la, lo, at).v;
+        if (x < p0) return;
+        // (its sources here: those that give it at least a poor grade, richest first)
+        const from = m.sources.map(([id, w]) => [id, w * sysAt[DEPOSITS.findIndex(d => d.id === id)]]).filter(([, y]) => y >= p0).sort((a, b) => b[1] - a[1]);
+        found.push([i, x, from.slice(0, 3).map(([id]) => DEPOSITS.find(d => d.id === id).name.toLowerCase()).filter(nm => nm !== m.name.toLowerCase())]);
+    });
+    const dots = x => (x >= p2 ? '●●●' : x >= p1 ? '●●○' : '●○○'), kind = pick !== DEP_ALL && !pick.startsWith(METAL_PICK) ? pickOf(pick) : null;
+    // (the kind of deposit picked, first: a gem or a stone is no metal)
+    const picked = kind && !sea ? sysAt[kind.row] : 0, head = picked >= p0 ? [`<span class="hi-label">${kind.item.name}</span> <span style="color:${css(kind.item.rgb)}">${dots(picked)}</span> — ${kind.item.yields}`] : [];
+    if (!found.length) return sea ? [] : [...head, '<span class="hi-label">Deposits</span> no metals to speak of'];
+    found.sort((a, b) => b[1] - a[1]);
+    return [...head, ...found.slice(0, 5).map(([i, x, from], n) => `<span class="hi-label">${n ? '' : 'Deposits'}</span> ${METALS[i].name} <span style="color:rgb(${METALS[i].rgb.join(',')})">${dots(x)}</span>${from.length ? ` — ${from.join(', ')}` : ''}`)];
+}
+function depositsLegendHTML(fin, pick, sw, head) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.metalShares) return head('Deposits — add detail again to see them (this moment was detailed before the deposits were added)');
+    const pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
+    if (pick === DEP_ALL) {
+        const rows = ALL_METALS.map(i => [i, Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]).filter(([, x]) => x >= 0.0005).sort((a, b) => b[1] - a[1]);
+        return head('Deposits — metals and minerals, each place its richest') + `<div class="evo-koppen">${rows.map(([i, x]) => sw(METALS[i].rgb, METALS[i].name, pct(x))).join('')}</div>` +
+            '<div class="evo-legend-note">% of the land moderate or rich. Faint where poor, solid where moderate, full where rich; a tie goes to the scarcer. Pick one metal above to see it alone — or a fuel, or a kind of deposit</div>';
+    }
+    const p = pickOf(pick);
+    if (!p) return '';
+    const d = p.item, sh = p.metal >= 0 ? Dp.metalShares : Dp.shares, at3 = p.metal >= 0 ? 3 * p.metal : 3 * p.row;
+    const c = d.rgb, base = [150, 150, 150], tint = a => c.map((x, i) => base[i] + (x - base[i]) * a);
+    const from = p.metal >= 0 ? ` From: ${d.sources.map(([id]) => DEPOSITS.find(s => s.id === id).name.toLowerCase()).join(', ')}.` : '';
+    return head(p.metal >= 0 ? d.name : `${d.name} — ${d.yields}`) + `<div class="evo-koppen">${[0.4, 0.75, 0.95].map((a, g) => sw(tint(a), GRADE_WORDS[g], pct(sh[at3 + g]))).join('')}</div>` +
+        `<div class="evo-legend-note">${d.words[0].toUpperCase()}${d.words.slice(1)}.${from} % of the land</div>`;
+}
+
+// ── Ages (G5): each technological age's resources — what its people could reach (geology/ages.js) — over the rocks muted:
+// "All" is each place's richest resource (a tie to the scarcer), a second one there at moderate or better as fine stripes
+// of its colour (developer, 2026-10-19: "A for sure, but we should be cognisant of overlap"); a resource alone; or the
+// age's potential (bronze, ironworking). The legend's entries are the switch: tap one to see it alone ──
+const ageGrids = new WeakMap();
+const ageOf = id => AGES.find(a => a.id === id) ?? AGES[2];
+/** An age's fields on the finish's grid (per kept cell), with each resource's land shares — kept per finish and age. */
+function ageData(fin, ageId) {
+    const Dp = fin.raster.geology.deposits;
+    let byAge = ageGrids.get(fin);
+    if (!byAge) ageGrids.set(fin, byAge = new Map());
+    if (byAge.has(ageId)) return byAge.get(ageId);
+    const age = ageOf(ageId), grades = GEOLOGY.deposits.grades;
+    const fields = age.resources.map(r => resourceField(Dp, r)), potential = potentialField(Dp, age);
+    const data = { age, fields, potential, shares: fields.map(f => landShares(Dp, f, grades)), potentialShares: potential ? landShares(Dp, potential, grades) : null, grids: new Map() };
+    byAge.set(ageId, data);
+    return data;
+}
+/** The full grid of a pick in an age: its value per grid cell — for "All" the richest resource's, and the second one's at
+ *  moderate or better (its stripes) — and the colours. */
+function ageGrid(fin, ageId, pick) {
+    const A = ageData(fin, ageId), key = pick;
+    if (A.grids.has(key)) return A.grids.get(key);
+    const Dp = fin.raster.geology.deposits, size = Dp.w * Dp.h, [p0, p1, p2] = GEOLOGY.deposits.grades;
+    const g = { w: Dp.w, h: Dp.h, step: Dp.step, v: new Float32Array(size), k: null, v2: null, k2: null, rgb: [0, 0, 0], offshore: false };
+    if (pick === DEP_ALL) {
+        g.k = new Int16Array(size).fill(-1); g.v2 = new Float32Array(size); g.k2 = new Int16Array(size).fill(-1);
+        const scarce = A.shares.map(s => s[1] + s[2]), grade = x => (x >= p2 ? 3 : x >= p1 ? 2 : x >= p0 ? 1 : 0);
+        for (let j = 0; j < Dp.cells.length; j++) {
+            // (the winner: the higher grade, a tie to the scarcer; the second: the richest other at moderate or better)
+            let b = -1, bg = 0, bv = 0, s = -1, sv = 0;
+            A.fields.forEach((f, i) => {
+                const x = f[j], gr = grade(x);
+                if (gr > bg || (gr === bg && gr > 0 && scarce[i] < scarce[b])) { b = i; bg = gr; bv = x; }
+            });
+            A.fields.forEach((f, i) => { if (i !== b && f[j] >= p1 && f[j] > sv) { s = i; sv = f[j]; } });
+            const c = Dp.cells[j];
+            if (b >= 0) { g.v[c] = bv; g.k[c] = b; }
+            if (s >= 0 && s !== b) { g.v2[c] = sv; g.k2[c] = s; }
+        }
+    } else {
+        const isPot = pick === 'potential', i = A.age.resources.findIndex(r => r.id === pick);
+        const f = isPot ? A.potential : A.fields[i];
+        if (f) for (let j = 0; j < Dp.cells.length; j++) g.v[Dp.cells[j]] = f[j];
+        g.rgb = isPot ? A.age.potential.rgb : A.age.resources[i]?.rgb ?? [0, 0, 0];
+        g.offshore = !isPot && !!A.age.resources[i]?.offshore;
+    }
+    A.grids.set(key, g);
+    return g;
+}
+/** A grid at a place: its value (bilinear) and colour — for "All" the four cells' resources' colours by weight and value —
+ *  and the stripes' value and colour. */
+function ageAt(g, res, la, lo, out) {
+    const x = (lo + 180) / g.step - 0.5, y = Math.max(0, Math.min(g.h - 1, (90 - la) / g.step - 0.5)), x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
+    const xa = ((x0 % g.w) + g.w) % g.w, xb = (xa + 1) % g.w, y1 = Math.min(g.h - 1, y0 + 1);
+    const I = [y0 * g.w + xa, y0 * g.w + xb, y1 * g.w + xa, y1 * g.w + xb], Wt = [(1 - fx) * (1 - fy), fx * (1 - fy), (1 - fx) * fy, fx * fy];
+    let v = 0, v2 = 0;
+    for (let q = 0; q < 4; q++) { v += Wt[q] * g.v[I[q]]; if (g.v2) v2 += Wt[q] * g.v2[I[q]]; }
+    out.v = v; out.v2 = v2; out.k = -1;
+    if (!g.k) { out.k = 0; for (let ch = 0; ch < 3; ch++) out.rgb[ch] = g.rgb[ch]; return out; }
+    const blend = (K, V, rgb) => {
+        let r = 0, gg = 0, b = 0, sw = 0, best = -1, bw = 0;
+        for (let q = 0; q < 4; q++) {
+            const k = K[I[q]], w = Wt[q] * V[I[q]];
+            if (k < 0 || !(w > 0)) continue;
+            const c = res[k].rgb;
+            r += w * c[0]; gg += w * c[1]; b += w * c[2]; sw += w;
+            if (w > bw) { bw = w; best = k; }
+        }
+        if (sw > 0) { rgb[0] = r / sw; rgb[1] = gg / sw; rgb[2] = b / sw; }
+        return best;
+    };
+    out.k = blend(g.k, g.v, out.rgb);
+    if (v2 > 0) out.k2 = blend(g.k2, g.v2, out.rgb2);
+    return out;
+}
+function agesColor(fin, W, ageId, pick) {
+    const G = fin.raster.geology, s = G.w / W, H = W >> 1, g = ageGrid(fin, ageId, pick), res = ageOf(ageId).resources;
+    const at = { v: 0, k: -1, rgb: [0, 0, 0], v2: 0, k2: -1, rgb2: [0, 0, 0] }, [p0, p1] = GEOLOGY.deposits.grades;
+    return (out, o, x, y, wet, kk, k3, v, lake) => {
+        const k = shadeK(kk);
+        if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; }
+        else {
+            const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s)), rr = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb;
+            const grey = 110 + 0.35 * (0.3 * rr[0] + 0.55 * rr[1] + 0.15 * rr[2]);
+            out[o] = grey * k; out[o + 1] = grey * k; out[o + 2] = grey * k; out[o + 3] = 255;
+        }
+        if (wet && !g.offshore) return;
+        ageAt(g, res, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, at);
+        if (at.v < p0 || at.k < 0) return;
+        // (a second resource at moderate or better: thin diagonal stripes of its colour across the first)
+        const stripe = at.v2 >= p1 && ((x + y) & 7) < 2, c = stripe ? at.rgb2 : at.rgb, a = stripe ? 0.85 : 0.3 + 0.65 * smooth(p0, 0.75, at.v), kk2 = wet ? 1 : 0.55 + 0.45 * k;
+        out[o] = Math.min(255, out[o] + (c[0] * kk2 - out[o]) * a); out[o + 1] = Math.min(255, out[o + 1] + (c[1] * kk2 - out[o + 1]) * a); out[o + 2] = Math.min(255, out[o + 2] + (c[2] * kk2 - out[o + 2]) * a);
+    };
+}
+const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
+/** An age's resources under a place [u, v], richest first; its potential there; and in the Bronze Age, if there is no tin
+ *  here, where the nearest is. */
+export function ageLines(fin, ageId, u, v, sea = false) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.land) return [];
+    const A = ageData(fin, ageId), la = 90 - v * 180, lo = u * 360 - 180, at = { v: 0, k: -1, rgb: [0, 0, 0], v2: 0, k2: -1, rgb2: [0, 0, 0] }, [p0, p1, p2] = GEOLOGY.deposits.grades;
+    const dots = x => (x >= p2 ? '●●●' : x >= p1 ? '●●○' : '●○○'), found = [];
+    A.age.resources.forEach((r, i) => {
+        if (sea && !r.offshore) return;
+        const x = ageAt(ageGrid(fin, ageId, r.id), A.age.resources, la, lo, at).v;
+        if (x >= p0) found.push([r, x]);
+    });
+    found.sort((a, b) => b[1] - a[1]);
+    const lines = found.slice(0, 5).map(([r, x], n) => `<span class="hi-label">${n ? '' : A.age.name}</span> ${r.name} <span style="color:rgb(${r.rgb.join(',')})">${dots(x)}</span>`);
+    if (!found.length && !sea) lines.push(`<span class="hi-label">${A.age.name}</span> nothing to work here`);
+    if (A.potential && !sea) {
+        const x = ageAt(ageGrid(fin, ageId, 'potential'), A.age.resources, la, lo, at).v;
+        lines.push(`<span class="hi-label">Potential</span> ${A.age.potential.name}: ${x >= p2 ? 'rich' : x >= p1 ? 'moderate' : x >= p0 ? 'poor' : 'none'}`);
+    }
+    // (the Bronze Age's scarce metal: how far to the nearest tin, moderate or better if there is any, else poor)
+    const tinAt = A.age.resources.findIndex(r => r.id === 'tin');
+    if (ageId === 'bronze' && tinAt >= 0 && !sea && !found.some(([r]) => r.id === 'tin')) {
+        const f = A.fields[tinAt], toRad = Math.PI / 180;
+        let best = null;
+        for (const min of [p1, p0]) {
+            for (let j = 0; j < f.length; j++) {
+                if (f[j] < min || !Dp.land[j]) continue;
+                const c = Dp.cells[j], y = Math.floor(c / Dp.w), x = c % Dp.w, tla = 90 - (y + 0.5) * Dp.step, tlo = -180 + (x + 0.5) * Dp.step;
+                const d = 6371 * Math.acos(Math.max(-1, Math.min(1, Math.sin(la * toRad) * Math.sin(tla * toRad) + Math.cos(la * toRad) * Math.cos(tla * toRad) * Math.cos((tlo - lo) * toRad))));
+                if (!best || d < best.d) best = { d, tla, tlo, v: f[j] };
+            }
+            if (best) break;
+        }
+        if (best) {
+            const y = Math.sin((best.tlo - lo) * toRad) * Math.cos(best.tla * toRad), x = Math.cos(la * toRad) * Math.sin(best.tla * toRad) - Math.sin(la * toRad) * Math.cos(best.tla * toRad) * Math.cos((best.tlo - lo) * toRad);
+            const dir = COMPASS[Math.round(((Math.atan2(y, x) / toRad + 360) % 360) / 45) % 8];
+            lines.push(`<span class="hi-label">Nearest tin</span> ${(Math.round(best.d / 100) * 100).toLocaleString()} km ${dir}, ${best.v >= p2 ? 'rich' : best.v >= p1 ? 'moderate' : 'poor'}`);
+        } else lines.push('<span class="hi-label">Nearest tin</span> none on this world — bronze from arsenic, or not at all');
+    }
+    return lines;
+}
+function agesLegendHTML(fin, ageId, pick) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.land) return '<div class="evo-legend-head">Ages — add detail again to see them (this moment was detailed before the ages were added)</div>';
+    const A = ageData(fin, ageId), pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
+    const chip = (id, rgb, label, share, on) => `<span data-age-res="${id}" class="${on ? 'on' : ''}" role="button" tabindex="0"><i style="background:${css(rgb)}"></i>${label} <em>${pct(share)}%</em></span>`;
+    const rows = A.age.resources.map((r, i) => chip(r.id, r.rgb, r.name, A.shares[i][1] + A.shares[i][2], pick === r.id));
+    if (A.potential) rows.push(chip('potential', A.age.potential.rgb, `${A.age.potential.name} potential`, A.potentialShares[1] + A.potentialShares[2], pick === 'potential'));
+    const what = pick === DEP_ALL ? 'each place its richest; stripes: a second at moderate or better' : pick === 'potential' ? A.age.potential.words : 'faint where poor, solid where moderate, full where rich';
+    return `<div class="evo-legend-head">${A.age.name} — ${A.age.words}</div><div class="evo-koppen evo-age-chips">${rows.join('')}</div>` +
+        `<div class="evo-legend-note">% of the land moderate or rich · ${what}. Tap one to see it alone${pick !== DEP_ALL ? ', again for all' : ''}</div>`;
+}
+
+// ── Districts (G6): each wash's places — a district a patch of moderate or better ground (split around its peaks where
+// large: geology/districts.js) — with where it came from, and each landmass's share of every resource. The map marks the
+// richest with an atlas's symbols (Cu, Au, Sn…); the readout names the district under the pointer and its story ──
+// (the ever-present kinds have no districts: wood, building stone)
+const NO_DISTRICTS = new Set(['wood', 'clay', 'stoneLimestone', 'stoneSandstone', 'stoneGranite', 'stoneMarble', 'stoneSlate']);
+const subjectCache = new WeakMap();
+/**
+ * What a view shows, as subjects that have districts: each its id, name, colour, symbol, field (per kept grid cell, 0…1
+ * — or the deposits' bytes) and sources. Deposits: the metals (All), a metal, or a kind of deposit; Ages: the age's
+ * resources (All) or one of them.
+ */
+export function subjectsOf(fin, layer, pick = DEP_ALL, age = 'bronze', agePick = DEP_ALL) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.land) return [];
+    let byKey = subjectCache.get(fin);
+    if (!byKey) subjectCache.set(fin, byKey = new Map());
+    const key = layer === 'geoAges' ? `a|${age}|${agePick}` : `d|${pick}`;
+    if (byKey.has(key)) return byKey.get(key);
+    const K = Dp.cells.length, row = r => Dp.data.subarray(r * K, (r + 1) * K);
+    let out = [];
+    if (layer === 'geoAges') {
+        const A = ageData(fin, age);
+        if (A.age.id !== 'building') {
+            out = A.age.resources.map((r, i) => ({ id: r.id, name: r.name, rgb: r.rgb, sym: SYMBOL[r.id] ?? r.name.slice(0, 2), field: A.fields[i], bytes: false, from: r.from }))
+                .filter(s => agePick === DEP_ALL ? s.id !== 'wood' : s.id === agePick);
+        }
+    } else if (pick === DEP_ALL) {
+        out = ALL_METALS.map(i => { const m = METALS[i]; return { id: m.id, name: m.name, rgb: m.rgb, sym: SYMBOL[m.id], field: row(SYS + i), bytes: true, from: m.sources }; });
+    } else {
+        const p = pickOf(pick);
+        if (p && !NO_DISTRICTS.has(p.item.id)) out = [{ id: p.item.id, name: p.item.name, rgb: p.item.rgb, sym: SYMBOL[p.item.id] ?? p.item.name.slice(0, 2), field: row(p.row), bytes: true, from: p.metal >= 0 ? p.item.sources : [[p.item.id, 1]] }];
+    }
+    byKey.set(key, out);
+    return out;
+}
+const districtCache = new WeakMap();
+/** A subject's districts, richest first, and which district each kept grid cell belongs to (−1: none) — kept per finish. */
+export function districtsOf(fin, s) {
+    let bySubject = districtCache.get(fin);
+    if (!bySubject) districtCache.set(fin, bySubject = new Map());
+    const key = s.field;
+    if (bySubject.has(key)) return bySubject.get(key);
+    const Dp = fin.raster.geology.deposits, list = findDistricts(Dp, s.field, { bytes: s.bytes }), of = new Int32Array(Dp.cells.length).fill(-1);
+    list.forEach((d, i) => { for (const j of d.cells) of[j] = i; });
+    const out = { list, of };
+    bySubject.set(key, out);
+    return out;
+}
+/** The history's cells under a district (its peak first, then a few more of its grid cells): where its story is read. */
+function districtRecs(fin, d) {
+    const G = fin.raster.geology, Dp = G.deposits, out = [];
+    if (!G.rec) return out;
+    for (const j of [d.j, ...d.cells.slice(0, 15)]) {
+        const [la, lo] = cellLatLon(Dp, Dp.cells[j]), y = Math.min(G.h - 1, Math.floor((90 - la) / 180 * G.h)), x = Math.min(G.w - 1, Math.floor((lo + 180) / 360 * G.w));
+        out.push(G.rec[y * G.w + x]);
+    }
+    return out;
+}
+/** A district's kind of deposit and story (cached on it). */
+export function districtTale(fin, frame, s, d) {
+    if (d.tale) return d.tale;
+    const src = districtSource(fin.raster.geology.deposits, s.from, d.j), kind = src && DEPOSITS.find(x => x.id === src.id);
+    d.tale = { kind: kind?.name ?? '', story: src ? districtStory(src.id, frame, districtRecs(fin, d)) : '' };
+    return d.tale;
+}
+const grade = v => { const [p0, p1, p2] = GEOLOGY.deposits.grades; return v >= p2 ? 'rich' : v >= p1 ? 'moderate' : v >= p0 ? 'poor' : 'none'; };
+const DOTS = { rich: '●●●', moderate: '●●○', poor: '●○○' };
+/** A district's rank in words: the first ten by name, the rest one of many. */
+export const rankWords = (n, of) => (n > 10 ? `one of ${of.toLocaleString()}` : `${n === 1 ? 'the richest' : `the ${n}${n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'} richest`} of ${of}`);
+export const gradeOf = v => grade(v);
+
+/** The symbols a view puts on the map: its subjects' richest districts (moderate or better — a scarce one's poor ones
+ *  where it has nothing better), the fewer the more subjects, none crowding a richer one. */
+export function districtSymbols(fin, layer, pick = DEP_ALL, age = 'bronze', agePick = DEP_ALL) {
+    const subs = subjectsOf(fin, layer, pick, age, agePick), many = subs.length > 1, [, p1] = GEOLOGY.deposits.grades, all = [];
+    for (const s of subs) {
+        const { list } = districtsOf(fin, s), best = list.filter(d => d.v >= p1);
+        for (const d of (best.length ? best : list).slice(0, many ? 8 : 80)) all.push({ lat: d.lat, lon: d.lon, v: d.v, score: d.score, rgb: s.rgb, sym: s.sym, id: s.id });
+    }
+    all.sort((a, b) => b.v - a.v || b.score - a.score);
+    // (in All, a metal's own symbols further apart than two metals': one mark for a cluster of its districts)
+    const placed = [], minKm = many ? 260 : 140, sameKm = many ? 600 : 140, R = 6371, rad = Math.PI / 180;
+    for (const a of all) {
+        if (placed.some(b => R * Math.acos(Math.min(1, Math.sin(a.lat * rad) * Math.sin(b.lat * rad) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((a.lon - b.lon) * rad))) < (b.id === a.id ? sameKm : minKm))) continue;
+        placed.push(a);
+    }
+    return placed;
+}
+/**
+ * Draw a view's symbols on a picture (ctx: an equirectangular canvas `width` wide): a disc of the subject's colour, larger
+ * the richer, its element's symbol in it where the picture is wide enough to read — widened toward the poles so it is
+ * round on the globe.
+ */
+export function drawDistrictSymbols(ctx, width, symbols) {
+    const k = width / 2048, labels = width >= 3000, rad = Math.PI / 180, [, p1] = GEOLOGY.deposits.grades;
+    ctx.save();
+    for (const s of symbols) {
+        const r = k * (s.v >= p1 ? 2.6 + 2.2 * smooth(p1, 0.95, s.v) : 2), sx = 1 / Math.max(0.2, Math.cos(s.lat * rad));
+        const x = (s.lon + 180) / 360 * width, y = (90 - s.lat) / 180 * (width / 2), lum = 0.3 * s.rgb[0] + 0.55 * s.rgb[1] + 0.15 * s.rgb[2];
+        // (a symbol on the map's edge drawn on both edges: the picture wraps)
+        const xs = [x];
+        if (x < 2 * r * sx) xs.push(x + width);
+        if (x > width - 2 * r * sx) xs.push(x - width);
+        for (const xx of xs) {
+            ctx.setTransform(sx, 0, 0, 1, xx, y);
+            ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI);
+            ctx.fillStyle = css(s.rgb); ctx.fill();
+            ctx.lineWidth = Math.max(0.6, 0.55 * k); ctx.strokeStyle = 'rgba(16,16,20,0.85)'; ctx.stroke();
+            if (labels && s.sym) {
+                ctx.font = `600 ${(r * (s.sym.length > 2 ? 0.95 : 1.15)).toFixed(1)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+                ctx.fillStyle = lum > 150 ? 'rgba(20,20,24,0.95)' : 'rgba(250,250,250,0.95)';
+                ctx.fillText(s.sym, 0, r * 0.06);
+            }
+        }
+    }
+    ctx.restore();
+}
+
+/** The district under a place [u, v] of a view, and the landmass's summary: the readout's lines. */
+export function districtLines(fin, frame, layer, pick, age, agePick, u, v) {
+    const Dp = fin?.raster?.geology?.deposits;
+    if (!Dp?.land) return [];
+    const subs = subjectsOf(fin, layer, pick, age, agePick), kept = keptIndex(Dp), lines = [];
+    const la = 90 - v * 180, lo = u * 360 - 180, gy = Math.max(0, Math.min(Dp.h - 1, Math.floor((90 - la) / Dp.step))), gx = Math.min(Dp.w - 1, Math.floor((lo + 180) / Dp.step));
+    // (the district here: of the subject the view shows here — in All, the one painted here — in this grid cell or next to it)
+    let found = null;
+    if (subs.length) {
+        const painted = layer === 'geoAges' ? (agePick === DEP_ALL ? ageGrid(fin, age, DEP_ALL).k : null) : pick === DEP_ALL ? depositGrid(fin, DEP_ALL).sys : null;
+        for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, -1], [1, -1], [-1, 1]]) {
+            const yy = gy + dy;
+            if (yy < 0 || yy >= Dp.h) continue;
+            const g = yy * Dp.w + (gx + dx + Dp.w) % Dp.w, j = kept[g];
+            if (j < 0) continue;
+            let s = subs[0];
+            if (painted) {
+                const k = painted[g];
+                if (k < 0) continue;
+                s = layer === 'geoAges' ? subs.find(x => x.id === ageOf(age).resources[k].id) : subs.find(x => x.id === METALS[k].id);
+                if (!s) continue;
+            }
+            const D = districtsOf(fin, s), i = D.of[j];
+            if (i >= 0) { found = { s, d: D.list[i], n: i + 1, of: D.list.length }; break; }
+        }
+    }
+    if (found) {
+        const { s, d, n, of } = found, t = districtTale(fin, frame, s, d), gr = grade(d.v);
+        lines.push(`<span class="hi-label">District</span> ${s.name} <span style="color:${css(s.rgb)}">${DOTS[gr]}</span> — ${t.kind && t.kind !== s.name ? `${t.kind.toLowerCase()}, ` : ''}~${fmtKm2(d.km2)}, ${rankWords(n, of)}`);
+        if (t.story) lines.push(`<span class="hi-label">Origin</span> ${t.story}`);
+    }
+    // (the landmass here: its share of each of the view's resources, moderate or better — and what it lacks)
+    const L = landmasses(Dp), g0 = gy * Dp.w + gx, j0 = kept[g0], id = j0 >= 0 ? L.of[j0] : -1;
+    if (id >= 0) {
+        const items = layer === 'geoAges' ? ageOf(age).resources.map((r, i) => ({ name: r.name, field: ageData(fin, age).fields[i] }))
+            : METALS.map((m, i) => ({ name: m.name, field: Dp.data.subarray((SYS + i) * K0(Dp), (SYS + i + 1) * K0(Dp)), bytes: true })).filter(x => x.name !== 'Wood');
+        const sums = landmassSummary(fin, layer === 'geoAges' ? `a|${age}` : 'd', items)[id], pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
+        const has = items.map((it, f) => [it.name, (sums.by[3 * f + 1] + sums.by[3 * f + 2]) / sums.km2]).filter(([, x]) => x >= 0.0005).sort((a, b) => b[1] - a[1]);
+        const lacks = items.filter((it, f) => !(sums.by[3 * f] + sums.by[3 * f + 1] + sums.by[3 * f + 2] > 0)).map(it => it.name.toLowerCase());
+        lines.push(`<span class="hi-label">Landmass</span> ${landmassName(L, id)}${L.list[id].km2 >= 150e3 ? `, ${fmtKm2(L.list[id].km2)}` : ''} — ${has.length ? has.slice(0, 5).map(([nm, x]) => `${nm.toLowerCase()} ${pct(x)}%`).join(', ') : 'nothing moderate or rich'}${lacks.length && lacks.length <= 4 ? `; no ${lacks.join(', no ')}` : ''}`);
+    }
+    return lines;
+}
+const K0 = Dp => Dp.cells.length;
+const summaryCache = new WeakMap();
+/** Each landmass's land poor / moderate / rich in each item (landmassShares), kept per finish and key. */
+function landmassSummary(fin, key, items) {
+    let byKey = summaryCache.get(fin);
+    if (!byKey) summaryCache.set(fin, byKey = new Map());
+    if (byKey.has(key)) return byKey.get(key);
+    const Dp = fin.raster.geology.deposits;
+    const fields = items.map(it => (it.bytes ? Float32Array.from(it.field, x => x / 255) : it.field)), out = landmassShares(Dp, fields);
+    byKey.set(key, out);
+    return out;
+}
+
 /** paintFinished's colorAt for a geology view, on a texture `W` wide (finish-view.js): the view's colours, lit by the
- *  finished relief; the sea dark, lakes a darker blue. */
-export function finishedGeologyColor(layer, frame, simMesh, W, fin = null) {
+ *  finished relief; the sea dark, lakes a darker blue. `pick`: the Deposits view's system (or "all"). */
+export function finishedGeologyColor(layer, frame, simMesh, W, fin = null, pick = DEP_ALL, age = 'bronze', agePick = DEP_ALL) {
     if (layer === 'geoRocks') return fin?.raster?.geology ? rocksColor(fin, W) : (out, o, x, y, wet, kk) => { const k = shadeK(kk); out[o] = 90 * k; out[o + 1] = 90 * k; out[o + 2] = 96 * k; out[o + 3] = 255; };
+    if (layer === 'geoAges') return fin?.raster?.geology?.deposits?.land ? agesColor(fin, W, age, agePick) : (out, o, x, y, wet, kk) => { const k = shadeK(kk); out[o] = 90 * k; out[o + 1] = 90 * k; out[o + 2] = 96 * k; out[o + 3] = 255; };
+    if (layer === 'geoDeposits') return fin?.raster?.geology?.deposits ? depositsColor(fin, W, pick) : (out, o, x, y, wet, kk) => { const k = shadeK(kk); out[o] = 90 * k; out[o + 1] = 90 * k; out[o + 2] = 96 * k; out[o + 3] = 255; };
     if (fin?.raster?.geology?.rec) return recordColor(layer, frame, fin, W);
     const { W: GW, H: GH, grid } = pictureOf(layer, frame, simMesh), sx = GW / W;
     return (out, o, x, y, wet, kk, k3, v, lake) => {
@@ -190,10 +640,12 @@ export function finishedGeologyColor(layer, frame, simMesh, W, fin = null) {
 }
 
 // ── the legend: what each colour means, with each kind's share of the land where it is a kind ──
-export function geologyLegendHTML(layer, frame, fin = null) {
+export function geologyLegendHTML(layer, frame, fin = null, pick = DEP_ALL, age = 'bronze', agePick = DEP_ALL) {
     const sw = (c, label, pct = null) => `<span><i style="background:${css(c)}"></i>${label}${pct !== null ? ` <em>${pct}%</em>` : ''}</span>`;
     const head = t => `<div class="evo-legend-head">${t}</div>`;
     if (layer === 'geoRocks') return rocksLegendHTML(fin, sw, head);
+    if (layer === 'geoDeposits') return depositsLegendHTML(fin, pick, sw, head);
+    if (layer === 'geoAges') return agesLegendHTML(fin, age, agePick);
     let land = 0;
     const count = {};
     const tally = k => { count[k] = (count[k] ?? 0) + 1; };
@@ -256,8 +708,6 @@ function rocksLegendHTML(fin, sw, head) {
 }
 
 // ── the readout: the record under the pointer ──
-const BELT_KIND = { [OrogenyType.ANDEAN]: 'an Andean range', [OrogenyType.LARAMIDE]: 'a flat-slab range', [OrogenyType.URAL]: 'a collision belt', [OrogenyType.HIMALAYAN]: 'a great collision belt',
-    [OrogenyType.ARC]: 'a volcanic arc', [OrogenyType.RIFT]: 'rift shoulders', [OrogenyType.TRANSPRESSION]: 'a transform ridge' };
 const FLAG_WORDS = [[GeoFlag.WAS_ARC, 'born in an island arc'], [GeoFlag.OPHIOLITE, 'old sea floor thrust up'], [GeoFlag.FORELAND, 'a foreland basin'], [GeoFlag.RIFT_BASIN, 'a rift basin'],
     [GeoFlag.SLAB_CHANGE, 'its slab once turned']];
 /** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it), or −1 if unknown. */

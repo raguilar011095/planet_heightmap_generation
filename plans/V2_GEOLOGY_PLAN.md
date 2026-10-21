@@ -327,6 +327,123 @@ cover was decided over ~50 km regions with noise patches, so nothing of the fini
   23 / 41 / 16 / 10 / 11; floodplains ~12 % (640K) and ~10 % (2.5M) of the land. The stage ~0.65 s at 640K (~6 % of a
   finish), ~1.6 s at 2.5M. `check-geology.mjs` checks rocks against their record cells now.
 
+## G3 + G4 built (2026-10-20)
+
+Developer: "lets commit, and then do g3 and g4".
+
+- **The systems** (`geology/deposits.js`, `geology-config.js` `deposits`; the finish's new `deposits` stage after the
+  rocks): 33 — 16 metal systems from the record (porphyry copper, epithermal gold-silver, orogenic gold, massive
+  sulfide, skarn, MVT and SEDEX lead-zinc, tin-tungsten, IOCG, Ni-Cu-PGE, layered intrusion, native copper, kimberlite,
+  greenstone gold, banded iron, one fossil gold reef); oil, gas, and bitumen/tar/oil shale; 11 from the climate and the
+  rivers (bauxite, nickel and iron laterite, enriched copper, gossan, placer gold, tin and diamonds, salt, ironstone, bog
+  iron); fuel (coal, peat, wood). Each: the record's part per sim cell (setting × exposure window: a live arc's porphyries
+  bared as it rises, a dead one's since — `unroofKm`; epithermal only on live or lately live arcs; tin far inboard on
+  thickened crust; orogenic gold in belts ≥ ~50 Myr old; oil by source × burial temperature × trap × seal, lifted out
+  into seeps and tar), read smoothly where the terrain read it, × its host (the rocks' shares in the district — judged
+  per cell the fine rock map speckled them), × its district noise (its own spacing and share of the permissive ground).
+  Placers: carried down the rivers' receivers from bared sources, fading over 20–400 km, a gravel band either side,
+  stripped by the ice (`iceStripsPlacers`). Climate tests per finished cell from its twelve months (`climateTests`:
+  Price's bauxite, Thorne's nickel laterite, Bao's evaporite and coal/peat tests, a dry season for enriched copper).
+  Flatness by the heights' spread over ~50 km (a slope between cells is steeper on a finer mesh).
+- **Coal's switch**: `coalByWetBelts` is the history's (tectonics config `geology.coalByWetBelts`, from the guideRules;
+  false: her rule, any basin within 45°) — records only, a new world.
+- **Kept** per grid cell (the richest of its cells; 0.25° at 2.5M cells, 0.5° at 640K, 1° at 160K — never finer than the
+  mesh, holes filled from neighbours), the land and the shelf; ~1–5 MB.
+- **Page**: Geology → **Deposits**, with a picker: *All metals and minerals* (each place its richest, a grade tie to the
+  scarcer; colours blended where systems meet) or any one system (fuels included); washes over the rocks muted — faint
+  poor, solid moderate, full rich; legend with each system's land share; readout: the deposits under the pointer with
+  ●○○ grades. Offshore only oil and gas.
+- **Scarcer, and fading with age** (developer, 2026-10-20, on a history run to 1,840–2,000 Myr: "WAY too much deposits, i
+  expect many in the old old mountains to have eroded away … orogenic gold covering like 6% of the world just feels crazy
+  for how 'valuable' gold should be"). Two causes: districts took up to ~45 % of all permissive ground, and nothing removed
+  a deposit but the record's erosion — which barely moves on old, worn-flat belts — so every arc and collision of a long
+  history kept adding (gold 13 % of the land at 400 Myr, 23 % at 1,840; porphyry 7 → 20 %). Now: each deposit fades with
+  the time since it formed (`halfLifeMyr`: epithermal 25, porphyry 160 — Earth's ~60 % of Phanerozoic porphyries gone —
+  skarn 200, tin 300, MVT 300, orogenic gold 450, VMS 500, SEDEX 600, IOCG 800; ages from the arc's or the collision's
+  last activity, the basin's deepest burial); orogenic gold only where belts collided (an arc margin is not a collision),
+  the start world's belts nearly barren (`prehistoricGold` 0.1); districts small (gold 7 %, copper 18 % of the
+  permissive ground), mostly poor with a rich core; and a metal's districts gathered in **provinces** (`province`: ~1,000
+  km, 35 % of its ground) — a stretch of a belt endowed, the next barren. Seed 12345 at 400 / 1,000 / 1,840 Myr: orogenic
+  gold ~2 % of the land (0.4–0.5 % moderate or rich), porphyry copper 1.7–2.6 % (0.5–0.8 %), tin 0.1–0.8 % (all poor),
+  steady with age.
+- **Seen** before that (seed 12345, 400 Myr): porphyry copper ~7 % of the land, tin ~0.4 %, kimberlite ~0.9 %, coal ~6 %, oil ~3 %
+  (+ shelf), bauxite ~4 %, peat ~8 %; 640K and 2.5M within ~0.5 point a system (placers fade at coarse detail). Stage
+  ~0.8 s at 640K, ~2 s at 2.5M (rocks + deposits ~12 % of a finish at 640K, ~15 % at 2.5M).
+- **Earth check** (`tuning/geology/earth-deposits.mjs`, Beck et al. 1991–2020 at 1°): bauxite's test true at 8 of 9 real
+  bauxite districts (Gove marginal), peat's at 8 of 8 peatlands, salt's at 8 of 9 salt flats (Uyuni: cold), enriched
+  copper's at 5 of 6 — none of them in the wrong climates.
+- `check-geology.mjs`: 33 checks (G3: tin scarce, epithermal near young arcs, copper and gold along arcs and belts,
+  kimberlites on cratons, districts not specks, time; G4: bauxite hot and wet, placers below sources, enrichment under dry
+  skies, the Earth check).
+
+- **Iron and the metals** (developer, 2026-10-20: "it FEELS like iron is a bit under represented … Maybe we need a more simple
+  map of just iron, gold, tin etc, like the output metals"): iron was there six times over — bog iron, ironstone, laterite,
+  banded iron, skarn, IOCG — each looking small. Iron widened (bog iron in any wet northern lowland, the coal measures' clay
+  ironstone, savanna laterite, banded iron on more cratons) and the Deposits view is now **by metal** (`METALS` in
+  deposits.js: each metal its sources and their weights, its richness the richest source's plus a little for overlaps,
+  computed per grid cell in the finish), the kinds of deposit a second group in the picker; the readout names each
+  metal's sources there. Seed 12345 at 400 Myr: iron ~30 % of the land (~15 % moderate or rich), copper ~5 % (1.5),
+  gold ~5 % (1.1), tin 0.2 % — the shares counted as the map paints them (each grid cell over its land). G5's ages read
+  these metals, each age only what it can reach.
+
+## G5 built (2026-10-20)
+
+Developer: "when this is complete, go straight into the ages work".
+
+- **The ages** (`geology/ages.js`): her Stone, Copper, Bronze, Iron and Industrial Ages, and Fuel — each its resources, each
+  resource the kinds of deposit that age can reach, each with a weight and a **cut-off** (only the richness above it counts:
+  the Copper Age takes native copper, enriched caps and gossans, river gold; the Bronze Age sea-floor sulfides first, rich
+  skarns, a few porphyries' rich parts, tin and its placers, arsenic as tin's stand-in; the Iron Age bog iron, ironstone and
+  laterite, the other metals deeper; the Industrial Age the metals whole, with coal and oil and gas). New for the Stone Age:
+  flint (chalk and limestone, their gravels), obsidian (a young arc's volcanics), jade (ophiolite and mélange), agate (flood
+  basalts) — deposits.js `group: 'stone'`. Her potentials: **bronze** = copper × tin (or, poorer, arsenic) within ~600 km ×
+  wood within ~100 km; **ironworking** = iron ore × wood or coal within ~150 km (`within`: a max filter over the grid).
+- **Page**: Geology → **Ages**: the age picker and its resources (All · each · potential); "All" each place its richest
+  (a grade tie to the scarcer), a second at moderate or better as diagonal stripes of its colour; the legend's entries are
+  the switch (tap one to see it alone, again for all; on phones the same, a thumb's height); readout: the age's resources
+  there with ●○○ grades, its potential, and in the Bronze Age the **nearest tin** — distance and direction.
+- **Seen** (seed 12345): copper on 1.0 → 2.1 → 2.8 → 6.1 % of the land through the Copper, Bronze, Iron and Industrial Ages;
+  Bronze Age tin 0.2 % (moderate+ only on old worlds); bronze potential 0.4–1.2 %; Iron Age iron ~21–25 %; the Industrial
+  Age's metals moderate or rich on ~16 % of the land. `check-geology.mjs` G5: 5 checks.
+
+## G6 + G7 built (2026-10-21)
+
+Developer: "ok lets do g6 and g7 now".
+
+- **Gems** (G7, deposits.js `group: 'gem'`, appended so every earlier system is byte-identical — hashed): her kinds —
+  pegmatite gems (tourmaline, aquamarine, topaz) in the granites of collision belts and old mobile belts; emeralds where
+  pegmatites cut old sea floor, or in a fold belt's black shale (Colombia); rubies and sapphires in marble (a carbonate
+  platform — a passive margin, a shallow sea — caught in a belt and baked 4–24 km down: Mogok), lapis where a granite met
+  it; sapphire, zircon and peridot in a hotspot's basalts on land; amethyst geodes in flood basalts (Paraná); opal and
+  turquoise in dry country (a new climate test, `arid`; on observed Earth true at 6 of 7 real localities — Querétaro's
+  summer-rain highland the miss — and at none of the wet places); garnet in schist and gneiss; gem gravels carried down
+  the rivers. Diamonds and jade were there already. Seed 12345 at 400 Myr: each gem under ~1.7 % of the land (garnet
+  ~5 %), emerald and lapis ~0.05 %. **Building stone** (her list: limestone, sandstone, granite, marble, slate, clay) from
+  the rocks. Both are entries of the Ages picker (Gems, Building stone).
+- **Districts** (G6, `geology/districts.js`): a field's moderate-or-better ground in connected patches (poor where a world
+  has nothing better), a large patch split around its peaks ≥ 200 km apart; each district's kind of deposit (its richest
+  source at the peak) and its **story**, read off the record cells under it: *"Formed 1–4 km beneath a volcanic arc last
+  active 14 Myr ago, bared by ~2 km of erosion since"*, *"Organic mud buried 4.2 km deep in a shallow sea — cooked in the
+  oil window, trapped under salt"*. Landmasses (connected land on the grid, largest first) and each one's share of every
+  resource — the **region summaries**.
+- **Page**: the Deposits and Ages views mark the richest districts with an atlas's symbols (Fe, Cu, Au, Ag, Sn, Pb, Al,
+  Ni, Pt, ◆, Ru, Em…) drawn on the picture — small dots at a glance, readable zoomed in, round on the globe; in All a few
+  per resource and one per cluster; a **Districts** button beside the pickers hides them. The readout: the district under
+  the pointer (its grade, kind, size, rank on the world), its origin, and its landmass's resources and what it lacks.
+- **Exports** (`evolution/geology-export.js`, in the Export dialog and Export All): the Rocks map, the Deposits map as
+  shown and each age's map (with the symbols), a greyscale mask per metal, fuel and gem (a ZIP; a `masks/` folder in
+  Export All), the districts as GeoJSON and CSV (resource, kind, grade, area, landmass, rank, story), and a **resource
+  atlas** in Markdown: the world's richest, then each landmass — its rocks, metals, fuels and gems, bronze and ironworking,
+  its richest districts with their stories.
+- **Phones**: the pickers and the Districts button in one row at 390 px (44 px tall), no sideways scroll.
+- **Speed** (exact, hashed before and after): the record's fields blurred with their weights summed once
+  (finish-grid.js `blurMany`, also for the rocks), the per-cell closures made once, the record read by property — the
+  deposits stage with the gems ~0.87 s at 640K, as it was before them (~8 % of a finish). Districts for every metal ~40 ms;
+  every district's row and story and the atlas ~0.4 s, on export.
+- `check-geology.mjs`: 51 checks (G6: districts on land, few for the scarce metals, stories that read the history,
+  landmass summaries that add up, the files well formed, quick; G7: gems scarce, the rarest rarest, rubies in collision
+  belts, amethyst on flood basalts, opal in dry country; the Earth check's opal and turquoise).
+
 ## Decided (developer, 2026-10-19)
 
 - The four departures: take a stance for the look and the stories, undoable — science in all four, each a `guideRules`
