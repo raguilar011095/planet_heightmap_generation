@@ -32,13 +32,13 @@ All three are considered together; ties are broken in the order above.
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
 - **3D globe rendering** with atmosphere rim shader, translucent water sphere, terrain displacement, and starfield
 - **Equirectangular map projection** with antimeridian wrapping
-- **Interactive editing** — Ctrl-click plates to mark them for reshaping (multi-select with visual tinting), then click Rebuild to apply all changes at once. Ctrl-click again to undo a pending selection. Press Escape to cancel all pending edits
+- **Interactive editing** — Ctrl-click (Cmd-click on a Mac) plates to mark them for reshaping (multi-select with visual tinting), then click Rebuild to apply all changes at once. Ctrl-click again to undo a pending selection. Press Escape to cancel all pending edits
 - **Climate simulation** — one climate shared with the Evolution page (`v2/js/climate/`; Generate and Import run it through `js/climate-new.js`): a seasonal energy balance (sunlight for the planet's tilt, snow and sea-ice albedo, ice sheets, air masses carried inland, clouds; sea ice that thickens through the winter — slower as it thickens — and melts back through the summer, so a pack lasts the summer where winters are long — never past the winter's edge — and pulls back from warm currents well offshore), pressure belts and winds from it (the ITCZ at the thermal equator, the Hadley and Ferrel cells, monsoon thermal lows and highs — the tropical trough running into a summer continent's heat low, so the monsoon reaches the Himalayan foothills, and a monsoon trough deeper the warmer its heat low (deep where a plateau heats the air aloft, shallow over a flat desert) — friction), a wind-driven ocean (gyres with western boundary currents like the Gulf Stream, circumpolar currents, coastal upwelling, the overturning's heat — its currents seasonal in the tropics, so the monsoon seas' currents reverse), and a rain budget of the water each air column carries (evaporation, transport, rain-out, storms — the mid-latitudes' and the tropics' monsoon depressions and easterly waves, where the low-level winds turn cyclonically; a baseline of frontal rain along each hemisphere's polar front, moving with the seasons and kept out of the highs and the rain shadows — windward slopes and rain shadows) — coupled, and solved for all twelve months on a fixed 1° grid, so it takes a few seconds at any detail and looks the same at every resolution. Each region's twelve months, at its own height, give its Köppen class. Against real Earth it matches the observed Köppen map on about half the land (the old climate: about 38 %); see `plans/CLIMATE_REBUILD_REPORT.md`.
 - **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
 - **Climate at any detail** — a few seconds whatever the detail; on phones, above 640K regions, it is computed when a climate view is first chosen
 - **Detailed visualization** — climate layers in real units, each where it has seasons for the Year, January or July (pressure with the ITCZ, wind, ocean currents, upwelling, ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality), plus the geology and plate-physics layers, for viewing each component in isolation. Wind and current layers draw arrows on both globe and map views.
 - **Heightmap import** — bring your own equirectangular B&W heightmap (Earth, Mars, hand-drawn maps) onto a 3D globe. Black pixels become ocean, brighter pixels become higher land. The import page (`/import`) runs full climate simulation (wind, precipitation, temperature, K&ouml;ppen) on your imported terrain, with optional terrain sculpting (smoothing, erosion, ridge sharpening). Supported formats: PNG, JPEG, WebP.
-- **Map export** — download high-resolution equirectangular PNGs (color terrain, satellite biome, climate/Köppen, B&W heightmap, land-only heightmap, or B&W land mask) at configurable widths up to 65536px with tiled rendering. **Export All** downloads Satellite, Climate, Heightmap, and Land Mask in one click, auto-computing climate if needed.
+- **Map export** — one panel for every map a page can draw, each as **Colour** (as shown, in its legend's colours) and / or as **Data** (the numbers themselves: 16-bit greyscales on fixed, documented scales — temperature, rain, pressure, winds, currents, ice, heightmaps, a hillshade, the Köppen class index, plate numbers), for the year, January or July, centred on any longitude, in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic hemispheres, azimuthal equidistant and Van der Grinten), up to 65,536 px wide; one map saves as a PNG, several as one ZIP with a README.txt that says what every file is
 
 ## Quick Start
 
@@ -65,13 +65,13 @@ A top navigation bar connects the pages:
 - **Studio** (`/studio`) — the three tools side by side, what each is for, and curated worldbuilding resources (blogs, YouTube channels, other tools)
 - **Generate** (`/`) — procedural planet generation with tectonic plates, erosion, and climate
 - **Import** (`/import`) — import your own equirectangular B&W heightmap, view it on a 3D globe, and run climate simulation. Black (0) = ocean, brighter = higher elevation. Supports PNG, JPEG, and WebP.
-- **Evolution** (`/evolution`, in beta and best on a desktop for now; tagged so on its page and the Studio card) — watch a planet's tectonic history unfold, stop on a moment and add detail (rivers, glaciers, its own climate, a satellite view), then export it; its Climate tab has every climate layer Generate's Inspect has; see `v2/README.md`
+- **Evolution** (`/evolution`, in beta and best on a desktop for now; tagged so on its page and the Studio card) — watch a planet's tectonic history unfold, stop on a moment and add detail (rivers, glaciers, its own climate, a satellite view), then export it (the same export panel as Generate: every map as colour or data, in ten projections); its seed is a number up to 2,147,483,645 or any word or phrase (hashed to a number: the same word, the same world); save the planet — its whole history and the detailed moment — as one `.orogen` file from the export panel, and open it again later with **Load Planet…** (Settings → World) or by dropping it on the page, with no waiting for either (the history exactly as saved, in any browser; Extend history runs it again from its seed first, and runs on where it matches); its map view can be shown in any of the projections too (a Projection picker beside Center Longitude); a Hillshade toggle in its settings turns the relief shading off for flat-colour views (the export has its own); its Climate tab has every climate layer Generate's Inspect has; see `v2/README.md`
 
 On narrow phones the Import tab reads just "Import".
 
 ### Sharing Planets
 
-Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. An unedited planet is 21 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–18 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
+Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. The seed is one of 2,147,483,646 (0 to 2,147,483,645: each its own world — the seeded generator's every starting state; before 2026-10 new planets drew from the first 16.7 million, whose codes read as they always did). An unedited planet is 22 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–21 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
@@ -127,7 +127,7 @@ The climate (temperature, pressure and wind, ocean currents, rain, Köppen class
   - **Climate** — Köppen-Geiger classification with color swatches for all 30 climate types
   - **Heightmap** — black-to-white gradient on a fixed absolute scale (-5 km ocean floor to 6 km peaks), so the same physical height always maps to the same shade
 - **View** dropdown — switch between Globe and Map (equirectangular projection)
-- **Center Longitude** slider (map mode only) — shifts the map projection's central meridian to any longitude from 180°W to 180°E, scrolling the equirectangular projection so the chosen longitude is centered. Exports are unaffected (always centered on 0°).
+- **Center Longitude** slider (map mode only) — shifts the map projection's central meridian to any longitude from 180°W to 180°E, scrolling the equirectangular projection so the chosen longitude is centered. Exports are centred the same way (the file name notes it, e.g. `-c120E`).
 - **Wireframe** — toggle switch to show Voronoi cell edges as a wireframe overlay
 - **Show Plates** — toggle switch to color regions by plate (green shades = land, blue shades = ocean); also draws black super plate boundary lines showing tectonic super-groups
 - **Auto-Rotate** — toggle switch to spin the globe continuously
@@ -148,13 +148,19 @@ The **Inspect** dropdown (in Visual Options, below the map tabs) selects a detai
 
 ### Export
 
-Click **Export Map** (below Visual Options) to open the export modal:
+Click **Export Map** (below Visual Options) to open the export panel (`v2/js/view/export-panel.js`, shared with the Import and Evolution pages; this page's maps in `js/export-generate.js`):
 
-- **Type** — Color Map (terrain colors), Satellite (biome colors from Köppen classification), Climate (Köppen classification colors), Heightmap (B&W full range on fixed -5 to 6 km absolute scale), Land Heightmap (B&W on fixed 0 to 6 km absolute scale, ocean is black), or Land Mask (pure B&W — white = land, black = ocean). Satellite and Climate options are disabled when climate hasn't been computed.
-- **Width** slider — 1024 to 65536 pixels (height is always width/2 for equirectangular). Large exports use tiled rendering to handle GPU texture limits.
-- **Export** — downloads the selected type as an equirectangular PNG with no grid overlay
-- **Export All** — downloads four maps (Satellite, Climate, Land Heightmap, Land Mask) sequentially. If climate hasn't been computed yet, it runs automatically before exporting.
-- A progress overlay shows rendering and PNG encoding status during export
+- **Width** — 1024 to 65536 px (8192 on phones); the height follows the projection (width / 2 for equirectangular). Large maps are rendered in tiles.
+- **Projection** — equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic hemispheres, azimuthal equidistant (polar) and Van der Grinten; each with its own options where it has them (Mercator's max latitude, Winkel's standard parallel, the azimuthals' centre latitude and extent, one or two orthographic hemispheres). Equirectangular is the plain 2 : 1 map that re-imports; the others are drawn from it pixel by pixel through the projection's inverse (`v2/js/view/projections.js`), colours and classes by the nearest pixel, numbers bilinearly, the outside transparent.
+- **Centre longitude** — the map view's Center Longitude when the panel opens; any longitude. The file name notes it (`-c90E`).
+- **Season** — Year, January, July, or all three as separate files, for the maps marked ☼.
+- **The maps**, in groups, each with a **Colour** box (as shown, in its legend's exact colours) and / or a **Data** box (a greyscale on a fixed scale; the scale is in the README.txt and in the row's tooltip):
+  - *Maps* — Colour Map, Satellite (☼), Climate zones (Köppen; data: the class index, 8-bit)
+  - *Elevation* — Heightmap with sea floor (16-bit, −5 to +6 km), Land heightmap (16-bit, 0 to 6 km, the sea black — re-imports on the Import page), Land mask, Hillshade (8-bit, the relief lit from the north-west, to lay over a flat colour map)
+  - *Climate* — Temperature, Precipitation, Pressure, Wind (data: speed, east and north parts), Ocean Currents (data: the sea's warmth against its latitude, east and north parts), Upwelling, Ice (data: sea ice, snow, ice sheet), Temperature Range, Rain Shadow, Aridity, Growing Season, Rain Seasonality — the climate is computed first if it has not been
+  - *Geology* — Plates (colour; data: the plate number)
+- **All / None** select every map or clear the list; the choice, width, season and projection are remembered.
+- **Export** — one map saves as a PNG; several save as one ZIP, with a **README.txt** (optional) naming every file, its kind, units and scale, the projection and the centre. A progress bar in the panel follows the drawing, projecting and encoding.
 
 ### Sidebar & Loading
 
@@ -175,7 +181,7 @@ Navigation hints are shown in the sidebar panel and as a contextual tooltip when
 | Rotate globe / pan map | Drag | Drag (one finger) |
 | Zoom | Scroll wheel | Pinch with two fingers |
 | Highlight plate + info card | Hover | — |
-| Mark plate for reshaping | Ctrl-click a plate (multi-select) | Tap the edit button (pencil), then tap plates |
+| Mark plate for reshaping | Ctrl-click a plate (Cmd-click on a Mac; multi-select) | Tap the edit button (pencil), then tap plates |
 | Undo pending plate | Ctrl-click the same plate again | Tap the same plate again |
 | Apply pending edits | Click the Rebuild button | Tap the Rebuild button |
 | Cancel all pending edits | Press Escape | — |
@@ -264,7 +270,8 @@ js/
   climate-util.js       Shared climate utilities — smoothing, ITCZ lookup, percentile selection
   wind.js … temperature.js  The OLD climate (wind, ocean, precipitation, heuristic-precip, temperature) — no longer run by the app
   scene.js              Three.js scene, cameras, controls, lights; fitCamera keeps the whole globe in view on portrait screens
-  planet-mesh.js        Voronoi mesh, map projection, hover highlight
+  planet-mesh.js        Voronoi mesh, map projection, hover highlight, the export's rasters (the mesh drawn flat in tiles, as colours or numbers)
+  export-generate.js    The export panel on Generate and Import: the catalogue of maps and how each is drawn from the mesh
   edit-mode.js          Ctrl-click plate multi-select + hover info
   detail-scale.js       Non-linear (power-curve) detail slider mapping
   build-error.js        A failed build, import or export shown in the build overlay, with a Close button
@@ -274,7 +281,10 @@ v2/                     World Orogen V2 — the Evolution page (/evolution) and 
                         tectonic *history* engine built in confirmed phases; see v2/README.md and
                         plans/V2_TECTONIC_HISTORY_DESIGN.md. Open /v2/ for the Tectonics Lab (locally: the deploy leaves
                         the labs out);
-                        `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks
+                        `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks;
+                        v2/js/view/ holds what every page shares — the export panel (export-panel.js), its rasters,
+                        scales and README (export-raster.js), the map projections (projections.js) and their GLSL
+                        inverses for Evolution's map view (projection-glsl.js), PNG and ZIP writers
 tuning/
   climate/              Automated climate tuning suite — scores the simulated Köppen
                         map of an imported Earth heightmap against the observed

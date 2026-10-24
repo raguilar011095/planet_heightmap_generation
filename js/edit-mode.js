@@ -159,7 +159,9 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointerdown', (e) => {
         if (!state.curData) return;
-        const isEditTap = (e.button === 0 && e.ctrlKey) ||
+        // Ctrl-click, or Cmd-click on a Mac — where Firefox reports a Ctrl-click as a right-click (button 2; issue #19)
+        const editKey = e.ctrlKey || e.metaKey;
+        const isEditTap = (editKey && (e.button === 0 || e.button === 2)) ||
                           (e.button === 0 && state.isTouchDevice && state.editMode);
         if (isEditTap) {
             // Ctrl-click or mobile edit-mode tap: plate editing
@@ -174,7 +176,7 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointerup', (e) => {
         orbiting = false;
-        if (!downInfo || !state.curData || e.button !== 0) { downInfo = null; return; }
+        if (!downInfo || !state.curData || (e.button !== 0 && e.button !== 2)) { downInfo = null; return; }
 
         const dx = e.clientX - downInfo.x;
         const dy = e.clientY - downInfo.y;
@@ -233,7 +235,7 @@ export function setupEditMode() {
         const hit = getHitInfo(e);
         const newRegion = hit ? hit.region : -1;
         // Only highlight the plate when in edit mode (Ctrl held or mobile edit toggle)
-        const inEditMode = e.ctrlKey || (state.isTouchDevice && state.editMode);
+        const inEditMode = e.ctrlKey || e.metaKey || (state.isTouchDevice && state.editMode);
         const newPlate = (hit && inEditMode) ? hit.plate : -1;
 
         // Update plate highlight only when plate changes

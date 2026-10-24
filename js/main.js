@@ -5,9 +5,10 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom, fitCamera } from './scene.js';
 import { state } from './state.js';
+import { initGenerateExport } from './export-generate.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
@@ -124,15 +125,15 @@ function initSliderTooltip(slider) {
         tip.style.left = thumbOffset + 'px';
     }
 
+    const label = document.getElementById(slider.id.replace('s', 'v'));
+    // (the label is written by the slider's own input handler, which may run after this one — Firefox showed the
+    // previous value, issue #34 — so the bubble reads it once every handler has run)
+    const show = () => { tip.textContent = label ? label.textContent : slider.value; positionTip(); };
     slider.addEventListener('pointerdown', () => {
-        tip.textContent = document.getElementById(slider.id.replace('s', 'v')).textContent;
-        positionTip();
+        show();
         tip.classList.add('visible');
     });
-    slider.addEventListener('input', () => {
-        tip.textContent = document.getElementById(slider.id.replace('s', 'v')).textContent;
-        positionTip();
-    });
+    slider.addEventListener('input', () => queueMicrotask(show));
     const hide = () => tip.classList.remove('visible');
     slider.addEventListener('pointerup', hide);
     slider.addEventListener('pointercancel', hide);
@@ -441,11 +442,6 @@ window.addEventListener('orogen:build-failed', (e) => {
     overlayActive = false;
     showBuildError(describeFailure(e.detail.message), e.detail.message);
 });
-const exportFailed = (err) => {
-    console.error('[World Orogen] Export failed:', err);
-    overlayActive = false;
-    showBuildError(describeFailure(err?.message, 'export this map'), err?.message);
-};
 genBtn.addEventListener('generate-done', () => {
     const infoEl = document.getElementById('info');
     if (!infoEl.dataset.nudged) {
@@ -750,80 +746,10 @@ initSeasonPicker(state, () => {
 });
 
 // Export modal
-(function initExport() {
-    const overlay   = document.getElementById('exportOverlay');
-    const closeBtn  = document.getElementById('exportClose');
-    const cancelBtn = document.getElementById('exportCancel');
-    const goBtn     = document.getElementById('exportGo');
-    const widthEl   = document.getElementById('exportWidth');
-    const dimsEl    = document.getElementById('exportDims');
-    const typeEl    = document.getElementById('exportType');
-    const openBtn   = document.getElementById('exportBtn');
-
-    function updateDims() {
-        const w = +widthEl.value;
-        dimsEl.textContent = w + ' \u00D7 ' + (w / 2);
-    }
-
-    function openModal() {
-        overlay.classList.remove('hidden');
-        updateDims();
-        // Disable climate-dependent export types when climate isn't computed
-        for (const opt of typeEl.options) {
-            if (opt.value === 'biome' || opt.value === 'koppen') {
-                opt.disabled = !state.climateComputed;
-                if (opt.disabled && typeEl.value === opt.value) typeEl.value = 'color';
-            }
-        }
-    }
-    function closeModal() { overlay.classList.add('hidden'); }
-
-    openBtn.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
-    });
-    widthEl.addEventListener('change', updateDims);
-
-    goBtn.addEventListener('click', async () => {
-        const type = typeEl.value;
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-        onProgress(0, 'Preparing export...');
-        try {
-            await exportMap(type, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-
-    // Export All — downloads Satellite, Climate, Heightmap, and Land Mask
-    const exportAllBtn = document.getElementById('exportAllGo');
-    const EXPORT_ALL_TYPES = [
-        { type: 'biome',          label: 'Satellite' },
-        { type: 'koppen',         label: 'Climate' },
-        { type: 'landheightmap',  label: 'Heightmap' },
-        { type: 'landmask',       label: 'Land Mask' },
-    ];
-
-    exportAllBtn.addEventListener('click', async () => {
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-
-        try {
-            // Compute climate first if needed (Satellite & Climate require it)
-            if (!state.climateComputed) {
-                onProgress(0, 'Computing climate...');
-                await new Promise(resolve => computeClimateViaWorker(onProgress, resolve));
-            }
-            await exportMapBatch(EXPORT_ALL_TYPES, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-})();
+// The export panel (v2/js/view/export-panel.js; the maps: js/export-generate.js)
+const exportPanel = initGenerateExport({ page: 'generate', ensureClimate: (progress) => new Promise(resolve => computeClimateViaWorker(progress, resolve)),
+    code: () => location.hash.replace(/^#/, "").trim() || (state.curData ? String(state.curData.seed) : "") });
+document.getElementById('exportBtn').addEventListener('click', exportPanel.open);
 
 // Edit mode setup (pointer events, sub-mode buttons)
 setupEditMode();
@@ -1065,18 +991,6 @@ if (state.isTouchDevice) {
     if (infoEl) infoEl.textContent = 'Drag to rotate \u00b7 Pinch to zoom \u00b7 Use edit button to reshape';
 }
 
-// Disable export widths > 8192 on touch devices
-if (state.isTouchDevice) {
-    const exportWidth = document.getElementById('exportWidth');
-    if (exportWidth) {
-        for (const opt of exportWidth.options) {
-            if (+opt.value > 8192) {
-                opt.disabled = true;
-                opt.textContent = opt.value + ' (too large for mobile)';
-            }
-        }
-    }
-}
 
 // Orientation change handler
 window.addEventListener('orientationchange', () => {
@@ -1195,7 +1109,7 @@ const store = {
 
 // What's New modal — shown once per version for returning users
 (function initWhatsNew() {
-    const VERSION    = '3';
+    const VERSION    = '4';
     const LS_KEY     = 'wo-whatsnew-seen';
     const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
     const overlay    = document.getElementById('whatsNewOverlay');

@@ -221,6 +221,7 @@
 .evo-tooltip[hidden] { display: none; }
 /* the export dialog (V1's #exportOverlay / #exportCard, styles.css): the moment, and the progress */
 .evo-export-moment { font-size: 13px; font-weight: 400; color: #9ab; margin-left: 6px; }
+.evo-export-note { font-size: 12px; color: #9ab; margin: 6px 0 0; }
 .evo-export-progress { margin-top: 12px; font-size: 12px; color: #9ab; }
 .evo-export-progress[hidden] { display: none; }
 .evo-export-progress .evo-finish-bar { margin: 0 0 4px; }
@@ -233,6 +234,14 @@
 .evo-status .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); margin-top: 4px; overflow: hidden; }
 .evo-status .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #36c, #6af); width: 0; transition: width 0.3s; }
 #seedRow #seedCode { color: #cde; }
+/* Load Planet… (beneath Build This World, quieter), and a planet file dragged over the page */
+.evo-load-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); color: #9ab; }
+.evo-drop {
+    position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; pointer-events: none;
+    background: rgba(8,14,30,0.55); border: 3px dashed rgba(120,170,255,0.6); border-radius: 12px; margin: 10px;
+}
+.evo-drop[hidden] { display: none; }
+.evo-drop div { padding: 14px 22px; border-radius: 10px; background: rgba(20,32,64,0.9); color: #cde; font-size: 16px; }
 #reseedBtn { font-size: 15px; }
 
 @media (max-width: 768px) {
@@ -272,3 +281,8 @@
     .evo-chip button { min-height: 44px; padding: 0 16px; }
     .evo-climate-btn { min-height: 44px; }
 }
+
+/* the map view's projection options (the export panel's controls, in the sidebar) */
+.evo-proj-opts { margin-top: 6px; }
+.evo-proj-opts .xp-proj-opt { min-width: 0; }
+.evo-proj-opts .xp-proj-opt select, .evo-proj-opts .xp-proj-opt input[type=range] { width: 100%; }

@@ -6,8 +6,9 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom, fitCamera } from './scene.js';
 import { state } from './state.js';
+import { initGenerateExport } from './export-generate.js';
 import { importHeightmap, reapplyViaWorker, computeClimateViaWorker } from './generate.js';
-import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
 import { detailFromSlider } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { needsClimate, climateLayer, climateLegendHTML, satelliteLegendHTML, showClimateArrows, syncSeasonPicker, initSeasonPicker, climateReadoutLines } from './climate-layers.js';
@@ -248,11 +249,6 @@ window.addEventListener('orogen:build-failed', (e) => {
     importBtn.textContent = 'Import';
     showBuildError(describeFailure(e.detail.message, 'import this heightmap'), e.detail.message);
 });
-const exportFailed = (err) => {
-    console.error('[World Orogen] Export failed:', err);
-    overlayActive = false;
-    showBuildError(describeFailure(err?.message, 'export this map'), err?.message);
-};
 
 hiddenGenBtn.addEventListener('generate-done', () => {
     hideBuildOverlay();
@@ -616,76 +612,10 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
 
 // ─── Export modal ─────────────────────────────────────────────────
 
-(function initExport() {
-    const overlay   = document.getElementById('exportOverlay');
-    const closeBtn  = document.getElementById('exportClose');
-    const cancelBtn = document.getElementById('exportCancel');
-    const goBtn     = document.getElementById('exportGo');
-    const widthEl   = document.getElementById('exportWidth');
-    const dimsEl    = document.getElementById('exportDims');
-    const typeEl    = document.getElementById('exportType');
-    const openBtn   = document.getElementById('exportBtn');
-
-    function updateDims() {
-        const w = +widthEl.value;
-        dimsEl.textContent = w + ' \u00D7 ' + (w / 2);
-    }
-
-    function openModal() {
-        overlay.classList.remove('hidden');
-        updateDims();
-        for (const opt of typeEl.options) {
-            if (opt.value === 'biome' || opt.value === 'koppen') {
-                opt.disabled = !state.climateComputed;
-                if (opt.disabled && typeEl.value === opt.value) typeEl.value = 'color';
-            }
-        }
-    }
-    function closeModal() { overlay.classList.add('hidden'); }
-
-    openBtn.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
-    });
-    widthEl.addEventListener('change', updateDims);
-
-    goBtn.addEventListener('click', async () => {
-        const type = typeEl.value;
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-        onProgress(0, 'Preparing export...');
-        try {
-            await exportMap(type, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-
-    const exportAllBtn = document.getElementById('exportAllGo');
-    const EXPORT_ALL_TYPES = [
-        { type: 'biome',         label: 'Satellite' },
-        { type: 'koppen',        label: 'Climate' },
-        { type: 'landheightmap', label: 'Heightmap' },
-        { type: 'landmask',      label: 'Land Mask' },
-    ];
-
-    exportAllBtn.addEventListener('click', async () => {
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-        try {
-            if (!state.climateComputed) {
-                onProgress(0, 'Computing climate...');
-                await new Promise(resolve => computeClimateViaWorker(onProgress, resolve));
-            }
-            await exportMapBatch(EXPORT_ALL_TYPES, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-})();
+// The export panel (v2/js/view/export-panel.js; the maps: js/export-generate.js)
+const exportPanel = initGenerateExport({ page: 'import', ensureClimate: (progress) => new Promise(resolve => computeClimateViaWorker(progress, resolve)),
+    code: () => '' });
+document.getElementById('exportBtn').addEventListener('click', exportPanel.open);
 
 // ─── Sidebar toggle + bottom sheet ────────────────────────────────
 
@@ -790,18 +720,6 @@ if (state.isTouchDevice) {
     if (infoEl) infoEl.textContent = 'Import a heightmap to get started';
 }
 
-// Disable export widths > 8192 on touch devices
-if (state.isTouchDevice) {
-    const exportWidth = document.getElementById('exportWidth');
-    if (exportWidth) {
-        for (const opt of exportWidth.options) {
-            if (+opt.value > 8192) {
-                opt.disabled = true;
-                opt.textContent = opt.value + ' (too large for mobile)';
-            }
-        }
-    }
-}
 
 // ─── Orientation change ───────────────────────────────────────────
 

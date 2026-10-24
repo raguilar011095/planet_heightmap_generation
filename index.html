@@ -50,8 +50,8 @@
             "Hotspot volcanism with island chains",
             "Interactive plate editing",
             "Equirectangular heightmap import with automatic climate simulation",
-            "Tectonic history simulation: watch continents break up and collide, then sculpt any moment in detail",
-            "Equirectangular map export up to 65536px",
+            "Tectonic history simulation: watch continents break up and collide, then sculpt any moment in detail, and save the planet as a file to open again later",
+            "Map export up to 65536px: every map as colour or 16-bit data, in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README",
             "Multiple visualization modes (terrain, satellite with summer and winter, climate, heightmap)",
             "Shareable planet codes"
         ],
@@ -83,7 +83,7 @@
                 "name": "Can I use the exported maps in my own projects?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes. World Orogen exports high-resolution equirectangular maps (up to 65,536px wide) in multiple formats: color terrain, satellite biome, Köppen climate, heightmap, and land mask. These can be used in game engines like Unity or Unreal, tabletop RPG campaigns, worldbuilding projects, or any creative work."
+                    "text": "Yes. World Orogen exports maps up to 65,536px wide in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten): every map as colour — terrain, satellite, Köppen climate zones, each climate layer — or as 16-bit data on fixed, documented scales — heightmaps, a hillshade, temperature, rain, pressure, winds, currents, ice, the Köppen class index — one file as a PNG or several as a ZIP with a README. Everything is free to use in your own projects."
                 }
             },
             {
@@ -134,11 +134,11 @@
             <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
             <li>Interactive plate editing — select multiple plates for batch land/ocean toggling with visual preview before rebuild</li>
             <li>Heightmap import — bring your own equirectangular B&amp;W heightmap (Earth, Mars, hand-drawn) and run full climate simulation on it</li>
-            <li>Evolution — watch a planet's continents rift, drift and collide over a billion years, then sculpt any moment in detail with rivers, glaciers, its own climate and a satellite view</li>
+            <li>Evolution — watch a planet's continents rift, drift and collide over a billion years, then sculpt any moment in detail with rivers, glaciers, its own climate and a satellite view, and save the planet as a file to open again later</li>
             <li>Temperature and precipitation controls that work through the climate: cool a planet and its ice spreads, warm it and it grows wetter</li>
             <li>Multiple visualization modes: terrain, a satellite view in summer and winter, climate, and heightmap</li>
             <li>Detailed inspection layers for geology and climate — pressure and wind, ocean currents, upwelling, sea ice, temperature, precipitation, aridity, growing season and more, for the year, January or July</li>
-            <li>High-resolution equirectangular map export up to 65,536px wide</li>
+            <li>Map export up to 65,536px wide: every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, winds, currents, ice, Köppen classes), in ten map projections, one PNG or a ZIP with a README</li>
             <li>Shareable planet codes — copy a code to share your exact planet with others</li>
         </ul>
         <h2>Use Cases</h2>
@@ -407,7 +407,7 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
-                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates (&#8984;-click on a Mac) to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Visualize Your World</h3>
@@ -417,7 +417,7 @@
             <div class="tutorial-step" data-step="4">
                 <h3>Save &amp; Share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
-                <p>Use <strong>Export Map</strong> to download high-resolution equirectangular images &mdash; terrain, satellite, climate, heightmaps, or land masks. <strong>Export All</strong> downloads satellite, climate, heightmap, and land mask in one click.</p>
+                <p>Use <strong>Export Map</strong> to save any map the page draws &mdash; the terrain, satellite, climate zones, every climate layer, heightmaps, a hillshade, plates &mdash; as <strong>Colour</strong> (as shown) or as <strong>Data</strong> (16-bit greyscales on fixed scales, for other tools), for the year, January or July, in ten map projections, centred where you like. One map saves as a PNG; several as a ZIP with a README that explains every file.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>
@@ -436,35 +436,7 @@
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
             <button id="exportClose">&times;</button>
-            <h3>Export Map</h3>
-            <div class="cg">
-                <label>Type</label>
-                <select id="exportType">
-                    <option value="color">Color Map</option>
-                    <option value="biome">Satellite</option>
-                    <option value="koppen">Climate (K&ouml;ppen)</option>
-                    <option value="heightmap">Heightmap (B&amp;W)</option>
-                    <option value="landheightmap">Land Heightmap (B&amp;W)</option>
-                    <option value="landmask">Land Mask (B&amp;W)</option>
-                </select>
-            </div>
-            <div class="cg">
-                <label>Width <span class="v" id="exportDims">4096 &times; 2048</span></label>
-                <select id="exportWidth">
-                    <option value="1024">1024</option>
-                    <option value="2048">2048</option>
-                    <option value="4096" selected>4096</option>
-                    <option value="8192">8192</option>
-                    <option value="16384">16384</option>
-                    <option value="32768">32768</option>
-                    <option value="65536">65536</option>
-                </select>
-            </div>
-            <div class="export-actions">
-                <button id="exportCancel" class="btn-ghost">Cancel</button>
-                <button id="exportGo" class="btn-primary">Export</button>
-                <button id="exportAllGo" class="btn-primary">Export All</button>
-            </div>
+            <h3>Export</h3>
         </div>
     </div>
 
@@ -485,7 +457,7 @@
             <button id="whatsNewClose">&times;</button>
             <div class="whatsnew-step" data-step="0">
                 <h3>What's New in World Orogen</h3>
-                <p>The biggest update yet: <strong>Evolution</strong>, a new tool that grows a planet through its whole tectonic history; a new climate with seasons behind every page; a new look from space; and <strong>Studio</strong>, a home for the tools.</p>
+                <p>The biggest update yet: <strong>Evolution</strong>, a new tool that grows a planet through its whole tectonic history &mdash; and keeps it, in a file you can open again; <strong>every map exportable</strong>, as colour or data, in ten map projections; a new climate with seasons behind every page; a new look from space; and <strong>Studio</strong>, a home for the tools.</p>
                 <p class="whatsnew-warn"><strong>Heads up:</strong> Saved planet codes still load with the same terrain, but the climate is all new, so deserts, forests and ice will sit differently. Codes saved with a very cold Temperature (&minus;10 or below) now give icy or fully frozen worlds.</p>
             </div>
             <div class="whatsnew-step" data-step="1">
@@ -494,7 +466,8 @@
                 <ul class="whatsnew-list">
                     <li><strong>The supercontinent cycle</strong> &mdash; Continents break apart and gather again. Choose how the story ends: a Pangaea, a supercontinent breaking up, or continents spread out as on Earth today.</li>
                     <li><strong>Scrub it like a film</strong> &mdash; Play or drag through the history; <strong>Extend history</strong> runs it on for as long as you like.</li>
-                    <li><strong>Share it</strong> &mdash; The link rebuilds the same history, on desktop or phone.</li>
+                    <li><strong>Share it</strong> &mdash; The link rebuilds the same history, on desktop or phone. Seeds run to over two billion, and any word can be one.</li>
+                    <li><strong>Keep it</strong> &mdash; <strong>Save planet</strong> puts the whole history and its detailed moment in one file; <strong>Load Planet&hellip;</strong> opens it again later with no waiting &mdash; the same planet in any browser.</li>
                 </ul>
                 <p class="whatsnew-beta-note">Evolution is in <strong>beta</strong> and works best on a desktop computer for now.</p>
             </div>
@@ -505,10 +478,20 @@
                     <li><strong>Rivers through the seasons</strong> &mdash; Fed by the moment's own rain: permanent, flooding each year or dry for months, with lakes, inland seas and salt lakes.</li>
                     <li><strong>Landscapes with a past</strong> &mdash; Glaciers and fjords, sand seas, wide shelves and coastal plains along old coasts, and mountains cut by erosion.</li>
                     <li><strong>Its own climate</strong> &mdash; Every climate layer and the Satellite view, for the year, January or July.</li>
-                    <li><strong>Export</strong> &mdash; A colour map, the Satellite view, climate zones, 16&#8209;bit heightmaps, a land mask and the rivers and lakes on their own, one at a time or all in a ZIP, up to 16,384 px wide.</li>
+                    <li><strong>Export it</strong> &mdash; Every map of it, up to 16,384 px wide, rivers and lakes on their own too.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="3">
+                <h3>Export Anything, in Ten Projections</h3>
+                <p>One panel for every map the page can draw, on Generate, Import and Evolution.</p>
+                <ul class="whatsnew-list">
+                    <li><strong>Colour or Data</strong> &mdash; Each map as shown, in its legend's colours, and / or as the numbers themselves: 16-bit greyscales on fixed scales &mdash; temperature, rain, pressure, winds, currents, ice, heightmaps, a hillshade, the K&ouml;ppen class index, plate numbers.</li>
+                    <li><strong>Seasons</strong> &mdash; The year, January, July, or all three; one file, or a ZIP with a README.txt that says what every file is, its units and its scale.</li>
+                    <li><strong>Ten map projections</strong> &mdash; Equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map and Van der Grinten&rsquo;s world in a circle &mdash; each with its own options, centred on any longitude. Evolution's map view shows them live, too.</li>
+                    <li><strong>Flat or shaded</strong> &mdash; Turn the hillshade off to export colour maps flat, and to see Evolution's views flat, ready to shade your own way.</li>
+                </ul>
+            </div>
+            <div class="whatsnew-step" data-step="4">
                 <h3>A New Climate, Everywhere</h3>
                 <ul class="whatsnew-list">
                     <li><strong>Seasons</strong> &mdash; Every climate layer shows the Year, January or July, in real units: &deg;C, mm of rain, hPa, m/s.</li>
@@ -516,7 +499,7 @@
                     <li><strong>Temperature &amp; Precipitation work through the physics</strong> &mdash; Cool the planet and the ice spreads; warm it and the world gets wetter.</li>
                 </ul>
             </div>
-            <div class="whatsnew-step" data-step="4">
+            <div class="whatsnew-step" data-step="5">
                 <h3>A New Look from Space</h3>
                 <ul class="whatsnew-list">
                     <li><strong>Satellite view</strong> &mdash; On every page, each climate's colours climb with the land to bare rock and snow, with summer and winter versions and sharp, ragged sea ice.</li>
@@ -529,6 +512,7 @@
                 <span class="dot" data-dot="2"></span>
                 <span class="dot" data-dot="3"></span>
                 <span class="dot" data-dot="4"></span>
+                <span class="dot" data-dot="5"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="whatsNewBack" class="btn-ghost" disabled>Back</button>
@@ -537,7 +521,7 @@
         </div>
     </div>
 
-    <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
+    <div id="topInfo">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click (&#8984;-click on a Mac) to reshape continents</div>
     <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
@@ -556,7 +540,7 @@
         </svg>
         <span>Rebuild (0)</span>
     </button>
-    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click to reshape continents</div>
+    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click (&#8984;-click on a Mac) to reshape continents</div>
 
     <script type="importmap">
     {

@@ -14,8 +14,9 @@ import { FastNoise } from '../core/fast-noise.js';
 import { styledSatellite, SAT_SHADE } from './sat-style.js';
 import { QUANTITY_COLORS, ICE_SHEET_RGB, SNOW_RGB, climateLegendHTML, classLabel } from '../../../js/climate-layers.js';
 
-/** The land's measures beyond Köppen (cell-stats.js), per cell or per pixel of a finished moment's picture. */
-const STAT_LAYERS = new Set(['tRange', 'aridity', 'growing', 'rainSeason']);
+/** The land's measures beyond Köppen (cell-stats.js), per cell or per pixel of a finished moment's picture: each
+ *  layer's stat key (Temperature Range's layer is tempRange, its stat tRange). */
+const STAT_KEY = { tempRange: 'tRange', aridity: 'aridity', growing: 'growing', rainSeason: 'rainSeason' };
 export const CLIMATE_LAYERS = new Set(['satellite', 'koppen', 'temperature', 'rain', 'wind', 'currents',
     'pressure', 'upwelling', 'ice', 'tempRange', 'rainShadow', 'aridity', 'growing', 'rainSeason']);
 export const SEASONAL_LAYERS = new Set(['satellite', 'temperature', 'rain', 'wind', 'currents', 'pressure', 'upwelling', 'ice']);
@@ -186,13 +187,13 @@ export function paintClimate(layer, season, C, terrain, tMesh, out, relief) {
             if (sn > 0) for (let ch = 0; ch < 3; ch++) out[3 * c + ch] += (Math.min(255, SNOW[ch] * k) - out[3 * c + ch]) * sn;
             if (f > 0) for (let ch = 0; ch < 3; ch++) out[3 * c + ch] += (Math.min(255, ICE_SHEET[ch] * k) - out[3 * c + ch]) * f;
         }
-    } else if (STAT_LAYERS.has(layer) || layer === 'rainShadow') {
+    } else if (STAT_KEY[layer] || layer === 'rainShadow') {
         // the land's own measures; the sea dark
-        const T = lutOf(layer), st = C.cell.stats?.[layer];
+        const key = STAT_KEY[layer] ?? layer, T = lutOf(key), st = C.cell.stats?.[key];
         for (let c = 0; c < n; c++) {
             const k = shadeOf(terrain, c);
             if (h[c] <= 0) { out[3 * c] = SEA_DIM[0] * k; out[3 * c + 1] = SEA_DIM[1] * k; out[3 * c + 2] = SEA_DIM[2] * k; continue; }
-            const v = layer === 'rainShadow' ? at(C.orographic, p, c) : st ? statValue(st, layer, c) : NaN;
+            const v = layer === 'rainShadow' ? at(C.orographic, p, c) : st ? statValue(st, key, c) : NaN;
             if (v === v) put(out, c, T, v, k);
             else { out[3 * c] = out[3 * c + 1] = out[3 * c + 2] = 105 * k; }
         }
@@ -362,7 +363,8 @@ const shadeK = kk => 0.45 + 0.55 * (kk - 0.35) / 0.65;
  */
 export function finishedClimateColor(layer, season, C, W, lut, fin = null) {
     if (layer === 'satellite') return satelliteColor(season, C, W, fin);
-    const R = C.raster, g = gridSampler(W), T = lutOf({ currents: 'sst', ice: 'seaIce' }[layer] ?? layer), st = R.stats?.[layer];
+    const key = STAT_KEY[layer] ?? layer;
+    const R = C.raster, g = gridSampler(W), T = lutOf({ currents: 'sst', ice: 'seaIce' }[layer] ?? key), st = R.stats?.[key];
     const px = [0, 0, 0];
     const putPx = (out, o, kk, v) => {
         const x = T.toX(v), i = 3 * Math.max(0, Math.min(T.n - 1, Math.round((x - T.a) / (T.b - T.a) * (T.n - 1)))), k = shadeK(kk);
@@ -397,7 +399,7 @@ export function finishedClimateColor(layer, season, C, W, lut, fin = null) {
         } else {
             // (the land's own measures; the sea dark)
             if (i < 0) { const k = shadeK(kk); out[o] = SEA_DIM[0] * k; out[o + 1] = SEA_DIM[1] * k; out[o + 2] = SEA_DIM[2] * k; out[o + 3] = 255; return; }
-            const v = layer === 'rainShadow' ? g(C.orographic, x, y) : st ? statValue(st, layer, i) : NaN;
+            const v = layer === 'rainShadow' ? g(C.orographic, x, y) : st ? statValue(st, key, i) : NaN;
             if (v === v) putPx(out, o, kk, v); else rgbPx(out, o, kk, [105, 105, 105]);
         }
     };
@@ -406,6 +408,45 @@ export function finishedClimateColor(layer, season, C, W, lut, fin = null) {
         const L = lut.rgb, r = L[k3] * kk, gg = L[k3 + 1] * kk, b = L[k3 + 2] * kk, l = 0.3 * r + 0.59 * gg + 0.11 * b;
         out[o] = (r + (l - r) * grey) * dim; out[o + 1] = (gg + (l - gg) * grey) * dim; out[o + 2] = (b + (l - b) * grey) * dim; out[o + 3] = 255;
     }
+}
+
+/**
+ * A finished moment's climate as numbers, pixel by pixel — for the export's data layers (v2/js/evolution/export.js):
+ * `(x, y, wet) → value` (NaN where the layer has none: a land quantity at sea, a sea quantity on land), sampled as
+ * finishedClimateColor samples the same layer. `key`: a DATA_SCALES key (export-raster.js), or koppenIndex.
+ */
+export function finishedClimateValue(key, season, C, W) {
+    const R = C.raster, g = gridSampler(W), st = R.stats, land = (x, y) => landPixel(R, W, x, y), s = season;
+    switch (key) {
+        case 'koppenIndex': return (x, y, wet) => { if (wet) return 0; const i = land(x, y); return i >= 0 ? R.koppen[i] : 0; };
+        case 'temperature': return (x, y, wet) => {
+            if (wet) return g((C.Tsea ?? C.T)[s], x, y);
+            const i = land(x, y); return i >= 0 ? R.tAnnual[i] / 100 + (s === 'year' ? 0 : g(C.T[s], x, y) - g(C.T.year, x, y)) : g(C.T[s], x, y);
+        };
+        case 'precip': return (x, y, wet) => {
+            const p = g(C.P[s], x, y); if (wet) return p;
+            const i = land(x, y); if (i < 0) return p;
+            const monthly = R.pAnnual[i] / 12, yr = s === 'year' ? 0 : g(C.P.year, x, y);
+            return s === 'year' || !(yr > 0.01) ? monthly : monthly * p / yr;
+        };
+        case 'pressure': return (x, y) => g(C.slp[s], x, y);
+        case 'windSpeed': return (x, y) => windSpeed(C, s, f => g(f, x, y));
+        case 'windU': return (x, y) => g(C.u[s], x, y);
+        case 'windV': return (x, y) => g(C.v[s], x, y);
+        case 'sstAnom': return (x, y, wet) => (wet ? g(C.sstAnom[s], x, y) : NaN);
+        case 'currentU': return (x, y, wet) => (wet ? g(C.currentU[s], x, y) : NaN);
+        case 'currentV': return (x, y, wet) => (wet ? g(C.currentV[s], x, y) : NaN);
+        case 'upwelling': return (x, y, wet) => (wet ? g(C.upwelling[s], x, y) : NaN);
+        case 'seaIce': return (x, y, wet) => (wet ? g(C.seaIce[s], x, y) : 0);
+        case 'snow': return (x, y, wet) => (wet || !C.snow ? 0 : g(C.snow[s], x, y));
+        case 'iceSheet': return (x, y, wet) => (wet ? 0 : g(C.iceSheet, x, y));
+        case 'rainShadow': return (x, y, wet) => (wet ? NaN : g(C.orographic, x, y));
+        case 'tempRange': case 'aridity': case 'growing': case 'rainSeason': {
+            const sk = STAT_KEY[key];
+            return (x, y, wet) => { if (wet || !st?.[sk]) return NaN; const i = land(x, y); return i >= 0 ? statValue(st[sk], sk, i) : NaN; };
+        }
+    }
+    throw new Error(`no such climate value: ${key}`);
 }
 
 // ── the Satellite layer (plans/V2_SATELLITE_PLAN.md): the land's own colours from space (the finish's, per view: the

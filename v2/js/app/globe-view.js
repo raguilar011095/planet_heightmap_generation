@@ -10,6 +10,8 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { P as PROJ } from '../view/projections.js';
+import { PROJECTION_GLSL, projectionUniforms } from '../view/projection-glsl.js';
 
 // a wheel's notch (100 px): 14 % nearer or farther — OrbitControls' own was 5 % and felt slow (developer, 2026-10-18:
 // "zooming in is also very slow"); V1's is 8 %. The camera covers this share of the way left each 60th of a second.
@@ -179,20 +181,31 @@ export class GlobeView {
     }
 
     /**
-     * The map view: the texture flat, letterboxed (2 : 1) in `frame`'s box, turned so that `centerLon` (degrees) is in
-     * the middle — drawn on this canvas, under the frame (which should be transparent: it takes the pointer, so the globe's
-     * controls rest); null: the globe again.
+     * The map view: the texture flat in `frame`'s box — in a projection (projections.js; equirectangular letterboxed
+     * 2 : 1, the others in their own shape), turned so that `centerLon` (degrees) is in the middle — drawn on this canvas,
+     * under the frame (which should be transparent: it takes the pointer, so the globe's controls rest); null: the globe
+     * again. The projection is the fragment shader's: each pixel asks which longitude and latitude it shows
+     * (projection-glsl.js) and samples the texture there.
      */
-    setMap(frame, centerLon = 0) {
-        this.map = frame ? { frame, centerLon } : null;
+    setMap(frame, centerLon = 0, projection = 'equirect', projOpts = {}) {
+        this.map = frame ? { frame, centerLon, projection, projOpts, bounds: PROJ[projection].bounds(projOpts) } : null;
         this.controls.enabled = !frame;
         if (frame && !this.mapScene) {
             this.mapScene = new THREE.Scene();
             this.mapScene.background = new THREE.Color(0x000000);
+            const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-                uniforms: { map: { value: null }, turn: { value: 0 } },
+                uniforms: { map: { value: null }, turn: { value: 0 }, uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) } },
                 vertexShader: 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-                fragmentShader: 'uniform sampler2D map; uniform float turn; varying vec2 vUv;\nvoid main() {\n    gl_FragColor = texture2D(map, vec2(vUv.x + turn, vUv.y));\n    #include <colorspace_fragment>\n}',
+                fragmentShader: `uniform sampler2D map; uniform float turn; varying vec2 vUv;
+${PROJECTION_GLSL}
+void main() {
+    vec2 xy = vec2(uBounds.x + vUv.x * (uBounds.y - uBounds.x), uBounds.z + vUv.y * (uBounds.w - uBounds.z));
+    vec2 ll;
+    if (!projInverse(xy, ll)) discard;
+    gl_FragColor = texture2D(map, vec2(ll.x / (2.0 * PI) + 0.5 + turn, 0.5 + ll.y / PI));
+    #include <colorspace_fragment>
+}`,
                 depthTest: false, depthWrite: false,
             }));
             this.mapQuad.frustumCulled = false;
@@ -201,22 +214,26 @@ export class GlobeView {
         this._dirty = true;
     }
 
-    /** The map's box in client pixels: the frame's, letterboxed to 2 : 1. */
+    /** The map's box in client pixels: the frame's, letterboxed to the projection's shape (2 : 1 equirectangular). */
     mapBox() {
-        const f = this.map.frame.getBoundingClientRect(), s = Math.min(f.width / 2, f.height);
-        return { left: f.left + (f.width - 2 * s) / 2, top: f.top + (f.height - s) / 2, width: 2 * s, height: s };
+        const f = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]), s = Math.min(f.width / aspect, f.height);
+        return { left: f.left + (f.width - aspect * s) / 2, top: f.top + (f.height - s) / 2, width: aspect * s, height: s };
     }
 
     /** On the map view: the texture's place under a client-space point, [u (west → east), v (north → south)] — or null, off the map. */
     mapUvAt(clientX, clientY) {
-        const b = this.mapBox(), x = (clientX - b.left) / b.width, y = (clientY - b.top) / b.height;
+        const bx = this.mapBox(), x = (clientX - bx.left) / bx.width, y = (clientY - bx.top) / bx.height;
         if (!(x >= 0 && x < 1 && y >= 0 && y < 1)) return null;
-        return [((x + this.map.centerLon / 360) % 1 + 1) % 1, y];
+        const b = this.map.bounds, ll = PROJ[this.map.projection].inv(b[0] + x * (b[1] - b[0]), b[3] - y * (b[3] - b[2]), this.map.projOpts);
+        if (!ll) return null;
+        return [((ll[0] / (2 * Math.PI) + 0.5 + this.map.centerLon / 360) % 1 + 1) % 1, 0.5 - ll[1] / Math.PI];
     }
 
     renderMap() {
         const r = this.renderer, b = this.mapBox(), c = this.canvas.getBoundingClientRect(), u = this.mapQuad.material.uniforms;
         u.map.value = this.texture; u.turn.value = this.map.centerLon / 360;
+        const pu = projectionUniforms(this.map.projection, this.map.projOpts);
+        u.uProj.value = pu.uProj; u.uBounds.value.set(...pu.uBounds); u.uOpt.value.set(...pu.uOpt);
         r.setViewport(b.left - c.left, c.height - (b.top - c.top) - b.height, b.width, b.height);      // (from the bottom)
         r.render(this.mapScene, this.camera);                                                         // (its background clears the whole canvas)
         r.setViewport(0, 0, c.width, c.height);

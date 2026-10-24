@@ -14,13 +14,14 @@ import { SMALL_DEVICE } from '../core/device.js';
  *        until it is), start-world tunables for a scene that takes them, and a length other than the scene's; keep: the
  *        history can be run on afterwards — the result then has `more(untilMyr)` (a promise: runs it on to untilMyr, a
  *        multiple of the step grid, its frames through onFrame as before — the same history as one long run) and
- *        `close()` (lets its worker go)
+ *        `close()` (lets its worker go); collect: false — the frames go to onFrame only (the result's `frames` stays
+ *        empty: a history run again to check it against one kept elsewhere)
  * @param {(frame, index: number) => void} [onFrame]   each frame as it arrives (the Evolution page shows the planet as it builds)
  * @param {AbortSignal} [signal]   aborts the run (its worker is stopped; the promise rejects with an AbortError)
  * @returns {Promise<{frames: Object[], steps: number, stopped: boolean, complete: boolean}>}  stopped: it reached its
  *          ending; complete: it ran as far as a history may (so a longer run would not find more)
  */
-export function runHistory({ list, scene, heights = {}, ending = 'none', start = {}, lengthMyr = null, keep = false }, simMesh, seed, snapshotEveryMyr, onProgress = () => {}, onFrame = null, signal = null) {
+export function runHistory({ list, scene, heights = {}, ending = 'none', start = {}, lengthMyr = null, keep = false, collect = true }, simMesh, seed, snapshotEveryMyr, onProgress = () => {}, onFrame = null, signal = null) {
     if (typeof Worker === 'undefined') {
         const world = scene.build(simMesh, seed, start);
         world.config.heights = terrainConfig(heights);
@@ -37,10 +38,11 @@ export function runHistory({ list, scene, heights = {}, ending = 'none', start =
     }
     return new Promise((resolve, reject) => {
         const worker = new Worker(new URL('./history-worker.js', import.meta.url), { type: 'module' }), frames = [];
+        let count = 0;
         let moreJob = null, dead = null;             // (a run-on under way: its promise's resolve / reject; the worker's end)
         const fail = err => { dead = err; worker.terminate(); if (moreJob) { moreJob.reject(err); moreJob = null; } else reject(err); };
         worker.onmessage = ({ data }) => {
-            if (data.type === 'frame') { const frame = new PackedFrame(data.frame); frames.push(frame); onProgress(frame.time); onFrame?.(frame, frames.length - 1); }
+            if (data.type === 'frame') { const frame = new PackedFrame(data.frame); if (collect) frames.push(frame); onProgress(frame.time); onFrame?.(frame, count++); }
             else if (data.type === 'done') {
                 const out = { frames, steps: data.steps, stopped: data.stopped, complete: !data.stopped && ending !== 'none', time: data.time, ms: data.ms, packMs: data.packMs };
                 if (!keep) worker.terminate();

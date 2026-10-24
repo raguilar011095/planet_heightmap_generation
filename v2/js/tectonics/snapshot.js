@@ -63,11 +63,12 @@ const LIVE_TRENCH_HOPS = 2;   // a flagged cell this close to an overriding edge
 const shownStamps = new WeakMap();
 let captureEpoch = 0;
 
-/** @returns {Frame} */
-export function captureFrame(world, reuse = null) {
-    const { mesh, owner, ownerCell, claimCount, landClaims, boundaryKind, provisional, plates } = world;      // (+ world.collider)
-    const n = mesh.numCells, { adjOffset, adjList } = mesh;
-    const f = reuse ?? {
+/**
+ * A frame's per-cell arrays, for `n` cells, zeroed: every field captureFrame fills a cell at a time. (The planet file
+ * reads a field an older file lacks as these zeros: that feature off — save/migrations.js.)
+ */
+export function frameArrays(n) {
+    return {
         owner: new Int16Array(n), collider: new Int16Array(n), type: new Uint8Array(n), formedAt: new Float32Array(n), flags: new Uint8Array(n),
         terrane: new Uint16Array(n), boundary: new Uint8Array(n), overlap: new Uint8Array(n), trench: new Uint8Array(n),
         provisional: new Uint8Array(n), slabKm: new Float32Array(n), fzU: new Float32Array(n),
@@ -80,6 +81,13 @@ export function captureFrame(world, reuse = null) {
         mantleHeat: new Uint8Array(n),                      // 0…255 for 0…1 (a frame need not carry it at full precision)
         margin: new Uint8Array(n),                          // what kind of coast each coastal land cell is (measure.js Margin)
     };
+}
+
+/** @returns {Frame} */
+export function captureFrame(world, reuse = null) {
+    const { mesh, owner, ownerCell, claimCount, landClaims, boundaryKind, provisional, plates } = world;      // (+ world.collider)
+    const n = mesh.numCells, { adjOffset, adjList } = mesh;
+    const f = reuse ?? frameArrays(n);
     f.time = world.time;
     // mark every raster cell that is some world cell's nearest; the rest are hidden between world cells (see below)
     const epoch = ++captureEpoch;

@@ -39,6 +39,7 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
 }
 #sidebarContent {
     overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
+    scrollbar-gutter: stable; padding-right: 4px;   /* (the values at the right edge clear an overlay scrollbar — issue #34) */
 }
 #sidebarContent::-webkit-scrollbar { width: 10px; }
 #sidebarContent::-webkit-scrollbar-track { background: transparent; margin: 2px 0; }
@@ -641,6 +642,7 @@ button#generate.generating {
     transition: color 0.2s;
 }
 #exportClose:hover { color: #fff; }
+.export-note { font-size: 12px; color: #9ab; margin: 6px 0 0; }
 .export-actions {
     display: flex; justify-content: flex-end; gap: 10px;
     margin-top: 18px;
@@ -1053,4 +1055,57 @@ button#generate.generating {
     button#generate { padding: 12px; font-size: 15px; }
     .cg label { font-size: 14px; }
     .section summary { font-size: 13px; }
+}
+
+/* ── The export panel (v2/js/view/export-panel.js): settings, the checklist of maps, options, progress ── */
+#exportCard { max-width: 520px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+#exportCard .xp { display: flex; flex-direction: column; min-height: 0; gap: 10px; }
+.xp-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.xp-settings .cg { margin-bottom: 4px; }
+.xp-settings select, .xp-settings input[type=range] { width: 100%; }
+.xp-proj-opts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.xp-proj-opts[hidden] { display: none; }
+.xp-proj-opt { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #aab; min-width: 140px; flex: 1; }
+.xp-proj-opt .v { color: #6af; font-weight: 500; }
+.xp-head, .xp-row { display: grid; grid-template-columns: 1fr 64px 64px; align-items: center; }
+.xp-head { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #889; padding: 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.xp-head span:not(:first-child), .xp-check { text-align: center; justify-self: center; }
+.xp-layers { overflow-y: auto; min-height: 120px; max-height: 42vh; padding-right: 2px; scrollbar-gutter: stable; }
+.xp-group-title { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #6af; padding: 8px 6px 2px; }
+.xp-row { padding: 3px 6px; border-radius: 6px; min-height: 28px; font-size: 13.5px; color: #cde; }
+.xp-row:hover { background: rgba(255,255,255,0.04); }
+.xp-row.xp-off { opacity: 0.4; }
+.xp-name small { display: block; font-size: 11px; color: #889; }
+.xp-sun { color: #e8c050; font-size: 12px; }
+.xp-check { display: flex; align-items: center; justify-content: center; width: 44px; height: 28px; cursor: pointer; }
+.xp-check input { width: 16px; height: 16px; accent-color: #3366ee; cursor: pointer; margin: 0; }
+.xp-check i { color: #556; font-style: normal; }
+.xp-options { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: #aab; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }
+.xp-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.xp-opt[hidden] { display: none; }
+.xp-opt input { accent-color: #3366ee; width: 15px; height: 15px; margin: 0; }
+.xp-planet { display: flex; align-items: center; gap: 12px; padding: 8px 0 0; border-top: 1px solid rgba(255,255,255,0.08); }
+.xp-planet[hidden] { display: none; }
+.xp-planet-text { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; color: #cde; }
+.xp-planet-text small { font-size: 11.5px; color: #889; }
+.xp-progress { font-size: 12px; color: #9ab; }
+.xp-progress[hidden] { display: none; }
+.xp-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.xp-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2255cc, #3366ee); transition: width 0.2s; }
+#exportCard .export-actions { margin-top: 6px; align-items: center; }
+.xp-spacer { flex: 1; }
+.btn-ghost.xp-small { padding: 6px 12px; font-size: 13px; }
+@media (max-width: 768px) {
+    #exportCard { max-width: none; width: 94%; padding: 20px 14px 14px; max-height: calc(100dvh - 24px); }
+    .xp-settings { grid-template-columns: 1fr; }
+    .xp-layers { max-height: 36vh; }
+    .xp-row { min-height: 44px; font-size: 15px; }
+    .xp-check { height: 44px; width: 48px; }
+    .xp-check input, .xp-opt input { width: 20px; height: 20px; }
+    .xp-head, .xp-row { grid-template-columns: 1fr 56px 56px; }
+    .xp-opt { min-height: 44px; }
+    .xp-planet { flex-wrap: wrap; }
+    .xp-planet-text { font-size: 15px; min-width: 60%; }
+    #exportCard .export-actions { flex-wrap: wrap; gap: 8px; }
+    #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
 }

@@ -43,7 +43,8 @@
             "Timeline of the whole history to scrub and replay",
             "Detailed moments with rivers, lakes, glaciers and a seasonal climate",
             "Satellite and Köppen climate views of a detailed moment",
-            "Export of a detailed moment: colour map, satellite view (year, January, July), Köppen climate zones, 16-bit heightmaps, land mask and a transparent rivers-and-lakes layer, singly or all in one ZIP, up to 16384 px wide"
+            "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July), Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
+            "Planet files: the whole history and its detailed moment saved as one file and opened again later, without building either again — the same planet in any browser"
         ],
         "screenshot": "https://orogen.studio/assets/studio/evolution.jpg",
         "isPartOf": { "@type": "WebSite", "name": "World Orogen", "url": "https://orogen.studio/" }
@@ -83,8 +84,8 @@
             <summary>World <span id="worldSummary" class="evo-world-sum"></span></summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Seed <span class="tip" data-tip="The number a world is built from: the same seed and settings build the same history">?</span></label>
-                    <div id="seedRow"><input type="text" id="seedCode" placeholder="Seed" inputmode="numeric" aria-label="World seed"></div>
+                    <label>Seed <span class="tip" data-tip="What a world is built from: a number up to 2,147,483,645 (New World picks one at random), or any word or phrase. The same seed and settings build the same history">?</span></label>
+                    <div id="seedRow"><input type="text" id="seedCode" placeholder="A number or a word" aria-label="World seed" autocomplete="off" spellcheck="false"></div>
                 </div>
                 <div class="cg">
                     <label>Starting Continent Size <span class="tip" data-tip="How much of the planet the first supercontinent covers, shelves included">?</span> <span class="v" id="vCont">30%</span></label>
@@ -140,6 +141,9 @@
                 </div>
                 <div id="worldPending" class="evo-card-note" hidden>The new plate resolution applies when you build this world</div>
                 <button id="rebuildBtn" class="evo-climate-btn" title="Build the world of this seed with these settings">Build This World</button>
+                <button id="loadBtn" class="evo-climate-btn evo-load-btn" title="Open a planet file (.orogen) saved from the Export panel: its history and detailed moment, as they were saved — no waiting for either">Load Planet…</button>
+                <input type="file" id="loadFile" accept=".orogen" hidden>
+                <div id="loadNote" class="evo-card-note" hidden></div>
             </div>
         </details>
         <div id="momentCard" class="evo-card">
@@ -203,12 +207,20 @@
                         </optgroup>
                     </select>
                 </div>
+                <div class="tg">
+                    <label class="toggle-label"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade <span class="tip" data-tip="Shade the planet by its relief, lit from the north-west. Off, every view is flat colour, the mountains shown by their colours alone (a texture to light in a 3D program; the export has its own Hillshade switch)">?</span></label>
+                </div>
                 <div class="cg">
                     <label>View</label>
                     <select id="viewMode">
                         <option value="globe">Globe</option>
                         <option value="map">Map</option>
                     </select>
+                </div>
+                <div class="cg" id="mapProjectionGroup" hidden>
+                    <label>Projection <span class="tip" data-tip="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same">?</span></label>
+                    <select id="mapProjection"></select>
+                    <div id="mapProjOpts" class="xp-proj-opts evo-proj-opts" hidden></div>
                 </div>
                 <div class="cg" id="mapCenterLonGroup" hidden>
                     <label>Center Longitude <span class="v" id="vMapCenterLon">0°</span></label>
@@ -328,24 +340,11 @@
         <div id="finishBar" class="evo-finish-bar evo-timeline-progress" hidden><i></i></div>
     </div>
     <div id="hoverInfo"></div>
+    <div id="dropOverlay" class="evo-drop" hidden><div>Drop to open this planet file</div></div>
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
             <button id="exportClose" aria-label="Close">&times;</button>
-            <h3>Export Map <span id="exportMoment" class="evo-export-moment"></span></h3>
-            <div class="cg">
-                <label>Type <span class="tip" data-tip="Colour Map — the Terrain view as shown, in your Terrain Colours, with rivers and lakes if Rivers &amp; Lakes is on. Satellite — the Satellite view for the year, January or July. Climate Zones — the Köppen zones in their own colours, unshaded. Heightmap with Sea Floor — 16-bit greyscale, the same scale on every planet: black −11 km, white +9 km (sea level at 55 %). Land Heightmap — 16-bit, the sea black and land from 0 to +9 km (re-imports on the Import Heightmap page, which reads white as 6 km). Land Mask — land white, the sea black. Rivers &amp; Lakes — the rivers and lakes alone on a transparent ground, to lay over another map. Export All saves one of each (Satellite for the year) in a ZIP">?</span></label>
-                <select id="exportType"></select>
-            </div>
-            <div class="cg">
-                <label>Width <span class="v" id="exportDims"></span> <span class="tip" data-tip="Up to the width the moment was detailed at, the map is drawn from its own detail (narrower ones averaged down). Wider ones are enlarged from it for use downstream: heights smoothly interpolated, coasts, lakes and climate zones following the nearest pixels, then drawn at the full width — the shading and the rivers sharp, but no new detail. Very wide maps take a while and a lot of memory">?</span></label>
-                <select id="exportWidth"></select>
-            </div>
-            <div id="exportProgress" class="evo-export-progress" hidden><div class="evo-finish-bar"><i></i></div><span></span></div>
-            <div class="export-actions">
-                <button id="exportCancel" class="btn-ghost">Cancel</button>
-                <button id="exportGo" class="btn-primary">Export</button>
-                <button id="exportAllGo" class="btn-primary" title="Every kind of map (Satellite for the year) at this width, in one ZIP">Export All</button>
-            </div>
+            <h3>Export</h3>
         </div>
     </div>
     <div id="tutorialOverlay" class="hidden">
@@ -369,12 +368,17 @@
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview.</p>
-                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. <strong>Export All</strong> saves one of each in a ZIP, at any width up to 16384 px.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. In <strong>View</strong>, the map can be drawn in any of ten <strong>projections</strong>, and <strong>Hillshade</strong> turns the relief's shading off, for flat colour.</p>
+                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate layer can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
             <div class="tutorial-step" data-step="4">
+                <h3>Keep a Planet</h3>
+                <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load Planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
+                <p>The file holds the history itself, so it opens exactly as it was saved, in any browser. <strong>Extend history</strong> on an opened planet first runs the history again here from its seed (as long as it took to build), and then goes on from where the file ends &mdash; if it comes out the same in this browser.<span data-touch=" On a phone, a detailed moment saved on a desktop is too big to show: the history opens, ready for you to add detail at the phone's size."></span></p>
+            </div>
+            <div class="tutorial-step" data-step="5">
                 <h3>Steer It</h3>
-                <p><strong>New World</strong> starts a fresh history from a random seed. Open <strong>World</strong> to set the seed, the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
+                <p><strong>New World</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
                 <p>At the end of a history, <strong>Extend history</strong> runs it on for as long as you like. The link in your address bar rebuilds the same history, so you can share it.</p>
             </div>
             <div class="tutorial-dots">
@@ -383,6 +387,7 @@
                 <span class="dot" data-dot="2"></span>
                 <span class="dot" data-dot="3"></span>
                 <span class="dot" data-dot="4"></span>
+                <span class="dot" data-dot="5"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>

@@ -144,51 +144,6 @@ function _pngChunk(type, data) {
     return chunk;
 }
 
-async function encode16BitGrayscalePNG(width, height, data16) {
-    // IHDR: width, height, bit depth 16, color type 0 (grayscale)
-    const ihdr = new Uint8Array(13);
-    const iv = new DataView(ihdr.buffer);
-    iv.setUint32(0, width);
-    iv.setUint32(4, height);
-    ihdr[8] = 16; ihdr[9] = 0; // 16-bit grayscale
-
-    // Raw scanlines: filter byte (0=None) + width×2 bytes per row
-    const rowLen = 1 + width * 2;
-    const raw = new Uint8Array(height * rowLen);
-    for (let y = 0; y < height; y++) {
-        const off = y * rowLen;
-        raw[off] = 0; // filter: None
-        for (let x = 0; x < width; x++) {
-            const v = data16[y * width + x];
-            raw[off + 1 + x * 2] = (v >> 8) & 0xFF;
-            raw[off + 1 + x * 2 + 1] = v & 0xFF;
-        }
-    }
-
-    // Compress with zlib (CompressionStream 'deflate' = zlib format)
-    const cs = new CompressionStream('deflate');
-    const writer = cs.writable.getWriter();
-    writer.write(raw);
-    writer.close();
-    const compData = new Uint8Array(await new Response(cs.readable).arrayBuffer());
-
-    // Assemble PNG
-    const sig = new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]);
-    const ihdrC = _pngChunk('IHDR', ihdr);
-    const idatC = _pngChunk('IDAT', compData);
-    const iendC = _pngChunk('IEND', new Uint8Array(0));
-
-    const png = new Uint8Array(sig.length + ihdrC.length + idatC.length + iendC.length);
-    let p = 0;
-    png.set(sig, p); p += sig.length;
-    png.set(ihdrC, p); p += ihdrC.length;
-    png.set(idatC, p); p += idatC.length;
-    png.set(iendC, p);
-
-    return new Blob([png], { type: 'image/png' });
-}
-
-// ────────────────────────────────────────────────────────────────────
 
 // Diverging color map: blue (negative) → white (zero) → red (positive)
 function debugValueToColor(v, minV, maxV) {
@@ -212,6 +167,28 @@ function debugValueToColor(v, minV, maxV) {
 function koppenColor(classId) {
     const c = KOPPEN_CLASSES[classId] || KOPPEN_CLASSES[0];
     return c.color;
+}
+
+// The palettes' colours are display (sRGB) values, but three.js reads a vertex colour as linear light and encodes it to
+// sRGB on the way out, which brightens it (Köppen's #f5a600 came out #fbd300 on the map and in the export), and the
+// globe's lights tinted it on top (#c6b200). So the layers whose colours must match their legend — the climate's Inspect
+// layers, Köppen and the heightmaps — are turned to linear light first (so the screen and the export show the legend's
+// own colours) and are drawn unlit on the globe (issues #64 and #51).
+const toLinear3 = (c) => [srgbToLinear(c[0]), srgbToLinear(c[1]), srgbToLinear(c[2])];
+/** Whether a layer is drawn in its legend's exact colours (unlit, no gamma shift). */
+const isExactLayer = (debugLayer) => debugLayer === 'koppen' || debugLayer === 'heightmap' || debugLayer === 'landheightmap' || !!climateLayer(debugLayer);
+/** The globe's material for a layer: unlit for an exact layer, lit (with the mesh's own normals) otherwise. */
+function globeMaterial(exact) {
+    if (exact) return new THREE.MeshBasicMaterial({ vertexColors: true });
+    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
+    mat.onBeforeCompile = (shader) => {
+        shader.vertexShader = shader.vertexShader.replace(
+            '#include <beginnormal_vertex>',
+            'vec3 objectNormal = normalize(position);'
+        );
+    };
+    mat.userData.exact = false;
+    return mat;
 }
 
 // Plate colours — green shades for land, blue for ocean.
@@ -292,20 +269,20 @@ export function buildMapMesh() {
         let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
         if (isSmooth) {
             const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const v0 = colorFn(t_elevation[it])[0];
-            const v1 = colorFn(t_elevation[ot])[0];
-            const v2 = colorFn(r_elevation[br])[0];
+            const v0 = srgbToLinear(colorFn(t_elevation[it])[0]);
+            const v1 = srgbToLinear(colorFn(t_elevation[ot])[0]);
+            const v2 = srgbToLinear(colorFn(r_elevation[br])[0]);
             c0r = c0g = c0b = v0;
             c1r = c1g = c1b = v1;
             c2r = c2g = c2b = v2;
         } else {
             let cr, cg, cb;
             if (climateColor) {
-                [cr, cg, cb] = climateColor(br);
+                [cr, cg, cb] = toLinear3(climateColor(br));
             } else if (isBiome && biomeSmoothed) {
                 cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
             } else if (isKoppen && koppenArr) {
-                [cr, cg, cb] = koppenColor(koppenArr[br]);
+                [cr, cg, cb] = toLinear3(koppenColor(koppenArr[br]));
             } else if (dbgArr) {
                 [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
             } else if (showPlates) {
@@ -701,9 +678,9 @@ export function buildMesh() {
         if (isSmooth) {
             // Smooth heightmap: per-vertex colors from averaged triangle elevations
             const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const c0 = colorFn(t_elevation[it])[0];  // inner_t (vertex 0, never swapped)
-            const cOt = colorFn(t_elevation[ot])[0];  // outer_t
-            const cBr = colorFn(r_elevation[br])[0];  // begin_r
+            const c0 = srgbToLinear(colorFn(t_elevation[it])[0]);  // inner_t (vertex 0, never swapped)
+            const cOt = srgbToLinear(colorFn(t_elevation[ot])[0]);  // outer_t
+            const cBr = srgbToLinear(colorFn(r_elevation[br])[0]);  // begin_r
             // After winding fix, v1/v2 may have swapped (outer_t ↔ begin_r)
             const c1 = swapped ? cBr : cOt;
             const c2 = swapped ? cOt : cBr;
@@ -713,15 +690,15 @@ export function buildMesh() {
         } else {
             let cr, cg, cb;
             if (climateColor) {
-                [cr, cg, cb] = climateColor(br);
+                [cr, cg, cb] = toLinear3(climateColor(br));
             } else if (isBiome && biomeSmoothed) {
                 cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
             } else if (isKoppen && koppenArr) {
-                [cr, cg, cb] = koppenColor(koppenArr[br]);
+                [cr, cg, cb] = toLinear3(koppenColor(koppenArr[br]));
             } else if (isLandHeightmap) {
-                [cr, cg, cb] = landHeightmapColor(r_elevation[br]);
+                [cr, cg, cb] = toLinear3(landHeightmapColor(r_elevation[br]));
             } else if (isHeightmap) {
-                [cr, cg, cb] = heightmapColor(r_elevation[br]);
+                [cr, cg, cb] = toLinear3(heightmapColor(r_elevation[br]));
             } else if (dbgArr) {
                 [cr, cg, cb] = debugValueToColor(dbgArr[br], dbgMin, dbgMax);
             } else if (showPlates) {
@@ -754,13 +731,8 @@ export function buildMesh() {
     state._koppenHoverBackup = null;
     state._sideSwapped = sideSwapped;
 
-    const mat = new THREE.MeshLambertMaterial({ vertexColors: true });
-    mat.onBeforeCompile = (shader) => {
-        shader.vertexShader = shader.vertexShader.replace(
-            '#include <beginnormal_vertex>',
-            'vec3 objectNormal = normalize(position);'
-        );
-    };
+    const mat = globeMaterial(isExactLayer(debugLayer));
+    mat.userData.exact = isExactLayer(debugLayer);
     state.planetMesh = new THREE.Mesh(geo, mat);
     scene.add(state.planetMesh);
 
@@ -861,11 +833,11 @@ export function updateMeshColors() {
 
     // Color helper — returns [r,g,b] for a given region
     const getRegionColor = (br) => {
-        if (climateColor) return climateColor(br);
+        if (climateColor) return toLinear3(climateColor(br));
         if (isBiome && biomeSmoothed) return [biomeSmoothed[br * 3], biomeSmoothed[br * 3 + 1], biomeSmoothed[br * 3 + 2]];
-        if (isKoppen && koppenArr) return koppenColor(koppenArr[br]);
-        if (isLandHeightmap) return landHeightmapColor(r_elevation[br]);
-        if (isHeightmap) return heightmapColor(r_elevation[br]);
+        if (isKoppen && koppenArr) return toLinear3(koppenColor(koppenArr[br]));
+        if (isLandHeightmap) return toLinear3(landHeightmapColor(r_elevation[br]));
+        if (isHeightmap) return toLinear3(heightmapColor(r_elevation[br]));
         if (dbgArr) return debugValueToColor(dbgArr[br], dbgMin, dbgMax);
         if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
@@ -883,6 +855,14 @@ export function updateMeshColors() {
         return elevationToColor(r_elevation[br] - waterLevel);
     };
 
+    // The globe's material follows the layer: unlit for an exact layer, lit otherwise
+    const exact = isExactLayer(debugLayer);
+    if (state.planetMesh.material.userData.exact !== exact) {
+        state.planetMesh.material.dispose();
+        state.planetMesh.material = globeMaterial(exact);
+        state.planetMesh.material.userData.exact = exact;
+    }
+
     // Update globe mesh colors in-place
     const colorAttr = state.planetMesh.geometry.getAttribute('color');
     const colors = colorAttr.array;
@@ -897,9 +877,9 @@ export function updateMeshColors() {
             const ot = mesh.s_outer_t(s);
             const br = mesh.s_begin_r(s);
             const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-            const c0 = colorFn(t_elevation[it])[0];
-            const cOt = colorFn(t_elevation[ot])[0];
-            const cBr = colorFn(r_elevation[br])[0];
+            const c0 = srgbToLinear(colorFn(t_elevation[it])[0]);
+            const cOt = srgbToLinear(colorFn(t_elevation[ot])[0]);
+            const cBr = srgbToLinear(colorFn(r_elevation[br])[0]);
             const swapped = sideSwapped && sideSwapped[s];
             const c1 = swapped ? cBr : cOt;
             const c2 = swapped ? cOt : cBr;
@@ -935,9 +915,9 @@ export function updateMeshColors() {
                 const ot = mesh.s_outer_t(s);
                 const br = mesh.s_begin_r(s);
                 const colorFn = isLandHeightmap ? landHeightmapColor : heightmapColor;
-                const v0 = colorFn(t_elevation[it])[0];
-                const v1 = colorFn(t_elevation[ot])[0];
-                const v2 = colorFn(r_elevation[br])[0];
+                const v0 = srgbToLinear(colorFn(t_elevation[it])[0]);
+                const v1 = srgbToLinear(colorFn(t_elevation[ot])[0]);
+                const v2 = srgbToLinear(colorFn(r_elevation[br])[0]);
                 mapColors[off] = mapColors[off+1] = mapColors[off+2] = v0;
                 mapColors[off+3] = mapColors[off+4] = mapColors[off+5] = v1;
                 mapColors[off+6] = mapColors[off+7] = mapColors[off+8] = v2;
@@ -1764,275 +1744,23 @@ export function buildOceanCurrentArrows(season) {
     scene.add(state.oceanCurrentArrowGroup);
 }
 
-// Export equirectangular map as PNG (async, with tiled rendering for large sizes).
-export async function exportMap(type, width, onProgress) {
-    if (!state.curData) return;
-
-    // Yield so the browser paints the loading overlay before heavy work begins
-    await new Promise(r => setTimeout(r, 50));
-
-    const height = width / 2;
-    const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
-    const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask';
-    const is16Bit = type === 'heightmap' || type === 'landheightmap';
-
-    // Climate-dependent export types (Satellite / Köppen)
-    const debugLayers = state.curData.debugLayers;
-    const koppenArr = (type === 'biome' || type === 'koppen') ? (debugLayers && debugLayers.koppen) : null;
-    const biomeSmoothed = (type === 'biome' && koppenArr) ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
-
-    // Build map triangles (same projection as buildMapMesh, chosen coloring, no grid)
-    const { numSides, numTriangles } = mesh;
-    const PI = Math.PI;
-    const sx = 2 / PI;
-
-    // For heightmap exports, precompute averaged elevation at each triangle center
-    // (each triangle touches 3 regions). This enables smooth Gouraud interpolation
-    // instead of flat hex-cell shading.
-    let t_elev;
-    if (is16Bit) {
-        t_elev = new Float32Array(numTriangles);
-        const tris = mesh.triangles;
-        for (let t = 0; t < numTriangles; t++) {
-            const s0 = 3 * t;
-            t_elev[t] = (r_elevation[tris[s0]] + r_elevation[tris[s0 + 1]] + r_elevation[tris[s0 + 2]]) / 3;
-        }
-    }
-
-    const posArr = new Float32Array(numSides * 18);
-    const colArr = new Float32Array(numSides * 18);
-    let triCount = 0;
-
-    for (let s = 0; s < numSides; s++) {
-        const it = mesh.s_inner_t(s);
-        const ot = mesh.s_outer_t(s);
-        const br = mesh.s_begin_r(s);
-
-        // Per-vertex colors: c0 = inner_t vertex, c1 = outer_t vertex, c2 = region vertex
-        let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
-        if (is16Bit) {
-            // Smooth heightmap: triangle-center vertices use averaged elevation
-            const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
-            const v0 = colorFn(t_elev[it])[0];
-            const v1 = colorFn(t_elev[ot])[0];
-            const v2 = colorFn(r_elevation[br])[0];
-            c0r = c0g = c0b = v0;
-            c1r = c1g = c1b = v1;
-            c2r = c2g = c2b = v2;
-        } else {
-            let cr, cg, cb;
-            if (type === 'landmask') {
-                [cr, cg, cb] = landMaskColor(r_elevation[br]);
-            } else if (type === 'biome' && biomeSmoothed) {
-                cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
-            } else if (type === 'koppen' && koppenArr) {
-                [cr, cg, cb] = koppenColor(koppenArr[br]);
-            } else {
-                [cr, cg, cb] = elevationToColor(r_elevation[br]);
-            }
-            c0r = c1r = c2r = cr;
-            c0g = c1g = c2g = cg;
-            c0b = c1b = c2b = cb;
-        }
-
-        const x0 = t_xyz[3*it], y0 = t_xyz[3*it+1], z0 = t_xyz[3*it+2];
-        const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
-        const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
-
-        let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
-        let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
-        let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
-
-        const clx = (v) => Math.max(-2, Math.min(2, v));
-        const cly = (v) => Math.max(-1, Math.min(1, v));
-
-        const maxLon = Math.max(lon0, lon1, lon2);
-        const minLon = Math.min(lon0, lon1, lon2);
-        const wraps = (maxLon - minLon) > PI;
-
-        if (wraps) {
-            if (lon0 < 0) lon0 += 2 * PI;
-            if (lon1 < 0) lon1 += 2 * PI;
-            if (lon2 < 0) lon2 += 2 * PI;
-
-            let off = triCount * 9;
-            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            colArr[off]=c0r; colArr[off+1]=c0g; colArr[off+2]=c0b;
-            colArr[off+3]=c1r; colArr[off+4]=c1g; colArr[off+5]=c1b;
-            colArr[off+6]=c2r; colArr[off+7]=c2g; colArr[off+8]=c2b;
-            triCount++;
-
-            off = triCount * 9;
-            posArr[off]   = clx((lon0-2*PI)*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx((lon1-2*PI)*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx((lon2-2*PI)*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            colArr[off]=c0r; colArr[off+1]=c0g; colArr[off+2]=c0b;
-            colArr[off+3]=c1r; colArr[off+4]=c1g; colArr[off+5]=c1b;
-            colArr[off+6]=c2r; colArr[off+7]=c2g; colArr[off+8]=c2b;
-            triCount++;
-        } else {
-            const off = triCount * 9;
-            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            colArr[off]=c0r; colArr[off+1]=c0g; colArr[off+2]=c0b;
-            colArr[off+3]=c1r; colArr[off+4]=c1g; colArr[off+5]=c1b;
-            colArr[off+6]=c2r; colArr[off+7]=c2g; colArr[off+8]=c2b;
-            triCount++;
-        }
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(posArr.buffer, 0, triCount * 9), 3));
-    geo.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colArr.buffer, 0, triCount * 9), 3));
-
-    const mapMesh = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }));
-
-    const offScene = new THREE.Scene();
-    offScene.background = isBW ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
-    offScene.add(mapMesh);
-
-    // Tiled rendering — split into small tiles to stay within GPU/CPU memory limits.
-    // Cap at 2048 regardless of GPU maxTextureSize to keep render-target + pixel-
-    // readback + ImageData under ~48 MB per tile (2048×2048×4 × 3 buffers).
-    const maxTex = renderer.capabilities.maxTextureSize;
-    const MAX_TILE = 2048;
-    const tileW = Math.min(width, maxTex, MAX_TILE);
-    const tileH = Math.min(height, maxTex, MAX_TILE);
-    const tilesX = Math.ceil(width / tileW);
-    const tilesY = Math.ceil(height / tileH);
-    const totalTiles = tilesX * tilesY;
-
-    // 16-bit heightmaps write to a Uint16Array; other types use a canvas
-    let cvs, ctx, img16;
-    if (is16Bit) {
-        img16 = new Uint16Array(width * height);
-    } else {
-        cvs = document.createElement('canvas');
-        cvs.width = width;
-        cvs.height = height;
-        ctx = cvs.getContext('2d');
-    }
-
-    let tilesDone = 0;
-    for (let ty = 0; ty < tilesY; ty++) {
-        for (let tx = 0; tx < tilesX; tx++) {
-            const px0 = tx * tileW;
-            const py0 = ty * tileH;
-            const pw = Math.min(tileW, width - px0);
-            const ph = Math.min(tileH, height - py0);
-
-            // Orthographic frustum for this tile (map space: x [-2,2], y [-1,1])
-            const left   = -2 + 4 * px0 / width;
-            const right  = -2 + 4 * (px0 + pw) / width;
-            const top    =  1 - 2 * py0 / height;
-            const bottom =  1 - 2 * (py0 + ph) / height;
-
-            const cam = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 10);
-            cam.position.set(0, 0, 5);
-            cam.lookAt(0, 0, 0);
-
-            if (is16Bit) {
-                // Float render target preserves full precision of elevation values
-                const renderTarget = new THREE.WebGLRenderTarget(pw, ph, { type: THREE.FloatType });
-                const prevCS = renderer.outputColorSpace;
-                renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-                renderer.setRenderTarget(renderTarget);
-                renderer.render(offScene, cam);
-                renderer.outputColorSpace = prevCS;
-
-                const floatPixels = new Float32Array(pw * ph * 4);
-                renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, floatPixels);
-                renderer.setRenderTarget(null);
-                renderTarget.dispose();
-
-                // Write to img16 (flip rows, extract R channel → 16-bit)
-                for (let y = 0; y < ph; y++) {
-                    const srcRow = (ph - 1 - y) * pw;
-                    const dstRow = (py0 + y) * width + px0;
-                    for (let x = 0; x < pw; x++) {
-                        const v = floatPixels[(srcRow + x) * 4]; // R channel
-                        img16[dstRow + x] = Math.max(0, Math.min(65535, (v * 65535 + 0.5) | 0));
-                    }
-                }
-            } else {
-                const renderTarget = new THREE.WebGLRenderTarget(pw, ph);
-                renderer.setRenderTarget(renderTarget);
-                renderer.render(offScene, cam);
-
-                const pixels = new Uint8Array(pw * ph * 4);
-                renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, pixels);
-                renderer.setRenderTarget(null);
-                renderTarget.dispose();
-
-                // Write tile to canvas (flip rows + sRGB gamma)
-                const imageData = ctx.createImageData(pw, ph);
-                const out = imageData.data;
-                for (let y = 0; y < ph; y++) {
-                    const src = (ph - 1 - y) * pw * 4;
-                    const dst = y * pw * 4;
-                    for (let x = 0; x < pw; x++) {
-                        const si = src + x * 4, di = dst + x * 4;
-                        for (let c = 0; c < 3; c++) {
-                            const v = pixels[si + c] / 255;
-                            out[di + c] = (v <= 0.0031308
-                                ? v * 12.92
-                                : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255 + 0.5 | 0;
-                        }
-                        out[di + 3] = pixels[si + 3];
-                    }
-                }
-                ctx.putImageData(imageData, px0, py0);
-            }
-
-            tilesDone++;
-            if (onProgress) onProgress(tilesDone / totalTiles * 80, 'Rendering...');
-            await new Promise(r => setTimeout(r, 0));
-        }
-    }
-
-    // Cleanup mesh
-    geo.dispose();
-    mapMesh.material.dispose();
-
-    // Encode & download
-    if (onProgress) onProgress(85, 'Encoding PNG...');
-    await new Promise(r => setTimeout(r, 0));
-
-    const code = location.hash.replace(/^#/, '').trim() || (state.curData ? state.curData.seed : '');
-    const filename = exportFilename(type, code);
-
-    if (is16Bit) {
-        const blob = await encode16BitGrayscalePNG(width, height, img16);
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(url), 5000);
-    } else {
-        await new Promise(resolve => {
-            cvs.toBlob(blob => {
-                if (blob) {
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = filename;
-                    a.click();
-                    setTimeout(() => URL.revokeObjectURL(url), 5000);
-                }
-                // Release canvas bitmap memory so sequential exports don't accumulate
-                cvs.width = 0;
-                cvs.height = 0;
-                resolve();
-            }, 'image/png');
-        });
-    }
+/** A longitude as it is read: `lonOf(x, z)` from a position on the sphere, turned so that the Map view's Centre Longitude is
+ * in the middle (the export centred as the map is shown; issue #62). */
+function exportLonOf(centerLon = state.mapCenterLon || 0) {
+    const PI = Math.PI, cLon = centerLon;
+    return (x, z) => {
+        let l = Math.atan2(x, z) - cLon;
+        if (l > PI) l -= 2 * PI; else if (l < -PI) l += 2 * PI;
+        return l;
+    };
 }
-
+/** The file name's note of the centre longitude — `-c120E` — when it is not 0°. */
+export function exportCentreTag(centerLonDeg = (state.mapCenterLon || 0) * 180 / Math.PI) {
+    const d = Math.round(centerLonDeg);
+    return d ? `-c${Math.abs(d)}${d > 0 ? 'E' : 'W'}` : '';
+}
 function exportFilename(type, seed) {
+    seed = `${seed}${exportCentreTag()}`;
     switch (type) {
         case 'landmask':       return `orogen-landmask-${seed}.png`;
         case 'landheightmap':  return `orogen-land-heightmap-${seed}.png`;
@@ -2043,276 +1771,118 @@ function exportFilename(type, seed) {
     }
 }
 
-// Batch export — builds geometry once, recolors per type. Avoids GPU memory
-// exhaustion that occurs when exportMap is called multiple times in sequence.
-export async function exportMapBatch(types, width, onProgress) {
-    if (!state.curData) return;
+// ── the export's rasters (v2/js/view/export-panel.js, js/export-generate.js): the mesh drawn flat, in tiles, as colours
+// or as numbers — the geometry built once per export and recoloured per layer ──
 
-    await new Promise(r => setTimeout(r, 50));
-
-    const height = width / 2;
+/**
+ * Begin an export at `width` px (× width / 2), centred on `centerLon` (degrees): the map's triangles once, for every
+ * layer that follows. @returns the export's context for renderExportLayer / endExportRender.
+ */
+export function beginExportRender(width, centerLon = 0) {
     const { mesh, r_xyz, t_xyz, r_elevation } = state.curData;
-    const debugLayers = state.curData.debugLayers;
-    const koppenArr = debugLayers && debugLayers.koppen;
-    const biomeSmoothed = koppenArr ? getCachedBiomeSmoothed(mesh, koppenArr, r_elevation) : null;
-    const { numSides, numTriangles } = mesh;
-    const PI = Math.PI;
-    const sx = 2 / PI;
-
-    // Precompute averaged elevation at each triangle center for smooth heightmap exports
-    const t_elev = new Float32Array(numTriangles);
-    const tris = mesh.triangles;
-    for (let t = 0; t < numTriangles; t++) {
-        const s0 = 3 * t;
-        t_elev[t] = (r_elevation[tris[s0]] + r_elevation[tris[s0 + 1]] + r_elevation[tris[s0 + 2]]) / 3;
-    }
-
-    // Build positions once and record per-triangle vertex topology.
-    // Positions are reused across all export types — only colors change.
-    const posArr = new Float32Array(numSides * 18);
-    const triRegions = new Uint32Array(numSides * 2); // max 2 tris per side (wrapping)
-    const triInnerT = new Uint32Array(numSides * 2);  // inner triangle index per output tri
-    const triOuterT = new Uint32Array(numSides * 2);  // outer triangle index per output tri
+    const { numSides, numTriangles } = mesh, PI = Math.PI, sx = 2 / PI, height = width >> 1;
+    const posArr = new Float32Array(numSides * 18), triRegions = new Uint32Array(numSides * 2), triInnerT = new Uint32Array(numSides * 2), triOuterT = new Uint32Array(numSides * 2);
     let triCount = 0;
-
+    const lonOf = exportLonOf(centerLon * PI / 180), clx = (v) => Math.max(-2, Math.min(2, v)), cly = (v) => Math.max(-1, Math.min(1, v));
+    const put = (lon0, lat0, lon1, lat1, lon2, lat2, br, it, ot) => {
+        const off = triCount * 9;
+        posArr[off] = clx(lon0 * sx); posArr[off + 1] = cly(lat0 * sx); posArr[off + 2] = 0;
+        posArr[off + 3] = clx(lon1 * sx); posArr[off + 4] = cly(lat1 * sx); posArr[off + 5] = 0;
+        posArr[off + 6] = clx(lon2 * sx); posArr[off + 7] = cly(lat2 * sx); posArr[off + 8] = 0;
+        triRegions[triCount] = br; triInnerT[triCount] = it; triOuterT[triCount] = ot; triCount++;
+    };
     for (let s = 0; s < numSides; s++) {
-        const it = mesh.s_inner_t(s);
-        const ot = mesh.s_outer_t(s);
-        const br = mesh.s_begin_r(s);
-
-        const x0 = t_xyz[3*it], y0 = t_xyz[3*it+1], z0 = t_xyz[3*it+2];
-        const x1 = t_xyz[3*ot], y1 = t_xyz[3*ot+1], z1 = t_xyz[3*ot+2];
-        const x2 = r_xyz[3*br], y2 = r_xyz[3*br+1], z2 = r_xyz[3*br+2];
-
-        let lon0 = Math.atan2(x0, z0), lat0 = Math.asin(Math.max(-1, Math.min(1, y0)));
-        let lon1 = Math.atan2(x1, z1), lat1 = Math.asin(Math.max(-1, Math.min(1, y1)));
-        let lon2 = Math.atan2(x2, z2), lat2 = Math.asin(Math.max(-1, Math.min(1, y2)));
-
-        const clx = (v) => Math.max(-2, Math.min(2, v));
-        const cly = (v) => Math.max(-1, Math.min(1, v));
-
-        const maxLon = Math.max(lon0, lon1, lon2);
-        const minLon = Math.min(lon0, lon1, lon2);
-        const wraps = (maxLon - minLon) > PI;
-
-        if (wraps) {
-            if (lon0 < 0) lon0 += 2 * PI;
-            if (lon1 < 0) lon1 += 2 * PI;
-            if (lon2 < 0) lon2 += 2 * PI;
-
-            let off = triCount * 9;
-            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            triRegions[triCount] = br; triInnerT[triCount] = it; triOuterT[triCount] = ot;
-            triCount++;
-
-            off = triCount * 9;
-            posArr[off]   = clx((lon0-2*PI)*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx((lon1-2*PI)*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx((lon2-2*PI)*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            triRegions[triCount] = br; triInnerT[triCount] = it; triOuterT[triCount] = ot;
-            triCount++;
-        } else {
-            const off = triCount * 9;
-            posArr[off]   = clx(lon0*sx); posArr[off+1] = cly(lat0*sx); posArr[off+2] = 0;
-            posArr[off+3] = clx(lon1*sx); posArr[off+4] = cly(lat1*sx); posArr[off+5] = 0;
-            posArr[off+6] = clx(lon2*sx); posArr[off+7] = cly(lat2*sx); posArr[off+8] = 0;
-            triRegions[triCount] = br; triInnerT[triCount] = it; triOuterT[triCount] = ot;
-            triCount++;
-        }
+        const it = mesh.s_inner_t(s), ot = mesh.s_outer_t(s), br = mesh.s_begin_r(s);
+        let lon0 = lonOf(t_xyz[3 * it], t_xyz[3 * it + 2]), lat0 = Math.asin(Math.max(-1, Math.min(1, t_xyz[3 * it + 1])));
+        let lon1 = lonOf(t_xyz[3 * ot], t_xyz[3 * ot + 2]), lat1 = Math.asin(Math.max(-1, Math.min(1, t_xyz[3 * ot + 1])));
+        let lon2 = lonOf(r_xyz[3 * br], r_xyz[3 * br + 2]), lat2 = Math.asin(Math.max(-1, Math.min(1, r_xyz[3 * br + 1])));
+        if (Math.max(lon0, lon1, lon2) - Math.min(lon0, lon1, lon2) > PI) {
+            // (a triangle across the seam: drawn at both edges)
+            if (lon0 < 0) lon0 += 2 * PI; if (lon1 < 0) lon1 += 2 * PI; if (lon2 < 0) lon2 += 2 * PI;
+            put(lon0, lat0, lon1, lat1, lon2, lat2, br, it, ot);
+            put(lon0 - 2 * PI, lat0, lon1 - 2 * PI, lat1, lon2 - 2 * PI, lat2, br, it, ot);
+        } else put(lon0, lat0, lon1, lat1, lon2, lat2, br, it, ot);
     }
-
-    // Trim position array to actual triangle count
-    const posData = new Float32Array(posArr.buffer, 0, triCount * 9);
-
-    const offScene = new THREE.Scene();
-
-    // Tiled rendering setup (shared across all types).
-    // Cap at 2048 to keep render-target + readback + ImageData under ~48 MB per tile.
-    const maxTex = renderer.capabilities.maxTextureSize;
-    const MAX_TILE = 2048;
-    const tileW = Math.min(width, maxTex, MAX_TILE);
-    const tileH = Math.min(height, maxTex, MAX_TILE);
-    const tilesX = Math.ceil(width / tileW);
-    const tilesY = Math.ceil(height / tileH);
-    const totalTiles = tilesX * tilesY;
-
-    const code = location.hash.replace(/^#/, '').trim() || (state.curData ? state.curData.seed : '');
-    const total = types.length;
-
-    // Pre-allocate pixel readback buffer (reused across all tiles and 8-bit types)
-    const pixelBuf = new Uint8Array(tileW * tileH * 4);
-    const floatBuf = new Float32Array(tileW * tileH * 4);
-
-    // Single canvas reused across 8-bit export types (avoids repeated bitmap allocation)
-    const cvs = document.createElement('canvas');
-    cvs.width = width;
-    cvs.height = height;
-    const ctx = cvs.getContext('2d');
-
-    for (let ti = 0; ti < total; ti++) {
-        const { type, label } = types[ti];
-        const isBW = type === 'heightmap' || type === 'landheightmap' || type === 'landmask';
-        const is16Bit = type === 'heightmap' || type === 'landheightmap';
-        offScene.background = isBW ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
-
-        // 16-bit heightmaps write to a Uint16Array instead of the canvas
-        let img16;
-        if (is16Bit) img16 = new Uint16Array(width * height);
-
-        // Build fresh color array for this type
-        const colData = new Float32Array(triCount * 9);
-        for (let i = 0; i < triCount; i++) {
-            const br = triRegions[i];
-            const off = i * 9;
-
-            if (is16Bit) {
-                // Smooth heightmap: triangle-center vertices use averaged elevation
-                const colorFn = type === 'landheightmap' ? landHeightmapColor : heightmapColor;
-                const v0 = colorFn(t_elev[triInnerT[i]])[0];
-                const v1 = colorFn(t_elev[triOuterT[i]])[0];
-                const v2 = colorFn(r_elevation[br])[0];
-                colData[off] = colData[off+1] = colData[off+2] = v0;
-                colData[off+3] = colData[off+4] = colData[off+5] = v1;
-                colData[off+6] = colData[off+7] = colData[off+8] = v2;
-            } else {
-                let cr, cg, cb;
-                if (type === 'landmask') {
-                    [cr, cg, cb] = landMaskColor(r_elevation[br]);
-                } else if (type === 'biome' && biomeSmoothed) {
-                    cr = biomeSmoothed[br * 3]; cg = biomeSmoothed[br * 3 + 1]; cb = biomeSmoothed[br * 3 + 2];
-                } else if (type === 'koppen' && koppenArr) {
-                    [cr, cg, cb] = koppenColor(koppenArr[br]);
-                } else {
-                    [cr, cg, cb] = elevationToColor(r_elevation[br]);
-                }
-                colData[off] = colData[off+3] = colData[off+6] = cr;
-                colData[off+1] = colData[off+4] = colData[off+7] = cg;
-                colData[off+2] = colData[off+5] = colData[off+8] = cb;
-            }
-        }
-
-        // Fresh geometry + mesh per type — avoids stale GPU buffer issues
-        // when the same renderer interleaves with the main animation loop.
-        const geo = new THREE.BufferGeometry();
-        geo.setAttribute('position', new THREE.BufferAttribute(posData, 3));
-        geo.setAttribute('color', new THREE.BufferAttribute(colData, 3));
-        const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide });
-        const mapMesh = new THREE.Mesh(geo, mat);
-        offScene.add(mapMesh);
-
-        // Render tiles
-        let tilesDone = 0;
-        for (let ty = 0; ty < tilesY; ty++) {
-            for (let tx = 0; tx < tilesX; tx++) {
-                const px0 = tx * tileW;
-                const py0 = ty * tileH;
-                const pw = Math.min(tileW, width - px0);
-                const ph = Math.min(tileH, height - py0);
-
-                const left   = -2 + 4 * px0 / width;
-                const right  = -2 + 4 * (px0 + pw) / width;
-                const top    =  1 - 2 * py0 / height;
-                const bottom =  1 - 2 * (py0 + ph) / height;
-
-                const cam = new THREE.OrthographicCamera(left, right, top, bottom, 0.1, 10);
-                cam.position.set(0, 0, 5);
-                cam.lookAt(0, 0, 0);
-
-                if (is16Bit) {
-                    const renderTarget = new THREE.WebGLRenderTarget(pw, ph, { type: THREE.FloatType });
-                    const prevCS = renderer.outputColorSpace;
-                    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
-                    renderer.setRenderTarget(renderTarget);
-                    renderer.render(offScene, cam);
-                    renderer.outputColorSpace = prevCS;
-
-                    renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, floatBuf);
-                    renderer.setRenderTarget(null);
-                    renderTarget.dispose();
-
-                    for (let y = 0; y < ph; y++) {
-                        const srcRow = (ph - 1 - y) * pw;
-                        const dstRow = (py0 + y) * width + px0;
-                        for (let x = 0; x < pw; x++) {
-                            const v = floatBuf[(srcRow + x) * 4];
-                            img16[dstRow + x] = Math.max(0, Math.min(65535, (v * 65535 + 0.5) | 0));
-                        }
-                    }
-                } else {
-                    const renderTarget = new THREE.WebGLRenderTarget(pw, ph);
-                    renderer.setRenderTarget(renderTarget);
-                    renderer.render(offScene, cam);
-
-                    renderer.readRenderTargetPixels(renderTarget, 0, 0, pw, ph, pixelBuf);
-                    renderer.setRenderTarget(null);
-                    renderTarget.dispose();
-
-                    const imageData = ctx.createImageData(pw, ph);
-                    const out = imageData.data;
-                    for (let y = 0; y < ph; y++) {
-                        const src = (ph - 1 - y) * pw * 4;
-                        const dst = y * pw * 4;
-                        for (let x = 0; x < pw; x++) {
-                            const si = src + x * 4, di = dst + x * 4;
-                            for (let c = 0; c < 3; c++) {
-                                const v = pixelBuf[si + c] / 255;
-                                out[di + c] = (v <= 0.0031308
-                                    ? v * 12.92
-                                    : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255 + 0.5 | 0;
-                            }
-                            out[di + 3] = pixelBuf[si + 3];
-                        }
-                    }
-                    ctx.putImageData(imageData, px0, py0);
-                }
-
-                tilesDone++;
-                if (onProgress) onProgress(tilesDone / totalTiles * 80, `Exporting ${label} (${ti+1}/${total}): Rendering...`);
-                await new Promise(r => setTimeout(r, 0));
-            }
-        }
-
-        // Free GPU resources before PNG encode
-        offScene.remove(mapMesh);
-        geo.dispose();
-        mat.dispose();
-
-        // Encode & download
-        if (onProgress) onProgress(85, `Exporting ${label} (${ti+1}/${total}): Encoding PNG...`);
-        await new Promise(r => setTimeout(r, 0));
-
-        const filename = exportFilename(type, code);
-        if (is16Bit) {
-            const blob = await encode16BitGrayscalePNG(width, height, img16);
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = filename;
-            a.click();
-            setTimeout(() => URL.revokeObjectURL(url), 5000);
-        } else {
-            await new Promise(resolve => {
-                cvs.toBlob(blob => {
-                    if (blob) {
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = filename;
-                        a.click();
-                        setTimeout(() => URL.revokeObjectURL(url), 5000);
-                    }
-                    resolve();
-                }, 'image/png');
-            });
-        }
-
-        // Pause between exports to let the browser reclaim memory
-        await new Promise(r => setTimeout(r, 100));
-    }
-
-    // Release canvas bitmap after all exports
-    cvs.width = 0;
-    cvs.height = 0;
+    const tris = mesh.triangles, triRegionsOf = (t) => [tris[3 * t], tris[3 * t + 1], tris[3 * t + 2]];
+    const maxTex = renderer.capabilities.maxTextureSize, MAX_TILE = 2048;
+    const tileW = Math.min(width, maxTex, MAX_TILE), tileH = Math.min(height, maxTex, MAX_TILE);
+    return { width, height, mesh, r_elevation, numTriangles, triRegionsOf, posData: new Float32Array(posArr.buffer, 0, triCount * 9), triRegions, triInnerT, triOuterT, triCount,
+        offScene: new THREE.Scene(), tileW, tileH, tilesX: Math.ceil(width / tileW), tilesY: Math.ceil(height / tileH),
+        pixelBuf: new Uint8Array(tileW * tileH * 4), floatBuf: new Float32Array(tileW * tileH * 4) };
 }
+
+/**
+ * One layer of an export: `spec` = { mode: 'rgb', colorOf(r) → [r, g, b] (linear 0–1) } for a colour map (as the map
+ * view draws it: each region its colour; the result sRGB, { kind: 'rgba', data }), or { mode: 'value', valueOf(r) → 0…1
+ * (NaN as 0), smooth } for a number map — smooth: the value interpolated across each triangle from the regions' means at
+ * its corners, as the heightmaps are; else flat per region (a class) — rendered through a float target ({ kind: 'gray16' }).
+ */
+export async function renderExportLayer(ctx, spec, onProgress = () => {}) {
+    const { width, height, offScene, tileW, tileH, tilesX, tilesY, pixelBuf, floatBuf, triCount, triRegions, triInnerT, triOuterT, numTriangles, triRegionsOf, mesh } = ctx;
+    const isValue = spec.mode === 'value', colData = new Float32Array(triCount * 9);
+    if (isValue) {
+        const n = mesh.numRegions, vr = new Float32Array(n);
+        for (let r = 0; r < n; r++) { const v = spec.valueOf(r); vr[r] = v === v ? Math.min(1, Math.max(0, v)) : 0; }
+        let tv = null;
+        if (spec.smooth) {
+            tv = new Float32Array(numTriangles);
+            for (let t = 0; t < numTriangles; t++) { const [a, b, c] = triRegionsOf(t); tv[t] = (vr[a] + vr[b] + vr[c]) / 3; }
+        }
+        for (let i = 0; i < triCount; i++) {
+            const off = i * 9, br = triRegions[i], v2 = vr[br], v0 = tv ? tv[triInnerT[i]] : v2, v1 = tv ? tv[triOuterT[i]] : v2;
+            colData[off] = colData[off + 1] = colData[off + 2] = v0;
+            colData[off + 3] = colData[off + 4] = colData[off + 5] = v1;
+            colData[off + 6] = colData[off + 7] = colData[off + 8] = v2;
+        }
+    } else {
+        for (let i = 0; i < triCount; i++) {
+            const off = i * 9, [cr, cg, cb] = spec.colorOf(triRegions[i]);
+            colData[off] = colData[off + 3] = colData[off + 6] = cr;
+            colData[off + 1] = colData[off + 4] = colData[off + 7] = cg;
+            colData[off + 2] = colData[off + 5] = colData[off + 8] = cb;
+        }
+    }
+    offScene.background = isValue ? new THREE.Color(0x000000) : new THREE.Color(0x1a1a2e);
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(ctx.posData, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(colData, 3));
+    const mat = new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.DoubleSide }), mapMesh = new THREE.Mesh(geo, mat);
+    offScene.add(mapMesh);
+    const out = isValue ? new Uint16Array(width * height) : new Uint8ClampedArray(width * height * 4);
+    const total = tilesX * tilesY; let done = 0;
+    for (let ty = 0; ty < tilesY; ty++) for (let tx = 0; tx < tilesX; tx++) {
+        const px0 = tx * tileW, py0 = ty * tileH, pw = Math.min(tileW, width - px0), ph = Math.min(tileH, height - py0);
+        const cam = new THREE.OrthographicCamera(-2 + 4 * px0 / width, -2 + 4 * (px0 + pw) / width, 1 - 2 * py0 / height, 1 - 2 * (py0 + ph) / height, 0.1, 10);
+        cam.position.set(0, 0, 5); cam.lookAt(0, 0, 0);
+        const target = new THREE.WebGLRenderTarget(pw, ph, isValue ? { type: THREE.FloatType } : {});
+        const prevCS = renderer.outputColorSpace;
+        if (isValue) renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+        renderer.setRenderTarget(target); renderer.render(offScene, cam); renderer.outputColorSpace = prevCS;
+        renderer.readRenderTargetPixels(target, 0, 0, pw, ph, isValue ? floatBuf : pixelBuf);
+        renderer.setRenderTarget(null); target.dispose();
+        for (let y = 0; y < ph; y++) {
+            const srcRow = (ph - 1 - y) * pw, dstRow = (py0 + y) * width + px0;
+            if (isValue) { for (let x = 0; x < pw; x++) out[dstRow + x] = Math.max(0, Math.min(65535, (floatBuf[(srcRow + x) * 4] * 65535 + 0.5) | 0)); }
+            else for (let x = 0; x < pw; x++) {
+                const si = (srcRow + x) * 4, di = (dstRow + x) * 4;
+                for (let c = 0; c < 3; c++) { const v = pixelBuf[si + c] / 255; out[di + c] = (v <= 0.0031308 ? v * 12.92 : 1.055 * Math.pow(v, 1 / 2.4) - 0.055) * 255 + 0.5 | 0; }
+                out[di + 3] = 255;
+            }
+        }
+        done++; onProgress(done / total, 'rendering');
+        await new Promise(r => setTimeout(r, 0));
+    }
+    offScene.remove(mapMesh); geo.dispose(); mat.dispose();
+    return { kind: isValue ? 'gray16' : 'rgba', W: width, H: height, data: out };
+}
+
+/** The export's end: its buffers let go. */
+export function endExportRender(ctx) { ctx.posData = ctx.pixelBuf = ctx.floatBuf = null; }
+
+/** The Satellite view's colours per region (linear 0–1, 3 per region) for a season — for the export. */
+export function exportSatelliteColors(season) {
+    const { mesh, r_elevation, debugLayers } = state.curData, koppenArr = debugLayers && debugLayers.koppen;
+    if (!koppenArr) return null;
+    return smoothBiomeColors(mesh, satelliteRaw(mesh, koppenArr, r_elevation, state.curData, season));
+}
+export { koppenColor, heightmapColor, landHeightmapColor, toLinear3 };

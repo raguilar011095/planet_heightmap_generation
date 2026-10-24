@@ -6,6 +6,7 @@ import { setDelaunator, SphereMesh } from './sphere-mesh.js';
 import { computePlateColors, buildMesh } from './planet-mesh.js';
 import { state } from './state.js';
 import { detailFromSlider } from './detail-scale.js';
+import { SEED_MAX } from './planet-code.js';
 
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
@@ -362,7 +363,7 @@ function generateFallback(overrideSeed, toggledIndices, onProgress, skipClimate)
 
     const stages = [
         { pct: 0, label: 'Shaping the world\u2026', work() {
-            ctx.seed = overrideSeed ?? Math.floor(Math.random() * 16777216);
+            ctx.seed = overrideSeed ?? Math.floor(Math.random() * SEED_MAX);
             ctx.rng = m.rng.makeRng(ctx.seed);
             const { mesh, r_xyz } = m.sphere.buildSphere(N, jitter, ctx.rng);
             ctx.mesh = mesh; ctx.r_xyz = r_xyz;
