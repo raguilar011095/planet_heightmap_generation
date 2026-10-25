@@ -11,8 +11,9 @@ const CRC_TABLE = (() => {
     return t;
 })();
 
-export function crc32(buf) {
-    let crc = 0xFFFFFFFF;
+/** The CRC-32 of `buf` — or, given `prev` (the CRC of the bytes before), of those bytes and these: one file in pieces. */
+export function crc32(buf, prev = 0) {
+    let crc = (prev ^ 0xFFFFFFFF) >>> 0;
     for (let i = 0; i < buf.length; i++) crc = CRC_TABLE[(crc ^ buf[i]) & 0xFF] ^ (crc >>> 8);
     return (crc ^ 0xFFFFFFFF) >>> 0;
 }
@@ -76,6 +77,32 @@ export async function encodeRgbPng(width, height, rgba) {
             const i = row + 4 * x, r = rgba[i], g = rgba[i + 1], b = rgba[i + 2], q = o + 1 + 3 * x;
             raw[q] = (r - pr) & 0xFF; raw[q + 1] = (g - pg) & 0xFF; raw[q + 2] = (b - pb) & 0xFF;
             pr = r; pg = g; pb = b;
+        }
+    }
+    const cs = new CompressionStream('deflate'), writer = cs.writable.getWriter();
+    writer.write(raw); writer.close();
+    const z = new Uint8Array(await new Response(cs.readable).arrayBuffer());
+    return new Blob([new Uint8Array([137, 80, 78, 71, 13, 10, 26, 10]), chunk('IHDR', ihdr), chunk('IDAT', z), chunk('IEND', new Uint8Array(0))], { type: 'image/png' });
+}
+
+/**
+ * A colour PNG with its transparency (colour type 6, RGBA) — for a layer on a clear ground (rivers alone, a projection's
+ * outside): `rgba` is width × height × 4 bytes, each row filtered by its left neighbour.
+ * @returns {Promise<Blob>}
+ */
+export async function encodeRgbaPng(width, height, rgba) {
+    const ihdr = new Uint8Array(13), iv = new DataView(ihdr.buffer);
+    iv.setUint32(0, width); iv.setUint32(4, height);
+    ihdr[8] = 8; ihdr[9] = 6;                                      // (8 bits, colour type 6: RGBA)
+    const rowLen = 1 + 4 * width, raw = new Uint8Array(height * rowLen);
+    for (let y = 0; y < height; y++) {
+        const o = y * rowLen, row = 4 * y * width;
+        raw[o] = 1;                                                 // (filter: Sub)
+        let pr = 0, pg = 0, pb = 0, pa = 0;
+        for (let x = 0; x < width; x++) {
+            const i = row + 4 * x, r = rgba[i], g = rgba[i + 1], b = rgba[i + 2], a = rgba[i + 3], q = o + 1 + 4 * x;
+            raw[q] = (r - pr) & 0xFF; raw[q + 1] = (g - pg) & 0xFF; raw[q + 2] = (b - pb) & 0xFF; raw[q + 3] = (a - pa) & 0xFF;
+            pr = r; pg = g; pb = b; pa = a;
         }
     }
     const cs = new CompressionStream('deflate'), writer = cs.writable.getWriter();

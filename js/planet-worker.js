@@ -2,6 +2,7 @@
 // Handles: generate, reapply, editRecompute commands.
 
 import { makeRng } from './rng.js';
+import { SEED_MAX } from './planet-code.js';
 import { SimplexNoise } from './simplex-noise.js';
 import { setDelaunator, buildSphere, generateTriangleCenters, SphereMesh, computeNeighborDist } from './sphere-mesh.js';
 import { generateCoarsePlates, projectCoarsePlates } from './coarse-plates.js';
@@ -185,7 +186,7 @@ function handleGenerate(data) {
         const tTotal0 = performance.now();
 
         progress(0, 'Shaping the world\u2026');
-        const seed = overrideSeed ?? Math.floor(Math.random() * 16777216);
+        const seed = overrideSeed ?? Math.floor(Math.random() * SEED_MAX);
         const rng = makeRng(seed);
 
         let t0 = performance.now();
@@ -689,7 +690,7 @@ function handleImportHeightmap(data) {
         const tTotal0 = performance.now();
 
         progress(0, 'Building sphere mesh\u2026');
-        const seed = overrideSeed ?? Math.floor(Math.random() * 16777216);
+        const seed = overrideSeed ?? Math.floor(Math.random() * SEED_MAX);
         const rng = makeRng(seed);
 
         let t0 = performance.now();

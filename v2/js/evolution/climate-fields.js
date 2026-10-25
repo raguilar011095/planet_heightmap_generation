@@ -6,17 +6,38 @@
 //   (mm/month), slp (hPa), u and v (wind, m/s), currentU and currentV (surface currents, m/s — seasonal in the
 //   tropics, ocean.js), sstAnom (sea temperature minus its latitude's sea average, °C),
 //   seaIce (sea-ice fraction), upwelling (m/day); and sea (1 = sea), ice (the year's sea ice), orographic (the year's
-//   rain with the mountains over it without them), iceSheet (0–1: the ice sheets' domes), snow (0–1, on land: year, January, July), itcz (per 1° of longitude,
-//   the ITCZ's latitude — year, January, July).
+//   rain with the mountains over it without them) and orographicSeasons (January's and July's: {jan, jul}), iceSheet
+//   (0–1: the ice sheets' domes), snow (0–1, on land: year, January, July), itcz (per 1° of longitude, the ITCZ's
+//   latitude — year, January, July).
 
 import { CORE_DEFAULTS } from '../climate/core.js';
 import { PARAMS } from '../climate/config.js';
+import { interpolationMatrix } from '../climate/seasons.js';
 
 /** Year (the mean of the twelve months), January (month 0) and July (month 6) of a 12 × G field. */
 function seasons(all, G) {
     const year = new Float32Array(G);
     for (let m = 0; m < 12; m++) for (let c = 0; c < G; c++) year[c] += all[m * G + c] / 12;
     return { year, jan: all.slice(0, G), jul: all.slice(6 * G, 7 * G) };
+}
+
+/**
+ * January's and July's share of the rain the mountains move (orographicK: each anchor's rain with them over without),
+ * between the anchors as the months are (seasons.js), in log space so that it stays a ratio. A climate without
+ * anchors' shares gives the year's.
+ */
+function orographicSeasons(rain, anchorMonths, year, G) {
+    const K = anchorMonths?.length ?? 0, oK = rain.orographicK;
+    if (!oK || !K || oK.length !== K * G) return { jan: year.slice(), jul: year.slice() };
+    const M = interpolationMatrix(K, anchorMonths[0], 0), lg = new Float64Array(K);
+    const jan = new Float32Array(G), jul = new Float32Array(G);
+    for (let c = 0; c < G; c++) {
+        for (let k = 0; k < K; k++) lg[k] = Math.log(Math.max(1e-3, oK[k * G + c]));
+        let a = 0, b = 0;
+        for (let k = 0; k < K; k++) { a += M[k] * lg[k]; b += M[6 * K + k] * lg[k]; }
+        jan[c] = Math.exp(a); jul[c] = Math.exp(b);
+    }
+    return { jan, jul };
 }
 
 /** The page's climate from planetClimate's result (`cells`: false — the grid's fields only). */
@@ -57,6 +78,7 @@ export function pageClimate(res, { cells = true } = {}) {
     const upwelling = ocean.monthly?.upwelling ? seasons(ocean.monthly.upwelling, G)
         : { year: Float32Array.from(ocean.upwelling), jan: Float32Array.from(ocean.upwelling), jul: Float32Array.from(ocean.upwelling) };
     const orographic = Float32Array.from(stages.rain.orographic ?? new Float32Array(G).fill(1));
+    const orographicSeasonal = orographicSeasons(stages.rain, res.anchorMonths, orographic, G);
     const iceSheet = new Float32Array(G), domeKm = PARAMS.TEMP_ICE_DOME_KM || 1, dome = temp.domeDraw ?? temp.domeKm;
     if (dome) for (let c = 0; c < G; c++) iceSheet[c] = Math.max(0, Math.min(1, dome[c] / domeKm));
     // snow on the land in its season: each month's temperature at the land's height through the climate's own snow ramp
@@ -70,13 +92,14 @@ export function pageClimate(res, { cells = true } = {}) {
         ...(cells ? { cell: { koppen: cell.koppen, tAnnual: cell.tAnnual, pAnnual: cell.pAnnual } } : {}),
         T, Tsea, P, slp, u, v,
         currentU, currentV, sea, sstAnom, ice, seaIce,
-        upwelling, orographic, iceSheet, snow, itcz,
+        upwelling, orographic, orographicSeasons: orographicSeasonal, iceSheet, snow, itcz,
     };
 }
 
 /** The buffers of the page's climate to hand over (its cells' and its raster's too, where it has them). */
 export function climateTransfers(out) {
     const list = [out.sea.buffer, out.ice.buffer, out.orographic.buffer, out.iceSheet.buffer];
+    if (out.orographicSeasons) list.push(out.orographicSeasons.jan.buffer, out.orographicSeasons.jul.buffer);
     if (out.cell) list.push(out.cell.koppen.buffer, out.cell.tAnnual.buffer, out.cell.pAnnual.buffer);
     if (out.cell?.stats) for (const a of Object.values(out.cell.stats)) list.push(a.buffer);
     if (out.raster?.stats) for (const a of Object.values(out.raster.stats)) list.push(a.buffer);

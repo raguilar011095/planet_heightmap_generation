@@ -32,13 +32,20 @@ the developer before the next begins.**
 
 **Evolution** (`/evolution`, `evolution.html`) is the product page built on this engine — a side generator beside V1's
 Generate and Import Heightmap. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New World** (a new seed),
-the **World** section — folded to a one-line summary once a history is building: the seed, starting continent size,
+the **World** section — folded to a one-line summary once a history is building: the seed (a number from 0 to
+2,147,483,645 — New World draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
+it always did, so a link shared before builds its world again), starting continent size,
 history length, ending, the planet's **Temperature** (−30…+30 W/m²) and **Precipitation** (±50 %) — the climate's
 options (`greenhouseWm2`: a radiative forcing in the energy balance; `precipScale`: the evaporation in the rain budget — so the ice, winds, currents and rain answer them), for the preview climate and Add detail alike; they change the climate only, so
 previews are worked out again when shown and a detailed moment says it was made with the old ones (in the link: `greenhouse=`,
 `rain=`) — and **Quality** (Fast 20K plates / 160K terrain · Balanced 40K / 160K · Best 80K / 640K · Custom,
-which shows the two resolutions), with Build This World — then the **context card**, and **View** (terrain colours,
-globe or map, grid, auto-rotate, playback speed, stats). The context card names the moment shown, a **Preview** or
+which shows the two resolutions), with Build This World and **Load Planet…** (a planet file saved from the Export panel —
+or drop one anywhere on the page) — then the **context card**, and **Stats**. The view's
+settings sit in the **view strip** above the layer tabs, folded behind the arrow at their left (`js/view-strip.js`, shared with Generate and Import): Globe |
+Map, the map's projection and centre, auto-rotate, grid, terrain colours, hillshade, and on a detailed moment the
+rivers (Rivers & Lakes, By Regime, density); on a phone at the top of the bottom sheet. The map zooms and pans as Generate's
+does (`js/app/globe-view.js`): the wheel zooms toward the pointer (out to half the whole map's size, in to 20×, eased as the globe's zoom), a drag pans, two
+fingers pinch; the equirectangular map runs on east and west without end; the whole map comes back on changing its shape. Playback speed is on the timeline. The context card names the moment shown, a **Preview** or
 **Detailed** badge, and the one thing to do next — **Add detail** (with its Detail level), **Cancel** while it runs, or
 **Export** — its button mirrored on the timeline, beside the moment; on the detailed moment it holds the rivers' options,
 elsewhere a note that adding detail replaces it, with a link back to it; **Extend history** once the history has reached its end.
@@ -54,10 +61,15 @@ timeline to scrub and play; changing the terrain resolution redraws the same his
 new build). **Extend history** runs a finished history on, 20 Myr at a time in the worker that ran it, until Stop
 extending (`simulate`'s `resume`: the pieces are the
 one history, bit for bit; the link records how far — `more=` — and rebuilds it; it stops for good at a memory budget,
-~13,000 Myr at 40K). Its views are V1's:
+~13,000 Myr at 40K). A history opened from a planet file is as it was saved — its plates exactly, in any browser — its
+terrain, previews and pictures drawn again with the code of the day; it has no simulation behind it, so its **Extend
+history** first runs it again from its seed out of sight (as long as it took to build; Stop stops it), checking every
+moment against the file's to the bit — the same, it runs on from where the file ended; otherwise (another browser, or an
+earlier World Orogen, built it) it stays to view, and says so. Its views are V1's:
 Terrain (the lab's relief, or one of fifteen other palettes — maps and other worlds; "Blue Marble (by height)" colours by
 height alone), Heightmap and Plates, globe (in V1's space: stars,
-atmosphere, sunlight glinting off the sea) or map (centre longitude), grid, and V1's hover readout with the crust's age
+atmosphere, sunlight glinting softly off the sea) or map (centre longitude), grid, a Hillshade toggle (off, every view flat
+colour: each cell lit as flat ground, and no glint on the sea), and V1's hover readout with the crust's age
 and setting. **Add detail** (the code's *finish*) sculpts the moment shown again, with care, at a detail of its own (160K · 640K · 2.5M · 10M
 cells; phones up to 640K; plans/V2_FINISH_PLAN.md): the surface domain-warped and roughened on high ground; the climate
 calculated on it; the rivers carving longer with the climate's runoff (rain less evaporation), dry basins left closed —
@@ -120,23 +132,36 @@ out from its lowest point. Drawn on the Terrain view as a flow map (hairlines, s
 rivers, seasonal ones dashed; a River Density choice; a Rivers & Lakes toggle; Colour by Regime with a legend; the readout
 names a river's discharge, regime and flood months, and a lake's kind). Measured (20K plates, desktop): 640K
 ~8 s, 2.5M ~15 s, 10M ~53 s the first time (~40 s after: the mesh is kept), the browser ~3 GB above the page at 10M.
-**Export** (on the timeline once the moment shown is finished; `js/evolution/export.js`, PNG files by `js/view/png.js`,
-the ZIP by `js/view/zip.js`): the colour map as the Terrain view shows it (palette, lakes, rivers); the Satellite view
-for the year, January or July (as shown: no grid, no glint); the Köppen climate zones in their own colours, unshaded;
-a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the same shade the same height on
-every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the Import Heightmap page, which reads
-white as 6 km); a land mask; and the rivers and lakes alone on a transparent ground (the Terrain view's density and
-colouring). **Export All** saves one of each (Satellite for the year) in one ZIP. Widths from 1024 to 16384 px (4096 on
-phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its detail, narrower ones
-averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped bicubic, coasts,
-lakes and climate zones by the weighted majority of the nearest pixels, satellite colours blended, then painted at the
-full width (`finish-view.js rasterAt`), so the shading, the coasts and the rivers' lines stay sharp. Named by seed and
-moment (`orogen-evolution-12345-760Myr-heightmap.png`, `orogen-evolution-12345-760Myr.zip`).
-The **Climate** tab gives the moment shown the new climate (`js/climate/`; Köppen, temperature, rain,
-winds, currents — seasonal in the tropics, fading out by 60° — and More…'s layers, with Generate's colours and legends
-from `js/climate-layers.js`; a few seconds, in a worker), kept per moment while the history is open. Its code is
-`js/evolution/` (the shell, and `terrain-player.js`: per-frame terrain for frames that stream in); plan and status in
-[`plans/V2_FULL_PLANET_PLAN.md`](../plans/V2_FULL_PLANET_PLAN.md). The rest of this section is the lab.
+**Export** (on the timeline once the moment shown is finished; the panel every page shares, `js/view/export-panel.js`,
+this page's maps in `js/evolution/export.js`, PNG files by `js/view/png.js`, the ZIP by `js/view/zip.js`, the projections
+by `js/view/projections.js`): every map as Colour and / or as Data — the colour map as the Terrain view shows it (palette,
+lakes, rivers; the hillshade optional); the Satellite view for the year, January or July (as shown: no grid, no glint);
+the Köppen climate zones in their own colours, unshaded, and as a class index; each climate layer (climate-view.js's
+samplers, finishedClimateColor and finishedClimateValue) as colour and as a 16-bit greyscale on a fixed scale
+(export-raster.js DATA_SCALES); a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the
+same shade the same height on every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the
+Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; the rivers and lakes alone on a transparent
+ground (the Terrain view's density and colouring); the Geology views (the rocks also as an 8-bit kind index) and the
+Farming views as shown — their legend's techniques, crops and re-roll, noted in the README.txt; Crop spread with its
+hearths' pins (export.js viewMap) — and Farming's numbers as data (export.js VIEW_SCALES: farmland with the techniques
+and by rain, 0…1; the staple's index; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and watered,
+months; finishedFarmingValue). A moment detailed before the rocks or the farming were added lacks their rows
+(rowAvailable). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
+1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
+detail, narrower ones averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped
+bicubic, coasts, lakes and climate zones by the weighted majority of the nearest pixels, satellite colours blended — then
+painted at the full width. Every map is centred on the map view's Center Longitude and can be drawn in any of ten
+projections (the inverse per pixel; the same inverses in GLSL, `js/view/projection-glsl.js`, draw the map view itself
+in the projection chosen beside Center Longitude). Beside the maps, **Planet file** saves the whole history and the
+detailed moment as one `.orogen` file (a deflated ZIP: `js/save/`, plans/V2_SAVE_LOAD_PLAN.md) — measured at 40K plates,
+1200 Myr and 2.5M detail: 355 MB of data, a 140 MB file, saved in 5 s and read back in 1.5 s; at 160K plates, 600 Myr
+and 10M detail: 558 MB, a 211 MB file, saved in 8 s and opened in 2 s (on screen in 7 s — built, it took 176 s and 98 s).
+A phone opens a history it can hold (400 MB); a desktop's detailed moment (more than 150 MB) is left in the file there,
+the moment ready to be detailed at the phone's size. The detailed moment's rocks and farming go in it as they are (~17
+bytes a pixel of the climate's picture for the farming, 3–5 for the rocks: some 140 + 25–40 MB at 4096 px before compression),
+and the Farming legend's re-roll in its settings (`crops`, as the link). A history saved before the rock record was kept
+reads its fields as zeros (save/migrations.js) and lacks the sea's stand its frames now carry (`geoSea`): its moments
+are detailed without rocks (geology-view.js hasRecord), the Geology tab saying so, rather than from an empty record.
 
 ```
 node tuning/dev-server.mjs 8123        # any static server works; there is no build step
@@ -171,7 +196,19 @@ node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 
 node v2/tools/shoot-lab.mjs 4 56 http://localhost:8123 scene=india   # screenshots + page smoke test (needs the server)
 node v2/tools/probe-play.mjs 8b history 40     # presses Play headlessly: frames painted, the page's long tasks (EXTRA=cells=2500000)
 node v2/tools/bench-lab.mjs 2500000           # the lab's terrain pipeline piece by piece: timings + output hashes (is a speed-up exact?)
+node v2/tools/check-save.mjs                  # the planet file: (a) a small history and detailed moment saved and read back bit for bit, and older
+                                              # files made by hand → v2/out/; (b) every planet kept in tools/fixtures/saves/ opens, its terrain and every export map drawn
+node v2/tools/check-save.mjs --fixture        # (a) on a small planet kept as the fixture of today's versions — once per version
+node v2/tools/check-seeds.mjs                 # the seeds: each of 0 … 2,147,483,645 its own world; typed seeds, words' hashes and old planet codes as they were
 ```
+
+After a change to what a frame or a detailed moment holds, or to `js/save/`, run `check-save.mjs`: planets saved by an
+earlier World Orogen must keep opening. **Adding** data needs nothing (a new per-cell frame field belongs in
+`snapshot.js`'s `frameArrays`; an older file reads it as zeros — that feature off). **Changing the meaning** of saved data
+(an enum's numbering, a byte scale, a layout) needs its version bumped in `js/save/versions.js`, a step from the old
+meaning in `js/save/migrations.js` (for a finish version, none: its old moments are then detailed again), and a new
+fixture (`--fixture`); if `frame-pack.js` packs otherwise, bump `FRAME_CODEC` (the check says so) — the frozen codec 1
+still reads the old files (plans/V2_SAVE_LOAD_PLAN.md).
 
 After an engine change run `check-invariants.mjs`, `check-scale.mjs` and the check scripts of the phases the change
 touches; run all of them before calling a piece of work done. They need `npm install` (delaunator, pngjs; puppeteer
@@ -185,7 +222,8 @@ js/core/           geometry with no tectonics in it: rotations, sphere index, si
                    mesh-locate (the triangle a point falls in, with barycentric weights), min-heap (+ spreadKm: Dijkstra
                    in km over a mesh), mesh-rings (every cell's rings 0–3, precomputed), fast-noise (bit-identical to V1's
                    SimplexNoise, faster); sim-mesh also rebuilds a mesh from its arrays (meshFromArrays: how workers get it);
-                   device (SMALL_DEVICE: a phone or a device reporting ≤ 4 GB — the memory budgets that follow it)
+                   device (SMALL_DEVICE: a phone or a device reporting ≤ 4 GB — the memory budgets that follow it);
+                   seed (a typed seed read — a number as ever, a word hashed — and the range new seeds are drawn from)
 js/tectonics/
   config.js        every tunable, in physical units (km, Myr, cm/yr); MECHANISMS = each mechanism's off-switch
   model/           crust.js (CrustRaster: per-plate cells in the plate's own frame; CELL_FIELDS; the type / flag /
@@ -278,11 +316,16 @@ js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the sta
                    finish-basins (closed basins), finish-sediment (fans, floodplains, deltas; creep by climate),
                    finish-ice (the last ice age), finish-wind (sand seas, dunes, pans, loess), finish-hydro (rivers, their
                    regimes, lakes), finish-cover (the land's cover and its colours from space)
+js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
+                   tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
+                   read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
+                   file read today: the frozen codec 1, the steps between versions, fields it lacks as zeros)
 js/app/            the lab: shell (lab-main), globe, canvas overlays, phases/ (one module per phase + phase-kit),
                    history-runner / history-worker (a scene's history off the page's thread, frames streamed back),
                    helper-pool / helper-worker (a few workers the history's worker starts: the start world's layout
                    attempts and each rift's junctions, side by side — the same history)
-tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), trace / render / screenshot helpers
+tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), trace / render / screenshot helpers; fixtures/saves/ (a
+                   small planet file per version of the format, which check-save.mjs opens)
 ```
 
 ## How the engine is put together
@@ -390,8 +433,8 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    fed by taxable grain (250 thousand → 2.5 million, log scale; and close enough to rule, 3–12 a km²) × walled in (the
    land up to 300 km beyond it desert, mountains, sea or steppe) × fed by works that need organising × most of its grain
    on navigable water × herders beyond — glowing across each heartland's grain land (LatLonGrid.maxWithin), the
-   likeliest sites numbered, with how many their grain could feed — an experimental view now (View → Experimental
-   Views). **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
+   likeliest sites numbered, with how many their grain could feed — an experimental view now (Experimental Views, in the view
+   options). **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
    hearths where a region (~400 km) grows the most rain-fed food at one harvest a year, more so with several staples
    (their effective number), each ≥ 2000 km from the others and ≥ 5000 apart by the way crops travel (Dijkstra over a
    cost a km: 1 on flat land a crop grows on, + up to 4 for hills to mountains, + 4 for desert, + 2 where it does not
@@ -424,8 +467,10 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    other staples by their shares × e^(0.4 × a normal number) (its leading one kept), each real crop's pull + 0.3 × a
    Gumbel draw before the one-each sharing — every rule kept as before; each a hash of the roll, its stream and the place
    (the same every time, at any detail). The legend's Re-roll chip picks a roll at random, 1–999999 as a seed is, kept
-   in the link as `crops=` (none: roll 0; New World back to 0); a crop chosen goes (the hearths may move); Reset crops
-   back to roll 0; a re-roll ~0.5–0.8 s. **One part of the world; at home** (C4e): a hearth's crops
+   in the link as `crops=` and in a planet file's settings (none: roll 0; New World back to 0); a crop chosen goes (the
+   hearths may move); Reset crops back to roll 0; the hearths' (and the Cradles' sites') numbered pins drawn over the
+   planet, not on its texture (`#mapPins`, placed again each time the planet is drawn: GlobeView.screenAt — the globe's
+   near side, or the map's projection forward at its zoom and pan), round and sharp in every projection and zoom; a re-roll ~0.5–0.8 s. **One part of the world; at home** (C4e): a hearth's crops
    pull on each other — each pair + 0.6 × how near their Earth homes were (1 one package; packages' rough places on
    Earth, 1 within 1500 km falling to 0 at 6000) — solved by sharing each group out again in turn with the others'
    names (block coordinate ascent: the total only grows) until none changes; and each strain's niche is its crop's

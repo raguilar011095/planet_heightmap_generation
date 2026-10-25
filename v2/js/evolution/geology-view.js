@@ -193,7 +193,8 @@ export function finishedGeologyColor(layer, frame, simMesh, W, fin = null) {
 export function geologyLegendHTML(layer, frame, fin = null) {
     const sw = (c, label, pct = null) => `<span><i style="background:${css(c)}"></i>${label}${pct !== null ? ` <em>${pct}%</em>` : ''}</span>`;
     const head = t => `<div class="evo-legend-head">${t}</div>`;
-    if (layer === 'geoRocks') return rocksLegendHTML(fin, sw, head);
+    if (layer === 'geoRocks') return rocksLegendHTML(fin, sw, head, frame);
+    if (!hasRecord(frame)) return head(`${GEOLOGY_NAMES[layer]} — ${NO_RECORD}`);
     let land = 0;
     const count = {};
     const tally = k => { count[k] = (count[k] ?? 0) + 1; };
@@ -235,10 +236,15 @@ export function geologyLegendHTML(layer, frame, fin = null) {
         'Dimmed where sediment still covers it. Old mountain belts are worn deepest; shields were worn deep before the history began');
 }
 
+/** Whether a frame carries the history's rock record: a planet file saved before it was kept reads its fields as zeros
+ *  (save/migrations.js), its frames without the sea's stand (snapshot.js geoSea: null or the stand on every newer one). */
+export const hasRecord = frame => frame?.geoSea !== undefined;
+const NO_RECORD = 'this planet was saved before World Orogen kept the history’s rock record — Build This World (in World) builds it again here, with it';
+
 /** The Rocks legend: each kind's share of the land (its pixels, by area), and the families beside Earth's. */
-function rocksLegendHTML(fin, sw, head) {
+function rocksLegendHTML(fin, sw, head, frame) {
     const G = fin?.raster?.geology;
-    if (!G) return head('Rocks — add detail again to see them (this moment was detailed before the rocks were added)');
+    if (!G) return head(hasRecord(frame) ? 'Rocks — add detail again to see them (this moment was detailed before the rocks were added)' : `Rocks — ${NO_RECORD}`);
     const area = new Float64Array(ROCK_COUNT);
     let land = 0;
     for (let y = 0; y < G.h; y++) {

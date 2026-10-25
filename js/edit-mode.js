@@ -9,6 +9,7 @@ import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, 
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevToHeightKm } from './color-map.js';
 import { climateReadoutLines } from './climate-layers.js';
+import { mapLonLatAt } from './map-projection.js';
 
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
@@ -72,20 +73,10 @@ function getHitInfoMap(event) {
     const o = raycaster.ray.origin, d = raycaster.ray.direction;
     if (Math.abs(d.z) < 1e-10) return null;
     const t = -o.z / d.z;
-    const wx = o.x + t * d.x;
-    const wy = o.y + t * d.y;
-
-    // Inverse equirectangular: map coords → lon/lat → unit sphere xyz
-    const PI = Math.PI;
-    const sx = 2 / PI;
-    let lon = wx / sx + (state.mapCenterLon || 0);
-    const lat = wy / sx;
-    if (lat < -PI / 2 || lat > PI / 2) return null;
-    // Wrap lon back to [-PI, PI]
-    if (lon > PI) lon -= 2 * PI;
-    else if (lon < -PI) lon += 2 * PI;
-
-    const cosLat = Math.cos(lat);
+    // map coords → lon/lat, through the map's projection (js/map-projection.js) → unit sphere xyz
+    const ll = mapLonLatAt(o.x + t * d.x, o.y + t * d.y);
+    if (!ll) return null;
+    const [lon, lat] = ll, cosLat = Math.cos(lat);
     return findNearestRegion(
         cosLat * Math.sin(lon),
         Math.sin(lat),
@@ -159,7 +150,9 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointerdown', (e) => {
         if (!state.curData) return;
-        const isEditTap = (e.button === 0 && e.ctrlKey) ||
+        // Ctrl-click, or Cmd-click on a Mac — where Firefox reports a Ctrl-click as a right-click (button 2; issue #19)
+        const editKey = e.ctrlKey || e.metaKey;
+        const isEditTap = (editKey && (e.button === 0 || e.button === 2)) ||
                           (e.button === 0 && state.isTouchDevice && state.editMode);
         if (isEditTap) {
             // Ctrl-click or mobile edit-mode tap: plate editing
@@ -174,7 +167,7 @@ export function setupEditMode() {
 
     canvas.addEventListener('pointerup', (e) => {
         orbiting = false;
-        if (!downInfo || !state.curData || e.button !== 0) { downInfo = null; return; }
+        if (!downInfo || !state.curData || (e.button !== 0 && e.button !== 2)) { downInfo = null; return; }
 
         const dx = e.clientX - downInfo.x;
         const dy = e.clientY - downInfo.y;
@@ -233,7 +226,7 @@ export function setupEditMode() {
         const hit = getHitInfo(e);
         const newRegion = hit ? hit.region : -1;
         // Only highlight the plate when in edit mode (Ctrl held or mobile edit toggle)
-        const inEditMode = e.ctrlKey || (state.isTouchDevice && state.editMode);
+        const inEditMode = e.ctrlKey || e.metaKey || (state.isTouchDevice && state.editMode);
         const newPlate = (hit && inEditMode) ? hit.plate : -1;
 
         // Update plate highlight only when plate changes

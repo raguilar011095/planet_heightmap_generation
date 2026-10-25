@@ -196,6 +196,23 @@ them over per pixel; the page combines them with the techniques chosen, at once.
   dont need to keep count of them". The roll one for the page (farmOptions.roll, not per picture), Re-roll a random one
   (1–999999, as the seed) with no count on its chip, kept in the link as `crops=` (roll 0 leaves it out); Reset crops
   and New World back to 0; a re-roll or Reset drops every crop chosen. The crops chosen in the list are not in the link.
+- **Fitted to the fast-follows** (2026-10-25): developer, after merging fast-follows (#68: one view layout, projections
+  and zoom on every map, the export panel, planet files, word seeds, the Studio home page) into main: "make this not
+  just fit from merge conflicts, but fit the aesthetics and goals of that update". Merged main into `farming` (G1 + G2
+  and C1–C4f with it), then:
+  - **Layout**: Geology and Farming tabs in the shared layer bar (`.layer-bar`), their rows in its sub-bar, the legend
+    in the shared `.legend-card`; Experimental Views moves from the old View section into the view strip (Evolution only).
+    Phones: their rows in the layer list, chips and crop choices 44 px.
+  - **Hillshade**: the view strip's switch flattens the Geology and Farming views too.
+  - **Pins over the planet**: the hearths' and the cradle sites' numbered pins were drawn on the texture — on a zoomed
+    map they grew into blurred discs, and a projection squashed them; now an overlay placed by GlobeView.screenAt (the
+    projection's forward, the zoom and pan; on the globe, its near side), round and sharp at any projection and zoom.
+  - **Export**: Geology and Farming groups in the panel — every view as colour (as shown: the legend's techniques, crops
+    and re-roll, in the README.txt; Crop spread with its pins), and data where the number stands alone (rocks' and
+    staples' indices with their classes listed, farmland, people, soil, growing season).
+  - **Planet files**: the rocks and the farming saved with the moment (generic, as the save plan meant); the re-roll in
+    the settings (`crops`); a history saved before the rock record is detailed without rocks, not from zeros. check-save
+    draws the rocks' and farming's maps from a planet read back.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

@@ -568,22 +568,25 @@ export function columnWaterRain() {
             refineField(g, core, ratio, tmp, Rout, off);
         }
         // the mountains' share of the rain: the year's rain with them over the year's without (1: none; > 1 the windward
-        // slopes, < 1 the rain shadows) — for display (V1's Generate and Import: the Rain Shadow layer)
-        const before = new Float64Array(core.size);
-        for (let k = 0; k < K; k++) for (let c = 0; c < core.size; c++) before[c] += Math.max(0, Pout[k * core.size + c]);
+        // slopes, < 1 the rain shadows) — for display (the Rain Shadow layer); and each anchor's own (orographicK), for
+        // its seasons
+        const before = new Float64Array(core.size), beforeK = new Float32Array(Pout.length);
+        for (let k = 0; k < K; k++) for (let c = 0; c < core.size; c++) before[c] += beforeK[k * core.size + c] = Math.max(0, Pout[k * core.size + c]);
         if (P_.RAIN_SLOPE_FACTOR > 0 || P_.RAIN_LEE_PER_KM > 0 || P_.RAIN_ISLAND_BOOST > 0) orographicRain(ctx, core, g, ratio, uA, vA, share, eadyOut, Pout, K, tA);
         for (let i = 0; i < Pout.length; i++) if (!(Pout[i] > 0)) Pout[i] = 0;
-        const orographic = new Float32Array(core.size);
+        const orographic = new Float32Array(core.size), orographicK = new Float32Array(Pout.length);
         for (let c = 0; c < core.size; c++) {
             let after = 0;
             for (let k = 0; k < K; k++) after += Pout[k * core.size + c];
             orographic[c] = before[c] > 0 ? after / before[c] : 1;
         }
+        for (let i = 0; i < Pout.length; i++) orographicK[i] = beforeK[i] > 0 ? Pout[i] / beforeK[i] : 1;
         // The polar front (after Worldbuilding Pasta): each hemisphere's frontal storm band, RAIN_FRONT_POS of the way from
         // its subtropical high to its subpolar low that month (≈ 40°–50°, moving with the seasons), brings land a baseline of
         // RAIN_FRONT_MM a month at its centre (Gaussian ±RAIN_FRONT_DEG) — the fronts' own lift as they sweep inland, which
         // the monthly mean budget leaves out — faded under pressure above the latitude's mean (e-folding RAIN_FRONT_HIGH_HPA:
-        // the highs) and in rain shadows (× the mountains' share of the rain, at most 1).
+        // the highs) and in rain shadows (× the mountains' share of that anchor's rain, at most 1: the shadow of its own
+        // winds).
         if (P_.RAIN_FRONT_MM > 0 && winds.belts && winds.slp) {
             const cw = core.w, ch = core.h, lf = ctx.surface.landFrac, sg = P_.RAIN_FRONT_DEG;
             for (let k = 0; k < K; k++) {
@@ -597,12 +600,12 @@ export function columnWaterRain() {
                     for (let i = 0; i < cw; i++) {
                         const c = j * cw + i;
                         if (!(lf[c] > 0)) continue;
-                        Pout[k * core.size + c] += lf[c] * P_.RAIN_FRONT_MM * wf * Math.exp(-Math.max(0, sl[c] - row) / P_.RAIN_FRONT_HIGH_HPA) * Math.min(1, orographic[c]);
+                        Pout[k * core.size + c] += lf[c] * P_.RAIN_FRONT_MM * wf * Math.exp(-Math.max(0, sl[c] - row) / P_.RAIN_FRONT_HIGH_HPA) * Math.min(1, orographicK[k * core.size + c]);
                     }
                 }
             }
         }
-        const out = { P: Pout, W: Wout, E: Eout, r: Rout, orographic, eady: eadyOut, balance: results.map(r => r.balance), cycles, newton,
+        const out = { P: Pout, W: Wout, E: Eout, r: Rout, orographic, orographicK, eady: eadyOut, balance: results.map(r => r.balance), cycles, newton,
             state: { step: g.step, Wk }, profile: prof, ms: performance.now() - t0, source: 'column water' };
         if (globalThis.RAIN_DEBUG) out.debug = { g, prep, Wk, results, land, hgt };
         return out;

@@ -6,6 +6,7 @@
 // the sea, and the winds and currents, are sampled from the 1° climate grid at the region's latitude and longitude.
 
 import { RAMP_FAMILIES } from '../v2/js/evolution/sat-style.js';
+import { RAMPS, rampColor } from '../v2/js/climate-lab/palettes.js';
 
 export const CLIMATE_INSPECT = [
     { id: 'pressure',    label: 'Pressure',          seasonal: true,  arrows: 'wind', itcz: true },
@@ -16,7 +17,7 @@ export const CLIMATE_INSPECT = [
     { id: 'temperature', label: 'Temperature',       seasonal: true },
     { id: 'precip',      label: 'Precipitation',     seasonal: true },
     { id: 'tempRange',   label: 'Temperature Range', seasonal: false },
-    { id: 'rainShadow',  label: 'Rain Shadow',       seasonal: false },
+    { id: 'rainShadow',  label: 'Rain Shadow',       seasonal: true },
     { id: 'aridity',     label: 'Aridity',           seasonal: false },
     { id: 'growing',     label: 'Growing Season',    seasonal: false },
     { id: 'rainSeason',  label: 'Rain Seasonality',  seasonal: false },
@@ -69,21 +70,16 @@ function ramp(stops) {
 /** Discrete classes: [upper bound, colour, label] — the first whose bound the value is below. */
 const classes = (list) => (v) => { if (!(v === v)) return LAND; for (const [b, c] of list) if (v < b) return c; return list[list.length - 1][1]; };
 
-// temperature: V1's bands (as climate maps draw them), now in °C
-const TEMP_BANDS = [[-38, [0.78, 0.78, 0.78], '< −38'], [0, [0.00, 0.00, 0.50], '−38–0'], [10, [0.53, 0.81, 0.92], '0–10'], [18, [1.00, 1.00, 0.00], '10–18'],
-    [22, [1.00, 0.65, 0.00], '18–22'], [32, [1.00, 0.00, 0.00], '22–32'], [40, [0.55, 0.00, 0.00], '32–40'], [Infinity, [0.20, 0.00, 0.00], '> 40']];
-const tempColor = classes(TEMP_BANDS);
-// rain, mm/month: V1's brown → green → blue, on a square-root scale
-const RAIN_STOPS = [[0, [0.76, 0.60, 0.42]], [10, [0.60, 0.55, 0.30]], [40, [0.30, 0.75, 0.25]], [100, [0.15, 0.65, 0.65]], [250, [0.10, 0.30, 0.85]], [400, [0.08, 0.15, 0.55]]];
-const rainColor = ramp(RAIN_STOPS);
-// pressure, hPa: blue lows, red highs, about the mean
-const PRESSURE_STOPS = [[995, [0.10, 0.20, 0.70]], [1006, [0.45, 0.62, 0.95]], [1013, [0.95, 0.95, 0.95]], [1020, [0.98, 0.60, 0.45]], [1030, [0.70, 0.10, 0.10]]];
-const pressureColor = ramp(PRESSURE_STOPS);
+// temperature, rain, pressure and the sea's warmth: Evolution's ramps (v2/js/climate-lab/palettes.js, the same on every
+// page) — temperature from deep purple at −40 °C through white at 0 to dark red at +40; rain on log(1 + mm/month), sand
+// through greens to deep blue; pressure and the sea against its latitude, blue below and red above
+const fromRamp = (R) => (v) => (v === v ? rampColor(R, v).map(x => x / 255) : LAND);
+const tempColor = fromRamp(RAMPS.temperature);
+const rainColor = fromRamp(RAMPS.rain);
+const pressureColor = fromRamp(RAMPS.pressure);
 const WIND_STOPS = [[0, [0.95, 0.95, 0.95]], [3, [0.60, 0.85, 0.90]], [7, [0.20, 0.60, 0.75]], [11, [0.35, 0.25, 0.70]], [16, [0.45, 0.05, 0.40]]];
 const windColor = ramp(WIND_STOPS);
-// the sea against its latitude's average, °C: cold blue, warm red
-const ANOM_STOPS = [[-5, [0.10, 0.25, 0.75]], [-1.5, [0.55, 0.70, 0.95]], [0, [0.92, 0.92, 0.94]], [1.5, [0.98, 0.65, 0.55]], [5, [0.75, 0.10, 0.10]]];
-const anomColor = ramp(ANOM_STOPS);
+const anomColor = fromRamp(RAMPS.oceanAnom);
 const UPWELL_STOPS = [[0, [0.06, 0.10, 0.30]], [0.1, [0.10, 0.30, 0.55]], [0.3, [0.15, 0.65, 0.70]], [0.8, [0.55, 0.95, 0.70]], [2, [0.95, 1.00, 0.80]]];
 const upwellColor = ramp(UPWELL_STOPS);
 const RANGE_STOPS = [[0, [0.15, 0.30, 0.70]], [10, [0.20, 0.65, 0.60]], [20, [0.75, 0.80, 0.25]], [35, [0.95, 0.50, 0.10]], [55, [0.65, 0.05, 0.10]]];
@@ -142,7 +138,7 @@ export function climateColorFn(id, season, data) {
         case 'ice': return (r) => (sea(r) ? seaIceColor(at(g.seaIce[s], r))
             : lerp3(g.snow ? lerp3(LAND, SNOW_RGB, Math.max(0, Math.min(1, at(g.snow[s], r)))) : LAND, ICE_SHEET_RGB, Math.max(0, Math.min(1, at(g.iceSheet, r)))));
         case 'tempRange': return (r) => (sea(r) ? SEA : rangeColor(cells.tRange[r]));
-        case 'rainShadow': return (r) => (sea(r) ? SEA : QUANTITY_COLORS.rainShadow(at(g.orographic, r)));
+        case 'rainShadow': { const og = s === 'year' ? g.orographic : g.orographicSeasons[s]; return (r) => (sea(r) ? SEA : QUANTITY_COLORS.rainShadow(at(og, r))); }
         case 'aridity': return (r) => (sea(r) ? SEA : aridityColor(cells.aridity[r]));
         case 'growing': return (r) => (sea(r) ? SEA : growColor(cells.growing[r]));
         case 'rainSeason': return (r) => (sea(r) ? SEA : seasonColor(cells.rainSeason[r]));
@@ -157,6 +153,15 @@ const gradient = (stops, lo, hi, labels) => {
     return `<div class="legend-gradient" style="background:linear-gradient(to right,${stops.map(([v, c]) => `${css(c)} ${(100 * (v - lo) / span).toFixed(1)}%`).join(',')})"></div>` +
         `<div class="legend-labels">${labels.map(l => `<span>${l}</span>`).join('')}</div>`;
 };
+/** An Evolution ramp's bar (log ramps on log(1 + v), as Evolution draws them) with labels where their values fall:
+ *  `marks` [value, text]. */
+const rampLegend = (R, marks) => {
+    const s = R.stops, tx = R.log ? (x) => Math.log1p(Math.max(0, x)) : (x) => x, lo = tx(s[0][0]), span = tx(s[s.length - 1][0]) - lo;
+    const at = (v) => (100 * (tx(v) - lo) / span).toFixed(1);
+    return `<div class="legend-gradient" style="background:linear-gradient(to right,${s.map(([v, c]) => `rgb(${c.join(',')}) ${at(v)}%`).join(',')})"></div>` +
+        `<div class="legend-labels" style="position:relative;display:block;height:1.5em">${marks.map(([v, t], i) =>
+            `<span style="position:absolute;left:${at(v)}%;transform:translateX(${i === 0 ? 0 : i === marks.length - 1 ? -100 : -50}%);white-space:nowrap">${t}</span>`).join('')}</div>`;
+};
 const swatches = (list) => `<div class="legend-classes">${list.map(([, c, label]) => `<span><i style="background:${css(c)}"></i>${label}</span>`).join('')}</div>`;
 const note = (text) => `<div class="legend-note">${text}</div>`;
 
@@ -165,15 +170,15 @@ export function climateLegendHTML(id, season) {
     const L = BY_ID[id]; if (!L) return '';
     const sn = L.seasonal ? ` · ${SEASON_LABELS[season] ?? 'Year'}` : '';
     switch (id) {
-        case 'temperature': return swatches(TEMP_BANDS.map(([b, c, l]) => [b, c, l])) + note(`Air temperature, °C${sn} — over the sea, its surface`);
-        case 'precip': return gradient(RAIN_STOPS, 0, 400, season === 'year' ? ['0', '600', '1,800', '4,800 mm/yr'] : ['0', '50', '150', '400 mm/month']) + note(`Precipitation${sn}`);
-        case 'pressure': return gradient(PRESSURE_STOPS, 995, 1030, ['995', '1013', '1030 hPa']) + note(`Sea-level pressure${sn} · arrows: the wind · green line: the ITCZ`);
+        case 'temperature': return rampLegend(RAMPS.temperature, [[-40, '−40'], [-20, '−20'], [0, '0'], [20, '20'], [40, '40 °C']]) + note(`Air temperature, °C${sn} — over the sea, its surface`);
+        case 'precip': return rampLegend(RAMPS.rain, season === 'year' ? [[0, '0'], [10, '120'], [60, '720'], [500, '6,000 mm/yr']] : [[0, '0'], [10, '10'], [60, '60'], [500, '500 mm/month']]) + note(`Precipitation${sn}`);
+        case 'pressure': return rampLegend(RAMPS.pressure, [[990, '990'], [1012, '1012'], [1034, '1034 hPa']]) + note(`Sea-level pressure${sn} · arrows: the wind · green line: the ITCZ`);
         case 'wind': return gradient(WIND_STOPS, 0, 16, ['0', '8', '16 m/s']) + note(`Surface wind speed${sn} · arrows: its direction`);
-        case 'currents': return gradient(ANOM_STOPS, -5, 5, ['−5', '0', '+5 °C']) + note(`The sea against its latitude’s average${sn} (warm and cold currents) · arrows: surface currents — seasonal in the tropics`);
+        case 'currents': return rampLegend(RAMPS.oceanAnom, [[-6, '−6'], [0, '0'], [6, '+6 °C']]) + note(`The sea against its latitude’s average${sn} (warm and cold currents) · arrows: surface currents — seasonal in the tropics`);
         case 'upwelling': return gradient(UPWELL_STOPS, 0, 2, ['0', '1', '2 m/day']) + note(`Cold, nutrient-rich water rising where the wind pushes the surface away${sn}`);
         case 'ice': return gradient([[0, SEA_ICE_RGB[0]], [1, SEA_ICE_RGB[1]]], 0, 1, ['Open sea', 'Sea ice']) + note(`Sea ice${sn}; on land, snow${sn} and the ice sheets`);
         case 'tempRange': return gradient(RANGE_STOPS, 0, 55, ['0', '20', '40 °C']) + note('Warmest month minus coldest — continentality: small by the sea, large deep inland');
-        case 'rainShadow': return gradient(OROG_STOPS, -1.5, 1.5, ['Rain shadow', 'No effect', 'Windward']) + note('How mountains move the rain: wetter windward slopes, drier lands in their lee');
+        case 'rainShadow': return gradient(OROG_STOPS, -1.5, 1.5, ['Rain shadow', 'No effect', 'Windward']) + note(`How mountains move the rain${sn}: wetter windward slopes, drier lands in their lee`);
         case 'aridity': return swatches(ARIDITY) + note('UNEP aridity index: precipitation ÷ potential evaporation');
         case 'growing': return gradient(GROW_STOPS, 0, 12, ['0', '6', '12 months']) + note('Months warmer than 10 °C — where forests and crops can grow');
         case 'rainSeason': return swatches(SEASONALITY) + note('Rain seasonality (Walsh & Lawler): how unevenly the rain falls through the year');
@@ -215,11 +220,6 @@ export function showClimateArrows(layer, season, buildWind, buildCurrents) {
     const a = BY_ID[layer]?.arrows;
     buildWind(a === 'wind' ? season : null);
     buildCurrents(a === 'currents' ? season : null);
-}
-/** The season picker beside Inspect: shown for a layer with seasons. */
-export function syncSeasonPicker(layer) {
-    const group = document.getElementById('climateSeasonGroup');
-    if (group) group.hidden = !(BY_ID[layer]?.seasonal || layer === 'biome');        // (the Satellite view has seasons too)
 }
 /** The Satellite view's legend: its climates' lowland colours, and what it shows, in the season chosen. */
 export function satelliteLegendHTML(season) {

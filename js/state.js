@@ -22,9 +22,13 @@ export const state = {
     gridSpacing: 15,
     mapMode: false,
     mapCenterLon: 0,
+    mapProjection: 'equirect',  // the map view's projection and its options (js/map-projection.js)
+    mapProjOpts: {},
     dragStart: null,
     debugLayer: '',
+    showPlates: false,          // the Plates tab (Generate): the plate colours, with no other layer
     climateSeason: 'year',       // the climate's Inspect layers: 'year', 'jan' or 'jul' (js/climate-layers.js)
+    palette: 'classic',         // the Terrain view's colours (js/terrain-palette.js)
     isTouchDevice: ('ontouchstart' in window) || (navigator.maxTouchPoints > 0),
     editMode: false,
     oceanCurrentArrowGroup: null,

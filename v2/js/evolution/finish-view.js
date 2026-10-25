@@ -124,9 +124,10 @@ export function rasterAt(r, W, { lakes = false, landOnly = false } = {}) {
  * live terrain (terrain-shade.js). `seaImage` (optional, RGBA of any width × width/2): 255 on the sea, for the glint.
  * `colorAt(out, o, x, y, wet, kk, k3, v, lake)` (optional): another colouring per pixel — a climate layer's
  * (climate-view.js finishedClimateColor) — given the pixel's light kk (0.35…1, always shaded), its palette entry k3, its
- * height v (km) and its lake kind (with `lakes`).
+ * height v (km) and its lake kind (with `lakes`). `shaded: false` leaves the hillshade out (flat colour, the light 1 —
+ * for an export to shade elsewhere).
  */
-export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, lakes = false, colorAt = null } = {}) {
+export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, lakes = false, colorAt = null, shaded = true } = {}) {
     const W = t.width, H = W >> 1, { h, sea, wat } = rasterAt(r, W, { lakes });
     const out = t.image.data, L = lut.rgb, { minM, stepM, zero } = lut, top = lut.n - 1;
     const pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
@@ -135,7 +136,7 @@ export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exagge
         for (let x = 0; x < W; x++) {
             const i = y * W + x, v = h[i], wet = sea[i];
             let kk = 1;
-            if (lut.shaded || colorAt) {
+            if (shaded && (lut.shaded || colorAt)) {
                 const ex = wet ? exaggeration * 0.35 : exaggeration;
                 const ge = (h[y * W + (x + 1) % W] - h[y * W + (x - 1 + W) % W]) / (2 * pxKm * cl), gn = (h[up + x] - h[dn + x]) / (2 * pxKm);
                 const px = -ex * ge, py = -ex * gn, len = Math.sqrt(px * px + py * py + 1);

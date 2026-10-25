@@ -31,7 +31,7 @@ setDelaunator(Delaunator);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const CACHE = path.join(__dirname, '..', '..', 'results', 'climate', 'cache');
 
-// Generate's slider defaults (index.html); N = detailFromSlider(600) ≈ 204K, here 160K as the Earth checks use
+// Generate's slider defaults (generate.html); N = detailFromSlider(600) ≈ 204K, here 160K as the Earth checks use
 const V1_DEFAULTS = { N: 160000, jitter: 0.75, P: 80, numContinents: 4, nMag: 0.40, continentSizeVariety: 0.35, landCoverage: 0.3,
     terrainWarp: 0.75, smoothing: 0.10, glacialErosion: 0.50, hydraulicErosion: 0.50, thermalErosion: 0.10, ridgeSharpening: 0.50 };
 

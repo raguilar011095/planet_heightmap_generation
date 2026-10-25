@@ -139,12 +139,13 @@ function drawPins(ctx, W, points, fill, ring, ink) {
     });
     ctx.restore();
 }
-/** The cradle sites drawn on a texture W wide: numbered pins. */
+/** The cradle sites drawn on a texture W wide: numbered pins (the export's; the page draws them over the planet). */
 export function drawCradleSites(ctx, W, fin) {
     const map = cradlesOf(fin);
     if (map) drawPins(ctx, W, map.sites, () => 'rgba(255, 248, 236, 0.95)', () => 'rgb(150, 40, 24)', () => 'rgb(120, 30, 20)');
 }
-/** The hearths drawn on a texture W wide: numbered pins in their colours. */
+/** The hearths drawn on a texture W wide: numbered pins in their colours (the export's; the page draws them over the
+ *  planet: farmingPins). */
 export function drawHearths(ctx, W, fin) {
     const map = spreadOf(fin);
     if (map) drawPins(ctx, W, map.hearths, k => css(hearthRGB(k)), () => 'rgba(255, 252, 244, 0.95)', () => '#fff');
@@ -248,6 +249,35 @@ export function finishedFarmingColor(layer, fin, W) {
         }
         out[o] = Math.min(255, c[0] * k); out[o + 1] = Math.min(255, c[1] * k); out[o + 2] = Math.min(255, c[2] * k); out[o + 3] = 255;
     };
+}
+
+/** A farming quantity as a number at a pixel of a picture `W` wide, for the export's data maps (export.js) — NaN off the
+ *  land: `farmTech` and `farmRain` farmland (0…1, the Farmland view's ramp) with the techniques chosen and by rain alone,
+ *  `people` a km² (as the People view), `soil` its fertility (0…1), `seasonRain` and `seasonWatered` the growing season
+ *  (months), `staple` the staple grown most (a Staple; 0 nothing) — the ice farms nothing. */
+export function finishedFarmingValue(key, fin, W) {
+    const F = fin?.raster?.farming, K = fin?.climate?.raster, kef = KOPPEN_ID.EF;
+    if (!F || !K) return () => NaN;
+    const p = {}, r = { scores: new Float64Array(6), foods: new Float64Array(6) }, e = new Float64Array(2 * CROPS.length);
+    return (x, y) => {
+        const i = landPixel(K, W, x, y);
+        if (i < 0) return NaN;
+        if (K.koppen[i] === kef) return 0;
+        if (key === 'soil') return partsAt(F, i, p).soil;
+        if (key === 'seasonRain' || key === 'seasonWatered') { partsAt(F, i, p); return key === 'seasonRain' ? p.rain : p.warm; }
+        placeAt(F, i, p, e, farmOptions, r);
+        return key === 'farmTech' ? r.tech : key === 'farmRain' ? r.rain : key === 'people' ? peopleAt(r) : key === 'staple' ? r.staple : NaN;
+    };
+}
+
+/** The numbered pins a farming view shows (the Crop spread view's hearths, the Cradles view's sites), for the page to
+ *  draw over the planet: [{lat, lon, label, fill, ring, ink}] — none on the other views. */
+export function farmingPins(layer, fin) {
+    const map = layer === 'farmSpread' ? spreadOf(fin) : layer === 'farmCradle' ? cradlesOf(fin) : null;
+    if (!map) return [];
+    return layer === 'farmSpread'
+        ? map.hearths.map((h, k) => ({ lat: h.lat, lon: h.lon, label: String(k + 1), fill: css(hearthRGB(k)), ring: 'rgba(255, 252, 244, 0.95)', ink: '#fff' }))
+        : map.sites.map((s, k) => ({ lat: s.lat, lon: s.lon, label: String(k + 1), fill: 'rgba(255, 248, 236, 0.95)', ring: 'rgb(150, 40, 24)', ink: 'rgb(120, 30, 20)' }));
 }
 
 // ── the legend ──

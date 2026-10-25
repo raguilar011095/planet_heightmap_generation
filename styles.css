@@ -22,6 +22,16 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
 .nav-tab.active {
     color: #8bf; background: rgba(68,136,255,0.15);
 }
+/* after the tabs, past a short divider: GitHub, then the follow links (on phones and tablets the panel's foot has them) */
+.nav-follow { display: flex; align-items: center; gap: 2px; flex: none; margin-left: 6px; }
+.nav-follow::before { content: ''; width: 1px; height: 16px; background: rgba(255,255,255,0.14); margin-right: 8px; }
+.nav-follow-label { font-size: 12px; color: #667; margin: 0 2px 0 10px; }
+.nav-icon {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 30px; height: 30px; border-radius: 6px;
+    color: #889; transition: background 0.2s, color 0.2s;
+}
+.nav-icon:hover { color: #bcd; background: rgba(255,255,255,0.06); }
 #topNav { overflow-x: auto; scrollbar-width: none; }
 #topNav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: none; white-space: nowrap; }
@@ -39,6 +49,7 @@ body { background: #000; overflow: hidden; font-family: 'Segoe UI', system-ui, s
 }
 #sidebarContent {
     overflow-y: auto; overflow-x: hidden; flex: 1; min-height: 0;
+    scrollbar-gutter: stable; padding-right: 4px;   /* (the values at the right edge clear an overlay scrollbar — issue #34) */
 }
 #sidebarContent::-webkit-scrollbar { width: 10px; }
 #sidebarContent::-webkit-scrollbar-track { background: transparent; margin: 2px 0; }
@@ -242,6 +253,77 @@ button#generate.generating {
     background: rgba(68,136,255,0.18); color: #8bf;
 }
 
+/* ── Over the planet, on every page (plans/VIEW_UI_PLAN.md): the view strip, folded behind the arrow at the tabs' left;
+   the layers (Terrain · Satellite · Climate, its own row of maps and the season · Heightmap · Plates) under it; and the
+   legend beside the planet ── */
+.layer-bar {
+    position: fixed; top: 52px; left: 50%; transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (shift: js/view-strip.js) */
+    display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
+    max-width: calc(100vw - 32px);
+}
+.layer-bar > * { pointer-events: auto; }
+.layer-bar .map-tabs {
+    margin: 0; background: rgba(8,8,28,0.86); backdrop-filter: blur(12px);
+    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 3px;
+}
+.layer-bar .map-tab { flex: none; padding: 7px 16px; font-size: 13px; }
+/* (the arrow hangs off the tabs' left, so the tabs stay centred) */
+.layer-row { position: relative; }
+.vs-fold {
+    position: absolute; top: 0; bottom: 0; right: calc(100% + 6px); width: 34px; display: flex; align-items: center; justify-content: center;
+    background: rgba(8,8,28,0.86); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    color: #889; cursor: pointer; padding: 0;
+}
+.vs-fold:hover { color: #bcd; }
+.vs-fold svg { transition: transform 0.15s; }
+.vs-fold[aria-expanded="true"] { color: #8bf; }
+.vs-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
+.layer-subbar { display: flex; align-items: center; gap: 8px; }
+.layer-subbar[hidden], .layer-subbar [hidden] { display: none; }
+.layer-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
+.layer-subbar select {
+    background-color: rgba(8,8,28,0.86); color: #cde; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
+    padding: 6px 26px 6px 8px; font-size: 12px; font-family: inherit; width: auto;
+}
+/* (More…: lit as a tab is, while one of its layers is shown) */
+.layer-subbar select.active { background-color: rgba(40,70,150,0.75); color: #8bf; border-color: rgba(100,160,255,0.45); }
+/* the view strip: Globe | Map and what applies to it (js/view-strip.js); on a phone, at the top of the bottom sheet, never
+   folded */
+.view-strip {
+    display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px 16px;
+    background: rgba(8,8,28,0.86); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    padding: 4px 12px; font-size: 12px; color: #aab; max-width: min(1120px, calc(100vw - 32px));
+}
+.view-strip [hidden] { display: none !important; }
+.view-strip.folded:not(.in-sheet) { display: none; }
+.vs-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.view-strip select { width: auto; padding: 4px 26px 4px 8px; font-size: 12px; background-position: right 9px center; }
+.view-strip input[type=range] { width: 110px; }
+.view-strip .v { color: #8bf; min-width: 3.4em; font-variant-numeric: tabular-nums; }
+.view-strip .toggle-label { font-size: 12px; color: #aab; }
+.view-strip .xp-proj-opts { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; }
+.view-strip .xp-proj-opt { flex-direction: row; align-items: center; gap: 6px; min-width: 0; flex: none; font-size: 12px; }
+.vs-seg { display: inline-flex; background: rgba(255,255,255,0.06); border-radius: 7px; padding: 2px; gap: 2px; }
+.vs-seg button {
+    border: 0; background: none; color: #889; font: 500 12px inherit; font-family: inherit;
+    padding: 4px 12px; border-radius: 5px; cursor: pointer;
+}
+.vs-seg button:hover { color: #bcd; }
+.vs-seg button.active { background: rgba(68,136,255,0.22); color: #8bf; }
+.view-strip.in-sheet {
+    justify-content: flex-start; gap: 8px 16px; max-width: none; margin-bottom: 12px;
+    background: rgba(255,255,255,0.03); backdrop-filter: none; padding: 8px 10px;
+}
+/* the legend, beside the planet */
+.legend-card {
+    position: fixed; right: 16px; bottom: 24px; width: 270px; z-index: 20; max-height: calc(100vh - 240px); overflow: auto;
+    background: rgba(8,8,28,0.86); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
+    padding: 10px 12px; font-size: 12px; color: #aab;
+}
+.legend-card[hidden], .legend-card:has(> .viz-legend:empty:only-child) { display: none; }
+.legend-card .viz-legend { margin: 0; }
+.legend-card:has(.legend-koppen) { overflow: visible; }      /* (the Köppen key's hover descriptions rise above it) */
+
 /* Legend container */
 .viz-legend {
     font-size: 11px; color: #9ab; line-height: 1.5;
@@ -351,16 +433,19 @@ button#generate.generating {
     line-height: 1.6;
     margin-top: 4px;
 }
+/* the panel's foot: GitHub, the follow links, and Ko-fi a little quieter (on phones, the only place they are) */
 #repoLink {
-    display: flex; align-items: center; gap: 6px;
-    font-size: 12px; color: #556;
-    text-decoration: none;
+    display: flex; align-items: center; flex-wrap: wrap; gap: 2px 4px;
+    font-size: 12px;
     margin-top: 10px; padding-top: 10px;
     border-top: 1px solid rgba(255,255,255,0.06);
-    transition: color 0.2s;
 }
-#repoLink:hover { color: #9ab; }
+#repoLink a { display: inline-flex; align-items: center; gap: 6px; color: #889; text-decoration: none; transition: color 0.2s; }
+#repoLink a:hover { color: #bcd; }
 #repoLink svg { flex-shrink: 0; }
+#repoLink .rl-github { margin-right: 6px; }
+#repoLink .rl-icon { padding: 4px; }
+#repoLink .rl-kofi { margin-left: auto; color: #778; }
 .slider-hint {
     display: flex;
     justify-content: space-between;
@@ -517,11 +602,13 @@ button#generate.generating {
 }
 .btn-primary:hover { filter: brightness(1.15); }
 
-/* Build overlay — unified loading / generation screen */
+/* Build overlay — unified loading / generation screen. It covers the planet only: the panel, the bars over the planet
+   and the buttons stay in view on top of it (z-index 0, and first in the page, so every positioned element after it is
+   drawn over it), held while the build runs (js/build-error.js holdControls) */
 .build-overlay {
     position: fixed; inset: 0;
     background: rgba(3,3,8,0.75);
-    z-index: 100;
+    z-index: 0;
     display: flex; align-items: center; justify-content: center;
     transition: opacity 0.5s ease;
 }
@@ -530,7 +617,6 @@ button#generate.generating {
 }
 .build-overlay.initial {
     background: #030308;
-    z-index: 1000;
 }
 .build-overlay-inner {
     display: flex; flex-direction: column; align-items: center;
@@ -641,6 +727,7 @@ button#generate.generating {
     transition: color 0.2s;
 }
 #exportClose:hover { color: #fff; }
+.export-note { font-size: 12px; color: #9ab; margin: 6px 0 0; }
 .export-actions {
     display: flex; justify-content: flex-end; gap: 10px;
     margin-top: 18px;
@@ -715,6 +802,10 @@ button#generate.generating {
 #whatsNewOverlay.hidden #whatsNewCard {
     opacity: 0; transform: translateY(-16px);
 }
+/* (on a screen shorter than a card — a phone on its side — the card scrolls, its close and its buttons within reach) */
+#tutorialCard, #whatsNewCard, #surveyCard {
+    max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain;
+}
 #whatsNewClose {
     position: absolute; top: 10px; right: 14px;
     background: none; border: none;
@@ -764,6 +855,9 @@ button#generate.generating {
 }
 .whatsnew-step p.whatsnew-beta-note { margin-top: 8px; font-size: 13px; color: #a98; }
 .whatsnew-step p.whatsnew-beta-note strong { color: #fc8; }
+.whatsnew-step p.whatsnew-follow { margin-top: 12px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.06); font-size: 13px; }
+.whatsnew-follow a { color: #8bf; text-decoration: none; }
+.whatsnew-follow a:hover { text-decoration: underline; }
 .whatsnew-list li {
     font-size: 14px; line-height: 1.6; color: #9ab;
     padding: 6px 0;
@@ -865,6 +959,9 @@ button#generate.generating {
 @media (max-width: 768px) {
     #topNav { height: 36px; padding: 0 8px; }
     .nav-tab { padding: 4px 12px; font-size: 12px; min-height: 32px; }
+    .nav-follow { display: none; }
+    #repoLink a { min-height: 44px; }
+    #repoLink .rl-icon { min-width: 44px; justify-content: center; }
     #topInfo { display: none; }
 
     /* Bottom sheet */
@@ -1007,6 +1104,17 @@ button#generate.generating {
     /* Touch targets */
     .map-tab { padding: 12px 0; font-size: 13px; min-height: 44px; }
     #debugLayer, #climateSeason { min-height: 44px; }
+    /* the layers: the list at the top (#mobileViewSwitch), the season beneath it, the legend under that; the view
+       strip at the top of the bottom sheet */
+    .layer-bar { top: 92px; }
+    .layer-bar .layer-row, .layer-bar #climateTabs, .layer-bar #climateMore { display: none !important; }
+    .layer-subbar select { min-height: 44px; }
+    .legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
+    .view-strip.in-sheet { font-size: 14px; }
+    .view-strip.in-sheet select, .vs-seg button { min-height: 44px; font-size: 14px; }
+    .vs-seg button { padding: 0 18px; }
+    .view-strip.in-sheet input[type=range] { width: 150px; height: 44px; }
+    .view-strip.in-sheet .toggle-label { min-height: 44px; font-size: 14px; }
     #helpBtn { width: 44px; height: 44px; font-size: 20px; top: 40px; right: 12px; }
     .toggle-track { width: 38px; height: 22px; border-radius: 11px; }
     .toggle-thumb { width: 18px; height: 18px; }
@@ -1053,4 +1161,66 @@ button#generate.generating {
     button#generate { padding: 12px; font-size: 15px; }
     .cg label { font-size: 14px; }
     .section summary { font-size: 13px; }
+}
+
+/* ── The export panel (v2/js/view/export-panel.js): settings, the checklist of maps, options, progress ── */
+#exportCard { max-width: 520px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+#exportCard .xp { display: flex; flex-direction: column; min-height: 0; gap: 10px; }
+.xp-settings { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 14px; }
+.xp-settings .cg { margin-bottom: 4px; }
+.xp-settings select, .xp-settings input[type=range] { width: 100%; }
+.xp-proj-opts { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 6px 16px; }
+.xp-proj-opts[hidden] { display: none; }
+.xp-proj-opt { display: flex; flex-direction: column; gap: 2px; font-size: 13px; color: #aab; min-width: 140px; flex: 1; }
+.xp-proj-opt .v { color: #6af; font-weight: 500; }
+.xp-head, .xp-row { display: grid; grid-template-columns: 1fr 64px 64px; align-items: center; }
+.xp-head { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #889; padding: 2px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.xp-head span:not(:first-child), .xp-check { text-align: center; justify-self: center; }
+.xp-layers { overflow-y: auto; min-height: 120px; max-height: 42vh; padding-right: 2px; scrollbar-gutter: stable; }
+.xp-group-title { font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: #6af; padding: 8px 6px 2px; }
+.xp-row { padding: 3px 6px; border-radius: 6px; min-height: 28px; font-size: 13.5px; color: #cde; }
+.xp-row:hover { background: rgba(255,255,255,0.04); }
+.xp-row.xp-off { opacity: 0.4; }
+.xp-name small { display: block; font-size: 11px; color: #889; }
+.xp-sun { color: #e8c050; font-size: 12px; }
+.xp-check { display: flex; align-items: center; justify-content: center; width: 44px; height: 28px; cursor: pointer; }
+.xp-check input { width: 16px; height: 16px; accent-color: #3366ee; cursor: pointer; margin: 0; }
+.xp-check i { color: #556; font-style: normal; }
+.xp-options { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: #aab; padding-top: 6px; border-top: 1px solid rgba(255,255,255,0.08); }
+.xp-opt { display: flex; align-items: center; gap: 6px; cursor: pointer; }
+.xp-opt[hidden] { display: none; }
+.xp-opt input { accent-color: #3366ee; width: 15px; height: 15px; margin: 0; }
+.xp-planet { display: flex; align-items: center; gap: 12px; padding: 8px 0 0; border-top: 1px solid rgba(255,255,255,0.08); }
+.xp-planet[hidden] { display: none; }
+.xp-planet-text { flex: 1; display: flex; flex-direction: column; gap: 2px; font-size: 13.5px; color: #cde; }
+.xp-planet-text small { font-size: 11.5px; color: #889; }
+.xp-progress { font-size: 12px; color: #9ab; }
+.xp-progress[hidden] { display: none; }
+.xp-bar { height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; margin-bottom: 4px; }
+.xp-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #2255cc, #3366ee); transition: width 0.2s; }
+#exportCard .export-actions { margin-top: 6px; align-items: center; }
+.xp-spacer { flex: 1; }
+.btn-ghost.xp-small { padding: 6px 12px; font-size: 13px; }
+@media (max-width: 768px) {
+    #exportCard { max-width: none; width: 94%; padding: 20px 14px 14px; max-height: calc(100dvh - 24px); overflow-y: auto; overscroll-behavior: contain; }
+    .xp-settings { grid-template-columns: 1fr; }
+    .xp-layers { max-height: 36vh; }
+    .xp-row { min-height: 44px; font-size: 15px; }
+    .xp-check { height: 44px; width: 48px; }
+    .xp-check input, .xp-opt input { width: 20px; height: 20px; }
+    .xp-head, .xp-row { grid-template-columns: 1fr 56px 56px; }
+    .xp-opt { min-height: 44px; }
+    .xp-planet { flex-wrap: wrap; }
+    .xp-planet-text { font-size: 15px; min-width: 60%; }
+    #exportCard .export-actions { flex-wrap: wrap; gap: 8px; }
+    #exportCard .btn-primary, #exportCard .btn-ghost, #exportCard select { min-height: 44px; }
+    #exportCard input[type=range] { height: 44px; }
+    #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
+}
+/* a short screen (a phone on its side): the whole card scrolls, the maps' list at its full length, so that Export is
+   always within reach (the card's own share of the height would leave the list and the buttons below the screen) */
+@media (max-height: 520px) {
+    #exportCard { overflow-y: auto; overscroll-behavior: contain; }
+    #exportCard > *, #exportCard .xp > * { flex-shrink: 0; }
+    .xp-layers { max-height: none; min-height: 0; overflow: visible; }
 }

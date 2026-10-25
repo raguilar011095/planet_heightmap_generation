@@ -32,7 +32,7 @@ function startServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-      if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+      if (urlPath === '/' || urlPath === '') urlPath = '/generate.html';   // (Generate)
       const filePath = path.join(PROJECT_ROOT, urlPath);
       if (!filePath.startsWith(PROJECT_ROOT)) { res.writeHead(403); res.end(); return; }
       fs.readFile(filePath, (err, data) => {
