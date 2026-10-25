@@ -160,7 +160,7 @@
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
 /* Satellite and Geology come with detail: their tabs locked on previews */
-.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
+.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after, .map-tab[data-layer="farming"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
 .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
 /* the layers, over the planet: Terrain · Satellite · Climate (its own row: the five maps) · Heightmap · Plates; the season */
@@ -175,7 +175,7 @@
 }
 .evo-layerbar .map-tab { flex: none; padding: 7px 16px; font-size: 13px; }
 .evo-subbar { display: flex; align-items: center; gap: 8px; }
-.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #climateMore[hidden], #season[hidden] { display: none; }
+.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #farmingTabs[hidden], #climateMore[hidden], #season[hidden] { display: none; }
 .evo-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
 .evo-subbar select {
     background: rgba(8,8,28,0.86); color: #cde; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
@@ -194,6 +194,38 @@
 .evo-legend-card[hidden] { display: none; }
 .evo-legend-card .viz-legend { margin: 0; }
 .evo-legend-card .evo-regime-legend { margin: 6px 0 0; }
+/* the Farming legend: its techniques as chips (on or off), and its ramps as bars */
+.evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.evo-farm-chip {
+    padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6;
+}
+.evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
+.evo-farm-chip:hover { filter: brightness(1.2); }
+/* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
+.evo-farm-staple { color: #aab; }
+.evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.evo-farm-staple em { color: #778; font-style: normal; }
+.evo-farm-staple.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.12); color: #fff; }
+.evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
+.evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
+.evo-farm-bar span { min-width: 0; }
+.evo-farm-bar + .evo-koppen, .evo-farm-chips + .evo-koppen { margin-top: 2px; }
+/* (the Crop spread legend's crop choices: one per strain, like the chips) */
+.evo-farm-pick {
+    font: inherit; font-size: 11px; color: #dde; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 10px; padding: 1px 4px; margin: 0 2px 2px 0; max-width: 100%; cursor: pointer;
+}
+.evo-farm-pick option { background: #1d2230; color: #dde; }
+.evo-cradle-site em { color: #99a; font-style: normal; }
+/* (an experimental view's tab, hidden until Experimental Views is on) */
+.map-tab[hidden] { display: none; }
+/* the Cradles view's sites and the Crop spread view's hearths: a numbered pin (as on the map) and why */
+.evo-cradle-site { display: flex; gap: 7px; align-items: baseline; margin: 3px 0; color: #bbc; line-height: 1.35; }
+.evo-cradle-site b {
+    flex: none; width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+    background: #fff8ec; color: #78201a; border: 2px solid #96281a; font-size: 10px;
+}
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {
@@ -260,7 +292,9 @@
     .evo-act { min-height: 44px; }
     /* the layers: the switch at the top (V1's), the season beneath it; the legend under that */
     .evo-layerbar { top: 92px; }
-    .evo-layerbar #mapTabs, #climateTabs, #geologyTabs, #climateMore { display: none !important; }
+    .evo-layerbar #mapTabs, #climateTabs, #geologyTabs, #farmingTabs, #climateMore { display: none !important; }
+    .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
+    .evo-farm-pick { min-height: 44px; font-size: 13px; }
     .evo-subbar select { min-height: 44px; }
     .evo-legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }

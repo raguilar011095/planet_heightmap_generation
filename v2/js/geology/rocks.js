@@ -208,9 +208,11 @@ function readRecord(mesh, simMesh, S, seed, cfg) {
  *                     them null — cut (how deep its rivers cut, × cutStepKm), alluv (the sediment they laid, × alluvStepKm),
  *                     erg (sand seas, 0…1), loess (km, × loessShare), till (moraines and outwash, 0…255), glaciated (under
  *                     the last ice age's ice, 0/1), lava (a flood basalt's cap, 0…255) }
- * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array}} rec: each cell's record cell;
- *          shares: each kind's share of the land (by cell);
- *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice
+ * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array, youngKind: Uint8Array}} rec: each
+ *          cell's record cell; shares: each kind's share of the land (by cell);
+ *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice;
+ *          youngKind: where young sediment won, which (1 a river's, 2 dunes, 3 loess, 4 the ice's; 0 none or a speck
+ *          the majority filter turned — for the farming's soils)
  */
 export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCell = null, on, local = {} }, G = GEOLOGY) {
     const n = mesh.numCells, { xyz } = mesh, rock = new Uint8Array(n), shares = new Float64Array(ROCK_COUNT);
@@ -260,7 +262,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     const foldWaves = [[G.foldKm * 2.6, 0.6], [G.foldKm, smooth(1.5, 3, G.foldKm / mesh.edgeKm)]].filter(([, a]) => a > 0.01);
     const fbm = (O, x, y, zz, off) => { let s = 0; for (let o = 0; o < O.length; o++) { const [f, a] = O[o]; s += a * nz.noise3D(x * f + off + 1.3 * o, y * f + 2 * off + 2.9 * o, zz * f + 3 * off + 0.7 * o); } return s; };
     let land = 0;
-    const youngBy = new Float64Array(4);
+    const youngBy = new Float64Array(4), youngKind = new Uint8Array(n);
     // the river plains: along the big rivers (floodplains); and deltas and basin floors — the land where the rivers laid
     // the most, about plainsShare of it (how much they lay differs with the detail; where they lay it does not), never where
     // they laid less than alluviumKm[0] — a cell's deposit with its neighbours' (a plain, not a speck)
@@ -293,7 +295,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         land++;
         const w = rec[c];
         // (land the record has as sea — a delta built out, a strait filled — is young sediment)
-        if (!S.land[w]) { rock[c] = Rock.ALLUVIUM; shares[Rock.ALLUVIUM]++; youngBy[0]++; continue; }
+        if (!S.land[w]) { rock[c] = Rock.ALLUVIUM; shares[Rock.ALLUVIUM]++; youngBy[0]++; youngKind[c] = 1; continue; }
         const x = xyz[3 * c], y = xyz[3 * c + 1], zz = xyz[3 * c + 2];
         // (the record read a little displaced — a fractal warp: its contacts wander and fold at every scale this mesh
         // draws, but stay whole lines — no islands of noise)
@@ -375,10 +377,10 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         for (let k = 1; k < ROCK_COUNT; k++) if (score[k] > bv) { bv = score[k]; best = k; }
         rock[c] = best; shares[best]++;
         // (for the checks: what made young sediment win — a river's deposit, dunes, loess, the ice's moraines)
-        if (best === Rock.ALLUVIUM) youngBy[young === yA ? 0 : young === yE ? 1 : young === yL ? 2 : 3]++;
+        if (best === Rock.ALLUVIUM) { const by = young === yA ? 0 : young === yE ? 1 : young === yL ? 2 : 3; youngBy[by]++; youngKind[c] = by + 1; }
     }
     // (a cell alone among others of one kind takes theirs — a speck on a map is noise, at any detail)
     for (let pass = 0; pass < G.despeckle; pass++) despeckle(mesh, rock, ocean, shares);
     if (land) { for (let k = 0; k < ROCK_COUNT; k++) shares[k] /= land; for (let k = 0; k < 4; k++) youngBy[k] /= land; }
-    return { rock, rec, shares, youngBy };
+    return { rock, rec, shares, youngBy, youngKind };
 }

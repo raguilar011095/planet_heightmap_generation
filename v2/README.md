@@ -67,7 +67,8 @@ lowered and k raised so its erosion climbs further up the headwaters (rivers dra
 dissection cut deeper (by drainage area in km², the same at every detail), soil creep shorter and the fold belts' crests
 harder — over the mountains 5 % more relief, 13 % less ground above 4 km than at 0; sediment laid down (fans, floodplains,
 deltas); soil creep where it is wet and warm; an Earth-like last ice age (U-troughs, fjords, scoured lake hollows,
-moraines, basins still sunk by the ice); and the wind (sand seas with dune ridges at 10M, pans, loess). It runs in its
+moraines, basins still sunk by the ice); and the wind (sand seas with dune ridges at 10M, pans, loess — its silt mostly
+the outwash's and the cold deserts', kept where the climate is not tropical: Earth's lies 30–55°). It runs in its
 own worker (which alone holds a 10M-cell mesh) and returns an equirectangular picture of heights and the ocean, painted
 like the live terrain; one moment is kept in detail per history (the one before is let go once the next is done, so a cancel loses nothing). A finished moment brings **its own
 climate, at its detail**: the grid's climate from the finish's climate stage, each cell's own (its height, its relief)
@@ -160,6 +161,8 @@ node v2/tools/check-phase1.mjs         # … 2, 3, 4, 5, 5b, 6, 6b, 7, 7b, 7c, 8
 node v2/tools/check-invariants.mjs     # invariants through whole histories: land never vanishes, dead plates empty, terrane ids, cratons
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
 node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md): the record changes no history; seas, cover, wear
+node v2/tools/check-farming.mjs        # the farming (plans/V2_FARMING_PLAN.md): the same at 160K and 640K; soils, seasons, water, slopes where they belong
+node tuning/farming/earth-farming.mjs  # the farming's climate part on Earth's observed climate: breadbaskets, the irrigation cradles, black earth, leaching, podzol, staples
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
 node v2/tools/render-frames.mjs tug plates            # PNG frames of a scene → v2/out/
@@ -225,6 +228,17 @@ js/geology/        the finish's geology (plans/V2_GEOLOGY_PLAN.md): geology-conf
                    guideRules — where the science overrode Madeline James's guide, each switchable back), rocks (each
                    finished cell's kind of rock: the frame's rock column read where the terrain read it, with the finish's
                    cuts and young sediment — G2)
+js/farming/        the finish's farming (plans/V2_FARMING_PLAN.md; Madeline James's culture series, Part 4): farming-config
+                   (its tunables, in °C / mm / km / m³/s, with their ranges), farming (the growing season from a place's
+                   months; the soil from its rock and climate; slope, waterlogging and the water rivers and lakes could
+                   bring; each crop's harvests a year; farmland and the staple put together with the techniques chosen),
+                   spread (the hearths where farming began and how each one's strains spread: a travel cost a km over
+                   a 0.5° grid — rivers, coasts and plains cheap; hills, deserts, mountains and open ocean dear — the first
+                   strain of each crop to reach a place keeping it), varietals (real crops for the strains' names: ~30
+                   of Earth's domesticates by staple group and Köppen climate, and 12 packages of crops domesticated
+                   together, matched to the hearths by staples and climate — every rule a weighted preference), cradles
+                   (people a km², and where the first states
+                   could rise: the likeliest places — an experimental view)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
   anchor           the fine detail belongs to the crust: plate-frame positions for noise, per-crust-cell random streams
@@ -258,7 +272,7 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), export (a finished moment's maps as PNG files, or all in a ZIP)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), geology-view (the Geology tab), farming-view (the Farming tab: Farmland, Staples, Crop spread, People, Cradles (experimental), Soil, Growing season; its technique and staple chips, the cradles' pins), finish-view (the Finish step's worker and painting), export (a finished moment's maps as PNG files, or all in a ZIP)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-sediment (fans, floodplains, deltas; creep by climate),
@@ -350,6 +364,80 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    land; dunes, loess, moraines) and flood basalt; a majority filter for specks. The land's families come out near
    Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's record views read
    each pixel's record cell too, and its rock (bare basement or cover).
+   **Farming** (plans/V2_FARMING_PLAN.md, after Madeline James's culture series, Part 4, and Ramankutty et al. 2002's
+   cropland suitability): the finish's `farming` stage (`farming/farming.js`) works out each land cell's parts — the
+   growing season from its final climate's months (each month warm, 5 → 15 °C, × wet, its rain, melt and 100 mm of soil
+   water past ~half its potential evaporation: the FAO's growing period), by rain and watered; the soil from its rock
+   (river silt and loess richest, then ash, basalt, limestone and shale; granite and shields poor; the bedrock's soils
+   read over ~100 km, the young sediment's crisp) and its climate (black earth in the subhumid continental climates,
+   leaching in the hot wet tropics unless floods, ash or rising ranges renew the ground, podzol under boreal conifers);
+   slope over ~12 km; waterlogged flats; and the water a big river's floodplain or canals from rivers and fresh lakes
+   could bring (reaching farther from a bigger river, onto ground not far above it). The picture carries them per pixel;
+   the Farming tab puts them together with the techniques chosen in its legend (flood farming, canals, terraces, raised
+   fields — not tied to the metal ages), as a soft ramp or graded classes: green by rain, aqua where only water brought
+   makes the land farmable. **Harvests and staples** (C2): each cell's harvests a year of four crop groups — paddy
+   rice, wheat and barley, maize and millet, roots and tubers — by rain and watered (water brought tops a month up to
+   what the crop wants, ~60 mm at most: a desert river grows a cool season's grain, not a paddy). Each crop kind grows
+   month by month by degree-days from its base to its optimum, wet enough and not drowned (surplus mm), and ripens after
+   its cycle; a dry or cold gap ends a run (winter grains sleep through the cold); harvests a staircase, a second one a
+   whole cycle and a turnaround later (wheat and barley one a year, rice up to three); a second crop of another group in
+   the months the first leaves. Rain-fed harvests discounted where the year is dry or its rain seasonal (failed years).
+   Kept two bytes a group (√-encoded). The page: each group's food — harvests with the techniques' water (past the first
+   only as the soil can feed them) × soil × ground (rice level fields) × how many it feeds — the best is the staple (or
+   herding) and the Farmland (good: one sure harvest; excellent: more). **Cradles and people** (C3,
+   `farming/cradles.js`): from the farming picture, people a km² (pre-industrial potential), and the likelihood a first
+   state rises over a heartland of any size (within 150, 300 or 600 km of a place; the likeliest kept) — a critical mass
+   fed by taxable grain (250 thousand → 2.5 million, log scale; and close enough to rule, 3–12 a km²) × walled in (the
+   land up to 300 km beyond it desert, mountains, sea or steppe) × fed by works that need organising × most of its grain
+   on navigable water × herders beyond — glowing across each heartland's grain land (LatLonGrid.maxWithin), the
+   likeliest sites numbered, with how many their grain could feed — an experimental view now (View → Experimental
+   Views). **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
+   hearths where a region (~400 km) grows the most rain-fed food at one harvest a year, more so with several staples
+   (their effective number), each ≥ 2000 km from the others and ≥ 5000 apart by the way crops travel (Dijkstra over a
+   cost a km: 1 on flat land a crop grows on, + up to 4 for hills to mountains, + 4 for desert, + 2 where it does not
+   grow; × 0.5 along a river, × 0.7 on a coast; the sea 1 near land to 40 past ~450 km from it); each domesticates the
+   staples that grow best (rain-fed) on ≥ 15 % of its farmland, two or three (the next best there if need be), every staple from at least one hearth
+   (two where it can be, three at most — never taking a hearth's leading one, an extra swapped for a staple fewer hearths have that grows there too; a hearth's second, if none other qualifies, likewise the rarest that grows there). Each crop's strains spread from their
+   hearths by one multi-source Dijkstra (the first to reach a cell keeps it); the page gives each pixel the strain its
+   four grid cells vote for, and its crops: the best of those that reached it (or herds), a second where it feeds ≥ 80 %
+   as much. The hearths are chosen by rain alone (their spacing too), so the same whatever the techniques. **Real crops**
+   (C4b, `farming/varietals.js`): a crop suits a hearth's strain by its climate (the hearth region's Köppen mix: the
+   same class 1, the same first two letters 0.6, the same first letter 0.3), + the pull of the Earth packages it is in
+   (the Fertile Crescent, the Andes, the Sahel…: each as its climate × the hearth's staples it covers suit the hearth —
+   a hearth partly like several), + how great a staple it was (the great staples first); each staple group's crops
+   shared out one each among its strains, the best sharing found exactly. A package's crops also pull a hearth's second
+   staple. The legend lists each hearth's crops as choices (its group's crops, the likeliest first; one another strain
+   has swaps with it), kept per detailed moment, and says which Earth hearths it is partly like; a Real crops chip and
+   a Reset. **Each crop's own climates in the spread** (C4c): spreadBase (the picture read, the hearths, their crops —
+   cached per techniques) and spreadStrains (again when a crop is chosen, ~0.3 s): each strain spreads by its own
+   Dijkstra, its fit the group's × its crop's niche (Köppen like its climates: from 0.25 outside to 1 in them, averaged
+   over each grid cell's land); a cell's strain the first to reach it unless a later one is worth more there — niche ×
+   (0.6…1 as the crop was a great staple) × e^(−lateness ÷ 3000) — so a better crop from near wins out, one from over a
+   long sea never; and each place's crops weighed by their strains' niches (spreadPlace takes the pixel's Köppen
+   class). Real crops off: the staple groups alone. The sea is crossed freely where no strain is yet (1 a km within
+   200 km of land, rising to 40 at 700 km; never past 1000 km from land — the open ocean, not searched; reach 50 000),
+   but counts 10× in a strain's lateness against one already there; between hearths it stays as dear as before. Each
+   strain's spread is kept (by its hearth's place, its staple and crop), so a crop chosen re-spreads only its strain
+   (~0.1 s). **Re-roll** (C4d): spreadBase is spreadGround (the picture read, the ways — cached per techniques) and
+   spreadHearths(ground, roll): at roll 0 the likeliest, as before (byte-identical); at another the same scores as odds —
+   the order the regions are tried in by their richness × e^(0.25 × a random field smooth over ~1000 km), a hearth's
+   other staples by their shares × e^(0.4 × a normal number) (its leading one kept), each real crop's pull + 0.3 × a
+   Gumbel draw before the one-each sharing — every rule kept as before; each a hash of the roll, its stream and the place
+   (the same every time, at any detail). The legend's Re-roll chip picks a roll at random, 1–999999 as a seed is, kept
+   in the link as `crops=` (none: roll 0; New World back to 0); a crop chosen goes (the hearths may move); Reset crops
+   back to roll 0; a re-roll ~0.5–0.8 s. **One part of the world; at home** (C4e): a hearth's crops
+   pull on each other — each pair + 0.6 × how near their Earth homes were (1 one package; packages' rough places on
+   Earth, 1 within 1500 km falling to 0 at 6000) — solved by sharing each group out again in turn with the others'
+   names (block coordinate ascent: the total only grows) until none changes; and each strain's niche is its crop's
+   blended 30 % toward its hearth's climates (each class as like one of the hearth's, as that covers 5–25 % of its land:
+   varietals.js strainNiche), so a strain grows well around its own hearth (its suits kept per hearth place and crop). `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it,
+   the cradles on grain and water, each a critical mass, glowing across its heartland, the hearths far apart with every
+   staple domesticated, each strain its own real crop of its group, mostly great staples in a climate like its hearth's, each crop grown more in its own climates, the hearths the same
+   whatever the techniques, their strains spread far over seas but never the open ocean, little good crop land
+   unreached, little farmland left to foragers, each re-roll another history keeping every rule (the richest hearth
+   still near in most), a hearth's crops from one part of the world more than by their own suits alone, each strain
+   at home around its hearth;
+   `tuning/farming/earth-farming.mjs` checks the climate's part, the staples and the classes at 95 places on Earth.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

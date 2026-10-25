@@ -21,7 +21,7 @@ function dune(t) {
  * @param {Object} ctx  { mesh, z (km, changed in place), lat, lon (degrees), koppen, grid (LatLonGrid), wind:
  *                        { year: [u, v], jan: [u, v], jul: [u, v] } (1° climate-grid fields, m/s, east and north),
  *                        climGrid (the climate's grid: {w, h, step}), outwash (Uint8Array: the ice age's margins), seed,
- *                        fade (lam → 0…1: what the mesh can show) }
+ *                        fade (lam → 0…1: what the mesh can show), tAnnual (each cell's year, °C: where loess is kept) }
  */
 export function windWork(ctx, F) {
     const { mesh, z, lat, lon, koppen, grid, fade } = ctx, n = mesh.numCells, { adjOffset, adjList, edgeKm, xyz } = mesh;
@@ -82,9 +82,10 @@ export function windWork(ctx, F) {
         const v = noise.noise3D(xyz[3 * c] * pf + 11.7, xyz[3 * c + 1] * pf + 3.1, xyz[3 * c + 2] * pf + 7.9) - 0.35;
         if (v > 0) z[c] = Math.max(Math.min(z[c], 0.003), z[c] - panShow * F.panKm * Math.min(1, v / 0.5));
     }
-    // ── loess: dust from the deserts and the outwash, carried downwind (on the grid), laid on gentle land beyond ──
-    const bare = new Float32Array(desert.length);
-    for (let c = 0; c < desert.length; c++) bare[c] = Math.max(desert[c] > 0.5 ? 1 : 0, ctx.outwash?.[c] ? 1 : 0);
+    // ── loess: dust from the deserts and the outwash, carried downwind (on the grid), laid on gentle land beyond — the
+    // silt mostly the outwash's and the cold deserts' (a hot desert's dust is mostly sand), kept where it is not tropical ──
+    const bare = new Float32Array(desert.length), hotShare = F.loessHotShare ?? 1;
+    for (let c = 0; c < desert.length; c++) bare[c] = Math.max(desert[c] > 0.5 ? (koppen[c] === KOPPEN_ID.BWh ? hotShare : 1) : 0, ctx.outwash?.[c] ? 1 : 0);
     const src = grid.average(lat, lon, bare, c => z[c] > 0);
     const loess = new Float32Array(grid.size), steps = 12, stepKm = F.loessReachKm / 6;
     for (let j = 0; j < grid.h; j++) {
@@ -111,7 +112,8 @@ export function windWork(ctx, F) {
         if (!(L > 0.02)) continue;
         let m = 0;
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) m = Math.max(m, Math.abs(z[adjList[k]] - z[c]));
-        const t = F.loessKm * Math.min(1, L / 0.35) * smooth(0.06, 0.01, m / edgeKm);
+        const kept = ctx.tAnnual && F.loessWarmC ? smooth(F.loessWarmC[0], F.loessWarmC[1], ctx.tAnnual[c]) : 1;
+        const t = F.loessKm * Math.min(1, L / 0.35) * smooth(0.06, 0.01, m / edgeKm) * kept;
         if (t > 0) { z[c] += t; loessKm2 += cellKm2 * t / F.loessKm; if (loessOut) loessOut[c] = t; }
     }
     return { ergKm2, loessKm2, erg, loess: loessOut };

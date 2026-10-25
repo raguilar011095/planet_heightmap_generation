@@ -217,6 +217,7 @@
                 <div class="tg">
                     <label class="toggle-label"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
                     <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+                    <label class="toggle-label"><input type="checkbox" id="chkExperimental"><span class="toggle-track"><span class="toggle-thumb"></span></span>Experimental Views <span class="tip" data-tip="Views still being worked out, shown among the others: the Farming tab's Cradles — where the first states could rise">?</span></label>
                 </div>
                 <div class="cg" id="gridSpacingGroup">
                     <label>Grid Spacing</label>
@@ -265,6 +266,15 @@
             <option value="geoCover">Sediment</option>
             <option value="geoWear">Erosion depth</option>
         </optgroup>
+        <optgroup id="mobileFarming" label="Farming">
+            <option value="farmLand">Farmland</option>
+            <option value="farmStaple">Staples</option>
+            <option value="farmSpread">Crop spread</option>
+            <option value="farmPeople">People</option>
+            <option value="farmCradle" data-experimental hidden disabled>Cradles</option>
+            <option value="farmSoil">Soil</option>
+            <option value="farmSeason">Growing season</option>
+        </optgroup>
         <optgroup label="Climate: more">
             <option value="pressure">Pressure</option>
             <option value="upwelling">Upwelling</option>
@@ -282,6 +292,7 @@
             <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
             <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
             <button class="map-tab" data-layer="geology" title="What the history left in the rock: its mountain belts, active, worn and long gone; where shallow seas lay over the continents; the sediment on them; how deep erosion has cut. Comes with Add detail">Geology</button>
+            <button class="map-tab" data-layer="farming" title="What the land could grow — soil × ground × growing season — by rain alone or with water brought by flood farming and canals, terraces and raised fields: where dense farming peoples could live. Comes with Add detail">Farming</button>
             <button class="map-tab" data-layer="heightmap">Heightmap</button>
             <button class="map-tab" data-layer="plates">Plates</button>
         </div>
@@ -316,6 +327,15 @@
                 <button class="map-tab" data-layer="geoSeas" title="Where shallow seas lay over the continents, and when: the sea rises when the ocean floor is young and falls under a supercontinent">Past seas</button>
                 <button class="map-tab" data-layer="geoCover" title="The sediment laid on the continents — sand and mud, limestone, salt, coal, black shale — by its top, deeper the thicker">Sediment</button>
                 <button class="map-tab" data-layer="geoWear" title="How deep erosion has cut into the basement: the rock now at the surface once lay this deep">Erosion depth</button>
+            </div>
+            <div class="map-tabs" id="farmingTabs" hidden>
+                <button class="map-tab" data-layer="farmLand" title="What the land could grow: green by rain alone, teal where only water brought makes it farmable. The legend's chips switch the farming techniques on and off">Farmland</button>
+                <button class="map-tab" data-layer="farmStaple" title="What each place would grow most — rice, wheat and barley, maize and millet, roots and tubers, or herding — what grows best there, paler where it grows less well. The legend's chips show one alone">Staples</button>
+                <button class="map-tab" data-layer="farmSpread" title="What each place grows of the crops that reached it: farming began at a few hearths far apart (numbered), each domesticating the staples that grew best around it, and each strain spread over thousands of years — fast along rivers, coasts and plains, slowly over deserts and mountains, over seas where none grew yet but never an ocean’s breadth. Each strain named after a real crop (choose them in the legend, or re-roll the whole history: another likely one by the same rules); the legend's chips show one crop's strains alone, or colour by hearth">Crop spread</button>
+                <button class="map-tab" data-layer="farmPeople" title="How many people the land could feed, pre-industrial, with the farming techniques chosen — a few on herders' pasture, over a hundred a km² on the richest river plains">People</button>
+                <button class="map-tab" data-layer="farmCradle" data-experimental hidden title="An experimental view — where the first states could rise (Madeline James's conditions): a heartland with a critical mass of people fed by a taxable grain, on navigable water, walled in by desert, mountains or sea, farming that needs organising, herders near — the likeliest heartlands numbered">Cradles</button>
+                <button class="map-tab" data-layer="farmSoil" title="How fertile the ground is: river silt and loess richest, then volcanic ash; black earth under grassland, leached red earth in the wet tropics, acid podzol under boreal forest">Soil</button>
+                <button class="map-tab" data-layer="farmSeason" title="The months crops grow: warm enough and wet enough — by rain alone, or watered">Growing season</button>
             </div>
             <select id="season" aria-label="Season">
                 <option value="year" selected>Year</option>
@@ -379,12 +399,12 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Add Detail</h3>
-                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong> and <strong>Geology</strong> views. It takes from a few seconds to about a minute.</p>
+                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong>, <strong>Geology</strong> and <strong>Farming</strong> views. It takes from a few seconds to about a minute.</p>
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> — hover for how each came to be there — its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Farming</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> — hover for how each came to be there — its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut. <strong>Farming</strong> shows what the land could grow — green by rain alone, aqua where only water brought from rivers makes it farmable — its staple crops, where each place's crops came from (a few hearths where farming began, and how each one's strains spread — re-roll it for another likely history), how many people it could feed, its soil and its growing season; switch the farming techniques on and off in its legend.</p>
                 <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. <strong>Export All</strong> saves one of each in a ZIP, at any width up to 16384 px.</p>
             </div>
             <div class="tutorial-step" data-step="4">

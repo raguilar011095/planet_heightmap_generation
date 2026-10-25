@@ -322,7 +322,7 @@ function gridSampler(W) {
 }
 /** The climate picture's pixel for texture pixel (x, y) of a texture W wide — on land, the nearest land pixel (a coast
  *  the two pictures draw a pixel apart) — or −1. */
-function landPixel(R, W, x, y) {
+export function landPixel(R, W, x, y) {
     const s = R.w / W, cx = Math.min(R.w - 1, Math.floor((x + 0.5) * s)), cy = Math.min(R.h - 1, Math.floor((y + 0.5) * s)), i = cy * R.w + cx;
     if (R.koppen[i]) return i;
     for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
