@@ -31,11 +31,15 @@ export function createPhase(simMesh, seed, overrides = {}) {
             'offshore. Time 0 is the start state. Press play for “the nudge”: the whole plate drifts at ' + NUDGE_CM_YR +
             ' cm/yr toward its active rim, using the Phase 2 rules, to show how a smooth offshore trench behaves.',
         checklist: [
-            `Cratons: ${cfg.cratonCount} of them, clearly different sizes (largest ÷ smallest diameter ≈ ${cfg.cratonSizeRatio}), irregular outlines, lettered A, B, C…`,
+            `Cratons: ${cfg.cratonCount} of them, clearly different sizes (largest ÷ smallest diameter ≈ ${cfg.cratonSizeRatio}), lettered A, B, C…`,
+            'Each craton is a fragment, not a blob: an elongated core clipped by a few near-straight old rift edges (some with a step where a transform offset them), corners rounded — kites, lenses, wedges and D-shapes, no slivers. Some come in sibling pairs: two halves of one parent split across its long axis, their matching edges facing each other across a gap.',
+            'They cluster: a few proto-continents, each holding its cratons close together, with wider ground between the clusters (the cards show both gaps).',
+            'The supercontinent was assembled: each proto-continent grew outward (a core round its cratons, then accreted rings on the side that grew wider), and they met along a few long, curving major seams. Terranes layer: each craton\'s core terrane, the rings beyond, the proto-continents\' borders. The seams carry the old ranges — highest on the major seam of the last two to meet, lower on earlier ones, faint between a core\'s cratons — so there is no honeycomb of ranges round every craton.',
+            'The coast is drawn by the assembly and the margin, not by noise: lobes where proto-continents bulge, bays where they did not meet (a gulf by chance), smooth arcs joined at cusps along the trench, rifted steps along the passive stretch, and only small bays and headlands from noise.',
             'Priorities when the sliders compete: the spacing minimums always hold; the continental-crust percentage is hit as closely as possible; craton size is what gives way — cratons shrink (down to 30 % of the requested area) to make room. Push the gap and sea-distance sliders up and watch the cratons get smaller while the land percentage stays put.',
             `Spacing, always: at least ${cfg.cratonMinGapKm} km of accreted crust between any two cratons, and at least ${cfg.cratonMinCoastKm} km between any craton and the sea. The cards show the measured minimums — try many seeds (the “New” button) and the sliders.`,
-            'Terranes layer: every piece of land belongs to one craton’s terrane, and terranes differ a lot in size — these are the pieces the supercontinent will later break into. Borders wander; they are not straight Voronoi lines.',
-            'Strength layer: the orange suture belts between terranes are the weak zones future rifts will follow; cratons (dark) are rigid and rifts must go round them.',
+            'Terranes layer: every piece of land belongs to a terrane — a craton’s core, or an accreted ring — and terranes differ a lot in size. Borders wander; they are not straight Voronoi lines.',
+            'Strength layer: the orange suture belts — the major seams between proto-continents and the seams between a core’s cratons — are the weak zones future rifts will follow (not the rings’ seams, which run along the coast: a rift following one would shave a ribbon off it); cratons (dark) are rigid and rifts must go round them.',
             'One connected landmass with bays and promontories, no inland seas, no stray islands, and no more than about half-way round the planet end to end.',
             'Crust type layer: the lighter-blue apron is old ocean that belongs to the continent’s plate. It fills the bays, so the plate outline — and the trench on it (deep blue at time 0) — is much smoother than the coastline.',
             'One stretch of the rim has no trench: a passive margin. Its position changes with the seed; the “rim trench” slider changes how much of the rim is active.',
@@ -94,6 +98,8 @@ export function createPhase(simMesh, seed, overrides = {}) {
                         ? `of it is craton · asked ${pct(cfg.cratonShare)}, shrunk to ${(start.cratonAreaScale * 100).toFixed(0)} % size to make room for the gaps`
                         : `of it is craton · asked ${pct(cfg.cratonShare)} ✓` },
                     { big: `${m.cratonSizeRatio.toFixed(1)}× · ${m.terraneSizeRatio.toFixed(1)}×`, small: 'size spread: cratons (Ø) · terranes (area)' },
+                    ...(m.clusterContrast ? [{ big: `${m.clusterContrast.intraKm.toFixed(0)} · ${m.clusterContrast.interKm.toFixed(0)} km`,
+                        small: `gaps: cluster-mates · between clusters (${new Set(start.cratons.map(k => k.cluster)).size} clusters, ${m.siblingPairs} sibling pairs)` }] : []),
                     { big: `${m.longestAxisDeg.toFixed(0)}°`, small: 'longest axis (180° = half-way round)' },
                     { big: `${m.rimCells} / ${m.coastCells}`, small: `rim ÷ coast length in cells · trench on ${pct(m.trenchCoverage)} of the rim` },
                     { big: `${t.newOcean}`, small: `new-ocean cells at ${fr.time} Myr (the wake)` },

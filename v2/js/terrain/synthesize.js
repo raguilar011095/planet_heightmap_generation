@@ -344,7 +344,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     const bw = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0], frontP = [0, 0, 0], A_ = A;   // (A_: in the belt loop below, A is a crest height)
 
     const slopes = coastCurve > 0 || mountainCurve > 0 ? slopeMemo(plan, simMesh) : null, crossC = [0, 0];
-    const cratF = R / 600, shapeF = R / cfg.cratonShapeKm, grainF = R / cfg.cratonGrainScaleKm, grainShow = fade(cfg.cratonGrainScaleKm);
+    const cratF = R / 600, shapeF = R / cfg.cratonShapeKm, grainF = R / cfg.cratonGrainScaleKm, grainShow = fade(cfg.cratonGrainScaleKm), grainStretch = cfg.cratonGrainStretch ?? 1;
     const coastF = R / 700, platF = R / 2000, strikeF = R / 900, segF = R / cfg.stripeSegmentKm, meanderF = R / cfg.stripeMeanderAlongKm, meander = cfg.stripeMeanderKm / R;
     const blendF = R / cfg.blendNoiseKm, crestF = R / 150, slopeF = R / 300, microF = R / cfg.carveMicroScaleKm, lipNoiseF = R / cfg.lipWallNoiseKm;
     // old ranges erode fatter; every belt's massif texture (terrain-config.js crestSpreadKm, massifKm): its octaves'
@@ -522,7 +522,13 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                         const form = smooth(0.1, 0.8, rho + 0.3 * 1.6 * noise.fbm(x * shapeF + ch.salt, y * shapeF + 2.3 * ch.salt, z * shapeF + 5.5, 3, 0.5));
                         platform += k * ch.amp * (ch.kind > 0 ? cfg.cratonSwellKm : -cfg.cratonSagKm) * form;
                     } else platform += k * ch.amp * cfg.cratonFlatKm * 1.6 * noise.fbm(x * shapeF + ch.salt, y * shapeF + 4.1, z * shapeF + 2.3 * ch.salt, 3, 0.5);
-                    if (grainShow > 0) platform += k * cfg.cratonGrainKm * grainShow * smooth(0, 150, crN) * (0.7 - 2 * Math.abs(noise.noise3D(x * grainF + 3.3, y * grainF + 8.8, z * grainF + 1.1)));
+                    if (grainShow > 0) {
+                        // drawn out along the craton's length (terrain/cratons.js: its grain), cratonGrainStretch times
+                        // longer than across — greenstone belts between granite domes, as the Superior's run
+                        const ax = CR.acrossW[3 * cT], ay = CR.acrossW[3 * cT + 1], az = CR.acrossW[3 * cT + 2], f = grainF / grainStretch;
+                        const s = (x * ax + y * ay + z * az) * (grainStretch - 1) * f;
+                        platform += k * cfg.cratonGrainKm * grainShow * smooth(0, 150, crN) * (0.7 - 2 * Math.abs(noise.noise3D(x * f + s * ax + 3.3, y * f + s * ay + 8.8, z * f + s * az + 1.1)));
+                    }
                 }
                 if (platform < 0.04 && before >= 0.04) platform = 0.04;            // (a sag or a foredeep is lowland, not sea)
             }

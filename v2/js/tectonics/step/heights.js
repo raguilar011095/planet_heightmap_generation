@@ -56,13 +56,18 @@ export function buildHeights(crust, c, type, side, u, reachKm, workKm, thickened
 /**
  * The start world's swells (developer, 8b round 5: "start the baseline with some large noise … that can erode over time
  * and direct rivers more consistently"): on every continent, broad uplands up to baseReliefKm high and the lowlands
- * between them, from a noise field of their own (their own seed: no other stream is touched) read where the crust is at
- * the start — so it runs on across plate boundaries. Once, when the history starts; crust made later starts flat.
+ * between them, read where the crust is at the start — so they run on across plate boundaries. Once, when the history
+ * starts; crust made later starts flat. A generated start world (init/start-world.js) carries how far each cell lies from
+ * the seams of its assembly (world.startSeamKm): the uplands then stand along the major seams and the young accreted belts
+ * — the worn highlands round an old range (the Appalachian Plateau, the Massif Central) — and the lowlands lie away from
+ * them, a noise field of their own (their own seed: no other stream is touched) only breaking them up
+ * (plans/V2_START_WORLD_PLAN.md, S4). Anywhere else, the noise alone draws them.
  */
 export function seedBaseRelief(world) {
-    const H = heightsOf(world.config), { xyz } = world.mesh;
+    const H = heightsOf(world.config), { xyz } = world.mesh, seams = world.startSeamKm;
     if (!(H.baseReliefKm > 0)) return;
     const noise = new FastNoise((world.seed ^ 0xba5e) >>> 0), F = R / H.baseReliefScaleKm;
+    const near = (d, km) => (d < Infinity ? Math.exp(-(d / km) * (d / km)) : 0);
     for (const plate of world.plates) {
         if (!plate.alive) continue;
         const { mask, type, baseKm } = plate.crust, m = plate.mat;
@@ -70,8 +75,13 @@ export function seedBaseRelief(world) {
             if (!mask[c] || type[c] === CrustType.OCEAN || type[c] === CrustType.ARC) continue;
             const x = xyz[3 * c], y = xyz[3 * c + 1], z = xyz[3 * c + 2];
             const wx = m[0] * x + m[1] * y + m[2] * z, wy = m[3] * x + m[4] * y + m[5] * z, wz = m[6] * x + m[7] * y + m[8] * z;
-            // (fbm ≈ ±0.65: a quarter of the land stays low, half rises past ~0.4 of the full height, a tenth near all of it)
-            baseKm[c] = H.baseReliefKm * (type[c] === CrustType.CRATON ? H.baseReliefCraton : 1) * smooth(-0.1, 0.8, 1.6 * noise.fbm(wx * F + 2.1, wy * F + 7.7, wz * F + 4.9, 3, 0.5));
+            const n = noise.fbm(wx * F + 2.1, wy * F + 7.7, wz * F + 4.9, 3, 0.5);
+            // (fbm ≈ ±0.65: alone, a quarter of the land stays low, half rises past ~0.4 of the full height, a tenth near
+            // all of it; with the seams, about as much land, but placed by them. The start world's crust lies where its
+            // world cell is: nothing has moved yet)
+            const v = seams ? smooth(-0.05, 0.9, H.baseSeamShare * seams.majorRange[c] * near(seams.major[c], H.baseSeamKm) + H.baseRingShare * near(seams.ring[c], H.baseRingKm) - H.baseFloor + H.baseNoiseShare * n)
+                : smooth(-0.1, 0.8, 1.6 * n);
+            baseKm[c] = H.baseReliefKm * (type[c] === CrustType.CRATON ? H.baseReliefCraton : 1) * v;
         }
     }
 }

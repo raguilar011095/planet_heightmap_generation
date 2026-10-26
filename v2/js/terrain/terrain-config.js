@@ -106,7 +106,8 @@ export const TERRAIN = {
     cratonKm: 0.28,             // shields: low, flat, stable
     // ── Cratons against the ranges, and their look (Phase 10; terrain/cratons.js — the research is in the roadmap) ──
     cratonBlendKm: 60,          // a shield's platform blends into its neighbours over ± this across its edge line…
-    cratonEdgeNoiseKm: 70,      // …the line moved in and out by up to about this (the shield's own bays and promontories)
+    cratonEdgeNoiseKm: 45,      // …the line moved in and out by up to about this (the shield's own bays and promontories —
+                                // small: the history's craton is already a fragment with its own edges, plans/V2_START_WORLD_PLAN.md)
     cratonScrapKm: 110,         // a craton patch whose deepest point is less than about this from its edge is a scrap: it reads
                                 // as what surrounds it (no flat, stair-edged hole in a range)
     cratonRimInKm: 10,          // a range pressed against a shield fades across its rim, from this far in…
@@ -133,7 +134,8 @@ export const TERRAIN = {
     cratonFlatKm: 0.08,         // …a flat shield only undulates by this
     cratonShapeKm: 900,         // (the scale of the noise that makes a swell or a sag irregular)
     cratonGrainKm: 0.06,        // a grain of domes and keels (granite domes between greenstone belts), this high…
-    cratonGrainScaleKm: 90,     // …its domes about this far apart (faded where the mesh cannot show them)
+    cratonGrainScaleKm: 90,     // …its domes about this far apart (faded where the mesh cannot show them)…
+    cratonGrainStretch: 4,      // …drawn out along the craton's length this many times (greenstone belts; plans/V2_START_WORLD_PLAN.md S4)
     platformNoiseKm: 0.16,      // broad basins and arches (the Michigan basin, the Ozark dome), 400–2000 km across
     // The first continents are not flat (developer, 8b round 5: "start the baseline with some large noise … that can erode
     // over time and direct rivers more consistently"): broad swells and the lowlands between them, a record of the crust
@@ -143,6 +145,13 @@ export const TERRAIN = {
     baseReliefScaleKm: 2500,    // …the largest this many km across (then halves and quarters of it)…
     baseReliefTauMyr: 200,      // …and wear away over this e-folding time (at erosionHeight.refKm, like the uplift)
     baseReliefCraton: 0.5,      // a shield rises this share as high (cold, thick and stiff: the flattest ground there is)
+    // …placed, in a generated start world, by its assembly (plans/V2_START_WORLD_PLAN.md S4; step/heights.js seedBaseRelief):
+    baseSeamShare: 0.75,        // uplands along the major seams, this share of the full height…
+    baseSeamKm: 900,            // …fading over this distance from them (a highland round the old range)…
+    baseRingShare: 0.35,        // …and along the young accreted belts, this share…
+    baseRingKm: 500,            // …over this…
+    baseFloor: 0.1,             // …the ground away from them this much lower (the lowlands and interior basins)…
+    baseNoiseShare: 1.15,       // …all broken up by the swell noise at this share of its strength alone
     // Airy isostasy: thickened crust floats higher, with diminishing returns (a 35 km thicker crust stands ~5 km: Tibet)
     isoMaxKm: 6,
     isoScaleKm: 30,             // (≈ 0.17 km of height per km of extra crust at first; 35 km → 4.2 km, before the belt's relief)

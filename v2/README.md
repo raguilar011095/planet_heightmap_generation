@@ -215,7 +215,10 @@ js/tectonics/
   config.js        every tunable, in physical units (km, Myr, cm/yr); MECHANISMS = each mechanism's off-switch
   model/           crust.js (CrustRaster: per-plate cells in the plate's own frame; CELL_FIELDS; the type / flag /
                    orogeny / volcanic enums) · plate.js (Plate) · world.js (TectonicWorld, EventKind, BoundaryKind)
-  init/            the start world: cratons → landmass → apron + rim trench → world; and its measurer
+  init/            the start world (plans/V2_START_WORLD_PLAN.md): cratons (rifted fragments, some as sibling pairs,
+                   in a few clusters) → landmass (each cluster a proto-continent grown outward; major seams where they
+                   met; arcs and rifted steps along the margin) → apron + rim trench → world (old ranges along the
+                   seams); and its measurer
   step/            the stages of a step —
                      motion & view: kinematics, gather, resolve (subduct + grow), occupancy (coarse bins that let the
                                     growth step skip far plates), reconstruct (read-only playback)
@@ -448,7 +451,10 @@ signed distance to it on each plate's raster, moved by noise — not the sim cel
 across its rim; in front of them a foreland bends the shield down under the range's weight (a lowland ~0.1–0.3 km below
 the shield beyond, then a low forebulge), except where a plateau's back meets the block and the front stays steep;
 scraps of craton inside a range read as the range; and each craton has a character — a shallow sag basin, a broad swell
-or a flat shield (`cratonCharacter`) — with a faint grain of domes and keels. Trapped pockets of
+or a flat shield (`cratonCharacter`) — with a faint grain of domes and keels drawn out along the craton's length
+(`cratonGrainStretch`; the long axis read from the craton patch's shape on its plate's raster). The start world's
+swells are placed by its assembly (`world.startSeamKm`: uplands along its major seams and young accreted belts,
+lowlands away from them — plans/V2_START_WORLD_PLAN.md). Trapped pockets of
 ocean crust smaller than `pocketSeaKm2` are lowland, and a margin's kind (so its shelf width) holds along
 `coastKindKm` of its coast. **Passive margins mature** (2026-10-15, `marginMatureMyr`): a passive coast's age is the
 oldest ocean floor beside it (the floor that formed as it broke away), or less where its own belt was active since; its

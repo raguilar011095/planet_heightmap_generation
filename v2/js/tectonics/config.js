@@ -34,15 +34,44 @@ export const TECTONICS = {
     cratonMaxDiameterKm: 4000,  // [WBP] cratons are ~1000–4000 km across
     cratonMinGapKm: 500,        // HARD minimum of accreted crust between any two cratons (room for a rift)
     cratonMinCoastKm: 450,      // HARD minimum of accreted crust between any craton and the sea
-    cratonEdgeNoiseKm: 150,     // how far a craton's outline may wander from its ideal (lobed) shape
-    cratonLobes: 0.55,          // strength of the low-order harmonics that make a craton non-circular
-    gapVariety: 1.0,            // extra spacing (× min gap, random per craton) → belts and terranes of varied width
+    cratonEdgeNoiseKm: 120,     // how far a craton's outline may wander from its ideal shape (noise that follows its grain)
+    // A craton is a FRAGMENT (init/cratons.js; Bleeker 2003: the Archean cratons are rifted pieces of a few supercratons):
+    cratonMaxAspect: 2.2,       // its body is elongated along its grain by up to this (long ÷ short axis)…
+    cratonLobes: 0.3,           // …with low lobes this strong…
+    cratonRiftEdges: [1, 3],    // …clipped by this many old rift edges, near-straight…
+    cratonRiftDepth: [0.5, 0.88], // …each this far out along its bearing (× the body's radius there: 0.5 cuts deep)…
+    cratonRiftSteps: 2,         // …broken by up to this many transform offsets…
+    cratonRiftStepKm: [90, 220],// …each this big
+    cratonRiftNoise: 0.45,      // a rift edge wanders this share of cratonEdgeNoiseKm (straighter than the rest of the outline)
+    cratonMinCompact: 0.55,     // no slivers: a craton's outline comes no nearer its centroid than this × the radius of a disc
+                                // of its area (its edges are drawn again, fewer and shallower, until it does; measured on the
+                                // sim mesh a small craton loses ~0.1 of it to the cells)
+    cratonGrainNoiseKm: [900, 300], // the edge noise's features along and across the craton's grain
+    cratonSiblingChance: 0.3,   // chance that a craton comes with a sibling: one parent split in two, the halves drifted apart
+    // The cratons CLUSTER into a few proto-continents (Laurentia, Baltica, Gondwana…):
+    clusterBlocks: [2.5, 4],    // about this many cratons (or sibling pairs) per proto-continent…
+    clusterGapVariety: 0.15,    // …packed close inside one (extra spacing up to this × the spacing reserve, cratonMinGapKm +
+                                // 2 × cratonEdgeNoiseKm)…
+    clusterApart: [1.9, 2.6],   // …and the clusters this many × that reserve apart (where the younger belts lie)
     clusterLooseness: 0.15,     // randomness in where the next craton settles (rad-ish): 0 packs them like a honeycomb
     clusterElongation: 0.5,     // 0 = round supercontinents only, → 1 = may be strongly stretched
     startMaxLatitudeDeg: 12,    // a ~150°-wide supercontinent centred higher than this drapes over a pole
     spanAllowanceDeg: 19,       // [WBP: not much more than half-way round] extent allowed beyond a perfectly round landmass
-    coastReliefKm: 1200,        // how far bays and peninsulas push the coast in and out (continent-scale)
-    coastUnionSoftnessKm: 450,  // rounds the notches between neighbouring cratons out of the coastline
+    coastReliefKm: 350,         // broad bays and peninsulas left to chance (continent-scale noise; the rest of the coast's
+                                // shape comes from the assembly and the margin below)
+    coastUnionSoftnessKm: 450,  // rounds the notches between neighbouring proto-continents out of the coastline
+    // The supercontinent was ASSEMBLED (init/landmass.js; plans/V2_START_WORLD_PLAN.md S2): each cluster of cratons is a
+    // proto-continent that grew outward, and the proto-continents met along a few long seams.
+    startCoreKm: 450,           // a proto-continent's core — its cratons and the belts between them — reaches this far out…
+    startRingKm: [500, 800],    // …then it grew by accreted rings, each this wide, younger outward…
+    startGrowthBias: 0.45,      // …wider on one side (its growth distance × 1 ± up to this: a busy margin and a quiet one)
+    startSeamWanderKm: 250,     // the seams between proto-continents stray this far from where their growths meet
+    // The margin (S3): the coast is drawn by the assembly and by the kind of margin, not by noise
+    startArcKm: [1200, 2800],   // an active margin is a chain of arcs this long, joined at cusps…
+    startArcRadiusKm: [1800, 3200], // …this tightly curved, convex to the ocean (the Aleutians, the Kurils, Japan)
+    startStepKm: [300, 900],    // a passive margin's rift segments are this long…
+    startStepOffsetKm: [80, 220], // …offset from one another by transforms this big (promontories and recesses)
+    startCoastDetailKm: 90,     // bays and headlands smaller than all that, this deep (less along the smooth arcs)
     bridgeHalfWidthKm: 260,     // half-width of the corridor of accreted crust guaranteed between neighbouring cratons (spanning tree)
     terraneBorderWanderKm: 380, // how far terrane borders stray from the geometric mid-line between cratons
     sutureHalfWidthKm: 80,      // half-width of the weak belt along a terrane border — a LINE, not a province: weak
@@ -52,11 +81,15 @@ export const TECTONICS = {
     rimTrenchCoverage: 0.85,    // share of the rim that starts as an active trench (rest = passive margin)
     initialOceanAgeMyr: 150,    // pre-history ocean floor: uniformly old, soon overwritten
     initialLandAgeMyr: 2000,    // continental crust is ancient at the start of recorded history
-    startSutureBeltKm: 350,     // the start supercontinent's sutures carry old ranges (init/start-world.js): this wide…
-    startSutureWorkKm: 600,     // …built by this much convergence (0: none)…
-    startSutureAgeMyr: 300,     // …this long before the history starts…
-    startSutureKeep: 0.45,      // …and worn down to this share of a fresh range's relief…
-    startSutureNoiseKm: 1600,   // …along about half the suture network: long stretches this size come and go
+    // The start supercontinent's seams carry old ranges (init/start-world.js; records only), by kind, oldest first:
+    // [belt width km, convergence that built it km (0: none), age Myr, share of a fresh range's relief kept]
+    startRanges: {
+        inner: [220, 250, 1100, 0.2],   // between a proto-continent's cratons: worn almost flat
+        ring:  [260, 380, 650, 0.35],   // between its accreted rings: low
+        major: [420, 640, 300, 0.38],   // where the proto-continents met: the Appalachians and Urals of this Pangaea
+    },
+    startRangeVary: 0.5,        // a seam's range rises and falls along its length by up to this share (never to nothing)…
+    startRangeVaryKm: 1600,     // …over stretches about this long
 
     // ── Boundaries & crust bookkeeping (step/boundaries.js, step/resolve.js) ──
     boundaryActiveCmYr: 0.3,    // relative motion below this counts as a locked / welded contact
