@@ -6,9 +6,11 @@
 // "holes in the ground" a dried-out inland sea leaves.
 //
 //   node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 30 --time 290
-//        [--sim 40000] [--cells 2500000] [--width 4096] [--crop lon0,lon1,lat0,lat1] [--out name] [--palette relief] [--shade classic] [--lakes] [--probe "lat,lon;…"] [--rivers [q0]] [--set key=value,…]
+//        [--sim 40000] [--cells 2500000] [--width 4096] [--crop lon0,lon1,lat0,lat1] [--out name] [--palette relief] [--shade classic[,layered,…]] [--satellite] [--lakes] [--probe "lat,lon;…"] [--rivers [q0]] [--set key=value,…]
 //
 // The page's link ?seed=…&cont=…&sim=… gives --seed, --cont and --sim; the moment is --time (Myr). Output: v2/out/moments/.
+// --shade: the relief shading style(s) (terrain-shade.js SHADE_STYLES); several, comma-separated, paint one picture each
+// (<name>-<style>.png). --satellite: the Satellite view of the year too (<name>-sat[-<style>].png), as the page paints it.
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -25,13 +27,14 @@ import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { FINISH } from '../js/finish/finish-config.js';
 import { paintFinished } from '../js/evolution/finish-view.js';
 import { heightLutOf } from '../js/evolution/looks.js';
+import { finishedClimateColor } from '../js/evolution/climate-view.js';
 import { MinHeap } from '../js/core/min-heap.js';
 
 setDelaunator(Delaunator);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const SEED = Number(arg('--seed', 12345)), CONT = Number(arg('--cont', 30)), SIM = Number(arg('--sim', 40000)), TIME = Number(arg('--time', 300));
-const CELLS = Number(arg('--cells', 2500000)), W = Number(arg('--width', 4096)), PALETTE = arg('--palette', 'relief'), SHADE = arg('--shade', 'classic');
+const CELLS = Number(arg('--cells', 2500000)), W = Number(arg('--width', 4096)), PALETTE = arg('--palette', 'relief'), SHADES = arg('--shade', 'classic').split(','), SHADE = SHADES[0], SATELLITE = process.argv.includes('--satellite');
 const CROP = arg('--crop', null)?.split(',').map(Number) ?? null;
 const NAME = arg('--out', `moment-${SEED}-${TIME}-${Math.round(CELLS / 1000)}k`);
 const MESH_SEED = 12345;                              // (the page's: every planet's sim mesh is the same; the seed shapes the world)
@@ -65,8 +68,26 @@ const fin = await finishPlanet({ frame, simMesh, seed: SEED, cells: CELLS, pool,
 console.log(`\nfinished at ${CELLS.toLocaleString()} cells (${secs()}); stages ms: ${Object.entries(fin.ms).map(([k, v]) => `${k} ${Math.round(v)}`).join(' · ')}`);
 
 // ── the picture, painted as the page paints it ──
-const raster = finishRaster(fin.mesh, fin.z, fin.ocean, W, null, fin.lake, fin.lakeLevel, null);
+const raster = finishRaster(fin.mesh, fin.z, fin.ocean, W, null, fin.lake, fin.lakeLevel, SATELLITE ? fin.climate.cell : null);
+// (the moment's own climate, as the page keeps it — for the Satellite view)
+const climate = SATELLITE ? { ...fin.climate.page, raster: raster.climate } : null;
+delete raster.climate;
 const H = W >> 1, image = { data: new Uint8ClampedArray(W * H * 4) };
+const outDir = path.join(ROOT, 'v2', 'out', 'moments');
+fs.mkdirSync(outDir, { recursive: true });
+const writePng = (file, w, h, rgba) => { const p = new PNG({ width: w, height: h }); p.data = Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength); fs.writeFileSync(file, PNG.sync.write(p)); };
+// (the other styles asked for, and the Satellite view: one picture each; the first style's relief picture is the main one below)
+for (const style of SHADES) {
+    if (style !== SHADE) {
+        paintFinished(raster, { width: W, image }, heightLutOf(PALETTE), { lakes: true, shading: { exaggeration: 20, style } });
+        writePng(path.join(outDir, `${NAME}-${style}.png`), W, H, image.data);
+    }
+    if (SATELLITE) {
+        const lut = heightLutOf(PALETTE), finLike = { raster, rivers: fin.rivers, climate };
+        paintFinished(raster, { width: W, image }, lut, { lakes: true, shading: { exaggeration: 25, style }, colorAt: finishedClimateColor('satellite', 'year', climate, W, lut, finLike) });
+        writePng(path.join(outDir, `${NAME}-sat${style === SHADE ? '' : `-${style}`}.png`), W, H, image.data);
+    }
+}
 paintFinished(raster, { width: W, image }, heightLutOf(PALETTE), { lakes: true, shading: { exaggeration: 20, style: SHADE } });
 // (--rivers [q0]: the rivers drawn over it as the page draws them — every reach carrying q0 m³/s or more (the page's default
 // density 40), smoothed (Chaikin, twice), hairlines whose strength grows with the log of the discharge — scaled to this width)
@@ -107,9 +128,6 @@ if (process.argv.includes('--rivers') && fin.rivers) {
     }
     for (let p = 0; p < W * H; p++) if (cover[p] > 0) for (let ch = 0; ch < 3; ch++) image.data[4 * p + ch] = image.data[4 * p + ch] * (1 - cover[p]) + RGB[ch] * cover[p];
 }
-const outDir = path.join(ROOT, 'v2', 'out', 'moments');
-fs.mkdirSync(outDir, { recursive: true });
-const writePng = (file, w, h, rgba) => { const p = new PNG({ width: w, height: h }); p.data = Buffer.from(rgba.buffer, rgba.byteOffset, rgba.byteLength); fs.writeFileSync(file, PNG.sync.write(p)); };
 writePng(path.join(outDir, `${NAME}.png`), W, H, image.data);
 if (CROP) {
     const [lo0, lo1, la0, la1] = CROP, x0 = Math.floor((lo0 + 180) / 360 * W), x1 = Math.ceil((lo1 + 180) / 360 * W);
