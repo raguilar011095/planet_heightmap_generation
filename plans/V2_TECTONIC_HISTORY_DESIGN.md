@@ -1336,6 +1336,22 @@ they found was fixed, and each fix has a check that would catch its return.
   | land below 400 m | 65–67 % | 71–72 % |
   | 90th percentile | 0.82–0.87 km | 0.77–0.82 km |
   | highest peak | 2.5–2.6 km | 2.7–3.2 km |
+- **The far field (developer, 2026-10-25: "any long range effects of collisions and orogeny … across cratons or even
+  across continents?"; plans/V2_FAR_FIELD_PLAN.md).** Records only (the events are the same with it on and off).
+  - **The push.** Collisions and strongly coupled subduction coasts (owner's choice) push through their plates every
+    4 Myr (step/far-field.js). Cratons pass it on, weak lines take it up, and the start world's major seams push as
+    prehistoric collisions.
+  - **Reactivation (F2).** Where a strong push meets a quiet old suture or failed rift square-on, far from the front, an
+    INTRAPLATE belt rises (the Tian Shan behind the Tarim block; an inverted aulacogen). It is uplift and crests only, at
+    a strain-rate threshold. Monitored over whole 1200 Myr histories at the owner's request: within ~2 points of land
+    above 1 km of a history without it.
+  - **Terrain (F3–F4).** The lithosphere's folds (subtle) and the grain a push leaves: noise read across the push's phase
+    — how far the push came (farDist, averaged over the pushes, so it holds still on the crust), the grain faded in as
+    the push grows rather than stretched more.
+  - **Lessons.** A tangent axis cannot stretch noise (p·a ≈ 0 where a is tangent at p). A belt's root stacks on old
+    thick crust (13 km peaks). Reactivation needs a rate threshold, not a total. A phase that keeps growing (the log of
+    a running total) or a stretch that grows with the push slides the noise frame to frame: the plains swam (8a 0.88).
+  - check-far-field: 18 checks.
 
 **Known limitations (accepted for now)**
 - A plate under little net force can still *spin* noticeably (drag against rotation about a small

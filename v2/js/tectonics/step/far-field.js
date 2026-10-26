@@ -4,10 +4,13 @@
 // rigid Tarim block, 1500–2500 km from India (Molnar & Tapponnier 1975; Neil & Houseman 1997), the Alpine foreland's
 // basins squeezed back up (Ziegler et al. 1995). Stiff blocks in a soft sheet (England & McKenzie 1982).
 //
-// Each crust cell records what it has felt (model/crust.js): how much in all (farWork, km of shortening-equivalent — the
-// grain it leaves), how much lately (farFold, fading over farFoldMyr from farAt — the lithosphere's folds), and the axis it
-// was squeezed along (farDx/Dy/Dz × 127, in the plate's frame; an axis, so its sign means nothing). Records only: the
-// history never reads them.
+// Each crust cell records the push that has reached it (model/crust.js): how much in all (farWork, km of shortening-equivalent —
+// the grain it leaves), how far it came (farDist: the path cost from the fronts, averaged over the pushes by what each
+// brought — its level lines run along the fronts, and the terrain reads its folds and grain across them; an average, so it
+// holds still while a front keeps pushing from where it stands, where a running total would creep), how much lately
+// (farFold, fading over farFoldMyr from farAt — the lithosphere's folds), and the axis it was squeezed along (farDx/Dy/Dz ×
+// 127, in the plate's frame; an axis, so its sign means nothing — the lab's ticks). What a cell takes up of it (farTake) is
+// what a push raises. Records only: the history never reads them.
 //
 // Fronts feed it as they work (feedFarField: step/collision.js, step/boundaries.js); every farFieldEveryMyr the pushes
 // gathered are spread over their plates — one cost-weighted Dijkstra per front, the stronger front cells starting
@@ -131,10 +134,9 @@ const scratch = { dist: null, from: null, heap: null };
 /**
  * Spread one front's push over `plate`: from `sources` (raster cell → km), through the plate's crust — a craton passes it
  * on (farCratonCost per km), a weak line soaks it up (farWeakCost) — fading as exp(−cost / L), L = farReachKm for a front
- * farFrontRefKm long. Each land cell reached records what reaches it × what it takes (farCratonTake, farWeakTake, else 1)
- * and turns its axis toward the direction away from the front cell the push came from. @returns {{cells: number[],
- * inc: Float32Array, from: Int32Array, dist: Float64Array}} the land cells reached and what each felt (for whatever a push
- * raises — later phases)
+ * farFrontRefKm long. Each land cell reached records what reaches it and turns its axis toward the direction away from
+ * the front cell the push came from. @returns {{cells: number[], inc: Float32Array, from: Int32Array, dist: Float64Array}}
+ * the land cells reached and what each took up of it (× farTake: what a push raises — reactivate)
  */
 export function spreadPush(world, plate, sources, frontKm, time) {
     const cfg = world.config, { mesh } = world, { xyz, adjOffset, adjList } = mesh, crust = plate.crust;
@@ -167,16 +169,17 @@ export function spreadPush(world, plate, sources, frontKm, time) {
             heap.push(d, nb);
         }
     }
-    // record what each land cell felt
+    // record what reached each land cell (the record holds the push that REACHES it — smooth across a craton's edge or a
+    // weak line, so the terrain can read its level lines, which run along the front: plans/V2_FAR_FIELD_PLAN.md F3–F4); what
+    // each takes up of it (farTake: a craton little, a weak line more) is what a push raises
     const cells = [], inc = new Float32Array(reached.length);
     for (const c of reached) {
         if (type[c] === CrustType.OCEAN) continue;
-        const take = type[c] === CrustType.CRATON ? cfg.farCratonTake : (flags[c] & WEAK) ? cfg.farWeakTake : 1;
-        const felt = W * Math.exp(-dist[c] / L) * take;
-        if (!(felt > 1e-4)) continue;
-        inc[cells.length] = felt;
+        const reach = W * Math.exp(-dist[c] / L);
+        if (!(reach > 1e-4)) continue;
+        inc[cells.length] = reach * farTake(cfg, type[c], flags[c]);
         cells.push(c);
-        recordPush(crust, c, felt, xyz, from[c], time, cfg.farFoldMyr);
+        recordPush(crust, c, reach, dist[c], xyz, from[c], time, cfg.farFoldMyr);
     }
     // (the scratch is reset for exactly the cells this spread touched, the caller having read what it needs first)
     const out = { cells, inc: inc.subarray(0, cells.length), from: Int32Array.from(cells, c => from[c]), dist: Float64Array.from(cells, c => dist[c]) };
@@ -185,13 +188,14 @@ export function spreadPush(world, plate, sources, frontKm, time) {
 }
 
 /**
- * Crust cell `c` felt `felt` km of push from the front cell `src` (raster cells of one plate, so positions in its frame):
- * add it to the whole and to the recent push (decayed to now), and turn its axis toward the push's — away from the front,
- * weighted by how much each push brought (sign-blind: an axis).
+ * Crust cell `c` felt `felt` km of push from the front cell `src`, `distKm` of path cost away (raster cells of one plate,
+ * so positions in its frame): add it to the whole and to the recent push (decayed to now), and draw its distance and its
+ * axis toward the push's — the axis away from the front — each weighted by how much each push brought (sign-blind: an axis).
  */
-export function recordPush(crust, c, felt, xyz, src, time, foldMyr) {
+export function recordPush(crust, c, felt, distKm, xyz, src, time, foldMyr) {
     const old = crust.farWork[c];
     crust.farWork[c] = old + felt;
+    crust.farDist[c] = (crust.farDist[c] * old + distKm * felt) / (old + felt);
     crust.farFold[c] = crust.farFold[c] * Math.exp(-Math.max(0, time - crust.farAt[c]) / foldMyr) + felt;
     crust.farAt[c] = time;
     if (src < 0 || src === c) return;
@@ -205,6 +209,11 @@ export function recordPush(crust, c, felt, xyz, src, time, foldMyr) {
     if (vx * ax + vy * ay + vz * az < 0) { vx = -vx; vy = -vy; vz = -vz; }
     const x = vx * old + ax * felt, y = vy * old + ay * felt, z = vz * old + az * felt, l = Math.hypot(x, y, z) || 1;
     crust.farDx[c] = Math.round(127 * x / l); crust.farDy[c] = Math.round(127 * y / l); crust.farDz[c] = Math.round(127 * z / l);
+}
+
+/** The share of a push reaching it that a cell takes up (deforms by): a craton little, a weak line more. */
+export function farTake(cfg, type, flags) {
+    return type === CrustType.CRATON ? cfg.farCratonTake : (flags & WEAK) ? cfg.farWeakTake : 1;
 }
 
 /** A cell's recent push as of `time` (what folds the lithosphere now). */

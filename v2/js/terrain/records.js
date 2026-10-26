@@ -419,7 +419,7 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
             [fractureU, b] = [b, fractureU];
         }
     }
-
+
     // ── live trenches: the axis is the subducting plate's edge; depth by the age of the slab going down ──
     const trenchDist = new Float32Array(n).fill(Infinity), riseDist = new Float32Array(n).fill(Infinity), trenchDepthKm = new Float32Array(n);
     for (let w = 0; w < n; w++) {
@@ -536,7 +536,38 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
     }
 
     return { coastRaster, land, arc, craton, riverIncKm: frame.riverIncKm, riverKm2: frame.riverKm2, coastKm, coastKind, maturity, coastFresh: fresh, shelfKm, plainKm, slopeKm, depthKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, fractureU,
-        platformKm, upliftKm, cratons, terrane: frame.terrane, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, quietMyr, armKm, erosion, kind, dKm, reach, reliefKm, shear, across, belts: [current, overprinted], time };
+        platformKm, upliftKm, cratons, terrane: frame.terrane, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, quietMyr, armKm, erosion, kind, dKm, reach, reliefKm, shear, across, belts: [current, overprinted], time,
+        ...farFieldRecords(frame, n, cfg) };
+}
+
+/**
+ * The far field (tectonics/step/far-field.js) as the terrain reads it, per world cell:
+ *   farPhase — a coordinate ACROSS the fronts that pushed the crust: how far the push came (km of path cost, averaged by
+ *     what each push brought). Its level lines run along the fronts (and swing round a craton, which passes the push on:
+ *     there they lie further apart — a stiff plate folds over a longer wavelength); smooth across craton edges and weak
+ *     lines, and still while a front keeps pushing from where it stands — so what the terrain reads across it (the
+ *     folds, the grain) rides with the crust, frame to frame, and changes only as the fronts that push it do;
+ *   farGrain — how strongly the push the crust took up in all (× its take: a craton little) left its grain (0…1);
+ *   farFold — how strongly the push it took up lately folds it now (0…1);
+ *   farAxis — the axis it was squeezed along (3 per cell, unit, in the plate's frame; zero where none).
+ * A frame from before the far field reads as none.
+ */
+function farFieldRecords(frame, n, cfg) {
+    const farGrain = new Float32Array(n), farFold = new Float32Array(n), farPhase = new Float32Array(n), farAxis = new Float32Array(3 * n);
+    if (!frame.farWork || !frame.farDir) return { farGrain, farFold, farPhase, farAxis };
+    const weak = CrustFlag.SUTURE | CrustFlag.FAILED_RIFT | CrustFlag.RIFT_MARGIN;
+    for (let w = 0; w < n; w++) {
+        if (frame.owner[w] < 0 || frame.type[w] === CrustType.OCEAN) continue;
+        const reached = frame.farWork[w];
+        if (!(reached > 0)) continue;
+        farPhase[w] = frame.farDist ? frame.farDist[w] : 0;
+        const take = frame.type[w] === CrustType.CRATON ? cfg.farCratonTakeTerrain : (frame.flags[w] & weak) ? cfg.farWeakTakeTerrain : 1;
+        farGrain[w] = 1 - Math.exp(-reached * take / cfg.farGrainWorkKm);
+        farFold[w] = 1 - Math.exp(-(frame.farFold?.[w] ?? 0) * take / cfg.farFoldWorkKm);
+        const dx = frame.farDir[3 * w], dy = frame.farDir[3 * w + 1], dz = frame.farDir[3 * w + 2], l = Math.hypot(dx, dy, dz);
+        if (l > 0) { farAxis[3 * w] = dx / l; farAxis[3 * w + 1] = dy / l; farAxis[3 * w + 2] = dz / l; }
+    }
+    return { farGrain, farFold, farPhase, farAxis };
 }
 
 /**

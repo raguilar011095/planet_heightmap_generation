@@ -363,7 +363,24 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     const noisy = (c, w) => { const r = cell[c]; return w * Math.exp(cfg.blendNoise * noise.fbm(x0 * blendF + (r % 101) * 1.37, y0 * blendF + (r % 89) * 2.11, z0 * blendF + (r % 83) * 0.73, 3, 0.5) * 1.6); };
     let x0 = 0, y0 = 0, z0 = 0;
     const { cratons: CR, terrane } = rec;
-    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, armKm, fractureU, coastFresh, envShape, rootShape } = rec;
+    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, armKm, fractureU, coastFresh, envShape, rootShape, farGrain, farFold, farPhase } = rec;
+    // the far field (records.js farFieldRecords; plans/V2_FAR_FIELD_PLAN.md F3–F4): its folds and the grain it leaves, both
+    // read as noise ACROSS its phase — near enough the distance from the fronts that pushed the crust — and slowly along it
+    const farOn = !!farPhase, foldStretch = cfg.farFoldStretch ?? 1, foldWanderF = R / (cfg.farFoldWanderKm ?? 800);
+    // (the grain's drawn-out noise: farGrainStretch times longer along the phase's level lines than across, the same
+    // feature size on average — read at p·f + φ·c, the phase φ running across the fronts — over its broadest
+    // farGrainOctaves octaves of the platform's four)
+    const farK = Math.sqrt(Math.max(1, cfg.farGrainStretch ?? 1)), farF = platF / farK, farC = (farK - 1 / farK) * platF / R;
+    const farOct = farK > 1 ? Math.max(0, Math.min(4, cfg.farGrainOctaves ?? 2)) : 0;
+    /** The phase at a point: its corners' that the push reached, blended (a corner it did not — the sea — would bend the
+     *  level lines toward the coast); −1 where none did. */
+    const phaseAt = (c0, c1, c2, w0, w1, w2) => {
+        let p = 0, ws = 0;
+        if (farGrain[c0] > 0) { p += w0 * farPhase[c0]; ws += w0; }
+        if (farGrain[c1] > 0) { p += w1 * farPhase[c1]; ws += w1; }
+        if (farGrain[c2] > 0) { p += w2 * farPhase[c2]; ws += w2; }
+        return ws > 0 ? p / ws : -1;
+    };
     const kinds = [0, 0, 0], wts = [0, 0, 0], nts = [0, 0, 0];
     // carried ridges (cfg.stripeCarry, stripes.js): each belt layer's sums at the corners of the rasters, kept on the plan
     // (a worker's chunks share them); a point's corners on the raster of the plate under it
@@ -464,7 +481,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 coast = Math.max(coast - cut, Math.min(coast, -10));
             }
         }
-        let h, platform = 0, relief = 0, stripes = 0, lipTop = 0, lipKeep = 0, lipAge = 0, ramp = 0, shieldS = 0, rimFade = 1;
+        let h, platform = 0, relief = 0, stripes = 0, lipTop = 0, lipKeep = 0, lipAge = 0, ramp = 0, shieldS = 0, rimFade = 1, foldLow = 0;
 
         if (coast >= 0) {
             // ── land side: the platform over the land corners (interfingering), dropping to the shelf toward the coast ──
@@ -472,7 +489,37 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             const n0 = land[c0] ? e0 : 0, n1 = land[c1] ? e1 : 0, n2 = land[c2] ? e2 : 0, lw = n0 + n1 + n2;
             platform = lw > 0 ? (mountainCurve > 0 ? curvedRead(simMesh, slopes.of(-2, platformKm, true), platformKm, c0, c1, c2, n0, n1, n2, w0, w1, w2, mountainCurve)
                 : (n0 * platformKm[c0] + n1 * platformKm[c1] + n2 * platformKm[c2]) / lw) : cfg.continentKm;
-            platform += cfg.platformNoiseKm * noise.fbm(x * platF + 5.1, y * platF + 9.2, z * platF + 2.4, 4, 0.5) * 1.5;
+            // (its basins and arches drawn out along the fronts that pushed it — the grain: the broad octaves fade over to
+            // the drawn-out noise as the push taken up grows, keeping the noise's spread; with no push, the noise as before.
+            // A fade, not a stretch growing with the push: a stretch would slide the noise as the push grew, frame to frame)
+            const ph = farOn ? phaseAt(c0, c1, c2, w0, w1, w2) : -1;
+            const fg = ph >= 0 ? w0 * farGrain[c0] + w1 * farGrain[c1] + w2 * farGrain[c2] : 0;
+            if (fg > 1e-3 && farOct > 0) {
+                const px = x * platF + 5.1, py = y * platF + 9.2, pz = z * platF + 2.4;
+                const qx = x * farF + 5.1, qy = y * farF + 9.2, qz = z * farF + ph * farC + 2.4;
+                const keep = (1 - fg) / Math.hypot(1 - fg, fg), drawn = fg / Math.hypot(1 - fg, fg);
+                let sum = 0, amp = 1;
+                for (let o = 0; o < 4; o++, amp *= 0.5) {
+                    const f = 1 << o, n0 = noise.noise3D(px * f, py * f, pz * f);
+                    sum += amp * (o < farOct ? keep * n0 + drawn * noise.noise3D(qx * f, qy * f, qz * f) : n0);
+                }
+                platform += cfg.platformNoiseKm * (sum / 1.875) * 1.5;
+            } else platform += cfg.platformNoiseKm * noise.fbm(x * platF + 5.1, y * platF + 9.2, z * platF + 2.4, 4, 0.5) * 1.5;
+            // (and the lithosphere's folds across a recent push: farFoldKm high, farFoldWavelengthKm apart across the fronts,
+            // farFoldStretch times longer along them — over a craton further apart, as the push crosses it with little loss)
+            const ff = ph >= 0 ? w0 * farFold[c0] + w1 * farFold[c1] + w2 * farFold[c2] : 0;
+            if (ff > 1e-3 && cfg.farFoldKm > 0) {
+                const lam = cfg.farFoldWavelengthKm, amp = cfg.farFoldKm * ff * fade(lam), f = R / lam / foldStretch, before = platform;
+                // (the bands wander — by up to farFoldWander of a wavelength, over ~farFoldWanderKm — so they do not ring a
+                // short front like ripples round a stone)
+                const wander = cfg.farFoldWander * noise.noise3D(x * foldWanderF + 3.3, y * foldWanderF + 17.1, z * foldWanderF + 5.9);
+                // (a trough deepens only ground that stands well above the sea — lowland near the coast hardly sinks: what a
+                // fold lowered there, a basin or a foreland beside it could take under the sea; and never below 40 m)
+                const fold = amp * 1.4 * noise.noise3D(x * f + 13.7, y * f + 4.2, z * f + ph / lam + wander + 8.9);
+                platform += fold > 0 ? fold : fold * smooth(0.04, 0.3, before);
+                if (platform < 0.04 && platform < before) platform = Math.min(before, 0.04);
+                foldLow = Math.min(0, platform - before);                         // (given back below if a basin beside takes it under)
+            }
             // ── a flood basalt (lips.js): the pile as it has worn — here the whole plateau, its top lowering a little as it
             // wears and gone once worn through; the carving cuts it up (carve.js stripBasalt: its escarpment retreating
             // from the province's edge, its rivers' valleys widening — mesas left on the divides between them) ──
@@ -525,7 +572,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                     if (grainShow > 0) {
                         // drawn out along the craton's length (terrain/cratons.js: its grain), cratonGrainStretch times
                         // longer than across — greenstone belts between granite domes, as the Superior's run
-                        const ax = CR.acrossW[3 * cT], ay = CR.acrossW[3 * cT + 1], az = CR.acrossW[3 * cT + 2], f = grainF / grainStretch;
+                        const ax = CR.acrossW[3 * cT], ay = CR.acrossW[3 * cT + 1], az = CR.acrossW[3 * cT + 2];
+                        const f = grainF / grainStretch;
                         const s = (x * ax + y * ay + z * az) * (grainStretch - 1) * f;
                         platform += k * cfg.cratonGrainKm * grainShow * smooth(0, 150, crN) * (0.7 - 2 * Math.abs(noise.noise3D(x * f + s * ax + 3.3, y * f + s * ay + 8.8, z * f + s * az + 1.1)));
                     }
@@ -749,6 +797,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // a failed rift arm: a sagged corridor, low but still land (unless it reaches the sea as an embayment)
             const arm = w0 * armKm[c0] + w1 * armKm[c1] + w2 * armKm[c2];
             if (arm < 3 * cfg.failedArmHalfKm) h = Math.max(Math.min(h, 0.03), h - cfg.failedArmKm * Math.exp(-((arm / cfg.failedArmHalfKm) ** 2)));
+            // (a fold's trough never takes land under the sea: where a basin beside it would, the trough gives back what it took)
+            if (foldLow < 0 && h < 0.02) h = Math.min(0.02, h - foldLow * ramp);
             // ── hills down to what the mesh can show: more on high ground, none at the shore ──
             if (hillsF.length && h > 0) {
                 let sum = 0;

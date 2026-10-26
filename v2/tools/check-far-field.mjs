@@ -2,6 +2,7 @@
 // Usage: node v2/tools/check-far-field.mjs
 //   F1 the record: records only (the same events), passes through cratons and is taken up by weak lines beyond, fades
 //      with distance, its axis along the push, turned with the crust at a weld, the same at a finer sim mesh, cheap.
+//   F3 + F4 the terrain: folds along the front, subtle, drowning no land; the platform's noise drawn out along the fronts.
 //   F2 reactivation: the suture behind a craton square across the push rises, one along it barely, a failed rift inverts,
 //      a craton never; over a whole history the land stands no higher than without it (within a few points).
 
@@ -10,10 +11,11 @@ import Delaunator from 'delaunator';
 import { setDelaunator } from '../../js/sphere-mesh.js';
 import { check, section, finish, labMesh } from './lib/check-kit.mjs';
 import { simulate } from '../js/tectonics/simulate.js';
-import { MECHANISMS } from '../js/tectonics/config.js';
+import { MECHANISMS, TECTONICS } from '../js/tectonics/config.js';
 import { CrustType, CrustFlag, OrogenyType } from '../js/tectonics/model/crust.js';
 import { terrainMesh } from '../js/terrain/terrain-mesh.js';
 import { synthesizeTerrain } from '../js/terrain/synthesize.js';
+import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { buildStartWorld } from '../js/tectonics/init/start-world.js';
 import { TERRAIN_SCENES, FAR_TERRANES } from '../js/tectonics/scenarios/terrain-scenes.js';
 import { quatToMat3 } from '../js/core/rotation.js';
@@ -52,14 +54,16 @@ section('F1 — the push: records only');
 section('F1 — the push through a continent');
 const F = farScene();
 {
-    const T = FAR_TERRANES, { felt, cellsOf, land } = F;
+    const T = FAR_TERRANES, { felt, cellsOf, land } = F, C = TECTONICS;
+    // (the record holds the push that REACHED the crust; what it took up — deformed by — is that × its take)
     const tarim = felt(T.tarim), across = felt(T.across), along = felt(T.along), aul = felt(T.aulacogen), siberia = felt(T.siberia);
     const front = land.slice().sort((x, y) => x - y)[Math.floor(0.95 * (land.length - 1))];
-    check('a craton passes the push on, hardly taking any', tarim > 0 && tarim < 0.4 * across, `Tarim felt ${tarim.toFixed(0)} km on average; the suture beyond it ${across.toFixed(0)} km`);
+    check('a craton passes the push on, hardly taking any', tarim * C.farCratonTake < 0.4 * across * C.farWeakTake && across > 0.25 * tarim,
+        `the push reaching Tarim ${tarim.toFixed(0)} km (it took up ${(tarim * C.farCratonTake).toFixed(0)}); reaching the suture beyond it ${across.toFixed(0)} km (it took up ${(across * C.farWeakTake).toFixed(0)})`);
     check('the push lands on the weak line beyond the craton — more than on one the push runs along', across > 1.5 * along,
         `the suture square across the push, behind Tarim: ${across.toFixed(0)} km; the one along it: ${along.toFixed(0)} km`);
     check('…and on the failed rift', aul > along, `the failed rift ${aul.toFixed(0)} km`);
-    check('it fades with distance from the front', siberia < 0.05 * front && front > 200, `${front.toFixed(0)} km near the front (the most-pushed 5 % of the land); ${siberia.toFixed(0)} km on the Siberian shield, ~4000 km away`);
+    check('it fades with distance from the front', siberia < 0.1 * front && front > 200, `${front.toFixed(0)} km near the front (the most-pushed 5 % of the land); ${siberia.toFixed(0)} km reaches the Siberian shield, ~4000 km away`);
     // the axis on the suture behind Tarim: square across the suture — along the push
     const cs = cellsOf(T.across), [p0] = cs[0], { xyz } = mesh;
     let sx = 0, sy = 0, sz = 0;
@@ -145,6 +149,63 @@ section('F2 — old weak lines squeezed up again');
     const peak = Math.max(...on.map((r, i) => r.max - off[i].max));
     check('mountain building stays in check over a whole history', worst <= 0.03 && lowLost <= 0.03 && peak <= 1,
         on.map((r, i) => `${r.time} Myr: land above 1 km ${(100 * off[i].above1).toFixed(1)} → ${(100 * r.above1).toFixed(1)} %, below 0.4 km ${(100 * off[i].low).toFixed(0)} → ${(100 * r.low).toFixed(0)} %, highest ${off[i].max.toFixed(1)} → ${r.max.toFixed(1)} km`).join('; ') + ' (without → with the far field)');
+}
+
+section('F3 + F4 — the folds and the grain in the terrain');
+/**
+ * How a terrain field (per terrain cell) varies along the front vs along the push, where the push is strong: its
+ * correlation with itself lagKm away, along each, over the land points whose records pass `where`. Points are the
+ * terrain mesh's; the axis is the sim cell's record, turned from its plate's frame to the world's.
+ */
+function anisotropy(frame, T, field, tm, lagKm, where) {
+    const { rec } = T, { xyz } = tm, L = lagKm / 6371, m = new Float64Array(9), pairs = { along: [[], []], across: [[], []] };
+    for (let t = 0; t < tm.numCells; t += 7) {
+        if (!(T.heightKm[t] > 0)) continue;
+        const p = [xyz[3 * t], xyz[3 * t + 1], xyz[3 * t + 2]], w = mesh.index.nearest(p[0], p[1], p[2]);
+        if (!where(w) || frame.owner[w] < 0) continue;
+        const d = [rec.farAxis[3 * w], rec.farAxis[3 * w + 1], rec.farAxis[3 * w + 2]];
+        quatToMat3(frame.plates[frame.owner[w]].quat, m);
+        let a = [m[0] * d[0] + m[1] * d[1] + m[2] * d[2], m[3] * d[0] + m[4] * d[1] + m[5] * d[2], m[6] * d[0] + m[7] * d[1] + m[8] * d[2]];
+        const k = a[0] * p[0] + a[1] * p[1] + a[2] * p[2]; a = [a[0] - k * p[0], a[1] - k * p[1], a[2] - k * p[2]];
+        const al = Math.hypot(...a); if (al < 1e-6) continue; a = a.map(v => v / al);
+        const b = [p[1] * a[2] - p[2] * a[1], p[2] * a[0] - p[0] * a[2], p[0] * a[1] - p[1] * a[0]];    // along the front
+        for (const [key, dir] of [['along', b], ['across', a]]) for (const sgn of [-1, 1]) {
+            const q = [p[0] + sgn * L * dir[0], p[1] + sgn * L * dir[1], p[2] + sgn * L * dir[2]], ql = Math.hypot(...q);
+            const u = tm.index.nearest(q[0] / ql, q[1] / ql, q[2] / ql);
+            if (!(T.heightKm[u] > 0)) continue;
+            pairs[key][0].push(field[t]); pairs[key][1].push(field[u]);
+        }
+    }
+    const corr = ([x, y]) => { const n = x.length, mx = x.reduce((a, v) => a + v, 0) / n, my = y.reduce((a, v) => a + v, 0) / n; let sxy = 0, sxx = 0, syy = 0; for (let i = 0; i < n; i++) { sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2; } return sxy / Math.sqrt(sxx * syy || 1); };
+    return { along: corr(pairs.along), across: corr(pairs.across), n: pairs.along[0].length };
+}
+{   // F3: the folds — in the far-field scene just after the collision; the fold field alone (with − without)
+    const tm = terrainMesh(160000), f = F.frames.find(fr => fr.time === 80);
+    // (carved, as the page shows it: inland, a fold trough beside a foreland basin can dip a point below the sea before the carving
+    // — whose rivers end at the sea, no dry land below it — settles it)
+    const on = synthesizeTerrain(f, mesh, tm, { seed: 12345, parts: true, carve: true }), off = synthesizeTerrain(f, mesh, tm, { seed: 12345, parts: true, carve: true, cfg: terrainConfig({ farFoldKm: 0 }) });
+    const fold = on.parts.platform.map((v, t) => v - off.parts.platform[t]);
+    const a = anisotropy(f, on, fold, tm, 120, w => on.rec.farFold[w] > 0.5);
+    let most = 0, lost = 0;
+    for (let t = 0; t < tm.numCells; t++) { if (on.heightKm[t] > 0) most = Math.max(most, Math.abs(fold[t])); if (off.heightKm[t] > 0 && !(on.heightKm[t] > 0)) lost++; }
+    check('the folds run along the front, not across it', a.along > a.across + 0.1,
+        `the fold field's correlation 120 km away along the front ${a.along.toFixed(2)}, along the push ${a.across.toFixed(2)} (${a.n} pairs)`);
+    check('…they are subtle', most <= 0.2, `at most ${(1000 * most).toFixed(0)} m up or down (developer: subtle)`);
+    check('…and drown no land', lost === 0, `${lost} land points turned to sea`);
+}
+{   // F4: the grain — on the start world, the platform's noise alone (with it − without), where its assembly pushed hard
+    const tm = terrainMesh(160000), { world } = buildStartWorld(mesh, 3);
+    const s = scene('cycle'), w3 = s.build(mesh, 3, { continentalFraction: 0.3 });
+    const { frames } = simulate(w3, { untilMyr: 0, drive: w => s.drive?.(w), snapshotEveryMyr: 10 });
+    void world;
+    const f = frames[0], cfgOn = { farFoldKm: 0 };
+    const on = synthesizeTerrain(f, mesh, tm, { seed: 3, parts: true, cfg: terrainConfig(cfgOn) }), none = synthesizeTerrain(f, mesh, tm, { seed: 3, parts: true, cfg: terrainConfig({ ...cfgOn, platformNoiseKm: 0 }) });
+    const flat = synthesizeTerrain(f, mesh, tm, { seed: 3, parts: true, cfg: terrainConfig({ ...cfgOn, farGrainStretch: 1 }) });
+    const grain = on.parts.platform.map((v, t) => v - none.parts.platform[t]), plain = flat.parts.platform.map((v, t) => v - none.parts.platform[t]);
+    const strong = w => on.rec.farGrain[w] > 0.7 && !on.rec.craton[w];
+    const g = anisotropy(f, on, grain, tm, 350, strong), p = anisotropy(f, on, plain, tm, 350, strong);
+    check('the grain: the platform\'s basins and arches drawn out along the fronts that pushed it', g.along - g.across > p.along - p.across + 0.15,
+        `where the assembly pushed hard, the platform noise's correlation 350 km away along / across the push's front: ${g.along.toFixed(2)} / ${g.across.toFixed(2)} with the grain, ${p.along.toFixed(2)} / ${p.across.toFixed(2)} without (${g.n} pairs)`);
 }
 
 finish('Far field');

@@ -53,7 +53,7 @@ export const CrustFlag = Object.freeze({
 export const CELL_FIELDS = Object.freeze(['type', 'flags', 'formedAt', 'terrane', 'slabKm', 'wingKm', 'oroType', 'oroWork', 'oroStart',
     'oroLast', 'thickKm', 'beltU', 'beltReach', 'beltAt', 'beltSide', 'beltShear', 'prevType', 'prevLast', 'prevU', 'prevReach', 'prevSide',
     'prevShear', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'volcType', 'volcAt', 'volcKm', 'volcSource', 'fzU',
-    'farWork', 'farFold', 'farAt', 'farDx', 'farDy', 'farDz']);
+    'farWork', 'farDist', 'farFold', 'farAt', 'farDx', 'farDy', 'farDz']);
 
 export class CrustRaster {
     constructor(numCells) {
@@ -105,10 +105,12 @@ export class CrustRaster {
         this.volcSource = new Uint16Array(numCells);   // the plume that built it: hotspot id + 1 (0 = none)
         this.fzU = new Float32Array(numCells);         // where along its ridge ocean floor formed, in segment lengths (model/segments.js; records only: fracture zones)
         // The far field (step/far-field.js; records only): the push distant fronts have sent through this crust — how much
-        // in all (km of shortening-equivalent: the grain it left), how much lately (decaying from farAt: the folds), and its
-        // compression axis: a unit tangent in the plate's frame × 127 (an axis — its sign means nothing; turned with the
-        // crust whenever it changes frame, copyFrom's `rot`)
+        // in all (km of shortening-equivalent: the grain it left), how far it came (km of path cost, averaged by what each
+        // push brought: the coordinate the terrain reads the folds and the grain across), how much lately (decaying from
+        // farAt: the folds), and its compression axis: a unit tangent in the plate's frame × 127 (an axis — its sign means
+        // nothing; turned with the crust whenever it changes frame, copyFrom's `rot`)
         this.farWork = new Float32Array(numCells);
+        this.farDist = new Float32Array(numCells);
         this.farFold = new Float32Array(numCells);
         this.farAt = new Float32Array(numCells);
         this.farDx = new Int8Array(numCells);

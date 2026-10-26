@@ -16,13 +16,14 @@
 // Records only: the history never reads them (heights and history are decoupled — developer). Constants live with the
 // terrain's (terrain-config.js); a world may carry its own in world.config.heights.
 
-import { CrustType, OrogenyType, VolcanicType } from '../model/crust.js';
+import { CrustType, CrustFlag, OrogenyType, VolcanicType } from '../model/crust.js';
 import { ISLAND_EROSION_KM_PER_MYR } from '../measure.js';
 import { TERRAIN, erosionAtLatitude, erosionAtHeight } from '../../terrain/terrain-config.js';
 import { broadProfile } from '../../terrain/profiles.js';
 import { FastNoise } from '../../core/fast-noise.js';
 
 const R = 6371;
+const WEAK = CrustFlag.SUTURE | CrustFlag.FAILED_RIFT | CrustFlag.RIFT_MARGIN;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 /** The height constants a world runs with. */
@@ -70,12 +71,24 @@ export function seedBaseRelief(world) {
     const near = (d, km) => (d < Infinity ? Math.exp(-(d / km) * (d / km)) : 0);
     for (const plate of world.plates) {
         if (!plate.alive) continue;
-        const { mask, type, baseKm } = plate.crust, m = plate.mat;
+        const { mask, type, flags, baseKm, farWork, farDist } = plate.crust, m = plate.mat;
         for (let c = 0; c < mask.length; c++) {
             if (!mask[c] || type[c] === CrustType.OCEAN || type[c] === CrustType.ARC) continue;
             const x = xyz[3 * c], y = xyz[3 * c + 1], z = xyz[3 * c + 2];
             const wx = m[0] * x + m[1] * y + m[2] * z, wy = m[3] * x + m[4] * y + m[5] * z, wz = m[6] * x + m[7] * y + m[8] * z;
-            const n = noise.fbm(wx * F + 2.1, wy * F + 7.7, wz * F + 4.9, 3, 0.5);
+            // (drawn out along the fronts that pushed the crust — the start world's assembly — as the terrain draws its
+            // platform's grain, read across the far field's phase: terrain/records.js farFieldRecords; plans/V2_FAR_FIELD_PLAN.md
+            // F4. With no push, the noise as before)
+            const reached = farWork[c], take = type[c] === CrustType.CRATON ? H.farCratonTakeTerrain : (flags[c] & WEAK) ? H.farWeakTakeTerrain : 1;
+            const g = H.farGrainStretch > 1 && reached > 0 ? 1 - Math.exp(-reached * take / H.farGrainWorkKm) : 0;
+            let n = noise.fbm(wx * F + 2.1, wy * F + 7.7, wz * F + 4.9, 3, 0.5);
+            if (g > 1e-3) {
+                // (fading over to the drawn-out noise as the push grows — never a stretch growing with it, which would
+                // crowd the noise into a seam where the push taken up changes fast, at a craton's edge)
+                const k = Math.sqrt(H.farGrainStretch), f = F / k;
+                const drawn = noise.fbm(wx * f + 2.1, wy * f + 7.7, wz * f + (k - 1 / k) * farDist[c] * F / R + 4.9, 3, 0.5);
+                n = ((1 - g) * n + g * drawn) / Math.hypot(1 - g, g);
+            }
             // (fbm ≈ ±0.65: alone, a quarter of the land stays low, half rises past ~0.4 of the full height, a tenth near
             // all of it; with the seams, about as much land, but placed by them. The start world's crust lies where its
             // world cell is: nothing has moved yet)

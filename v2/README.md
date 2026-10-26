@@ -174,6 +174,8 @@ continental crust, how many landmasses, the heat left under the last supercontin
 ```
 node v2/tools/check-phase1.mjs         # … 2, 3, 4, 5, 5b, 6, 6b, 7, 7b, 7c, 8a, 8b, 9, 10, 11, 13 — headless acceptance checks, PASS/FAIL, exit code
 node v2/tools/check-invariants.mjs     # invariants through whole histories: land never vanishes, dead plates empty, terrane ids, cratons
+node v2/tools/check-far-field.mjs      # the far field: records only, through cratons onto weak lines, intraplate ranges, mountain
+                                       # building held in check over a whole history, the folds and the grain in the terrain
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
@@ -240,6 +242,11 @@ js/tectonics/
                                     their erosion by latitude — records only, the history never reads them
                      rivers:        the history's rivers: drained every few Myr, cutting as they go (gorges
                                     where land rose under them) — records only too
+                     far-field:     a front's push felt far inland (plans/V2_FAR_FIELD_PLAN.md): collisions and
+                                    strongly coupled subduction coasts push through their plates every few Myr —
+                                    cratons pass it on, weak lines take it up — and where a strong push meets a quiet
+                                    old suture or failed rift square-on, it rises again as an intraplate range (the
+                                    Tian Shan behind the Tarim block) — records only too
   ops/             plate surgery, called by the event stages: rift (path + split), merge-plates (suture with the
                    outline redraw), accrete-terrane (docking), scrape-arc, collapse-arc (fore-arc closure),
                    birth-ocean-plate (a plate carved out of the passive ocean), tidy-plates (integrity: fragments,
@@ -454,7 +461,15 @@ scraps of craton inside a range read as the range; and each craton has a charact
 or a flat shield (`cratonCharacter`) — with a faint grain of domes and keels drawn out along the craton's length
 (`cratonGrainStretch`; the long axis read from the craton patch's shape on its plate's raster). The start world's
 swells are placed by its assembly (`world.startSeamKm`: uplands along its major seams and young accreted belts,
-lowlands away from them — plans/V2_START_WORLD_PLAN.md). Trapped pockets of
+lowlands away from them — plans/V2_START_WORLD_PLAN.md). **The far field in the terrain** (plans/V2_FAR_FIELD_PLAN.md
+F3–F4; `records.js farFieldRecords`): the push that reached the crust gives it a coordinate across the fronts that
+pushed it — how far the push came (`farDist`, its path cost from the fronts averaged over the pushes, so it holds still
+on the crust while a front keeps pushing), its level lines along the fronts and swinging round cratons, which pass the
+push on — and noise is read across it: the lithosphere's folds (broad, low swells and basins `farFoldWavelengthKm` apart
+across a recent push, subtle: `farFoldKm`, their bands wandering a little, never taking land under the sea) and the
+grain a push leaves (the platform's basins and arches, and the start world's swells, drawn out `farGrainStretch` times
+along the fronts, faded in as the push taken up grows — never a stretch that grows with it, which would slide the noise
+from frame to frame). Trapped pockets of
 ocean crust smaller than `pocketSeaKm2` are lowland, and a margin's kind (so its shelf width) holds along
 `coastKindKm` of its coast. **Passive margins mature** (2026-10-15, `marginMatureMyr`): a passive coast's age is the
 oldest ocean floor beside it (the floor that formed as it broke away), or less where its own belt was active since; its

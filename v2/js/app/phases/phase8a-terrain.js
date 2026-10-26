@@ -83,6 +83,11 @@ const CHECKLISTS = {
         'The two shields differ (a sag basin, a swell or a flat shield, with a faint grain of domes and keels); the “Cratons” slider sets how strongly — at 0 both are flat.',
     ],
     rift: ['The new coasts are lifted into shoulders — an escarpment facing the young ocean, sloping gently inland. The arm that failed is a low corridor into the continent. The young ocean has a ridge along its middle.'],
+    farfield: [
+        'Far field layer: the push is strongest along India’s front and fades inland; it passes through the Tarim-like shield with little taken up (the shield stays flat and low) and is felt beyond it, ~1500 km and more from the front. The ticks show the axis each place was squeezed along: roughly square to the front.',
+        'The old suture square across the push rises as a range far inland, beyond the shield (the Tian Shan): narrower and lower than the main range, with no volcanoes and no plateau behind it. The suture running along the push barely stirs; the failed rift striking north-east is squeezed into a low ridge (an inverted aulacogen).',
+        'Hillshade: across the continent behind the front, broad, low swells and basins run parallel to the front (long-wavelength folds, a few hundred metres at most, a few hundred km apart), and the fine grain of the plains is stretched along them — the continent reads as squeezed from one side, not as even noise. Neither drowns any land.',
+    ],
     history: [
         'Young belts stand high and sharp; old belts are low but keep their grain of parallel ridges; cratons are calm and low; about half the land is lowland.',
         'Cratons against the ranges (Phase 10; the Crust type layer shows where the cratons are): a range pressed against a craton follows the craton’s large shape but never its sim cells’ staircase; its foothills ride a little way onto the shield, then a lowland — slightly below the shield beyond — runs along the front; where a plateau’s back meets a craton the front stays steep.',

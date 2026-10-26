@@ -1,7 +1,19 @@
 # Evolution: far-field deformation and a continent-wide grain
 
-Status: **plan, 2026-10-25, for the owner's review. Nothing built.** Follows the start-world work
-(`plans/V2_START_WORLD_PLAN.md`, committed 8e4dc83 on `worktree-start-world`).
+Status: follows the start-world work (`plans/V2_START_WORLD_PLAN.md`, committed 8e4dc83 on `worktree-start-world`).
+
+**Owner's decisions (2026-10-25):**
+1. Pushes come from collisions AND strong subduction coasts.
+2. Reactivated ranges are scaled by the collision, with mountain building monitored over time "to make sure it isn't
+   too much".
+3. Folds are subtle.
+4. Which noises the grain orients was left to me.
+5. Escape faults (F5) are skipped for now.
+
+The owner asked for all of F1–F4 to be built overnight, then reviewed.
+
+**Built 2026-10-25/26, all four phases.** F1 + F2 were committed as 5e301db; F3 + F4 after them. See §9 for what was
+built and measured.
 
 ## 1. Why
 
@@ -188,3 +200,108 @@ F1–F4 leave the far field looking too smooth.
 - Cloetingh, S. & Burov, E. (2011). Lithospheric folding and sedimentary basin evolution. *Basin Research* 23, 257–290.
 - Raimondo, T., Hand, M. & Collins, W. J. (2014). Compressional intracontinental orogens. *Earth-Science Reviews* 130,
   128–153.
+
+## 9. What was built and measured (2026-10-25/26)
+
+All checks are in `v2/tools/check-far-field.mjs` (18). Test scene `farfield`: India into an Asia with a Tarim-like
+shield ~1100 km behind its south coast, a Siberian one far north, an old suture square across the push beyond Tarim,
+one along it, and a failed rift. Each feature is its own terrane (`FAR_TERRANES`), so a check finds it whichever plate
+ends up on top.
+
+### F1 — the record (`step/far-field.js`; committed 5e301db)
+
+**What feeds it:**
+- collisions: their shortening, from both fronts;
+- subduction coasts: their belt's work × `farAndeanShare` × (rate ÷ 6 cm/yr)² for a steep slab, × `farFlatShare` for
+  a flat one;
+- the start world's major seams, as prehistoric collisions.
+
+**How it spreads:**
+- one cost-weighted Dijkstra per front every 4 Myr;
+- path cost: cratons 0.3 per km, weak lines 1.6;
+- fade e-folding `farReachKm` × √(front ÷ 2000 km).
+
+**What each cell records:**
+- `farWork`: the push that REACHED it (the share it takes up, `farTake`, is applied where it is used);
+- `farDist` (added with F3–F4): how far that push came — its path cost from the fronts, averaged over the pushes by
+  what each brought. The terrain's phase. An average holds still while a front keeps pushing from where it stands;
+- `farFold`: the recent push, decaying over `farFoldMyr`;
+- `farDx/Dy/Dz`: the axis, turned at the four cross-frame copies.
+
+**Measured** (check-far-field):
+- Records only: the history's events are identical on and off.
+- Cost: +13 % on a 300 Myr history.
+- Tarim takes up 69 km of the 461 that reach it. The suture beyond it takes up 265 km, ×3.5 the suture along the
+  push.
+- The axis lies within 10° of the push.
+- Across a weld the axis moved 3° (median) seen in the world.
+- 40K vs 80K start-world push within 4 %.
+
+### F2 — reactivation (`reactivate`)
+
+**Rule:**
+- The line must be a quiet suture or failed rift (never a rift margin, which is a coast) at least ~450 km (path cost)
+  from the front.
+- Work = taken push × cos² of the angle between the push and the line's normal, less `farReactMinKmPerMyr` × the time
+  since the last spread.
+- It raises an INTRAPLATE belt (`noRoot`: uplift and crests only).
+- Width 110–320 km, by work.
+
+**Monitored over whole 1200 Myr histories** (owner's request). Land above 1 km on the carved 160K terrain, every 100
+Myr. Each fix responded to what the monitor showed:
+
+| | seed 3 at 1200 Myr | seed 7 at 1200 Myr |
+|---|---|---|
+| without the far field | 41.5 % | 33.6 % |
+| first version (threshold 1.5 km/Myr, thickened root) | 52.4 % | — |
+| threshold 6 (no root yet) | 47.7 % | 36.9 % |
+| threshold 6 + no root | 42.3 % | 35.5 % |
+| final (threshold 10, no root) | — | 34.3 % |
+
+What drove each change:
+- The first version reactivated half of all land. The root was the worst of it: a reactivated line through an old
+  plateau stood 13 km high.
+- The final setting stays within ~2 points of a history without the far field at every 100 Myr. Lowland and the
+  highest peak are also within that.
+
+check-far-field holds this at 350 and 700 Myr on seed 7. In the test scene the suture behind Tarim rises to ~2 km
+(uplift + crests), the failed rift to ~0.9 km, and the suture along the push not at all.
+
+### F3 — folds (terrain only)
+
+Noise is read across the far field's phase: `farDist`, how far the push came. Its level lines run along the fronts and
+swing round cratons, where they lie further apart (the push crosses a craton cheaply).
+- 320 km apart across the front, ×4 longer along it.
+- The bands wander (`farFoldWander` 0.4 over ~700 km), so a short front is not ringed like a stone's ripples.
+- Height: `farFoldKm` 0.12 × the recent push's strength (subtle). They are at most ~150 m and cost nothing measurable.
+- **They never take land under the sea.** A trough deepens only ground well above it, and gives back what it took
+  wherever a basin beside it would have taken a point under.
+
+### F4 — grain (terrain + the start swells)
+
+The platform's basins and arches, and the start world's swells (`seedBaseRelief`), are read the same way across the
+phase: `farGrainStretch` 4 × longer along the fronts. The drawn-out noise **fades in** as the push taken up grows (a
+cross-fade keeping the noise's spread, over the broadest `farGrainOctaves` 2 of its 4 octaves); it is never a stretch
+that grows with the push. The craton grain keeps its own long axis (S4).
+- On the start world, where the assembly pushed hard, the platform noise's correlation 350 km away is 0.71 along the
+  fronts vs 0.56 across them (0.65 / 0.67 without the grain).
+- Why only 2 octaves: with all 4 drawn the grain is barely stronger (0.72 / 0.58), but the finer octaves shift small
+  rivers. Phase 9's 290→300 Myr rivers check then fails.
+- **It rides with the crust.** On 8a's moving continent (5° in 10 Myr), the plains' detail correlates 0.987 with
+  itself 10 Myr before. Without the grain it is 0.997; the first F4 managed only 0.88 (lesson 4).
+- Land below 400 m at 0 Myr: 69–75 % on seeds 3, 7 and 11 (71–72 % before the grain).
+- Surface time at 640K unchanged: 1775 ms with the folds and grain, 1809 ms without (noise).
+
+### Lessons
+
+1. **A per-cell axis tangent at its own cell cannot stretch noise.** The stretch reads p·a, and p·a ≈ 0 at every point
+   when a is tangent there. The first F3/F4 had no anisotropy at all. A scalar field whose level lines run along the
+   fronts does the job, and is smooth across craton edges and weak lines only if the record holds what REACHED the
+   crust, not what it took up. The stored axis remains for the lab's ticks.
+2. **A belt's root stacks on whatever thick crust is already there.** An intraplate range is uplift and crests only.
+3. **Reactivation needs a strain-rate threshold** (yield strength), not a total. Pushes are everywhere over 1200 Myr;
+   only strong ones should raise ranges.
+4. **The phase must hold still on the crust, or the detail swims.** The first F3/F4 phase was the log of the total push,
+   and its stretch grew with the push. A running total keeps rising while a collision lasts, so the noise slid across
+   the plains frame after frame (8a: 0.88, under the 0.9 floor that Phase 9 set). Two changes fixed it: an average
+   distance in place of the total, and a cross-fade in place of a growing stretch.
