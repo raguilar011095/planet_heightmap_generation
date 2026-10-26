@@ -10,6 +10,7 @@ import { CrustType, CrustFlag } from '../model/crust.js';
 import { tangentBasis } from '../../core/sphere-geom.js';
 import { spreadBelt, OrogenyType } from '../step/orogeny.js';
 import { spreadKm } from '../../core/min-heap.js';
+import { spreadPush } from '../step/far-field.js';
 import { placeCratons } from './cratons.js';
 import { shapeLandmass, Seam } from './landmass.js';
 import { plateOutlineWithApron, chooseActiveRim, passiveStretch } from './rim-trench.js';
@@ -126,6 +127,24 @@ function seamDistances(simMesh, land) {
     return { major: from(Seam.MAJOR, majorRange), majorRange, ring: from(Seam.RING, null) };
 }
 
+/**
+ * The meetings that assembled the supercontinent pushed across it as any collision does (step/far-field.js; records
+ * only): from each pair of proto-continents' major seam, farStartWorkKm × that seam's strength, as long ago as the major
+ * seams' ranges — so the start world already carries the grain its assembly left.
+ */
+function startPushes(world, continent, land) {
+    const cfg = world.config, byPair = new Map();
+    if (!(cfg.farStartWorkKm > 0)) return;
+    for (let c = 0; c < land.suture.length; c++) {
+        if (land.suture[c] !== Seam.MAJOR || land.type[c] === CrustType.OCEAN) continue;
+        (byPair.get(land.pair[c]) ?? byPair.set(land.pair[c], new Map()).get(land.pair[c])).set(c, cfg.farStartWorkKm * land.pairRange[land.pair[c]]);
+    }
+    for (const p of [...byPair.keys()].sort((a, b) => a - b)) {
+        const sources = byPair.get(p);
+        spreadPush(world, continent, sources, sources.size * world.mesh.edgeKm, -cfg.startRanges.major[2]);
+    }
+}
+
 function assemble(world, simMesh, seed, found) {
     const cfg = world.config;
     if (!found) throw new Error(`These settings do not fit on the planet for seed ${seed}: the cratons, the required gaps between them and their margins need more room than the requested continental area allows.`);
@@ -156,6 +175,7 @@ function assemble(world, simMesh, seed, found) {
     }
     oldRanges(world, continent, land);
     world.startSeamKm = seamDistances(simMesh, land);
+    startPushes(world, continent, land);
     for (const p of world.plates) p.refreshExtent(simMesh.xyz);
     world.terraneLetters = Object.fromEntries(layout.cratons.map(c => [c.id, c.letter]));
     continent.born = -cfg.riftTenureMyr;                  // assembled in prehistory: it may rift from the first step (developer: within ~30 Myr)

@@ -17,7 +17,8 @@ import { terrainConfig } from '../../terrain/terrain-config.js';
 import { kindType, deriveRecords } from '../../terrain/records.js';
 import { locate } from '../../core/mesh-locate.js';
 import { hillshade, paintRelief, tintOf } from '../../view/terrain-shade.js';
-import { colorByCrustType, colorByOrogeny, colorByMantleHeat, OROGENY_RGB, css } from '../../view/palettes.js';
+import { colorByCrustType, colorByOrogeny, colorByMantleHeat, colorByFarField, OROGENY_RGB, css } from '../../view/palettes.js';
+import { quatToMat3 } from '../../core/rotation.js';
 import { EventKind } from '../../tectonics/model/world.js';
 import { TECTONICS } from '../../tectonics/config.js';
 import { flowOfCycle } from '../../tectonics/step/supercontinent.js';
@@ -425,6 +426,29 @@ export function terrainPhase(spec) {
             },
         },
         ...(spec.extraLayers?.({ terrainOf, tMesh, view }) ?? []),
+        {
+            // the far field (step/far-field.js): how much push distant fronts sent through each place, and the axis it was
+            // squeezed along — a tick across it at every other land cell that felt any (the plate's frame turned to the world's)
+            label: 'Far field', paint: simLayer(colorByFarField),
+            overlay(g, raster, frame) {
+                if (!frame.farDir) return;
+                const { xyz } = simMesh, L = 45 / 6371, m = new Float64Array(9);
+                g.save(); g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.85)';
+                for (let w = 0; w < simMesh.numCells; w += 2) {
+                    const o = frame.owner[w];
+                    if (o < 0 || frame.type[w] === CrustType.OCEAN || !(frame.farWork[w] > 20)) continue;
+                    const dx = frame.farDir[3 * w] / 127, dy = frame.farDir[3 * w + 1] / 127, dz = frame.farDir[3 * w + 2] / 127;
+                    if (!(dx || dy || dz)) continue;
+                    quatToMat3(frame.plates[o].quat, m);
+                    const ax = m[0] * dx + m[1] * dy + m[2] * dz, ay = m[3] * dx + m[4] * dy + m[5] * dz, az = m[6] * dx + m[7] * dy + m[8] * dz;
+                    const x = xyz[3 * w], y = xyz[3 * w + 1], z = xyz[3 * w + 2];
+                    const [x0, y0] = raster.project(x - L * ax, y - L * ay, z - L * az), [x1, y1] = raster.project(x + L * ax, y + L * ay, z + L * az);
+                    if (Math.abs(x1 - x0) > raster.width / 2) continue;
+                    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+                }
+                g.restore();
+            },
+        },
         { label: 'Crust type', paint: simLayer(colorByCrustType) },
         ...(cycle ? [{ label: 'Mantle', paint: simLayer(colorByMantleHeat), overlay: drawMantleFlow }] : []),
         {

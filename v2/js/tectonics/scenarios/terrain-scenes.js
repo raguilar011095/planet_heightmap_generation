@@ -7,7 +7,7 @@ import { BUDGET_SCENES } from './budget-scenes.js';
 import { HOTSPOT_SCENES, omegaFor, heading } from './hotspot-scenes.js';
 import { RIFT_SCENES } from './rift-scenes.js';
 import { updatePlateMotion } from '../step/torque-balance.js';
-import { CrustFlag } from '../model/crust.js';
+import { CrustFlag, CrustType } from '../model/crust.js';
 import { xyzToLatLon, latLonToXyz } from '../step/kinematics.js';
 import { SimplexNoise } from '../../../../js/simplex-noise.js';
 import { TectonicWorld } from '../model/world.js';
@@ -53,6 +53,59 @@ function buildCratons(simMesh, seed) {
     return world;
 }
 
+/**
+ * The far field (plans/V2_FAR_FIELD_PLAN.md): the India collision again, into an Asia with no shield at its centre but
+ * a Tarim-like one ~1100 km behind its south coast and a Siberian one far to the north; between them an old suture
+ * running east–west, square across the push, beyond Tarim; another running north–south, along the push, to the east;
+ * and a failed rift striking north-east to the west. The push should pass through Tarim and land on the suture beyond
+ * it (the Tian Shan), barely touch the one along it, and squeeze the failed rift (an inverted aulacogen).
+ */
+/** The far-field scene's features, each its own terrane (so a check finds them whichever plate ends on top). */
+export const FAR_TERRANES = Object.freeze({ tarim: 901, siberia: 902, across: 903, along: 904, aulacogen: 905 });
+
+function buildFarField(simMesh, seed) {
+    const world = new TectonicWorld(simMesh, seed), canvas = sceneCanvas(simMesh, world.config), noise = new SimplexNoise(seed);
+    const asia = world.addPlate('Asia'), india = world.addPlate('India');
+    const asiaLand = addContinent(canvas, noise, { plate: asia, centre: [40, 72], radiusKm: 3000, cratonKm: 0 });
+    const { xyz, numCells } = simMesh, A = asia.crust;
+    const within = (lat, lon, km) => { const p = latLonToXyz(lat, lon); return i => Math.acos(Math.max(-1, Math.min(1, xyz[3 * i] * p[0] + xyz[3 * i + 1] * p[1] + xyz[3 * i + 2] * p[2]))) * PLANET_RADIUS_KM < km; };
+    const tarim = within(25, 72, 550), siberia = within(53, 72, 800), tarimId = FAR_TERRANES.tarim, siberiaId = FAR_TERRANES.siberia;
+    // a band ±half km about the arc a → b (lat, lon), between its ends
+    const band = (a, b, half) => {
+        const pa = latLonToXyz(...a), pb = latLonToXyz(...b), n = normalize(cross(pa, pb)), span = Math.acos(dot(pa, pb));
+        return i => {
+            const p = [xyz[3 * i], xyz[3 * i + 1], xyz[3 * i + 2]];
+            if (Math.abs(Math.asin(Math.max(-1, Math.min(1, dot(p, n))))) * PLANET_RADIUS_KM > half) return false;
+            const along = Math.atan2(dot(cross(pa, p), n), dot(pa, p));
+            return along > -half / PLANET_RADIUS_KM && along < span + half / PLANET_RADIUS_KM;
+        };
+    };
+    const acrossSuture = band([35, 58], [35.5, 86], 80), alongSuture = band([22, 94], [48, 94], 80), aulacogen = band([27, 50], [37, 61], 80);
+    for (let i = 0; i < numCells; i++) {
+        if (!A.mask[i]) continue;
+        if (tarim(i)) { A.type[i] = CrustType.CRATON; A.terrane[i] = tarimId; continue; }
+        if (siberia(i)) { A.type[i] = CrustType.CRATON; A.terrane[i] = siberiaId; continue; }
+        // (each line its own terrane — ids survive a weld, so a check can find them whichever plate ends on top)
+        if (acrossSuture(i)) { A.flags[i] |= CrustFlag.SUTURE; A.terrane[i] = FAR_TERRANES.across; }
+        else if (alongSuture(i)) { A.flags[i] |= CrustFlag.SUTURE; A.terrane[i] = FAR_TERRANES.along; }
+        else if (aulacogen(i)) { A.flags[i] |= CrustFlag.FAILED_RIFT; A.terrane[i] = FAR_TERRANES.aulacogen; }
+    }
+
+    addApronAndTrench(canvas, asia, asiaLand, [[215, 325]], world.config);
+    const indiaLand = addContinent(canvas, noise, { plate: india, centre: [-28, 72], radiusKm: 1300, cratonKm: 950 });
+    const a = indiaLand.centre, b = asiaLand.centre, axis = normalize(cross(a, b)), span = Math.acos(dot(a, b));
+    addOcean(canvas, india, (x, y, z) => {
+        const p = [x, y, z];
+        if (Math.acos(Math.max(-1, Math.min(1, dot(p, a)))) * PLANET_RADIUS_KM < 1900) return true;
+        const off = Math.abs(Math.asin(Math.max(-1, Math.min(1, dot(p, axis))))) * PLANET_RADIUS_KM;
+        const along = Math.atan2(dot(cross(a, p), axis), dot(a, p));
+        return off < 1900 && along > 0 && along < span;
+    }, -90);
+    fillBackground(canvas, world, world.config);
+    Object.assign(world.config, onlyMechanisms('underthrust', 'farField'), mechanismsOn('underthrust', 'farField'));
+    return world;
+}
+
 // (the rift scenes carry no drive of their own — their lab phase supplies the force model — so it is given here)
 const from = (list, id, overrides = {}) => ({ drive: updatePlateMotion, ...list.find(s => s.id === id), ...overrides });
 // The whole-planet histories (Evolution's, and the lab's) at a faster pace: two plates closing up to 2.25 cells a step, not
@@ -86,6 +139,10 @@ export const TERRAIN_SCENES = [
     {
         id: 'cratons', label: 'Ranges against cratons', maxMyr: 90, view: [8, 72], build: buildCratons, drive: updatePlateMotion,
         about: 'India, with a big shield close behind its leading coast, collides with Asia, whose shield lies ~900 km behind its south coast. On India’s side (the lower plate) the range’s foothills ride onto the shield’s rim, and in front of them a lowland bends the shield down; on Asia’s side the plateau reaches the shield and its back meets it in a steep front. Neither shield’s outline shows as the sim’s cells.',
+    },
+    {
+        id: 'farfield', label: 'A collision felt far inland', maxMyr: 140, view: [30, 72], build: buildFarField, drive: updatePlateMotion,
+        about: 'India collides with an Asia that has a Tarim-like shield ~1100 km behind its south coast and a Siberian one far to the north; between them an old suture runs east–west, square across the push, another north–south along it, and a failed rift strikes north-east. The push passes through the stiff shield and is taken up beyond it: the suture across it rises as a range far from the front (the Tian Shan), the one along it barely stirs, the failed rift is squeezed up into a ridge (an inverted aulacogen) — and broad, low swells and basins run parallel to the front across the continent. Far field layer: how much push each place has felt, and the axis it was squeezed along.',
     },
     // (a whole planet may be asked to end in a stage of the supercontinent cycle: `endings` — tectonics/ending.js)
     wholePlanet(from(BUDGET_SCENES, 'history', { id: 'history', label: 'A whole planet (600 Myr)', endings: true, about: 'The start world run for 600 Myr with every rule on (building takes about a minute). Young belts stand high and sharp, old ones low but still grained; cratons flat and low; wide shelves on passive margins, narrow ones on active margins; mid-ocean ridges and trenches in the sea.' })),

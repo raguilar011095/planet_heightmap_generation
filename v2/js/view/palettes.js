@@ -105,12 +105,12 @@ export const SUTURE_RGB = [232, 138, 52];
 // Orogeny in WBP's style: one hue per type, black when active, fading toward the land colour with age.
 export const OROGENY_RGB = {
     [OrogenyType.ANDEAN]: [214, 96, 40], [OrogenyType.LARAMIDE]: [214, 160, 40], [OrogenyType.URAL]: [110, 140, 60],
-    [OrogenyType.HIMALAYAN]: [150, 40, 120], [OrogenyType.ARC]: [60, 130, 150], [OrogenyType.RIFT]: [60, 170, 170], [OrogenyType.TRANSPRESSION]: [120, 110, 225],
+    [OrogenyType.HIMALAYAN]: [150, 40, 120], [OrogenyType.ARC]: [60, 130, 150], [OrogenyType.RIFT]: [60, 170, 170], [OrogenyType.TRANSPRESSION]: [120, 110, 225], [OrogenyType.INTRAPLATE]: [205, 125, 95],
 };
 /** What each orogeny type is called in the lab (every OrogenyType has one; legends and readouts use it). */
 export const OROGENY_NAME = {
     [OrogenyType.ANDEAN]: 'Andean', [OrogenyType.LARAMIDE]: 'Laramide', [OrogenyType.URAL]: 'Ural', [OrogenyType.HIMALAYAN]: 'Himalayan',
-    [OrogenyType.ARC]: 'island-arc', [OrogenyType.RIFT]: 'rift-shoulder', [OrogenyType.TRANSPRESSION]: 'transpression',
+    [OrogenyType.ARC]: 'island-arc', [OrogenyType.RIFT]: 'rift-shoulder', [OrogenyType.TRANSPRESSION]: 'transpression', [OrogenyType.INTRAPLATE]: 'intraplate (far-field)',
 };
 export const OROGENY_FADE_MYR = 300;     // a belt this old is fully faded (its record survives; terrain synthesis decides what is left)
 const OROGENY_LAND_RGB = [196, 190, 176];
@@ -231,6 +231,24 @@ export function colorByMantleHeat(frame, out) {
         const t = frame.mantleHeat[w] / 255, land = frame.owner[w] >= 0 && frame.type[w] !== CrustType.OCEAN;
         const rgb = [30 + 225 * t, 40 + 110 * t * (1 - t) * 4 * 0.6, 90 * (1 - t) + 20];
         put(out, w, land ? rgb.map(v => v * 0.7 + 60) : rgb);
+    }
+}
+
+/**
+ * The far field (step/far-field.js): how much push distant fronts have sent through each place — dark blue for none,
+ * through violet and orange to pale yellow at ~1000 km of shortening-equivalent (a log scale) — and, with `recent`, how
+ * much of it lately (what folds the lithosphere now). Cratons a shade darker; weak lines (sutures, failed rifts, rift
+ * margins) with an orange cast — where the push is taken up.
+ */
+export function colorByFarField(frame, out, recent = false) {
+    const field = recent ? frame.farFold : frame.farWork, weak = CrustFlag.SUTURE | CrustFlag.FAILED_RIFT | CrustFlag.RIFT_MARGIN;
+    for (let w = 0; w < frame.owner.length; w++) {
+        if (frame.owner[w] < 0 || frame.type[w] === CrustType.OCEAN) { put(out, w, [24, 34, 60]); continue; }
+        const v = Math.min(1, Math.log10(1 + (field?.[w] ?? 0)) / 3);
+        let rgb = [45 + 210 * v, 40 + 200 * v * v, 110 + 40 * v - 90 * v * v];
+        if (frame.type[w] === CrustType.CRATON) rgb = rgb.map(x => x * 0.7);
+        if (frame.flags[w] & weak) rgb = [rgb[0] * 0.6 + 100, rgb[1] * 0.6 + 40, rgb[2] * 0.5];
+        put(out, w, rgb);
     }
 }
 

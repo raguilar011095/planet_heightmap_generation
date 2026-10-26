@@ -8,6 +8,7 @@
 // all, so the trench line is continuous and its new polarity holds from the first step.
 
 import { CrustType, CrustFlag } from '../model/crust.js';
+import { frameRotation } from '../model/plate.js';
 import { spreadBelt, beltWidthKm, OrogenyType, BeltSide } from '../step/orogeny.js';
 import { closeSeasBetween } from './merge-plates.js';
 import { freeCellBeside } from './tidy-plates.js';
@@ -42,7 +43,7 @@ export function accreteTerrane(world, host, donor, terrane, rateCmYr) {
     }
 
     const P = [0, 0, 0];
-    let moved = 0, absorbed = 0;
+    let moved = 0, absorbed = 0, rot = null;
     for (const c of [...terrane, ...foreArc]) {
         donor.toWorld(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2], P);
         let q = host.cellAt(index, P[0], P[1], P[2]);
@@ -52,7 +53,7 @@ export function accreteTerrane(world, host, donor, terrane, rateCmYr) {
             if (q < 0) { absorbed++; D.remove(c); continue; }
         }
         if (origin[q] !== 1 && (land || !H.mask[q])) {                   // the host keeps its own land, and its own crust over the fore-arc
-            H.copyFrom(q, D, c);
+            H.copyFrom(q, D, c, rot ??= frameRotation(donor, host));
             if (land) H.flags[q] &= ~CrustFlag.TRENCH;                     // on land the polarity rule re-establishes the trench where it belongs
             if (land) origin[q] = 2;
             if (land) moved++;

@@ -23,6 +23,7 @@ import { openBackArcs, steerBackArcStrips } from './step/backarc.js';
 import { growMarginIsles } from './step/margin-isles.js';
 import { captureFrame } from './snapshot.js';
 import { evolveHeights, seedBaseRelief } from './step/heights.js';
+import { evolveFarField } from './step/far-field.js';
 import { evolveRivers } from './step/rivers.js';
 import { CM_PER_YR_TO_RAD_PER_MYR } from './config.js';
 
@@ -129,6 +130,7 @@ function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snap
         }
         if (slow) evolveHeights(world, slowDt);  // heights wear down and spread (records only: nothing below reads them)
         evolveRivers(world, dt);                            // rivers drain the land and cut into it (records only too; on a clock of their own)
+        evolveFarField(world, dt);                          // fronts' pushes felt far inland (records only; on a clock of its own)
         drive(world);
         steerBackArcStrips(world);                          // a back-arc strip follows its retreating trench, whatever drives the rest
         // (each plate's rotation averaged over ~SLOW_ROTATION_MYR: the spreading poles fracture zones are measured about —

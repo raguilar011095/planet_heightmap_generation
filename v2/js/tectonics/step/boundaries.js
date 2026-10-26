@@ -11,6 +11,7 @@ import { PLANET_RADIUS_KM } from '../../core/sim-mesh.js';
 import { overrides } from './polarity.js';
 import { contactAt } from './contact.js';
 import { spreadBelt, beltWidthKm, beltShape, obliquityDeg, OrogenyType } from './orogeny.js';
+import { feedFarField } from './far-field.js';
 import { reachesWithin } from '../../core/mesh-bfs.js';
 
 const Motion = Object.freeze({ LOCKED: 0, OPENING: 1, CLOSING: 2, SLIDING: 3 });
@@ -131,6 +132,11 @@ export function classifyBoundaries(world, dt) {
         const isArc = c => plate.crust.type[c] === CrustType.ARC, notArc = c => !isArc(c);
         if (andean.some(notArc)) spreadBelt(plate, mesh, andean.filter(notArc), { ...belt, widths: pick(widths, notArc), works: pick(works, notArc), shears: pick(shears, notArc) }, config);
         if (andean.some(isArc) && !flat) spreadBelt(plate, mesh, andean.filter(isArc), { ...belt, type: OrogenyType.ARC, widths: pick(widths, isArc).map(v => Math.min(v, config.arcBeltMaxKm)), works: pick(works, isArc), shears: pick(shears, isArc) }, config);   // an arc is a narrow line
+        // the push a strongly coupled coast sends far inland (step/far-field.js; records only): a flat slab grinds on the plate
+        // far inland at any rate; a steep one pushes only when it converges fast (× (rate ÷ farAndeanRateCmYr)², up to 1)
+        const pushes = keep.map((i, j) => works[j] * (flat ? config.farFlatShare
+            : config.farAndeanShare * Math.min(1, (f.kms[i] / dt / CM_PER_YR_TO_KM_PER_MYR / config.farAndeanRateCmYr) ** 2)));
+        feedFarField(world, plate, `s${plate.id}`, andean, pushes, andean.length * mesh.edgeKm * 0.87, 1);
     }
 
     // Transpression belts: narrow, and wider the longer the fault has been pressed together (the front's own record).

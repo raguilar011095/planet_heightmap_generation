@@ -123,7 +123,7 @@ export const TERRAIN = {
     forebulgeGain: 3,           // the forebulge, this many times the thin elastic plate's (tens of metres)
     forelandByKind: {           // how much a front of each kind loads the shield beside it (0: none)
         [OrogenyType.ANDEAN]: 1, [OrogenyType.HIMALAYAN]: 1, [OrogenyType.URAL]: 1, [OrogenyType.LARAMIDE]: 0.6,
-        [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.ARC]: 0.3, [OrogenyType.RIFT]: 0,
+        [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.ARC]: 0.3, [OrogenyType.RIFT]: 0, [OrogenyType.INTRAPLATE]: 0.6,
     },
     forelandUpperPlate: 0.15,   // …× this where a collision's UPPER plate — its plateau's back — meets the block: a steep front
                                 // with little foreland (the Longmen Shan against the Sichuan Basin)
@@ -232,11 +232,11 @@ export const TERRAIN = {
     // ── Mountain belts: relief on top of the isostatic platform (profiles.js lays out the cross-sections) ──
     reliefKm: {                 // crest height of each kind of belt when mature and active
         [OrogenyType.ANDEAN]: 3.4, [OrogenyType.LARAMIDE]: 1.5, [OrogenyType.URAL]: 1.7, [OrogenyType.HIMALAYAN]: 3.2,
-        [OrogenyType.ARC]: 0.8, [OrogenyType.RIFT]: 1.4, [OrogenyType.TRANSPRESSION]: 1.9,
+        [OrogenyType.ARC]: 0.8, [OrogenyType.RIFT]: 1.4, [OrogenyType.TRANSPRESSION]: 1.9, [OrogenyType.INTRAPLATE]: 3.0,
     },
     fullReachKm: {              // a belt this wide counts as mature (a young one is narrower and lower)
         [OrogenyType.ANDEAN]: 450, [OrogenyType.LARAMIDE]: 900, [OrogenyType.URAL]: 250, [OrogenyType.HIMALAYAN]: 900,
-        [OrogenyType.ARC]: 200, [OrogenyType.RIFT]: 220, [OrogenyType.TRANSPRESSION]: 80,
+        [OrogenyType.ARC]: 200, [OrogenyType.RIFT]: 220, [OrogenyType.TRANSPRESSION]: 80, [OrogenyType.INTRAPLATE]: 300,
     },
     youngShare: 0.55,           // a belt just begun stands at this share of a mature one's relief (a young arc like the Cascades: 3–4 km with its volcanoes)
     // ── Heights evolving through the history (tectonics/step/heights.js) ── every rate below is × the erosion factor of
@@ -245,7 +245,7 @@ export const TERRAIN = {
                                 // many km its front absorbs (Andean fronts count 12 % of the slab — andeanWorkShare — so
                                 // theirs is shorter; rifts and accretions build theirs at once)
         [OrogenyType.ANDEAN]: 20, [OrogenyType.LARAMIDE]: 20, [OrogenyType.URAL]: 30, [OrogenyType.HIMALAYAN]: 50,
-        [OrogenyType.ARC]: 20, [OrogenyType.RIFT]: 1, [OrogenyType.TRANSPRESSION]: 30,
+        [OrogenyType.ARC]: 20, [OrogenyType.RIFT]: 1, [OrogenyType.TRANSPRESSION]: 30, [OrogenyType.INTRAPLATE]: 15,
     },
     // (developer, round 4: erosion here a little slower overall — 8b's rivers cut down more, and the two should balance;
     // then, after Phase 13, "a ton of the land is above 400m": over 600–1200 Myr only 18–26 % of land was below 400 m
@@ -313,7 +313,7 @@ export const TERRAIN = {
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
     stripeKm: {                 // wavelength of the main set of parallel ridges, per kind of belt
         [OrogenyType.ANDEAN]: 75, [OrogenyType.LARAMIDE]: 190, [OrogenyType.URAL]: 70, [OrogenyType.HIMALAYAN]: 95,
-        [OrogenyType.ARC]: 60, [OrogenyType.RIFT]: 90, [OrogenyType.TRANSPRESSION]: 55,
+        [OrogenyType.ARC]: 60, [OrogenyType.RIFT]: 90, [OrogenyType.TRANSPRESSION]: 55, [OrogenyType.INTRAPLATE]: 80,
     },
     // Their height is GUIDANCE layered on the belt's own uplift (developer: "guides, layered on top of other
     // increases"): a share of the local relief, plus a little on a young belt's low ground; 8b carves the rest

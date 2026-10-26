@@ -64,6 +64,10 @@ export function beltProfile(type, side, d, reach, jitter = 0, g = 0) {
             const c = clamp(0.12 * W, 25, 90), k = riftWear(c, g), e = g ? c + (d - c) * k : d;
             return fade * k * (e < c ? bump(e, c, 0.6 * c) : Math.exp(-(e - c) / (0.45 * W)));
         }
+        case OrogenyType.INTRAPLATE:
+            // an old weak line squeezed up far inland (the Tian Shan, the Ancestral Rockies): a basement-cored range along
+            // it, its flanks thrust out over basins either side (the Tarim and Junggar, the Denver basin)
+            return fade * (0.9 * bump(d, 0, Math.max(40, 0.28 * W), g) - 0.25 * bump(d, 0.8 * W, Math.max(30, 0.15 * W), g));
         default: return 0;
     }
 }
@@ -105,6 +109,8 @@ export function broadProfile(type, side, d, reach, jitter = 0, g = 0) {
             const c = clamp(0.12 * W, 25, 90), k = riftWear(c, g), e = g ? c + (d - c) * k : d;
             return fade * 0.9 * k * (e < c ? bump(e, c, Math.max(70, c)) : Math.exp(-(e - c) / (0.45 * W)));
         }
+        case OrogenyType.INTRAPLATE:
+            return fade * (0.5 * bump(d, 0, Math.max(100, 0.3 * W), g) - 0.2 * bump(d, 0.8 * W, Math.max(80, 0.15 * W), g));
         default: return 0;
     }
 }
@@ -133,6 +139,7 @@ export function stripeZone(type, side, d, reach, jitter = 0) {
         case OrogenyType.ARC: return 0.1 * edge;
         case OrogenyType.TRANSPRESSION: return edge;
         case OrogenyType.RIFT: return 0.25 * edge;                                                    // fault blocks
+        case OrogenyType.INTRAPLATE: return 0.7 * edge;                                               // basement blocks and folds
         default: return 0;
     }
 }

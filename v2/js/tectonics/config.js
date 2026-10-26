@@ -448,6 +448,34 @@ export const TECTONICS = {
     endingBreakupMyr: [15, 60], // "breaking up": the first rift since it formed is this old (young seas, the pieces still close)
     endingDispersedShare: 0.45, // "dispersed": broken up, the largest landmass holding no more than this of the continental crust
 
+    // ── The far field (step/far-field.js; plans/V2_FAR_FIELD_PLAN.md). Records only. ──
+    // A front's push is felt far inland: cratons pass it on, weak lines take it up (the Tian Shan behind the Tarim block)
+    farFieldEveryMyr: 4,        // the pushes fronts gathered are spread this often (a clock of its own, as the rivers')
+    farReachKm: 1100,           // the push fades over this (e-folding, in path cost) from a front farFrontRefKm long…
+    farFrontRefKm: 2000,        // …a wider front reaching further (× √(front ÷ this), 0.5…1.6: an indenter's width sets how far
+                                // its deformation reaches — England & Houseman 1986)…
+    farMaxKm: 3200,             // …and nowhere past this path cost
+    farCratonCost: 0.3,         // per km, a craton passes the push on: stiff, it barely loses any…
+    farWeakCost: 1.6,           // …a weak line (old suture, failed rift, rift margin) soaks it up
+    farCratonTake: 0.15,        // the share of the passing push a craton records (it hardly deforms)…
+    farWeakTake: 1.6,           // …and a weak line
+    farCollisionShare: 1,       // a collision pushes with the shortening its front absorbs…
+    farAndeanShare: 0.35,       // …a subduction coast with this share of its belt's work, × (convergence ÷ farAndeanRateCmYr)²
+    farAndeanRateCmYr: 6,       // (up to 1): only a strongly coupled, fast margin pushes far (the Sierras Pampeanas)…
+    farFlatShare: 1,            // …a flat slab (the Laramide: the plate grinds on the slab far inland) with this share, at any rate
+    farFoldMyr: 120,            // the recent push (the folds it raises) fades over this; the whole push (the grain) stays
+    farStartWorkKm: 500,        // the start world's major seams pushed this much across it before the history began
+    // …and where it lands on an old suture or failed rift far from the front, the line rises again (an INTRAPLATE belt):
+    farReactivate: 1,           // its work: this share of the push the line took, where the push meets it square-on…
+    farReactMinKmPerMyr: 10,    // …less this much per Myr since the last spread: only a strong push stirs a line (a weaker one,
+                                // however long it lasts, does not — the yield strength; at 1.5 per Myr, half the land carried
+                                // an intraplate belt by 1200 Myr and land above 1 km rose 41 → 52 %; at 10, and with no root under the
+                                // range — far ranges ~1–1.5 km over a big collision — within ~2 points of a history without, at any time)…
+    farNearKm: 450,             // …from this far (path cost) from the front on, eased in over as much again (nearer, the
+                                // front's own belts are at work)…
+    farBeltKm: [110, 320],      // …the range this wide — wider the harder it was pushed…
+    farBeltWorkKm: 60,          // …(the width's scale of work)
+
     // ── Reserved for later phases: not read by the engine; kept so the numbers from the research survive (the checks use maxPlates) ──
     reserved: {
         maxPlates: 28,
@@ -481,6 +509,7 @@ export const MECHANISMS = Object.freeze({
     arcMaturation:  { arcContinentKmPerMyr: 0 },                             // arcs welded onto a continent become continent (step/arc-maturation.js)
     mantleHeatRifts: { riftHeatGain: 0, riftHeatFloor: 1, dispersalRiftBoost: 1, riftHeatTension: 0 },                  // continents rift readily over mantle they have insulated (step/rifting.js)
     mantleFlow:     { mantleOutflow: 0, mantleInflow: 0, dispersalRepulsion: 0, disperseFounderFactor: 1 }, // the mantle's flow drags continents apart and together again (step/supercontinent.js)
+    farField:       { farCollisionShare: 0, farAndeanShare: 0, farFlatShare: 0, farStartWorkKm: 0, farReactivate: 0 },     // a front's push felt far inland (step/far-field.js; records only)
 });
 
 /** Config overrides that switch off the named mechanisms (keys of MECHANISMS). */
