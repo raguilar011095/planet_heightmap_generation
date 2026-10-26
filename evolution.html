@@ -254,12 +254,13 @@
             </optgroup>
             </select></span>
             <label class="toggle-label" title="Shade the planet by its relief (the Shading beside it: its style, strength and light). Off, every view is flat colour, the mountains shown by their colours alone and no sun glinting on the sea (a texture to light in a 3D program; the export has its own Hillshade switch)"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade</label>
-            <span class="vs-item" id="shadingGroup" title="How the relief is lit, on every view. Classic — one light from the north-west, the slopes as they are: the mountains take the relief. Soft — the same light, gentle slopes brought up and steep ones held back, so plains and hills shade too. Multidirectional — four lights round the one chosen, so no slope burns out facing the light or vanishes along it. Textured — the local relief as well: ridges lighter and valleys darker whichever way they run, which brings out the rivers' valleys and the plains' grain. Detailed — all three together. Swiss — Detailed with aerial perspective: the ranges crisp over hazier lowlands. Dramatic — a low sun: long, deep shading"><label for="shading">Shading</label> <select id="shading">
+            <span class="vs-item" id="shadingGroup" title="How the relief is lit, on every view. Classic — one light from the north-west, the slopes as they are: the mountains take the relief. Soft — the same light, gentle slopes brought up and steep ones held back, so plains and hills shade too. Multidirectional — four lights round the one chosen, so no slope burns out facing the light or vanishes along it. Textured — the local relief as well: ridges lighter and valleys darker whichever way they run, which brings out the rivers' valleys and the plains' grain. Detailed — all three together. Layered — a mapmaker's layers: the Classic light, a high-pass texture laid over it, and beneath them the ranges as a whole, the heights blurred and lifted through a curve about 1 km and lit again. Swiss — Detailed with aerial perspective: the ranges crisp over hazier lowlands. Dramatic — a low sun: long, deep shading"><label for="shading">Shading</label> <select id="shading">
                 <option value="classic" selected>Classic</option>
                 <option value="soft">Soft</option>
                 <option value="multi">Multidirectional</option>
                 <option value="textured">Textured</option>
                 <option value="detailed">Detailed</option>
+                <option value="layered">Layered</option>
                 <option value="swiss">Swiss</option>
                 <option value="dramatic">Dramatic</option>
             </select></span>

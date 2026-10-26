@@ -78,7 +78,13 @@ the plains' and hills' gentle slopes and holds the steep ones back); **Multidire
 four lights 45° apart, each slope lit mostly by the lights it faces obliquely, so nothing burns out facing the light or
 vanishes along it, its gentler tones stretched back); **Textured** (Soft plus the local relief model — the height above
 the mean within ~50 km, valleys darkened and ridges lightened half as much whichever way they run — which shows the
-drainage and the plains' grain that no light alone can); **Detailed** (all three); **Swiss** (Detailed with Imhof's
+drainage and the plains' grain that no light alone can); **Detailed** (all three); **Layered** (the developer's own
+process for their maps, 2026-10-26, in its order of strength: the Classic light; the high-pass texture laid over it, even
+on ridge and valley as a soft-light overlay nearly is; and beneath them the ranges as a whole — the heights blurred over
+~120 km, put through a logistic rise of 2.5 km about 1 km, 0.35 km wide, a little linear on either end, and lit by the
+same light at twice the strength, so each belt's flanks shade softly where its rain shadows fall; `RANGE_*`; on the mesh
+the blur runs on a 0.5° lat-lon grid of the cells' binned heights, a normalised convolution, sampled back per cell);
+**Swiss** (Detailed with Imhof's
 aerial perspective, the shading's contrast fading toward the lowlands and the sea so the ranges stand crisp over a hazier
 plain); **Dramatic** (a 25° sun, long deep shading, a little texture). With **Strength** (the slope exaggeration, 5–60,
 20) and **Light** (the azimuth, 15° steps, north-west), remembered in the browser like the palette. Every style gives 1
