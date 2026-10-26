@@ -6,7 +6,7 @@
 // "holes in the ground" a dried-out inland sea leaves.
 //
 //   node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 30 --time 290
-//        [--sim 40000] [--cells 2500000] [--width 4096] [--crop lon0,lon1,lat0,lat1] [--out name] [--palette relief] [--lakes] [--probe "lat,lon;…"] [--rivers [q0]] [--set key=value,…]
+//        [--sim 40000] [--cells 2500000] [--width 4096] [--crop lon0,lon1,lat0,lat1] [--out name] [--palette relief] [--shade classic] [--lakes] [--probe "lat,lon;…"] [--rivers [q0]] [--set key=value,…]
 //
 // The page's link ?seed=…&cont=…&sim=… gives --seed, --cont and --sim; the moment is --time (Myr). Output: v2/out/moments/.
 
@@ -31,7 +31,7 @@ setDelaunator(Delaunator);
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const arg = (k, d) => { const i = process.argv.indexOf(k); return i > 0 ? process.argv[i + 1] : d; };
 const SEED = Number(arg('--seed', 12345)), CONT = Number(arg('--cont', 30)), SIM = Number(arg('--sim', 40000)), TIME = Number(arg('--time', 300));
-const CELLS = Number(arg('--cells', 2500000)), W = Number(arg('--width', 4096)), PALETTE = arg('--palette', 'relief');
+const CELLS = Number(arg('--cells', 2500000)), W = Number(arg('--width', 4096)), PALETTE = arg('--palette', 'relief'), SHADE = arg('--shade', 'classic');
 const CROP = arg('--crop', null)?.split(',').map(Number) ?? null;
 const NAME = arg('--out', `moment-${SEED}-${TIME}-${Math.round(CELLS / 1000)}k`);
 const MESH_SEED = 12345;                              // (the page's: every planet's sim mesh is the same; the seed shapes the world)
@@ -67,7 +67,7 @@ console.log(`\nfinished at ${CELLS.toLocaleString()} cells (${secs()}); stages m
 // ── the picture, painted as the page paints it ──
 const raster = finishRaster(fin.mesh, fin.z, fin.ocean, W, null, fin.lake, fin.lakeLevel, null);
 const H = W >> 1, image = { data: new Uint8ClampedArray(W * H * 4) };
-paintFinished(raster, { width: W, image }, heightLutOf(PALETTE), { lakes: true, exaggeration: 20 });
+paintFinished(raster, { width: W, image }, heightLutOf(PALETTE), { lakes: true, shading: { exaggeration: 20, style: SHADE } });
 // (--rivers [q0]: the rivers drawn over it as the page draws them — every reach carrying q0 m³/s or more (the page's default
 // density 40), smoothed (Chaikin, twice), hairlines whose strength grows with the log of the discharge — scaled to this width)
 if (process.argv.includes('--rivers') && fin.rivers) {

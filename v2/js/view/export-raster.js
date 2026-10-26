@@ -3,6 +3,8 @@
 // shown, or the numbers themselves as a greyscale on a fixed, documented scale (the README.txt that goes in the ZIP says
 // which) — before it is projected (projections.js) and encoded (png.js). DOM-free.
 
+import { pictureShader } from './terrain-shade.js';
+
 /** The data layers' scales: each quantity's greyscale is linear from `lo` (0) to `hi` (65535, or 255 at 8 bits). */
 export const DATA_SCALES = {
     temperature: { unit: '°C', lo: -60, hi: 60 },
@@ -23,7 +25,7 @@ export const DATA_SCALES = {
     aridity:     { unit: 'P / PET', lo: 0, hi: 5 },
     growing:     { unit: 'months above 10 °C', lo: 0, hi: 12 },
     rainSeason:  { unit: 'Walsh seasonality index', lo: 0, hi: 1.5 },
-    hillshade:   { unit: 'light (0 dark … 255 lit; light from the north-west)', lo: 0, hi: 1 },
+    hillshade:   { unit: 'light (0 dark … 180 flat … 255 lit; the shading style, strength and light shown)', lo: 0, hi: 1 },
     landmask:    { unit: 'land 255, sea 0', lo: 0, hi: 1 },
     koppenIndex: { unit: 'Köppen class index (0 = sea; the README lists the classes)', lo: 0, hi: 255 },
     plateId:     { unit: 'plate number', lo: 0, hi: 255 },
@@ -46,20 +48,14 @@ export function gray16to8(g16) {
 }
 
 /**
- * A hillshade of an equirectangular height picture (`h` in km, W × H), lit from the north-west as the Evolution page
- * shades its terrain (finish-view.js paintFinished): the light on each pixel's slope, 0…255 — flat ground 180, a
- * north-west slope brighter, a south-east slope darker. `exaggeration`: the slope's vertical exaggeration.
+ * The relief shading of a picture of heights `h` (km, W × H; `sea`: 1 on the sea, or null for none), 8-bit: 0 facing away
+ * from the light, 180 on flat ground, up to 255 facing it — in the shading shown (terrain-shade.js pictureShader:
+ * `shading` {exaggeration, style, azimuthDeg, …}, or a number: the classic light's exaggeration).
  */
-export function hillshade8(h, W, H, exaggeration = 20) {
-    const out = new Uint8Array(W * H), pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
-    for (let y = 0; y < H; y++) {
-        const cl = Math.max(0.05, Math.cos(((y + 0.5) / H - 0.5) * Math.PI)), up = Math.max(0, y - 1) * W, dn = Math.min(H - 1, y + 1) * W, row = y * W;
-        for (let x = 0; x < W; x++) {
-            const ge = (h[row + (x + 1) % W] - h[row + (x - 1 + W) % W]) / (2 * pxKm * cl), gn = (h[up + x] - h[dn + x]) / (2 * pxKm);
-            const px = -exaggeration * ge, py = -exaggeration * gn, len = Math.sqrt(px * px + py * py + 1);
-            out[row + x] = Math.round(255 * Math.max(0, (px * Le + py * Ln + Lu) / len));
-        }
-    }
+export function hillshade8(h, W, H, shading = 20, sea = null) {
+    const opts = typeof shading === 'number' ? { exaggeration: shading } : shading;
+    const shadeAt = pictureShader(h, sea ?? new Uint8Array(W * H), W, opts), out = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) out[y * W + x] = Math.round(Math.min(255, 180 * shadeAt(x, y)));
     return out;
 }
 

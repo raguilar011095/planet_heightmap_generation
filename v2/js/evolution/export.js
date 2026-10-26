@@ -36,7 +36,7 @@ export const CATALOGUE = [
         { id: 'heightmap', label: 'Heightmap with sea floor', data: [{ key: 'heightmap', suffix: '', label: 'Heightmap with sea floor', scale: { unit: 'km (sea level at 55 %)', lo: -11, hi: 9 }, bits: 16 }], tip: '16-bit greyscale, the same scale on every planet: black −11 km, white +9 km (sea level at 55 %)' },
         { id: 'landheightmap', label: 'Land heightmap', data: [{ key: 'landheightmap', suffix: '', label: 'Land heightmap', scale: { unit: 'km above sea level (the sea 0; land from 1)', lo: 0, hi: 9 }, bits: 16 }], tip: '16-bit: the sea black and land from 0 to +9 km (re-imports on the Import Heightmap page, which reads white as 6 km)' },
         { id: 'landmask', label: 'Land mask', data: [{ key: 'landmask', suffix: '', label: 'Land mask', scale: SC.landmask, bits: 8 }], tip: 'Land white (lakes are land), the sea black' },
-        { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief lit from the north-west, on its own — to lay over a flat colour map' },
+        { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief shading as shown (the view strip\'s Shading, its strength and light), on its own — to lay over a flat colour map' },
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
 ];
@@ -100,11 +100,12 @@ export function landMask8(r, W, centerLon = 0) {
 
 /**
  * The colour map as the Terrain view shows it: the palette's colours hillshaded, the lakes and the rivers (with Rivers &
- * Lakes), no grid. `look`: { lut, exaggeration, water, riverQ, byRegime, shaded (the hillshade; default on), centerLon }.
+ * Lakes), no grid. `look`: { lut, shading (the page's: exaggeration, style, azimuthDeg), exaggeration, water, riverQ,
+ * byRegime, shaded (the hillshade; default on), centerLon }.
  */
 export function colorMap(fin, W, look) {
     const H = W >> 1, image = new ImageData(W, H), shift = rollShift(W, look.centerLon);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false });
+    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, shading: look.shading, lakes: look.water, shaded: look.shaded !== false });
     const rgba = rollRows(image.data, W, H, 4, shift);
     if (!(look.water && fin.rivers)) return { kind: 'rgba', W, H, data: rgba };
     const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
@@ -117,7 +118,7 @@ export function colorMap(fin, W, look) {
 /** The Satellite view as shown, for the year, January or July: no grid, no glint (and, as on screen, no rivers' lines). */
 export function satelliteMap(fin, W, season, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true, shaded: look.shaded !== false,
+    paintFinished(fin.raster, { width: W, image }, look.lut, { shading: { ...look.shading, exaggeration: look.exaggeration * 1.25 }, lakes: true, shaded: look.shaded !== false,
         colorAt: finishedClimateColor('satellite', season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
@@ -193,7 +194,7 @@ export function riversMap(fin, W, look) {
 /** A climate layer as shown (climate-view.js finishedClimateColor), shaded or flat, the lakes as the Terrain view has them. */
 export function climateMap(fin, W, layer, season, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false,
+    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, shading: look.shading, lakes: look.water, shaded: look.shaded !== false,
         colorAt: finishedClimateColor(layer, season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
@@ -203,16 +204,16 @@ export function valueMap(fin, W, key, season, scale, centerLon = 0) {
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x; out[p] = Math.round(65535 * scaled(at(x, y, !!sea[p]), scale)); }
     return { kind: 'gray16', W, H, data: rollRows(out, W, H, 1, rollShift(W, centerLon)) };
 }
-/** The hillshade of the moment's heights, 8-bit. */
-export function hillshadeMap(fin, W, exaggeration, centerLon = 0) {
-    const H = W >> 1, { h } = rasterAt(fin.raster, W);
-    return { kind: 'gray8', W, H, data: rollRows(hillshade8(h, W, H, exaggeration), W, H, 1, rollShift(W, centerLon)) };
+/** The relief shading of the moment's heights as shown, 8-bit (`shading`: the look's {exaggeration, style, azimuthDeg}). */
+export function hillshadeMap(fin, W, shading, centerLon = 0) {
+    const H = W >> 1, { h, sea } = rasterAt(fin.raster, W);
+    return { kind: 'gray8', W, H, data: rollRows(hillshade8(h, W, H, shading, sea), W, H, 1, rollShift(W, centerLon)) };
 }
 
 /**
  * One map of a finished moment, W wide, as the panel asks for it: `job` {row (a CATALOGUE row), variant ('colour' or
- * 'data'), file (one of the row's data files), season}; `lk` the look ({lut, exaggeration, water, riverQ, byRegime,
- * shaded, centerLon}). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
+ * 'data'), file (one of the row's data files), season}; `lk` the look ({lut, shading, exaggeration, water, riverQ,
+ * byRegime, shaded, centerLon}). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
  */
 export function produceMap(fin, W, lk, job) {
     const s = job.season || 'year', id = job.row.id, c = lk.centerLon;
@@ -227,14 +228,14 @@ export function produceMap(fin, W, lk, job) {
     if (key === 'heightmap') return { kind: 'gray16', W, H, data: heightmap16(fin.raster, W, c) };
     if (key === 'landheightmap') return { kind: 'gray16', W, H, data: landHeightmap16(fin.raster, W, c) };
     if (key === 'landmask') return { kind: 'gray8', W, H, data: landMask8(fin.raster, W, c) };
-    if (key === 'hillshade') return hillshadeMap(fin, W, lk.exaggeration, c);
+    if (key === 'hillshade') return hillshadeMap(fin, W, lk.shading ?? { exaggeration: lk.exaggeration }, c);
     if (key === 'koppenIndex') return { kind: 'gray8', W, H, data: koppenIndexMap(fin, W, c) };
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
 /**
  * Wire the export panel on the Evolution page. `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null;
- * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }); `centerLon()`: the map view's;
+ * `look()`: the Terrain view's look ({ lut, shading, exaggeration, water, riverQ, byRegime }); `centerLon()`: the map view's;
  * `planetFile`: the page's planet file ({ status, save }: export-panel.js), offered beside the maps.
  */
 export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null }) {

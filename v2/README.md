@@ -42,8 +42,8 @@ previews are worked out again when shown and a detailed moment says it was made 
 which shows the two resolutions), with Build This World and **Load Planet…** (a planet file saved from the Export panel —
 or drop one anywhere on the page) — then the **context card**, and **Stats**. The view's
 settings sit in the **view strip** above the layer tabs, folded behind the arrow at their left (`js/view-strip.js`, shared with Generate and Import): Globe |
-Map, the map's projection and centre, auto-rotate, grid, terrain colours, hillshade, and on a detailed moment the
-rivers (Rivers & Lakes, By Regime, density); on a phone at the top of the bottom sheet. The map zooms and pans as Generate's
+Map, the map's projection and centre, auto-rotate, grid, terrain colours, hillshade with its shading style, strength and
+light, and on a detailed moment the rivers (Rivers & Lakes, By Regime, density); on a phone at the top of the bottom sheet. The map zooms and pans as Generate's
 does (`js/app/globe-view.js`): the wheel zooms toward the pointer (out to half the whole map's size, in to 20×, eased as the globe's zoom), a drag pans, two
 fingers pinch; the equirectangular map runs on east and west without end; the whole map comes back on changing its shape. Playback speed is on the timeline. The context card names the moment shown, a **Preview** or
 **Detailed** badge, and the one thing to do next — **Add detail** (with its Detail level), **Cancel** while it runs, or
@@ -70,7 +70,24 @@ Terrain (the lab's relief, or one of fifteen other palettes — maps and other w
 height alone), Heightmap and Plates, globe (in V1's space: stars,
 atmosphere, sunlight glinting softly off the sea) or map (centre longitude), grid, a Hillshade toggle (off, every view flat
 colour: each cell lit as flat ground, and no glint on the sea), and V1's hover readout with the crust's age
-and setting. **Add detail** (the code's *finish*) sculpts the moment shown again, with care, at a detail of its own (160K · 640K · 2.5M · 10M
+and setting. The hillshade's **Shading** (`js/view/terrain-shade.js` SHADE_STYLES; on every view, previews and detailed
+moments alike, and in the exports) is one of seven styles — combinations of the cartographers' techniques (developer,
+2026-10-26: the one north-west light was "mostly blobby" and gave its detail to the mountains alone): **Classic** (one
+light from the north-west, the slopes as they are); **Soft** (the slope's square root — a tonal compression that brings up
+the plains' and hills' gentle slopes and holds the steep ones back); **Multidirectional** (the USGS hillshade, Mark 1992:
+four lights 45° apart, each slope lit mostly by the lights it faces obliquely, so nothing burns out facing the light or
+vanishes along it, its gentler tones stretched back); **Textured** (Soft plus the local relief model — the height above
+the mean within ~50 km, valleys darkened and ridges lightened half as much whichever way they run — which shows the
+drainage and the plains' grain that no light alone can); **Detailed** (all three); **Swiss** (Detailed with Imhof's
+aerial perspective, the shading's contrast fading toward the lowlands and the sea so the ranges stand crisp over a hazier
+plain); **Dramatic** (a 25° sun, long deep shading, a little texture). With **Strength** (the slope exaggeration, 5–60,
+20) and **Light** (the azimuth, 15° steps, north-west), remembered in the browser like the palette. Every style gives 1
+on flat ground, so the climate and plate layers' shading (0.45 + 0.55 × it) follows the choice too. The texture's mean
+height is the same ~50 km at every detail: on the mesh by (50 km / cell edge)² averaging passes (a diffusion's reach grows
+with the root of its passes — one pass at 160K, sixteen at 2.5M), on a detailed moment's picture by two box blurs of the
+picture at ≤ 2048 px (`pictureMean`), so the texture costs the same at any export width. Shading a frame costs about
+twice Classic's at most (Detailed, on the shading worker); a detailed moment's painting per pixel up to ~2.5×
+(`pictureShader`). **Add detail** (the code's *finish*) sculpts the moment shown again, with care, at a detail of its own (160K · 640K · 2.5M · 10M
 cells; phones up to 640K; plans/V2_FINISH_PLAN.md): the surface domain-warped and roughened on high ground; the climate
 calculated on it; the rivers carving longer with the climate's runoff (rain less evaporation), dry basins left closed —
 flat pans where inflow and evaporation balance (the carve's `sink` / `base`) — at the finish's own erosion strength
@@ -134,12 +151,13 @@ names a river's discharge, regime and flood months, and a lake's kind). Measured
 **Export** (on the timeline once the moment shown is finished; the panel every page shares, `js/view/export-panel.js`,
 this page's maps in `js/evolution/export.js`, PNG files by `js/view/png.js`, the ZIP by `js/view/zip.js`, the projections
 by `js/view/projections.js`): every map as Colour and / or as Data — the colour map as the Terrain view shows it (palette,
-lakes, rivers; the hillshade optional); the Satellite view for the year, January or July (as shown: no grid, no glint);
+shading style, lakes, rivers; the hillshade optional); the Satellite view for the year, January or July (as shown: no grid, no glint);
 the Köppen climate zones in their own colours, unshaded, and as a class index; each climate layer (climate-view.js's
 samplers, finishedClimateColor and finishedClimateValue) as colour and as a 16-bit greyscale on a fixed scale
 (export-raster.js DATA_SCALES); a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the
 same shade the same height on every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the
-Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
+Import Heightmap page, which reads white as 6 km); a land mask; a hillshade (in the shading style, strength and light
+shown: 180 on flat ground); and the rivers and lakes alone on a transparent
 ground (the Terrain view's density and colouring). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
 1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
 detail, narrower ones averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped
@@ -276,7 +294,7 @@ js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of a
                    only paints
 js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
-                   palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
+                   palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint; the relief shading styles — hillshade per mesh cell, pictureShader per pixel of a picture of heights),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
 js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), export (a finished moment's maps as PNG files, or all in a ZIP)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
