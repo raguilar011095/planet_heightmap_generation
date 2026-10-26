@@ -179,7 +179,7 @@
             <summary>View</summary>
             <div class="section-body">
                 <div class="cg" id="paletteGroup">
-                    <label>Terrain Colours <span class="tip" data-tip="How heights are coloured on the Terrain view — all shaded by the relief">?</span></label>
+                    <label>Terrain Colours <span class="tip" data-tip="How heights are coloured on the Terrain view — all shaded by the relief (Relief Shading)">?</span></label>
                     <select id="palette">
                         <optgroup label="Maps">
                             <option value="relief" selected>Relief</option>
@@ -202,6 +202,26 @@
                             <option value="volcanic">Volcanic</option>
                         </optgroup>
                     </select>
+                </div>
+                <div class="cg" id="shadingGroup">
+                    <label>Relief Shading <span class="tip" data-tip="How the relief is lit, on every view. Classic &mdash; one light from the north-west, the slopes as they are: the mountains take the relief. Soft &mdash; the same light, gentle slopes brought up and steep ones held back, so plains and hills shade too. Multidirectional &mdash; four lights round the one chosen, so no slope burns out facing the light or vanishes along it. Textured &mdash; the local relief as well: ridges lighter and valleys darker whichever way they run, which brings out the rivers' valleys and the plains' grain. Detailed &mdash; all three together. Swiss &mdash; Detailed with aerial perspective: the ranges crisp over hazier lowlands. Dramatic &mdash; a low sun: long, deep shading. Relief Strength exaggerates the slopes; Light From turns the light">?</span></label>
+                    <select id="shading">
+                        <option value="classic" selected>Classic &mdash; one light</option>
+                        <option value="soft">Soft &mdash; gentle slopes too</option>
+                        <option value="multi">Multidirectional &mdash; four lights</option>
+                        <option value="textured">Textured &mdash; ridges and valleys</option>
+                        <option value="detailed">Detailed &mdash; all three</option>
+                        <option value="swiss">Swiss &mdash; aerial perspective</option>
+                        <option value="dramatic">Dramatic &mdash; low sun</option>
+                    </select>
+                </div>
+                <div class="cg">
+                    <label>Relief Strength <span class="v" id="vShadeStrength">20</span></label>
+                    <input type="range" id="sShadeStrength" min="5" max="60" value="20" step="5">
+                </div>
+                <div class="cg">
+                    <label>Light From <span class="v" id="vLightAz">315&deg; NW</span></label>
+                    <input type="range" id="sLightAz" min="0" max="345" value="315" step="15">
                 </div>
                 <div class="cg">
                     <label>View</label>
@@ -369,7 +389,7 @@
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. Open <strong>View</strong> for the terrain colours and the <strong>Relief Shading</strong> &mdash; one light or four, textured, Swiss, a low sun &mdash; its strength and where the light comes from.</p>
                 <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. <strong>Export All</strong> saves one of each in a ZIP, at any width up to 16384 px.</p>
             </div>
             <div class="tutorial-step" data-step="4">

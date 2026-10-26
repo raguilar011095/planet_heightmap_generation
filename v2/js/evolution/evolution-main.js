@@ -13,7 +13,7 @@ import { terrainConfig } from '../terrain/terrain-config.js';
 import { SmoothMapRaster } from '../view/map-raster.js';
 import { GpuPainter } from '../view/gpu-paint.js';
 import { locate } from '../core/mesh-locate.js';
-import { paintRelief } from '../view/terrain-shade.js';
+import { paintRelief, SHADE_STYLES, DEFAULT_SHADING } from '../view/terrain-shade.js';
 import { colorByPlate } from '../view/palettes.js';
 import { GlobeView } from '../app/globe-view.js';
 import { drawGraticule } from '../app/overlays.js';
@@ -41,7 +41,17 @@ const SHARP_AFTER_MS = 300;               // (a scrub draws the lighter texture;
 // painted on the GPU (view/gpu-paint.js), where it can be: always this sharp — it costs a millisecond or two — and twice
 // as sharp on a phone as the CPU's (?gpu=0: the CPU's painting, as before, for comparison)
 const GPU_WIDTH = IS_TOUCH ? 2048 : 4096;
-const SHADING = { exaggeration: 20, seaLevelKm: 0 };
+// the relief shading (terrain-shade.js SHADE_STYLES), its strength and its light, remembered like the palette
+const SHADING_KEY = 'orogen.evolution.shading';
+const SHADING = { ...DEFAULT_SHADING };
+try {
+    const s = JSON.parse(localStorage.getItem(SHADING_KEY));
+    if (SHADE_STYLES[s?.style]) SHADING.style = s.style;
+    if (Number.isFinite(s?.exaggeration)) SHADING.exaggeration = Math.min(60, Math.max(5, s.exaggeration));
+    if (Number.isFinite(s?.azimuthDeg)) SHADING.azimuthDeg = ((s.azimuthDeg % 360) + 360) % 360;
+} catch { /* (the defaults) */ }
+/** The shading of a layer: the Satellite view's relief a little deeper (sat-style.js SAT_SHADE deepens it further). */
+const shadingFor = layer => (layer === 'satellite' ? { ...SHADING, exaggeration: SHADING.exaggeration * 1.25 } : SHADING);
 // terrain workers: on a phone a few (each holds its own copy of the meshes: memory), elsewhere one per core but one
 const WORKERS = Number(new URLSearchParams(location.search).get('workers')) || (IS_TOUCH ? 3 : null);
 const SCENE = TERRAIN_SCENES.find(s => s.id === 'cycle');      // the start world, every rule on — its length and ending set here
@@ -533,7 +543,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null;
     glint(view.layer === 'terrain' || view.layer === 'satellite');
     // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes)
-    paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite',
+    paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, shading: shadingFor(view.layer), lakes: water || view.layer === 'satellite',
         colorAt: C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
     if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
     t.ctx.putImageData(t.image, 0, 0);
@@ -723,7 +733,7 @@ async function runExport(all = false) {
     try {
         // (the colour map as the Terrain view shows it: the palette chosen, Rivers & Lakes as set; the rivers-and-lakes
         // layer with the same density and colouring)
-        const look = { lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime };
+        const look = { lut: heightLutOf(view.palette), shading: SHADING, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime };
         const t0 = performance.now();
         const blob = all ? await exportAll(ex.fin, W, look, t => exportFileName(ex.seed, ex.frame.time, t), onProgress)
             : await exportMap(type, ex.fin, W, look, onProgress);
@@ -918,6 +928,18 @@ $('cardDetailed').addEventListener('click', e => {
 });
 $('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
 $('season').addEventListener('change', e => { view.season = e.target.value; dirty = true; });
+// the relief shading: every frame shown is shaded again (on the shading worker) with the style, strength and light chosen
+const COMPASS = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+const shadingLabels = () => { $('vShadeStrength').textContent = String(SHADING.exaggeration); $('vLightAz').textContent = `${SHADING.azimuthDeg}° ${COMPASS[Math.round(SHADING.azimuthDeg / 45) % 8]}`; };
+function reshade() {
+    shadingLabels();
+    B?.player?.setShading(SHADING); dirty = true;
+    try { localStorage.setItem(SHADING_KEY, JSON.stringify({ style: SHADING.style, exaggeration: SHADING.exaggeration, azimuthDeg: SHADING.azimuthDeg })); } catch { /* (remembered only where the browser allows) */ }
+}
+$('shading').value = SHADING.style; $('sShadeStrength').value = SHADING.exaggeration; $('sLightAz').value = SHADING.azimuthDeg; shadingLabels();
+$('shading').addEventListener('change', e => { SHADING.style = e.target.value; reshade(); });
+$('sShadeStrength').addEventListener('input', e => { SHADING.exaggeration = Number(e.target.value); reshade(); });
+$('sLightAz').addEventListener('input', e => { SHADING.azimuthDeg = Number(e.target.value) % 360; reshade(); });
 $('palette').value = view.palette;
 $('palette').addEventListener('change', e => {
     view.palette = e.target.value; dirty = true;

@@ -3,6 +3,8 @@
 // painting of a finished moment, its picture of heights, onto the page's textures: coloured by the palette and shaded as
 // the live terrain is.
 
+import { pictureShader } from '../view/terrain-shade.js';
+
 export class FinishService {
     constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; }
 
@@ -120,27 +122,21 @@ export function rasterAt(r, W, { lakes = false, landOnly = false } = {}) {
 /**
  * Paint a finished picture onto a texture ({width, image}: width × width/2): its heights averaged down (or enlarged,
  * rasterAt) to the texture's pixels, coloured by `lut` (looks.js heightLutOf — land by its height, the sea by its depth; a hollow
- * below sea level the ocean does not reach is land) and, for a shaded palette, hillshaded from the same light as the
- * live terrain (terrain-shade.js). `seaImage` (optional, RGBA of any width × width/2): 255 on the sea, for the glint.
+ * below sea level the ocean does not reach is land) and, for a shaded palette, relief-shaded as the live terrain is
+ * (terrain-shade.js pictureShader: `shading` = the page's {exaggeration, style, azimuthDeg, …}; `exaggeration` alone,
+ * the classic light). `seaImage` (optional, RGBA of any width × width/2): 255 on the sea, for the glint.
  * `colorAt(out, o, x, y, wet, kk, k3, v, lake)` (optional): another colouring per pixel — a climate layer's
- * (climate-view.js finishedClimateColor) — given the pixel's light kk (0.35…1, always shaded), its palette entry k3, its
- * height v (km) and its lake kind (with `lakes`).
+ * (climate-view.js finishedClimateColor) — given the pixel's light kk (0.35…~1.3, always shaded), its palette entry k3,
+ * its height v (km) and its lake kind (with `lakes`).
  */
-export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, lakes = false, colorAt = null } = {}) {
+export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, shading = null, lakes = false, colorAt = null } = {}) {
     const W = t.width, H = W >> 1, { h, sea, wat } = rasterAt(r, W, { lakes });
     const out = t.image.data, L = lut.rgb, { minM, stepM, zero } = lut, top = lut.n - 1;
-    const pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
+    const shadeAt = lut.shaded || colorAt ? pictureShader(h, sea, W, { exaggeration, ...shading }) : null;
     for (let y = 0; y < H; y++) {
-        const cl = Math.max(0.05, Math.cos(((y + 0.5) / H - 0.5) * Math.PI)), up = Math.max(0, y - 1) * W, dn = Math.min(H - 1, y + 1) * W;
         for (let x = 0; x < W; x++) {
             const i = y * W + x, v = h[i], wet = sea[i];
-            let kk = 1;
-            if (lut.shaded || colorAt) {
-                const ex = wet ? exaggeration * 0.35 : exaggeration;
-                const ge = (h[y * W + (x + 1) % W] - h[y * W + (x - 1 + W) % W]) / (2 * pxKm * cl), gn = (h[up + x] - h[dn + x]) / (2 * pxKm);
-                const px = -ex * ge, py = -ex * gn, len = Math.sqrt(px * px + py * py + 1);
-                kk = 0.35 + 0.65 * Math.max(0, (px * Le + py * Ln + Lu) / len) / Lu;
-            }
+            const kk = shadeAt ? 0.35 + 0.65 * shadeAt(x, y) : 1;
             const j = Math.round((v * 1000 - minM) / stepM), k3 = 3 * (wet ? Math.max(0, Math.min(zero - 1, j)) : Math.min(top, Math.max(zero, j)));
             const o = 4 * i;
             if (colorAt) { colorAt(out, o, x, y, wet, kk, k3, v, wat ? wat[i] : 0); continue; }

@@ -80,11 +80,11 @@ export function landMask8(r, W) {
 
 /**
  * The colour map as the Terrain view shows it: the palette's colours hillshaded, the lakes and the rivers (with Rivers &
- * Lakes), no grid. `look`: { lut, exaggeration, water, riverQ, byRegime }.
+ * Lakes), no grid. `look`: { lut, shading (the page's: exaggeration, style, azimuthDeg), water, riverQ, byRegime }.
  */
 export async function colorMap(fin, W, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: look.water });
+    paintFinished(fin.raster, { width: W, image }, look.lut, { shading: look.shading, lakes: look.water });
     if (!(look.water && fin.rivers)) return encodeRgbPng(W, H, image.data);
     const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
     ctx.putImageData(image, 0, 0);
@@ -97,7 +97,7 @@ export async function colorMap(fin, W, look) {
 /** The Satellite view as shown, for the year, January or July: no grid, no glint (and, as on screen, no rivers' lines). */
 export async function satelliteMap(fin, W, season, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true,
+    paintFinished(fin.raster, { width: W, image }, look.lut, { shading: { ...look.shading, exaggeration: look.shading.exaggeration * 1.25 }, lakes: true,
         colorAt: finishedClimateColor('satellite', season, fin.climate, W, look.lut, fin) });
     return encodeRgbPng(W, H, image.data);
 }
