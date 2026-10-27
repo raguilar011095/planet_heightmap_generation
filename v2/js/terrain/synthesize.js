@@ -98,8 +98,11 @@ export function settleFields(frame, simMesh, tMesh, cfg, seed) {
  * the one carved (made by `meshOf(numCells)`), then that one.
  */
 export function carveLadder(simMesh, tMesh, meshOf) {
-    return [simMesh, ...[160000, 640000, 2500000].filter(c => c < tMesh.numCells * 0.9 && c > simMesh.numCells * 1.5).map(meshOf), tMesh];
+    return [simMesh, ...ladderCells(simMesh.numCells, tMesh.numCells).map(meshOf), tMesh];
 }
+
+/** The terrain meshes' sizes between a sim mesh of `simCells` and a terrain mesh of `cells` on the carving's ladder. */
+export const ladderCells = (simCells, cells) => [160000, 640000, 2500000].filter(c => c < cells * 0.9 && c > simCells * 1.5);
 
 /** The carving's settings (the same on every mesh: carve.js scales the valleys to each mesh's cells). */
 export function carveSettings(cfg) {

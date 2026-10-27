@@ -4,7 +4,15 @@
 // the live terrain is.
 
 export class FinishService {
-    constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; }
+    constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; this.prepared = 0; }
+
+    /** Build a finish's meshes ahead in the worker, while nothing waits on them — the first Add detail at 2.5M then skips
+     *  ~3 s of mesh. The worker keeps them, as it keeps those a finish built (keep). */
+    prepare(cells, simCells) {
+        if (this.prepared === cells && this.worker) return;
+        this.prepared = cells;
+        this.start().postMessage({ type: 'prepare', cells, simCells, delaunatorUrl: import.meta.resolve('delaunator') });
+    }
 
     /**
      * Finish a moment. keep: the worker stays afterwards, with the mesh it built (a 10M-cell mesh takes ~15 s; a 640K one
@@ -22,7 +30,7 @@ export class FinishService {
     /** Stop a finish under way (the worker goes, and with it the meshes it held). */
     cancel() {
         if (!this.worker) return;
-        this.worker.terminate(); this.worker = null;
+        this.worker.terminate(); this.worker = null; this.prepared = 0;
         for (const j of this.jobs.values()) j.reject(new DOMException('The finish was cancelled', 'AbortError'));
         this.jobs.clear();
     }
@@ -37,11 +45,11 @@ export class FinishService {
             else if (data.type === 'progress') j.onProgress?.(data.share);
             else if (data.type === 'done') { this.jobs.delete(data.id); j.resolve(data); }
             else { this.jobs.delete(data.id); j.reject(new Error(data.message)); }
-            if ((data.type === 'done' || data.type === 'error') && !j.keep && !this.jobs.size && this.worker === w) { w.terminate(); this.worker = null; }
+            if ((data.type === 'done' || data.type === 'error') && !j.keep && !this.jobs.size && this.worker === w) { w.terminate(); this.worker = null; this.prepared = 0; }
         };
         w.onerror = e => {
             for (const j of this.jobs.values()) j.reject(new Error(e.message || 'the finishing worker stopped (out of memory?)'));
-            this.jobs.clear(); w.terminate(); if (this.worker === w) this.worker = null;
+            this.jobs.clear(); w.terminate(); if (this.worker === w) { this.worker = null; this.prepared = 0; }
         };
         return w;
     }

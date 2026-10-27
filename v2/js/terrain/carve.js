@@ -299,6 +299,15 @@ function terraceBasalt(f, C, cfg) {
 /** For each cell of `fine`: the 3 cells of `coarse` around it and their weights (barycentric), and its nearest. Cached. */
 const maps = new WeakMap();
 
+/** Build ahead what the carving of `meshes` (its ladder, coarse to fine) will read — each mesh's distances, the maps between
+ *  neighbours — and the maps of `pairs` ([coarse, fine]): the same caches it fills as it goes, filled while the thread
+ *  would wait (the finish: while the workers draw the surface). */
+export function prepareCarve(meshes, pairs = []) {
+    for (const m of meshes) infoOf(m);
+    for (let l = 1; l < meshes.length; l++) mapBetween(meshes[l - 1], meshes[l]);
+    for (const [coarse, fine] of pairs) mapBetween(coarse, fine);
+}
+
 /** A field of the `fine` mesh as the `coarse` one sees it — each coarse cell the mean of the fine cells nearest it — and
  *  each fine cell's nearest coarse cell. */
 export function meanOnCoarser(coarse, fine, values) {

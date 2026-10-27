@@ -17,7 +17,7 @@ import { KOPPEN_ID } from '../climate/koppen.js';
 import { terrainMesh } from '../terrain/terrain-mesh.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { carveLadder, carveSettings } from '../terrain/synthesize.js';
-import { carveTerrain, forgetMesh, meanOnCoarser } from '../terrain/carve.js';
+import { carveTerrain, forgetMesh, meanOnCoarser, prepareCarve } from '../terrain/carve.js';
 import { forgetEdgeKm } from '../core/min-heap.js';
 import { planetClimate } from '../climate/climate.js';
 import { CORE_DEFAULTS, cellClimate } from '../climate/core.js';
@@ -60,12 +60,20 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // and the sampler with the surface, the carving's inputs and caches with the carve)
     let warped = { numCells: n, xyz: warpPositions(mesh, seed, F), edgeKm: mesh.edgeKm };
     // (the carving's inputs at the finish's erosion strength: its stream power's k, its crests' hardness)
-    const E = erosionAt(F, cfg);
-    let surf = await pool.synthesize(frame, warped, { cfg: { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness }, seed, records: false, carveInputs: true });
+    const E = erosionAt(F, cfg), fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / mesh.edgeKm);
+    const surfJob = pool.synthesize(frame, warped, { cfg: { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness }, seed, records: false, carveInputs: true });
+    // (while the workers draw the surface, this thread builds ahead what needs only the mesh — the carving's ladder of
+    // meshes, their distances and the maps between them and to the lake sites' coarser mesh, the rivers' meander: the same
+    // values, ~2 s sooner at 2.5M. Up to PREP_CELLS: at 10M their memory waits for the carve, as before)
+    await new Promise(r => setTimeout(r, 0));                         // (the pool hands its jobs out first)
+    const ladder = carveLadder(simMesh, mesh, terrainMesh), broad = broadMesh(ladder, mesh, F);
+    let meanderV = null;
+    if (n <= PREP_CELLS) { prepareCarve(ladder, broad ? [[broad, mesh]] : []); meanderV = meanderValues(mesh, seed, F, fade); }
+    let surf = await surfJob;
     if (closePool) pool.terminate();                                  // (its workers' memory back before the heavy stages)
     pool.forget?.(warped);
     let carveIn = surf.carveIn;
-    const z = surf.heightKm, fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / mesh.edgeKm);
+    const z = surf.heightKm;
     surf = null; warped = null;
     roughen(mesh, z, seed, F, fade);
     lap('surface');
@@ -127,14 +135,12 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     const meanR = landN ? sumR / landN : 1, meanP = landN ? sumP / landN : 1, meanW = landN ? oldW / landN : 1;
     for (let c = 0; c < n; c++) if (z[c] > 0 && pAnn[c] === pAnn[c])
         carveIn.rain[c] = meanW * Math.min(F.wetMax, Math.max(F.runoffFloor, (1 - F.rainShare) * runoff[c] / meanR + F.rainShare * Math.max(0, pAnn[c]) / meanP) ** F.wetPower);
-    meander(mesh, carveIn.micro, seed, F, fade);
+    if (meanderV) { const micro = carveIn.micro; for (let c = 0; c < n; c++) micro[c] += F.meanderKm * meanderV[c]; }
+    else meander(mesh, carveIn.micro, seed, F, fade);
     // (the tectonic surface's own hollows, where lakes may stand, read on the carving's mesh nearest tectonicHollowMeshKm
     // across: a range's troughs and a lowland's hummocks averaged away there — finish-basins.js)
-    const ladder = carveLadder(simMesh, mesh, terrainMesh);
-    let bm = ladder[0];
-    for (const m of ladder) if (Math.abs(Math.log(m.edgeKm / F.tectonicHollowMeshKm)) < Math.abs(Math.log(bm.edgeKm / F.tectonicHollowMeshKm))) bm = m;
-    const coarse = bm !== mesh && F.tectonicHollowMeshKm > 0 ? meanOnCoarser(bm, mesh, z) : null;
-    const B = closedBasins(mesh, z, runoff, pet, pAnn, cellKm2, F, coarse && { mesh: bm, z: coarse.values, nearest: coarse.nearest });
+    const coarse = broad ? meanOnCoarser(broad, mesh, z) : null;
+    const B = closedBasins(mesh, z, runoff, pet, pAnn, cellKm2, F, coarse && { mesh: broad, z: coarse.values, nearest: coarse.nearest });
     stats.closedBasins = B.basins;
     const before = z.slice();
     // (how cold each coast is — its warmest month at sea level: fjords where it is cold, rias where not; carve.js drownValleys)
@@ -207,7 +213,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     const bi = new Int32Array(4), bw = new Float64Array(4), at = (f, c) => f[bi[0]] * bw[0] + f[bi[1]] * bw[1] + f[bi[2]] * bw[2] + f[bi[3]] * bw[3];
     const months = { at: (c, m0, M, share, arid) => { corners(climGrid, lat[c], lon[c], bi, bw); for (let j = 0; j < M; j++) { share[j] = at(monthly.share[m0 + j], c); arid[j] = at(monthly.arid[m0 + j], c); } } };
     // (across a flat, the rivers wander as the carving's did: the same meander, read where the water needs it)
-    const wander = meanderAt(mesh, seed, F, fade);
+    const wander = meanderV ? c => meanderV[c] : meanderAt(mesh, seed, F, fade);
     const Hy = hydrology({ mesh, z: C.z, ocean, runoff, pet, rain: pAnn, wetMonths, ice, glaciated: I.ice, tectonic: B.tectonic, seaBasin, fillHollows: true, lat, lon, months, wander, debug }, F);
     Object.assign(stats, { water: Hy.stats });
     // (the sea again, after the rivers' gorges)
@@ -290,6 +296,26 @@ function warpPositions(mesh, seed, F) {
 
 /** The rivers' fine routing relief (added to the carve's micro-relief, which shapes the routing only): octaves from
  *  F.meanderFromKm down to what the mesh can show — channels wander instead of running straight down smooth slopes. */
+/** The finish builds ahead, while its surface is drawn, only up to this many cells (memory: see finishPlanet). */
+const PREP_CELLS = 3e6;
+
+/** The carving's mesh nearest F.tectonicHollowMeshKm across, where the lake sites are read — null for the finished mesh itself. */
+function broadMesh(ladder, mesh, F) {
+    if (!(F.tectonicHollowMeshKm > 0)) return null;
+    let bm = ladder[0];
+    for (const m of ladder) if (Math.abs(Math.log(m.edgeKm / F.tectonicHollowMeshKm)) < Math.abs(Math.log(bm.edgeKm / F.tectonicHollowMeshKm))) bm = m;
+    return bm === mesh ? null : bm;
+}
+
+/** The rivers' meander at every cell (meanderAt's values, kept exactly), or null if the mesh shows none. */
+function meanderValues(mesh, seed, F, fade) {
+    const at = meanderAt(mesh, seed, F, fade);
+    if (!at) return null;
+    const v = new Float64Array(mesh.numCells);
+    for (let c = 0; c < v.length; c++) v[c] = at(c);
+    return v;
+}
+
 function meander(mesh, micro, seed, F, fade) {
     const at = meanderAt(mesh, seed, F, fade);
     if (!at) return;

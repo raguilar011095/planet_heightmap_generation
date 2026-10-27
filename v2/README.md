@@ -633,6 +633,11 @@ plain loops (`Float32Array.from` with a callback was most of their time) — the
 0.65 → 0.28 s, the wind 1.17 → 0.71 s, the final climate 1.63 → 1.37 s (640K). In the history the remaining hot spots
 (the world view's gather, the nearest-crust searches, the rift search) gained nothing measurable from further exact
 changes (tried: each plate's edge marks kept while its crust is unchanged; the rift partition's arrays reused — reverted).
+Add detail at 2.5M, exactly (2026-10-27, hashes identical): on a desktop the Finish's worker builds its meshes ahead once
+the history is there — the fine one and the coarser ones its carving climbs, kept with it (`FinishService.prepare`) — so
+the first Add detail skips ~2.5 s of mesh; and while the workers draw the surface the Finish's own thread builds what
+needs only the mesh — the carving's distances and maps, the lake sites' coarser mesh, the rivers' meander (`prepareCarve`,
+up to 3M cells) — the rivers stage 5.9 → 3.6 s. A first Add detail at 2.5M ~32 → ~28 s in the page (with its picture).
 
 The whole-planet histories' pace (2026-10-18; plans/V2_PERFORMANCE_PLAN.md, phase 3 — every planet changes): the
 Evolution history and the lab's whole planet (scenarios/terrain-scenes.js `WHOLE_PLANET_PACE`) let two closing plates move 2.25
