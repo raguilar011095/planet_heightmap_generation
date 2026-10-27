@@ -4,7 +4,15 @@
 // the live terrain is.
 
 export class FinishService {
-    constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; }
+    constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; this.prepared = 0; }
+
+    /** Build a finish's meshes ahead in the worker, while nothing waits on them — the first Add detail at 2.5M then skips
+     *  ~3 s of mesh. The worker keeps them, as it keeps those a finish built (keep). */
+    prepare(cells, simCells) {
+        if (this.prepared === cells && this.worker) return;
+        this.prepared = cells;
+        this.start().postMessage({ type: 'prepare', cells, simCells, delaunatorUrl: import.meta.resolve('delaunator') });
+    }
 
     /**
      * Finish a moment. keep: the worker stays afterwards, with the mesh it built (a 10M-cell mesh takes ~15 s; a 640K one
@@ -22,7 +30,7 @@ export class FinishService {
     /** Stop a finish under way (the worker goes, and with it the meshes it held). */
     cancel() {
         if (!this.worker) return;
-        this.worker.terminate(); this.worker = null;
+        this.worker.terminate(); this.worker = null; this.prepared = 0;
         for (const j of this.jobs.values()) j.reject(new DOMException('The finish was cancelled', 'AbortError'));
         this.jobs.clear();
     }
@@ -37,11 +45,11 @@ export class FinishService {
             else if (data.type === 'progress') j.onProgress?.(data.share);
             else if (data.type === 'done') { this.jobs.delete(data.id); j.resolve(data); }
             else { this.jobs.delete(data.id); j.reject(new Error(data.message)); }
-            if ((data.type === 'done' || data.type === 'error') && !j.keep && !this.jobs.size && this.worker === w) { w.terminate(); this.worker = null; }
+            if ((data.type === 'done' || data.type === 'error') && !j.keep && !this.jobs.size && this.worker === w) { w.terminate(); this.worker = null; this.prepared = 0; }
         };
         w.onerror = e => {
             for (const j of this.jobs.values()) j.reject(new Error(e.message || 'the finishing worker stopped (out of memory?)'));
-            this.jobs.clear(); w.terminate(); if (this.worker === w) this.worker = null;
+            this.jobs.clear(); w.terminate(); if (this.worker === w) { this.worker = null; this.prepared = 0; }
         };
         return w;
     }
@@ -165,6 +173,39 @@ export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exagge
     }
 }
 
+/**
+ * Paint a window of the planet (fine-detail.js fineWindow: its heights, sea and lakes, `win` {W, x0, y0, w, h} — W the
+ * full width it is a window of) onto an RGBA image `out` (w × h), as paintFinished paints the whole planet: the palette,
+ * the hillshade from the same light, the lakes, `colorAt` (a climate layer's or the Satellite's colours, asked for at
+ * the window's place on a W-wide planet).
+ */
+export function paintWindow(fw, win, out, lut, { exaggeration = 20, lakes = false, colorAt = null, shaded = true } = {}) {
+    const { W, x0, y0, w, h } = win, HE = W >> 1, { h: hh, sea, wat } = fw, L = lut.rgb, { minM, stepM, zero } = lut, top = lut.n - 1;
+    const pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
+    for (let y = 0; y < h; y++) {
+        const Y = Math.min(HE - 1, Math.max(0, y0 + y)), cl = Math.max(0.05, Math.cos(((Y + 0.5) / HE - 0.5) * Math.PI)), up = Math.max(0, y - 1) * w, dn = Math.min(h - 1, y + 1) * w;
+        for (let x = 0; x < w; x++) {
+            const i = y * w + x, v = hh[i], wet = sea[i];
+            let kk = 1;
+            if (shaded && (lut.shaded || colorAt)) {
+                const ex = wet ? exaggeration * 0.35 : exaggeration;
+                const ge = (hh[y * w + Math.min(w - 1, x + 1)] - hh[y * w + Math.max(0, x - 1)]) / ((x > 0 && x < w - 1 ? 2 : 1) * pxKm * cl), gn = (hh[up + x] - hh[dn + x]) / ((y > 0 && y < h - 1 ? 2 : 1) * pxKm);
+                const px = -ex * ge, py = -ex * gn, len = Math.sqrt(px * px + py * py + 1);
+                kk = 0.35 + 0.65 * Math.max(0, (px * Le + py * Ln + Lu) / len) / Lu;
+            }
+            const j = Math.round((v * 1000 - minM) / stepM), k3 = 3 * (wet ? Math.max(0, Math.min(zero - 1, j)) : Math.min(top, Math.max(zero, j)));
+            const o = 4 * i;
+            if (colorAt) { colorAt(out, o, ((x0 + x) % W + W) % W, Y, wet, kk, k3, v, lakes && wat ? wat[i] : 0); continue; }
+            if (lakes && wat && wat[i] && !wet) {
+                const lk = wat[i] === 3 ? PAN_RGB : lakeRgb(lut, wat[i]);
+                out[o] = lk[0]; out[o + 1] = lk[1]; out[o + 2] = lk[2]; out[o + 3] = 255;
+                continue;
+            }
+            out[o] = Math.min(255, L[k3] * kk); out[o + 1] = Math.min(255, L[k3 + 1] * kk); out[o + 2] = Math.min(255, L[k3 + 2] * kk); out[o + 3] = 255;
+        }
+    }
+}
+
 // ── lakes and rivers (plans/V2_FINISH_PLAN.md R2): cartographic — lakes flat water, rivers blue lines tapering with their
 // discharge, seasonal ones dashed, those dry most of the year dotted; or coloured by their regime ──
 const PAN_RGB = [226, 220, 204];
@@ -216,13 +257,35 @@ export function riverYearWords(rv) {
 export function riverPaths(fin, q0) {
     fin.paths ??= new Map();
     if (fin.paths.has(q0)) return fin.paths.get(q0);
-    const R = fin.rivers, W = 2048, H = 1024, buckets = new Map(), starts = [...R.start, R.lat.length];
+    const S = riverSegments(fin, q0), list = S.buckets.map(b => ({ ...b, path: new Path2D() }));
+    for (let i = 0; i < S.count; i++) {
+        const p = list[S.bucket[i]].path, o = 4 * i;
+        if (!S.joined[i]) p.moveTo(S.xy[o], S.xy[o + 1]);
+        p.lineTo(S.xy[o + 2], S.xy[o + 3]);
+    }
+    const sorted = S.order.map(b => list[b]);
+    fin.paths.set(q0, sorted);
+    return sorted;
+}
+
+/**
+ * The rivers of a finished moment as segments, as riverPaths draws them: on a texture 2048 px wide, in the order drawn —
+ * each with its bucket (a width and a regime: one stroke each), its bucket's segment before it, whether it carries on
+ * from that one, and how far along its line it starts (where its dashes stand). Cached per moment and q0.
+ */
+function riverSegments(fin, q0) {
+    fin.segments ??= new Map();
+    if (fin.segments.has(q0)) return fin.segments.get(q0);
+    const R = fin.rivers, W = 2048, H = 1024, keys = new Map(), buckets = [], xy = [], bucket = [], prev = [], joined = [], along = [], starts = [...R.start, R.lat.length];
+    let maxLen = 0;
     const add = (str, reg, x0, y0, x1, y1) => {
         const key = `${str}|${reg}`;
-        let b = buckets.get(key);
-        if (!b) buckets.set(key, b = { strength: str, regime: reg, path: new Path2D(), last: null });
-        if (!b.last || b.last[0] !== x0 || b.last[1] !== y0) b.path.moveTo(x0, y0);
-        b.path.lineTo(x1, y1); b.last = [x1, y1];
+        let b = keys.get(key);
+        if (b === undefined) { keys.set(key, b = buckets.length); buckets.push({ strength: str, regime: reg, last: null, run: 0, at: -1 }); }
+        const B = buckets[b], on = !!B.last && B.last[0] === x0 && B.last[1] === y0, len = Math.hypot(x1 - x0, y1 - y0);
+        if (!on) B.run = 0;
+        xy.push(x0, y0, x1, y1); bucket.push(b); prev.push(B.at); joined.push(on ? 1 : 0); along.push(B.run);
+        B.run += len; B.last = [x1, y1]; B.at = bucket.length - 1; maxLen = Math.max(maxLen, len);
     };
     for (let r = 0; r < starts.length - 1; r++) {
         // (a reach below the threshold ends its line — a river that dries out is not bridged to where it flows again —
@@ -251,24 +314,101 @@ export function riverPaths(fin, q0) {
             }
         }
     }
-    const list = [...buckets.values()].sort((a, b) => a.strength - b.strength);
-    fin.paths.set(q0, list);
-    return list;
+    const S = { count: bucket.length, xy: Float32Array.from(xy), bucket: Uint16Array.from(bucket), prev: Int32Array.from(prev), joined: Uint8Array.from(joined), along: Float32Array.from(along), maxLen,
+        buckets: buckets.map(({ strength, regime }) => ({ strength, regime })), order: buckets.map((b, i) => i).sort((a, b) => buckets[a].strength - buckets[b].strength), grid: null };
+    fin.segments.set(q0, S);
+    return S;
+}
+
+/** A river bucket's stroke on a context: the rivers' blue or its regime's colour, `widthScale` times as thick. Its dashes, or null. */
+function riverStyle(ctx, b, byRegime, widthScale) {
+    const st = REGIME_STYLE[b.regime];
+    // (coloured by regime, the colour tells it: not faded as well)
+    ctx.strokeStyle = byRegime ? st.rgb : RIVER_RGB;
+    ctx.globalAlpha = (byRegime ? 1 : st.alpha) * STRENGTH_ALPHA[b.strength]; ctx.lineWidth = STRENGTH_WIDTH[b.strength] * widthScale; ctx.setLineDash(st.dash ? st.dash.map(v => v * widthScale) : []);
+    return st.dash;
 }
 
 /** Draw a moment's rivers on a texture's context (scaled by the caller to a 2048-wide texture's coordinates), in the rivers'
- *  blue or coloured by regime. */
-export function drawRivers(ctx, paths, byRegime = false) {
+ *  blue or coloured by regime — `widthScale` times as thick (a context scaled far: the patch of finer detail's, as thin). */
+export function drawRivers(ctx, paths, byRegime = false, widthScale = 1) {
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    for (const b of paths) {
-        const st = REGIME_STYLE[b.regime];
-        // (coloured by regime, the colour tells it: not faded as well)
-        ctx.strokeStyle = byRegime ? st.rgb : RIVER_RGB;
-        ctx.globalAlpha = (byRegime ? 1 : st.alpha) * STRENGTH_ALPHA[b.strength]; ctx.lineWidth = STRENGTH_WIDTH[b.strength]; ctx.setLineDash(st.dash ?? []);
-        ctx.stroke(b.path);
+    for (const b of paths) { riverStyle(ctx, b, byRegime, widthScale); ctx.stroke(b.path); }
+    ctx.restore();
+}
+
+/**
+ * A moment's rivers drawn as drawRivers draws them, on a window of a sharper picture: `W` px wide, the canvas's pixel
+ * (0, 0) its pixel (x0, y0), w × h of them. Only the segments near the window are drawn (a grid of them, built once per
+ * moment and q0) — so a tile of the zoomed-in view costs its own rivers, not the planet's — each line begun where its
+ * dashes begin, a little before the window (so they stand where the whole line's do): windows side by side meet as one
+ * picture would.
+ */
+export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthScale = 1) {
+    const S = riverSegments(fin, q0), k = W / 2048, G = S.grid ??= segmentGrid(S);
+    // (how far past the window a segment's middle may lie and still touch it: half the longest segment, half the widest
+    // line, a pixel's anti-aliasing — in the 2048-wide texture's px)
+    const m = S.maxLen / 2 + 0.5 * STRENGTH_WIDTH[STRENGTH_WIDTH.length - 1] * widthScale + 2 / k;
+    const ya = Math.max(0, Math.floor((y0 / k - m) / G.C)), yb = Math.min(G.GH - 1, Math.floor(((y0 + h) / k + m) / G.C));
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const turn of [-1, 0, 1]) {                                      // (a window across the date line: the rivers either side)
+        const xa = Math.max(0, Math.floor((x0 / k - turn * 2048 - m) / G.C)), xb = Math.min(G.GW - 1, Math.floor(((x0 + w) / k - turn * 2048 + m) / G.C));
+        if (xa > xb || ya > yb) continue;
+        let n = 0;
+        for (let gy = ya; gy <= yb; gy++) n += G.count[gy * G.GW + xb + 1] - G.count[gy * G.GW + xa];
+        if (!n) continue;
+        const near = new Int32Array(n);
+        n = 0;
+        for (let gy = ya; gy <= yb; gy++) for (let j = G.count[gy * G.GW + xa]; j < G.count[gy * G.GW + xb + 1]; j++) near[n++] = G.items[j];
+        near.sort();
+        ctx.setTransform(k, 0, 0, k, turn * W - x0, -y0);
+        for (const b of S.order) {
+            const dash = riverStyle(ctx, S.buckets[b], byRegime, widthScale), period = dash ? (dash[0] + dash[1]) * widthScale : 0;
+            let last = -1, any = false;
+            ctx.beginPath();
+            for (const i of near) {
+                if (S.bucket[i] !== b) continue;
+                const o = 4 * i;
+                if (!(S.joined[i] && S.prev[i] === last)) {
+                    // (a line begun here, where the whole line carries on from the segment before: dashed, from where its
+                    // dashes last began — back along the line — so they fall where the whole line's do)
+                    let back = period ? S.along[i] % period : 0, j = i, from = null;
+                    while (back > 0 && S.joined[j]) {
+                        const p = S.prev[j], q = 4 * p, len = Math.hypot(S.xy[q + 2] - S.xy[q], S.xy[q + 3] - S.xy[q + 1]);
+                        j = p;
+                        if (len >= back) { const f = back / len; from = [S.xy[q + 2] + f * (S.xy[q] - S.xy[q + 2]), S.xy[q + 3] + f * (S.xy[q + 1] - S.xy[q + 3])]; break; }
+                        back -= len;
+                    }
+                    if (j !== i && !from) from = [S.xy[4 * j], S.xy[4 * j + 1]];   // (the line's own start)
+                    if (from) {
+                        ctx.moveTo(from[0], from[1]);
+                        const chain = [];
+                        for (let q = S.prev[i]; ; q = S.prev[q]) { chain.push(q); if (q === j) break; }
+                        for (let c = chain.length - 1; c >= 0; c--) ctx.lineTo(S.xy[4 * chain[c] + 2], S.xy[4 * chain[c] + 3]);
+                    } else ctx.moveTo(S.xy[o], S.xy[o + 1]);
+                }
+                ctx.lineTo(S.xy[o + 2], S.xy[o + 3]);
+                last = i; any = true;
+            }
+            if (any) ctx.stroke();
+        }
     }
     ctx.restore();
+}
+
+/** The segments by where their middles lie: cells C px square of the 2048-wide texture, each cell's in the order drawn. */
+function segmentGrid(S) {
+    const C = 2, GW = 2048 / C, GH = 1024 / C, count = new Int32Array(GW * GH + 1), cell = new Int32Array(S.count);
+    for (let i = 0; i < S.count; i++) {
+        const o = 4 * i, gx = Math.min(GW - 1, Math.max(0, Math.floor((S.xy[o] + S.xy[o + 2]) / (2 * C)))), gy = Math.min(GH - 1, Math.max(0, Math.floor((S.xy[o + 1] + S.xy[o + 3]) / (2 * C))));
+        count[(cell[i] = gy * GW + gx) + 1]++;
+    }
+    for (let c = 0; c < GW * GH; c++) count[c + 1] += count[c];
+    const items = new Int32Array(S.count), at = count.slice(0, GW * GH);
+    for (let i = 0; i < S.count; i++) items[at[cell[i]]++] = i;
+    return { C, GW, GH, count, items };
 }
 
 /**

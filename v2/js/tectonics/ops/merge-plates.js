@@ -21,6 +21,7 @@
 // Land area lost = the overlap cells, the two plates' share of the shortening; reported in the event.
 
 import { CrustRaster, CrustType, CrustFlag } from '../model/crust.js';
+import { frameRotation } from '../model/plate.js';
 import { PLANET_RADIUS_KM } from '../../core/sim-mesh.js';
 import { spreadBelt, beltWidthKm, OrogenyType, BeltSide } from '../step/orogeny.js';
 import { tangentToward } from '../../core/sphere-geom.js';
@@ -36,7 +37,7 @@ import { centroidOfCells } from '../../core/sphere-geom.js';
  */
 export function mergePlates(world, upper, lower, overlapWorldCells, collision) {
     const { mesh, config, time } = world, { xyz, numCells, index, adjOffset, adjList, edgeKm } = mesh;
-    const U = upper.crust, L = lower.crust;
+    const U = upper.crust, L = lower.crust, lowerToUpper = frameRotation(lower, upper);
     const landBefore = upper.stats.continentalCells + lower.stats.continentalCells;
     const hue = (lower.stats.cells > upper.stats.cells ? lower : upper).hue;     // (the welded plate is drawn in the larger one's colour)
 
@@ -130,7 +131,7 @@ export function mergePlates(world, upper, lower, overlapWorldCells, collision) {
         const land = L.type[c] !== CrustType.OCEAN;
         if (!land && out.mask[q]) continue;                                       // the upper plate's crust wins over the lower's ocean
         if (out.mask[q] && out.type[q] === CrustType.CRATON) continue;            // …and its cratons over anything: a craton never breaks
-        out.copyFrom(q, L, c);
+        out.copyFrom(q, L, c, lowerToUpper);
         origin[q] = 2;
     }
 

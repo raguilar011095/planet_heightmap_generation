@@ -64,6 +64,10 @@ export function beltProfile(type, side, d, reach, jitter = 0, g = 0) {
             const c = clamp(0.12 * W, 25, 90), k = riftWear(c, g), e = g ? c + (d - c) * k : d;
             return fade * k * (e < c ? bump(e, c, 0.6 * c) : Math.exp(-(e - c) / (0.45 * W)));
         }
+        case OrogenyType.INTRAPLATE:
+            // an old weak line squeezed up far inland (the Tian Shan, the Ancestral Rockies): a basement-cored range along
+            // it, its flanks thrust out over basins either side (the Tarim and Junggar, the Denver basin)
+            return fade * (0.9 * bump(d, 0, Math.max(40, 0.28 * W), g) - 0.25 * bump(d, 0.8 * W, Math.max(30, 0.15 * W), g));
         default: return 0;
     }
 }
@@ -105,6 +109,8 @@ export function broadProfile(type, side, d, reach, jitter = 0, g = 0) {
             const c = clamp(0.12 * W, 25, 90), k = riftWear(c, g), e = g ? c + (d - c) * k : d;
             return fade * 0.9 * k * (e < c ? bump(e, c, Math.max(70, c)) : Math.exp(-(e - c) / (0.45 * W)));
         }
+        case OrogenyType.INTRAPLATE:
+            return fade * (0.5 * bump(d, 0, Math.max(100, 0.3 * W), g) - 0.2 * bump(d, 0.8 * W, Math.max(80, 0.15 * W), g));
         default: return 0;
     }
 }
@@ -116,6 +122,25 @@ export function crestProfile(type, side, d, reach, jitter = 0, g = 0) {
 
 /** A rift escarpment worn by g (2σ²): its face (0.6 c wide) as a worn bump is k = s / √(s² + g) of its height. */
 const riftWear = (c, g) => { if (!g) return 1; const s = 0.6 * c; return s / Math.sqrt(s * s + g); };
+
+/**
+ * How far from a belt's front (km) the far side of its main range lies — the range by the plate edge (beltProfile's bump
+ * nearest the front, its centre plus its width): its ridges stay the most whole (synthesize.js, cfg.ridgeBreak).
+ */
+export function mainRangeBackKm(type, side, reach) {
+    const W = Math.max(40, reach);
+    switch (type) {
+        case OrogenyType.ANDEAN: return clamp(0.3 * W, 70, 260) + Math.max(45, 0.09 * W);
+        case OrogenyType.LARAMIDE: return clamp(0.1 * W, 40, 150) + Math.max(30, 0.05 * W);
+        case OrogenyType.URAL: return side === BeltSide.LOWER ? Math.max(35, 0.2 * W) : Math.max(40, 0.25 * W);
+        case OrogenyType.HIMALAYAN: return side === BeltSide.LOWER ? clamp(0.22 * W, 40, 130) + Math.max(35, 0.08 * W) : clamp(0.05 * W, 20, 80) + Math.max(40, 0.05 * W);
+        case OrogenyType.ARC: return Math.max(55, 0.3 * W);
+        case OrogenyType.TRANSPRESSION: return Math.max(15, 0.35 * W);
+        case OrogenyType.RIFT: return 1.6 * clamp(0.12 * W, 25, 90);
+        case OrogenyType.INTRAPLATE: return Math.max(40, 0.28 * W);
+        default: return 0;
+    }
+}
 
 /** 1 across a belt, fading to 0 over the last part of its width (its far edge wanders by `jitter`). */
 export function beltEdge(d, reach, jitter = 0) {
@@ -133,6 +158,7 @@ export function stripeZone(type, side, d, reach, jitter = 0) {
         case OrogenyType.ARC: return 0.1 * edge;
         case OrogenyType.TRANSPRESSION: return edge;
         case OrogenyType.RIFT: return 0.25 * edge;                                                    // fault blocks
+        case OrogenyType.INTRAPLATE: return 0.7 * edge;                                               // basement blocks and folds
         default: return 0;
     }
 }

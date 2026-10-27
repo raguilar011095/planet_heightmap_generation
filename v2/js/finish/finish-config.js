@@ -45,6 +45,17 @@ export const FINISH = {
     // deepen between them rather than the ridges wearing away. The timeline's terrain is untouched
     erosionStrength: 3,
     erosionPivotKm2: 1e5,
+    // (2026-10-26, plans/V2_FINE_DETAIL_PLAN.md: the developer — "not seeing the carving we see on the Alps, or the leading
+    // edge of the Himalayas"; measured against the real Alps and Nepal at the same detail, the rising, wet fronts reached
+    // ~¾ of the Himalayan front's depth)
+    activeHold: 0.12,           // a rising belt's rivers cut this much less where it is wet and steep (the timeline's
+                                // carveActiveHold: 0.3 — kept on flat ground: a plateau's top stays whole)…
+    frontSlope: [0.004, 0.018],   // …steep: the surface's slope, km per km (from none … to all)
+    valleySides: 0.5,           // a valley wider than its cell lowers the cells beside it this much toward its floor (a V
+                                // across, not a slit: Earth's big valleys at 10M have ~45 % of their depth by the first
+                                // ring of cells, ours had 59 %)
+    creepChannelKm2: [30, 300], // soil creep only lowers where a river drains this much (km²: from none … to all) — the
+                                // valleys keep their floors (creep had taken ~10 % of the wet sides' relief)
     erosionLevels: {            // at strength 0, 1, 2, 3 (between them, linear)
         carveM: [0.4, 0.35, 0.3, 0.25],
         dissectKm: [0.35, 0.45, 0.55, 0.65],
@@ -105,6 +116,9 @@ export const FINISH = {
                                 // or a hollow of the tectonic surface (rifts, forelands, closed basins: this share of its
     lakeTectonicShare: 0.25,    // cells, the tectonic surface's hollows at least tectonicHollowKm deep); the finishing's own
     tectonicHollowKm: 0.1,      // hollows (fans, loess and dunes damming valleys) are filled: flat valley floors
+    tectonicHollowMeshKm: 60,   // (the tectonic surface's hollows read on the carving's mesh nearest this many km across: a
+                                // range's troughs and a lowland's hummocks average away, basins hundreds of km across stand —
+                                // developer, 2026-10-27: fresh lakes "should be lower like < 10%"; 0: on the finished mesh)
     breachKm: 0.6,              // an old basin that overflows has cut a gorge this deep through its rim (at most)…
     breachQ: [10, 1000],        // …by what spills over (m³/s): none below the first, full from the second…
     glacialBreachShare: 0.5,    // …half as deep in the ice age's own (young) hollows, and only by big rivers (glacialBreachQ, m³/s):
@@ -114,6 +128,11 @@ export const FINISH = {
     // glacialKeepShare of that) — no closed basins
     lakeKeepKm2: 5000,
     glacialKeepShare: 0.5,
+    // …and a major river keeps only a huge lake (developer, 2026-10-27: major rivers ending in a lake "< 1% unless the lake
+    // is huge"): from lakeHugeQ[0] m³/s, by lakeHugeQ[1], at least lakeHugeKm2 (Titicaca ~8 300, Ladoga ~18 000) — a
+    // remnant of the sea too: one smaller its delta fills
+    lakeHugeKm2: 8000,
+    lakeHugeQ: [500, 1000],
     // Where a river must cut through — a basin it drains, a pocket in it — its gorge keeps the river's own course, every bend
     // of it, unless a shortcut is enough less work: the rock it cuts, and gorgeLengthKm for each km of its length (developer:
     // rivers "that go back and forth"; then "there should be some balance … between the 'true down' path and the 'shortcut'
@@ -121,6 +140,9 @@ export const FINISH = {
     // cut through only where the way round is over 1 / this times the shortcut (0.5: a detour twice as long); 0 keeps every
     // course as it was, 1 takes the way of least work
     riverDirectness: 0.1,
+    riverWanderKm: 0.03,        // across a flat (a filled hollow, a pit filled to just above the sea) the rivers' ways bend
+                                // with the meander as if the ground under them were this much lower where it is low (0: the
+                                // straightest way: developer, 2026-10-27 — "slightly too straight now")
     gorgeLengthKm: 0.02,
     seaCutKm: 0,                // a basin below sea level opens into the ocean if its cut through dry land is at most this long
                                 // (0: never — developer: a small trapped sea is "NOT a valid end it should go out to the real sea")…

@@ -10,6 +10,7 @@
 // not itself tidied again in the same pass (the piece is not joined to it until the next resolve).
 
 import { CrustType, CrustFlag } from '../model/crust.js';
+import { frameRotation } from '../model/plate.js';
 import { EventKind } from '../model/world.js';
 import { hopsFrom } from '../../core/mesh-bfs.js';
 
@@ -150,7 +151,7 @@ export function componentsOf(crust, mesh) {
 export function transferCells(world, from, to, cells) {
     const { mesh } = world, { xyz, index, adjOffset, adjList } = mesh, F = from.crust, T = to.crust;
     const P = [0, 0, 0];
-    let moved = 0;
+    let moved = 0, rot = null;
     const isHostLand = q => T.mask[q] && T.type[q] !== CrustType.OCEAN;
     for (const c of cells) {
         from.toWorld(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2], P);
@@ -158,7 +159,7 @@ export function transferCells(world, from, to, cells) {
         const land = F.type[c] !== CrustType.OCEAN;
         if (land && isHostLand(q)) q = freeCellBeside(to, mesh, q, P, isHostLand);     // the host's own land is here
         if (q >= 0 && (land || !T.mask[q])) {
-            T.copyFrom(q, F, c);
+            T.copyFrom(q, F, c, rot ??= frameRotation(from, to));
             if (land) T.flags[q] &= ~CrustFlag.TRENCH;
             moved++;
         }

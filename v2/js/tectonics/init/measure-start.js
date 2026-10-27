@@ -55,6 +55,59 @@ export function measureStartWorld(world, start) {
         }
     }
 
+    // ── the cratons' own shape: no slivers (the nearest the outside comes to a craton's centroid, against the radius
+    // of a disc of its area) — and their clusters: the gap from each cluster to its nearest neighbour cluster, against the
+    // gap from each craton to its nearest cluster-mate (plans/V2_START_WORLD_PLAN.md, S1) ──
+    const compactness = start.cratons.map(k => {
+        let sx = 0, sy = 0, sz = 0, n = 0;
+        for (let c = 0; c < numCells; c++) if (isCraton(c) && crust.terrane[c] === k.id) { sx += xyz[3 * c]; sy += xyz[3 * c + 1]; sz += xyz[3 * c + 2]; n++; }
+        if (!n) return 0;
+        const l = Math.hypot(sx, sy, sz);
+        let best = -2;
+        for (let c = 0; c < numCells; c++) {
+            if (isCraton(c) && crust.terrane[c] === k.id) continue;
+            const d = (xyz[3 * c] * sx + xyz[3 * c + 1] * sy + xyz[3 * c + 2] * sz) / l;
+            if (d > best) best = d;
+        }
+        return (Math.acos(Math.min(1, best)) * PLANET_RADIUS_KM - edgeKm / 2) / Math.sqrt(n * cellKm2 / Math.PI);
+    });
+    let clusterContrast = null;
+    if (start.cratons.every(k => k.cluster !== undefined) && new Set(start.cratons.map(k => k.cluster)).size > 1) {
+        const n = start.cratons.length, gap = Array.from({ length: n }, () => new Float64Array(n));
+        for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) gap[i][j] = gap[j][i] = minSeparationKm(cratonEdges[i], cratonEdges[j]);
+        const median = list => { const s = list.slice().sort((a, b) => a - b); return s.length ? s[s.length >> 1] : NaN; };
+        const cl = start.cratons.map(k => k.cluster), intra = [], inter = new Map();
+        for (let i = 0; i < n; i++) {
+            let mate = Infinity;
+            for (let j = 0; j < n; j++) if (j !== i) {
+                if (cl[j] === cl[i]) mate = Math.min(mate, gap[i][j]);
+                else inter.set(cl[i], Math.min(inter.get(cl[i]) ?? Infinity, gap[i][j]));
+            }
+            if (mate < Infinity) intra.push(mate);
+        }
+        clusterContrast = { intraKm: median(intra), interKm: median([...inter.values()]), ratio: median([...inter.values()]) / median(intra) };
+    }
+
+    // ── the old ranges (S2): pieces of ground the start world's belts raised (upliftKm ≥ 0.2 km), each one's length (the
+    // farthest two of its cells apart) — a few long belts, not a scatter of short segments over a honeycomb ──
+    const raised = c => isLand(c) && crust.upliftKm[c] >= 0.2, seenR = new Uint8Array(numCells), ranges = [];
+    for (let c0 = 0; c0 < numCells; c0++) {
+        if (seenR[c0] || !raised(c0)) continue;
+        const piece = [c0];
+        seenR[c0] = 1;
+        for (let i = 0; i < piece.length; i++) for (let k = mesh.adjOffset[piece[i]]; k < mesh.adjOffset[piece[i] + 1]; k++) { const q = mesh.adjList[k]; if (!seenR[q] && raised(q)) { seenR[q] = 1; piece.push(q); } }
+        const far = from => { let best = from, d = 2; for (const q of piece) { const t = xyz[3 * from] * xyz[3 * q] + xyz[3 * from + 1] * xyz[3 * q + 1] + xyz[3 * from + 2] * xyz[3 * q + 2]; if (t < d) { d = t; best = q; } } return { best, km: Math.acos(Math.max(-1, Math.min(1, d))) * PLANET_RADIUS_KM }; };
+        ranges.push({ cells: piece.length, km: far(far(c0).best).km });
+    }
+    const raisedCells = ranges.reduce((s, r) => s + r.cells, 0);
+    // (and how evenly they are spread: the share of the land within ~500 km of one — a honeycomb's ranges ring every
+    // craton, so nearly all the land lies near one; a few seams leave broad plains and shields between them)
+    const fromRaised = hopDistance(mesh, raised, kmToHops(mesh, 500));
+    let nearRange = 0;
+    for (let c = 0; c < numCells; c++) if (isLand(c) && fromRaised[c] >= 0) nearRange++;
+    const oldRanges = { pieces: ranges.filter(r => r.cells >= 3).length, longShare: raisedCells ? ranges.filter(r => r.km >= 1500).reduce((s, r) => s + r.cells, 0) / raisedCells : 0,
+        longestKm: ranges.length ? Math.max(...ranges.map(r => r.km)) : 0, raisedShare: raisedCells / land, nearShare: nearRange / land };
+
     // ── shape ──
     const landEdge = edgeOf(isLand);
     let longest = 1;
@@ -88,6 +141,8 @@ export function measureStartWorld(world, start) {
         apronFraction: apron / numCells, sutureShare: sutures / land,
         minGapKm, minCoastKm,
         cratonSizeRatio: Math.max(...diam) / Math.min(...diam), terraneSizeRatio: Math.max(...terr) / Math.min(...terr),
+        cratonCompactMin: Math.min(...compactness), clusterContrast, oldRanges,
+        siblingPairs: new Set(start.cratons.filter(k => k.block?.pieces.length > 1).map(k => k.block)).size,
         longestAxisDeg: Math.acos(Math.max(-1, longest)) * 180 / Math.PI,
         strayLandCells: strayLand, enclosedSeaCells: enclosedSea,
         minApronKm: (minApronHops - 1) * edgeKm,                 // sea cells between the coast and the plate edge

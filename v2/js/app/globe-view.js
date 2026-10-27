@@ -22,6 +22,34 @@ const GLINT = new THREE.Color(0x4488bb).multiplyScalar(0.5 * 0.55);    // (the s
 const ZOOM_PER_PX = 0.0015, ZOOM_EASE = 0.15;
 const MAP_ZOOM_MIN = 0.5, MAP_ZOOM_MAX = 20;                      // (the map's zoom: 1, the whole map; out to half that, in to 20, as Generate's)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+// the patch over the texture (putPatchTile, showPatchLayer): two layers of tiles of a sharper picture — layer 0 over
+// layer 1 — each a texture of slots (uPatchSlot px square: a tile and a pixel of its neighbours' all round, so the blend
+// across a tile's edge reads its neighbour's own pixels) holding the tiles whose column and row are the slot's modulo the
+// layer's columns and rows, and a table of the tile each slot holds. A layer shows over its range of a level's tiles
+// (uPatchRange: first column — any whole number, the columns running on past the date line — first row, columns, rows;
+// uPatchGrid: the level's tiles around the planet, the layer's columns and rows of slots, on) only where its slot holds
+// the tile there, faded in over the range's outer 4 % so the range's edge does not show
+const PATCH_GLSL = `uniform sampler2D uPatchAtl0, uPatchTab0, uPatchAtl1, uPatchTab1;
+uniform vec4 uPatchRange0, uPatchGrid0, uPatchRange1, uPatchGrid1; uniform float uPatchSlot;
+vec4 patchLayer(sampler2D atl, sampler2D tab, vec4 R, vec4 G, vec2 tc) {
+    if (G.w < 0.5) return vec4(0.0);
+    float X = fract(tc.x) * G.x, Y = (1.0 - tc.y) * G.x * 0.5;            // (the place in tiles: west → east, north → south)
+    float dx = mod(X - R.x, G.x), dy = Y - R.y;
+    if (dx >= R.z || dy < 0.0 || dy >= R.w) return vec4(0.0);
+    float tx = R.x + floor(dx), ty = floor(Y);
+    vec2 slot = vec2(mod(tx, G.y), mod(ty, G.z));
+    vec4 k = floor(texture2D(tab, (slot + 0.5) / G.yz) * 255.0 + 0.5);    // (the tile the slot holds: its column modulo 65536, its row; a ≥ 128: one)
+    if (k.a < 128.0 || k.r + 256.0 * k.g != mod(tx, 65536.0) || k.b + 256.0 * (k.a - 128.0) != ty) return vec4(0.0);
+    vec2 px = (slot * uPatchSlot + 1.0 + vec2(fract(dx), fract(Y)) * (uPatchSlot - 2.0)) / (G.yz * uPatchSlot);
+    float e = min(min(dx, R.z - dx) / R.z, min(dy, R.w - dy) / R.w);
+    return vec4(texture2D(atl, px).rgb, smoothstep(0.0, 0.04, e));
+}
+vec4 withPatch(vec4 base, vec2 tc) {
+    vec4 a = patchLayer(uPatchAtl0, uPatchTab0, uPatchRange0, uPatchGrid0, tc);
+    if (a.a >= 1.0) return vec4(a.rgb, base.a);
+    vec4 b = patchLayer(uPatchAtl1, uPatchTab1, uPatchRange1, uPatchGrid1, tc);
+    return vec4(mix(mix(base.rgb, b.rgb, b.a), a.rgb, a.a), base.a);
+}`;
 
 export class GlobeView {
     /** @param {HTMLCanvasElement} glCanvas  @param {HTMLCanvasElement} mapCanvas  @param {{space?: boolean}} [o] */
@@ -44,6 +72,19 @@ export class GlobeView {
                 : new THREE.MeshBasicMaterial({ map: this.texture }),
         );
         this.scene.add(this.globe);
+        // (a patch: tiles of the planet painted sharper, laid over the texture where they are — putPatchTile)
+        this.patch = { uPatchSlot: { value: 1 } };
+        for (const k of [0, 1]) Object.assign(this.patch, { [`uPatchAtl${k}`]: { value: null }, [`uPatchTab${k}`]: { value: null }, [`uPatchRange${k}`]: { value: new THREE.Vector4() }, [`uPatchGrid${k}`]: { value: new THREE.Vector4() } });
+        this.patchLayers = [0, 1].map(() => ({ atl: null, tab: null, cols: 0, rows: 0, range: null }));
+        this.globe.material.onBeforeCompile = shader => {
+            Object.assign(shader.uniforms, this.patch);
+            shader.fragmentShader = shader.fragmentShader
+                .replace('#include <common>', `#include <common>\n${PATCH_GLSL}`)
+                .replace('#include <map_fragment>', `#ifdef USE_MAP
+    vec4 sampledDiffuseColor = withPatch(texture2D(map, vMapUv), vMapUv);
+    diffuseColor *= sampledDiffuseColor;
+#endif`);
+        };
         if (space) this.addSpace();
 
         this.controls = new OrbitControls(this.camera, glCanvas);
@@ -76,6 +117,7 @@ export class GlobeView {
 
         this._raycaster = new THREE.Raycaster();
         this._ndc = new THREE.Vector2();
+        this._sphere = new THREE.Sphere(new THREE.Vector3(), 1); this._hit = new THREE.Vector3();
     }
 
     resize() {
@@ -179,6 +221,79 @@ export class GlobeView {
         this._dirty = true;
     }
 
+    // ── the patch: a detailed moment's detail finer than the mesh, where the view is zoomed in — tiles of it laid over the
+    // texture (PATCH_GLSL), each sent to the GPU once: a pan sends only the tiles it brings ──
+    /**
+     * Patch layer k (0 shown over 1) made to hold `cols` × `rows` tiles in slots `slot` px square (a tile and a pixel of
+     * its neighbours' all round) — made again, every slot empty, if it is not that size. Returns whether it was.
+     */
+    sizePatchLayer(k, cols, rows, slot) {
+        const P = this.patchLayers[k];
+        if (P.cols === cols && P.rows === rows && this.patch.uPatchSlot.value === slot) return false;
+        P.atl?.dispose(); P.tab?.dispose();
+        const w = cols * slot, h = rows * slot;
+        P.atl = Object.assign(new THREE.DataTexture(new Uint8Array(w * h * 4), w, h), { colorSpace: THREE.SRGBColorSpace, magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter, needsUpdate: true });
+        this.renderer.initTexture(P.atl);
+        P.atl.image.data = null;                           // (its pixels on the GPU only: tiles are sent there as they come)
+        P.tab = Object.assign(new THREE.DataTexture(new Uint8Array(cols * rows * 4), cols, rows), { needsUpdate: true });
+        P.cols = cols; P.rows = rows; this.patch.uPatchSlot.value = slot;
+        this.patchUniforms();
+        return true;
+    }
+
+    /** A tile's picture (a canvas the slot's size) into patch layer k's slot (sx, sy), as the tile in column tx, row ty. */
+    putPatchTile(k, sx, sy, tx, ty, image) {
+        const P = this.patchLayers[k], d = P.tab.image.data, o = 4 * (sy * P.cols + sx), c = ((tx % 65536) + 65536) % 65536, S = this.patch.uPatchSlot.value;
+        // (straight to the texture, on whichever unit is active, that unit's texture bound again after: three.js's
+        // copyTextureToTexture trusts its record of what is bound, and that record can be stale here — the tile then went
+        // to another texture)
+        const gl = this.renderer.getContext(), was = gl.getParameter(gl.TEXTURE_BINDING_2D);
+        gl.bindTexture(gl.TEXTURE_2D, this.renderer.properties.get(P.atl).__webglTexture);
+        gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false); gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false); gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+        gl.texSubImage2D(gl.TEXTURE_2D, 0, sx * S, sy * S, gl.RGBA, gl.UNSIGNED_BYTE, image);
+        gl.bindTexture(gl.TEXTURE_2D, was);
+        d[o] = c & 255; d[o + 1] = c >> 8; d[o + 2] = ty & 255; d[o + 3] = 128 | (ty >> 8);
+        P.tab.needsUpdate = true;
+        if (P.range) this._dirty = true;
+    }
+
+    /** Every slot of patch layer k emptied. */
+    emptyPatchLayer(k) {
+        const P = this.patchLayers[k];
+        if (!P.tab) return;
+        P.tab.image.data.fill(0); P.tab.needsUpdate = true;
+        if (P.range) this._dirty = true;
+    }
+
+    /**
+     * Patch layer k shown over a range of its level's tiles: { n (the level's tiles around the planet), tx0 (its first
+     * column: any whole number — the columns run on past the date line), ty0 (its first row), nx, ny (its columns and
+     * rows) } — or hidden (null).
+     */
+    showPatchLayer(k, range) {
+        const P = this.patchLayers[k], r = P.range;
+        if (r === range || (r && range && r.n === range.n && r.tx0 === range.tx0 && r.ty0 === range.ty0 && r.nx === range.nx && r.ny === range.ny)) return;
+        P.range = range && { ...range };
+        this.patchUniforms();
+    }
+
+    /** The two patch layers swapped: the one shown over the other goes under it. */
+    swapPatchLayers() {
+        this.patchLayers.reverse();
+        this.patchUniforms();
+    }
+
+    /** The shader's uniforms from the layers in their places. */
+    patchUniforms() {
+        this.patchLayers.forEach((P, k) => {
+            const r = P.range, U = this.patch;
+            U[`uPatchAtl${k}`].value = P.atl; U[`uPatchTab${k}`].value = P.tab;
+            if (r) U[`uPatchRange${k}`].value.set(r.tx0, r.ty0, r.nx, r.ny);
+            U[`uPatchGrid${k}`].value.set(r ? r.n : 1, P.cols || 1, P.rows || 1, r && P.atl ? 1 : 0);
+        });
+        this._dirty = true;
+    }
+
     /** Crisp texels (sim cells, the default) or smoothly filtered ones (shaded terrain) — a canvas's texture. */
     setSmooth(on) {
         const filter = on ? THREE.LinearFilter : THREE.NearestFilter;
@@ -206,9 +321,10 @@ export class GlobeView {
             const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
                 uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() },
-                    uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) } },
+                    uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) }, ...this.patch },
                 vertexShader: 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
                 fragmentShader: `uniform sampler2D map; uniform float turn; uniform vec4 uView; uniform vec2 uWrap; varying vec2 vUv;
+${PATCH_GLSL}
 ${PROJECTION_GLSL}
 void main() {
     vec2 m = vUv * uView.xy + uView.zw;                            // (the frame's pixel → its place in the map's box, zoomed and panned)
@@ -220,7 +336,8 @@ void main() {
     vec2 xy = vec2(uBounds.x + m.x * (uBounds.y - uBounds.x), uBounds.z + m.y * (uBounds.w - uBounds.z));
     vec2 ll;
     if (!projInverse(xy, ll)) discard;
-    gl_FragColor = texture2D(map, vec2(ll.x / (2.0 * PI) + 0.5 + turn, 0.5 + ll.y / PI));
+    vec2 tc = vec2(ll.x / (2.0 * PI) + 0.5 + turn, 0.5 + ll.y / PI);
+    gl_FragColor = withPatch(texture2D(map, tc), tc);
     #include <colorspace_fragment>
 }`,
                 depthTest: false, depthWrite: false,
@@ -370,12 +487,16 @@ void main() {
         return true;
     }
 
-    /** Texture UV under a client-space point, or null if the pointer is off the globe. */
-    uvAt(clientX, clientY) {
-        const r = this.canvas.getBoundingClientRect();
+    /** Texture UV under a client-space point, or null if the pointer is off the globe. `r`: the canvas's client rect, if
+     *  the caller has it (asking for many points). The ray meets the unit sphere itself — not its triangles: a few
+     *  microseconds, not half a millisecond — and the UV is SphereGeometry's at that point. */
+    uvAt(clientX, clientY, r = this.canvas.getBoundingClientRect()) {
         this._ndc.set(((clientX - r.left) / r.width) * 2 - 1, -((clientY - r.top) / r.height) * 2 + 1);
         this._raycaster.setFromCamera(this._ndc, this.camera);
-        const hit = this._raycaster.intersectObject(this.globe)[0];
-        return hit ? hit.uv : null;
+        const p = this._raycaster.ray.intersectSphere(this._sphere, this._hit);
+        if (!p) return null;
+        // (SphereGeometry: x = −cos φ sin θ, y = cos θ, z = sin φ sin θ; u = φ / 2π, v = 1 − θ / π)
+        const phi = Math.atan2(p.z, -p.x);
+        return new THREE.Vector2((phi < 0 ? phi + 2 * Math.PI : phi) / (2 * Math.PI), 1 - Math.acos(Math.max(-1, Math.min(1, p.y))) / Math.PI);
     }
 }

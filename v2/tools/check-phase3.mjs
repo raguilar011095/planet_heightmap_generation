@@ -31,6 +31,20 @@ report('space between cratons and the sea', r => r.m.minCoastKm >= C.cratonMinCo
 report('variety of craton size', r => r.m.cratonSizeRatio >= 2 && r.m.cratons.every(k => k.diameterKm > 650 && k.diameterKm < 4400),
     `largest ÷ smallest diameter ${range(runs, Object.assign(r => r.m.cratonSizeRatio, { digits: 1 }))}×; diameters ${range(runs, r => Math.min(...r.m.cratons.map(k => k.diameterKm)))} to ${range(runs, r => Math.max(...r.m.cratons.map(k => k.diameterKm)))} km`);
 report('variety of terrane size', r => r.m.terraneSizeRatio >= 1.8, `largest ÷ smallest terrane area ${range(runs, Object.assign(r => r.m.terraneSizeRatio, { digits: 1 }))}×`);
+// (S1 of plans/V2_START_WORLD_PLAN.md: cratons are fragments in clusters, not lobed blobs sprinkled evenly — the lobed
+// blobs measured 0.25–0.44 here)
+report('cratons are compact fragments, no slivers', r => r.m.cratonCompactMin >= 0.4,
+    `least compact craton per world ${range(runs, Object.assign(r => r.m.cratonCompactMin, { digits: 2 }))} (nearest outside ÷ radius of a disc of its area; ≥ 0.4)`);
+report('cratons cluster into proto-continents', r => r.m.clusterContrast && r.m.clusterContrast.ratio >= 1.5,
+    `gap between clusters ÷ gap between cluster-mates ${range(runs, Object.assign(r => r.m.clusterContrast?.ratio ?? 0, { digits: 1 }))}× (median ${range(runs, r => r.m.clusterContrast?.interKm ?? 0)} vs ${range(runs, r => r.m.clusterContrast?.intraKm ?? 0)} km; ≥ 1.5×)`);
+check('some cratons come as sibling pairs', runs.filter(r => r.m.siblingPairs > 0).length >= runs.length / 2,
+    `sibling pairs per world: ${runs.map(r => r.m.siblingPairs).join(' ')}`);
+// (S2: the old ranges follow the assembly — a few long seams — not a noise-masked honeycomb ringing every craton. The
+// honeycomb, on 8 seeds: 35–40 % of the land within 500 km of one, as much raised ground (5–6 %). Neither a count of
+// connected pieces nor the longest one tells them apart: a honeycomb's segments, where they join, count as one long belt
+// — its longest ran 2900–7400 km — so they are only reported)
+report('old ranges follow a few long seams, not every craton', r => r.m.oldRanges.nearShare <= 0.33,
+    `${range(runs, r => 100 * r.m.oldRanges.nearShare)} % of the land within 500 km of an old range (≤ 33 %; ${range(runs, r => 100 * r.m.oldRanges.raisedShare)} % raised); the longest ${range(runs, r => r.m.oldRanges.longestKm)} km`);
 report('continental fraction', r => Math.abs(r.m.continentalFraction - C.continentalFraction) < 0.015, `${range(runs, Object.assign(r => r.m.continentalFraction * 100, { digits: 1 }))} % of the surface (target ${(C.continentalFraction * 100).toFixed(0)} %)`);
 report('craton share', r => r.m.cratonShare < C.cratonShare + 0.04 && r.m.cratonShare > C.cratonShare * C.cratonMinAreaScale * 0.8,
     `${range(runs, r => r.m.cratonShare * 100)} % of continental crust (asked ${(C.cratonShare * 100).toFixed(0)} %; craton size factor used: ${range(runs, Object.assign(r => r.start.cratonAreaScale, { digits: 2 }))})`);

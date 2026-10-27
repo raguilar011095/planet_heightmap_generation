@@ -27,7 +27,7 @@ const R = 6371, FAR = 2000;
  */
 export function plateCratons(simMesh, A, frame, loadW) {
     const { xyz, numCells: n, adjOffset, adjList } = simMesh;
-    const depthW = new Float32Array(n).fill(-FAR), loadOut = new Float32Array(n), patchW = new Float32Array(n), rasters = new Map();
+    const depthW = new Float32Array(n).fill(-FAR), loadOut = new Float32Array(n), patchW = new Float32Array(n), acrossW = new Float32Array(3 * n), rasters = new Map();
     const byPlate = new Map();
     for (let w = 0; w < n; w++) { const o = A.owner[w]; if (o >= 0) (byPlate.get(o) ?? byPlate.set(o, []).get(o)).push(w); }
     const runs = new Map();
@@ -82,18 +82,23 @@ export function plateCratons(simMesh, A, frame, loadW) {
             }
             load.set(next);
         }
-        // craton patches (connected craton cells): each one's depth — its deepest point from the edge
-        const patchDepth = new Float32Array(n), seen = new Uint8Array(n), queue = [];
+        // craton patches (connected craton cells): each one's depth — its deepest point from the edge — and its grain: the
+        // direction ACROSS its long axis, in the plate's frame (a craton's greenstone belts run along its length, as the
+        // Superior's do; plans/V2_START_WORLD_PLAN.md S4) — read from the patch's shape, so it rides with the crust
+        const patchDepth = new Float32Array(n), across = new Float32Array(3 * n), seen = new Uint8Array(n), queue = [];
         for (let r0 = 0; r0 < n; r0++) {
             if (cls[r0] !== 1 || seen[r0]) continue;
             queue.length = 0; queue.push(r0); seen[r0] = 1;
-            let deepest = 0;
+            let deepest = 0, mx = 0, my = 0, mz = 0;
             for (let i = 0; i < queue.length; i++) {
                 const r = queue[i];
                 if (d[r] < Infinity && d[r] > deepest) deepest = d[r];
+                mx += xyz[3 * r]; my += xyz[3 * r + 1]; mz += xyz[3 * r + 2];
                 for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const q = adjList[k]; if (cls[q] === 1 && !seen[q]) { seen[q] = 1; queue.push(q); } }
             }
             for (const r of queue) patchDepth[r] = deepest;
+            const a = grainAcross(xyz, queue, mx, my, mz);
+            for (const r of queue) { across[3 * r] = a[0]; across[3 * r + 1] = a[1]; across[3 * r + 2] = a[2]; }
         }
         const depth = new Float32Array(n).fill(NaN), loadR = new Float32Array(n), patchR = new Float32Array(n);
         for (let r = 0; r < n; r++) {
@@ -101,10 +106,31 @@ export function plateCratons(simMesh, A, frame, loadW) {
             const dd = Math.min(FAR, d[r]);
             depth[r] = cls[r] ? dd : -dd; loadR[r] = cls[r] ? load[r] : 0; patchR[r] = patchDepth[r];
         }
-        rasters.set(o, { depth, load: loadR, patch: patchR });
-        for (const w of cells) { const r = A.cell[w]; if (depth[r] === depth[r]) { depthW[w] = depth[r]; loadOut[w] = loadR[r]; patchW[w] = patchR[r]; } }
+        rasters.set(o, { depth, load: loadR, patch: patchR, across });
+        for (const w of cells) {
+            const r = A.cell[w];
+            if (depth[r] === depth[r]) { depthW[w] = depth[r]; loadOut[w] = loadR[r]; patchW[w] = patchR[r]; acrossW[3 * w] = across[3 * r]; acrossW[3 * w + 1] = across[3 * r + 1]; acrossW[3 * w + 2] = across[3 * r + 2]; }
+        }
     }
-    return { depthW, loadW: loadOut, patchW, rasters, characters: new Map() };
+    return { depthW, loadW: loadOut, patchW, acrossW, rasters, characters: new Map() };
+}
+
+/** The unit direction across a patch's long axis, at its centroid (the patch's cells' positions, summed m*). */
+function grainAcross(xyz, cells, mx, my, mz) {
+    const l = Math.hypot(mx, my, mz) || 1, m = [mx / l, my / l, mz / l];
+    const up = Math.abs(m[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
+    let e = [up[1] * m[2] - up[2] * m[1], up[2] * m[0] - up[0] * m[2], up[0] * m[1] - up[1] * m[0]];
+    const el = Math.hypot(...e) || 1; e = [e[0] / el, e[1] / el, e[2] / el];
+    const nn = [m[1] * e[2] - m[2] * e[1], m[2] * e[0] - m[0] * e[2], m[0] * e[1] - m[1] * e[0]];
+    // second moments of the cells in the tangent plane at the centroid: the long axis is the larger one's direction
+    let su = 0, sv = 0, suu = 0, svv = 0, suv = 0;
+    for (const r of cells) {
+        const u = xyz[3 * r] * e[0] + xyz[3 * r + 1] * e[1] + xyz[3 * r + 2] * e[2], v = xyz[3 * r] * nn[0] + xyz[3 * r + 1] * nn[1] + xyz[3 * r + 2] * nn[2];
+        su += u; sv += v; suu += u * u; svv += v * v; suv += u * v;
+    }
+    const k = cells.length, cu = su / k, cv = sv / k, cuu = suu / k - cu * cu, cvv = svv / k - cv * cv, cuv = suv / k - cu * cv;
+    const th = 0.5 * Math.atan2(2 * cuv, cuu - cvv) + Math.PI / 2, c = Math.cos(th), s = Math.sin(th);
+    return [e[0] * c + nn[0] * s, e[1] * c + nn[1] * s, e[2] * c + nn[2] * s];
 }
 
 /**
