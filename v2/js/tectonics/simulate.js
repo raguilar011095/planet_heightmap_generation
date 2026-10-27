@@ -46,6 +46,9 @@ import { CM_PER_YR_TO_RAD_PER_MYR } from './config.js';
  *                                              one history run in one go, to the bit (the Evolution page's "Keep going")
  * @param {boolean} [opts.keepFrames]           false: the frames go only to onFrame and are not kept (a worker that streams
  *                                              them out would otherwise hold the whole history twice — ~2 MB a frame at 20K)
+ * @param {(name: string, world) => void} [opts.onStage]   diagnostics: called after each stage of a step that ran, with its
+ *                                              name (tools/trace-coasts.mjs: which stage changed the crust how); it must
+ *                                              not change the world — the history never depends on it
  * @returns {{frames: import('./snapshot.js').Frame[], steps: number, stepLog: Object[], stopped: boolean}}
  *          frames[0] is the world as handed in (time 0 for a new world — a world can also be run on from
  *          where an earlier call stopped); then one frame per snapshot interval; the last is exactly untilMyr,
@@ -68,9 +71,10 @@ export async function simulateAsync(world, opts, helpers) {
 // The history's steps, as a generator: it yields each rift's request for its junctions' searches (step/rifting.js).
 const SLOW_ROTATION_MYR = 20;        // (a plate's averaged rotation: in the step loop)
 
-function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snapshotEveryMyr, events = true, onFrame = null, stopAt = null, resume = false, keepFrames = true }) {
+function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snapshotEveryMyr, events = true, onFrame = null, stopAt = null, resume = false, keepFrames = true, onStage = null }) {
     const frames = [], stepLog = [];
     const record = frame => { if (keepFrames) frames.push(frame); onFrame?.(frame); };
+    const stage = onStage ? name => onStage(name, world) : null;
     if (!resume) {
         for (const p of world.plates) p.refreshExtent(world.mesh.xyz);
         resolve(world);
@@ -95,6 +99,7 @@ function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snap
         advancePlates(world, dt);
         world.lastDt = dt;
         const tally = resolve(world);
+        stage?.('resolve');
         classifyBoundaries(world, dt);
         // (the slow rules every config.slowRulesEveryMyr, with the time since they last ran)
         world.slowMyr += dt;
@@ -108,23 +113,31 @@ function* stepsOf(world, { untilMyr, drive, snapshotEveryMyr = world.config.snap
             updateHotspots(world, dt);                 // plumes, LIPs, tracks — first, on the fresh view: stamps records only, queues plume rifts
             trackCycle(world);                         // the supercontinent cycle: count the landmasses, move the mantle's up- and downwelling
             changed += trackCollisions(world, dt) ? 1 : 0;   // collision records, belts, sutures, docking, arc scraping (merges plates)
+            stage?.('collisions');
             changed += growWings(world, dt);           // trench wings capture passive ocean
-            if (slow) changed += buildArcs(world);      // island arcs behind mature ocean trenches (cell types only)
-            if (slow) changed += collapseArcs(world);   // an arc near its own coast lands on it
-            if (slow) changed += growMarginIsles(world, slowDt);  // fore-arc islands rise and join the coast (cell types only)
+            stage?.('wings');
+            if (slow) { changed += buildArcs(world); stage?.('arcs'); }                  // island arcs behind mature ocean trenches (cell types only)
+            if (slow) { changed += collapseArcs(world); stage?.('arc collapse'); }       // an arc near its own coast lands on it
+            if (slow) { changed += growMarginIsles(world, slowDt); stage?.('margin isles'); }  // fore-arc islands rise and join the coast (cell types only)
             changed += yield* riftContinents(world, dt);   // plume and tension rifts (splits plates)
+            stage?.('rifts');
             changed += openBackArcs(world, dt);        // rolling-back trenches split off strips; finished strips rejoin
+            stage?.('back-arcs');
             changed += initiateSubduction(world, dt);  // passive margins founder (may carve an ocean plate)
-            if (slow) changed += founderWithinPlates(world, slowDt);  // …and margins inside a plate: its old ocean breaks away as a plate
-            if (slow) changed += retireBackground(world) + splitOceanPlates(world, slowDt);  // the pre-history ocean becomes plates; big ocean plates split
+            stage?.('subduction init');
+            if (slow) { changed += founderWithinPlates(world, slowDt); stage?.('margins founder'); }  // …and margins inside a plate: its old ocean breaks away as a plate
+            if (slow) { changed += retireBackground(world) + splitOceanPlates(world, slowDt); stage?.('ocean plates'); }  // the pre-history ocean becomes plates; big ocean plates split
             changed += captureMicroplates(world);       // a small ocean plate is captured by its neighbour
-            if (slow) changed += closeRemnantSeas(world, slowDt);  // seas sealed inside a plate close from their shores
-            if (slow) changed += matureArcs(world, slowDt);  // arcs welded onto a continent become continent (cell types only)
+            stage?.('microplates');
+            if (slow) { changed += closeRemnantSeas(world, slowDt); stage?.('remnant seas'); }  // seas sealed inside a plate close from their shores
+            if (slow) { changed += matureArcs(world, slowDt); stage?.('arc maturation'); }  // arcs welded onto a continent become continent (cell types only)
             changed += tidyPlates(world);              // fragments join a neighbour; ocean scraps go to the passive ocean
+            stage?.('tidy');
             if (changed) {                              // crust changed: the world view must be rebuilt before anything reads it
                 for (const p of world.plates) if (p.dirty) p.refreshExtent(world.mesh.xyz);
                 resolve(world);
-                if (fillPinholes(world)) { for (const p of world.plates) if (p.dirty) p.refreshExtent(world.mesh.xyz); resolve(world); }
+                stage?.('resolve again');
+                if (fillPinholes(world)) { for (const p of world.plates) if (p.dirty) p.refreshExtent(world.mesh.xyz); resolve(world); stage?.('pinholes'); }
                 classifyBoundaries(world, 0);
             }
         }

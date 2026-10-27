@@ -363,7 +363,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     const noisy = (c, w) => { const r = cell[c]; return w * Math.exp(cfg.blendNoise * noise.fbm(x0 * blendF + (r % 101) * 1.37, y0 * blendF + (r % 89) * 2.11, z0 * blendF + (r % 83) * 0.73, 3, 0.5) * 1.6); };
     let x0 = 0, y0 = 0, z0 = 0;
     const { cratons: CR, terrane } = rec;
-    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, armKm, fractureU, coastFresh, envShape, rootShape, farGrain, farFold, farPhase } = rec;
+    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, frontKm, arcEdgeKm, arcWide, armKm, fractureU, coastFresh, envShape, rootShape, farGrain, farFold, farPhase } = rec;
     // the far field (records.js farFieldRecords; plans/V2_FAR_FIELD_PLAN.md F3–F4): its folds and the grain it leaves, both
     // read as noise ACROSS its phase — near enough the distance from the fronts that pushed the crust — and slowly along it
     const farOn = !!farPhase, foldStretch = cfg.farFoldStretch ?? 1, foldWanderF = R / (cfg.farFoldWanderKm ?? 800);
@@ -805,13 +805,36 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 for (let o = 0; o < hillsF.length; o++) { const f = hillsF[o]; sum += hillsAmp[o] * renewedNoise(x * f + 31.3 + 2.1 * o, y * f + 7.7 + 1.3 * o, z * f + 19.9 + 0.7 * o); }
                 h += sum * (1 + ((cfg.hillsUplandGain ?? 4) - 1) * smooth(0.1, 1.5, h)) * smooth(0, 0.08, h);
             }
+            // ── a submerged arc ridge stays under the sea between its volcanoes (terrain-config.js arcDrown): its ground held
+            // at the ridge's own depth — its platform — not at the shelf edge (a bank that broad would be a lagoon) ──
+            const arcS = cfg.arcDrown > 0 ? w0 * arcCrust[c0] + w1 * arcCrust[c1] + w2 * arcCrust[c2] : 0;
+            if (arcS > 0.02) {
+                const deep = smooth(cfg.arcDrownFromKm, cfg.arcDrownToKm, -platform);
+                // (but not along its volcanic front, near a live trench: the arc there stands as it is — its island chain)
+                // (nor a narrow arc: islands along a chain are a chain — only a broad plateau goes, its rim and all; records.js arcWide)
+                const behind = (cfg.arcKeepFrontKm > 0 ? smooth(cfg.arcKeepFrontKm, cfg.arcKeepFrontFadeKm, w0 * frontKm[c0] + w1 * frontKm[c1] + w2 * frontKm[c2]) : 1)
+                    * (w0 * arcWide[c0] + w1 * arcWide[c1] + w2 * arcWide[c2]) / Math.max(1e-6, arcS);
+                // (behind its front an old arc subsides, a remnant ridge — the Kyushu–Palau, the Lau — by up to arcBackSinkKm)
+                const ridge = Math.min(cfg.shelfEdgeKm, platform) - (cfg.arcBackSinkKm ?? 0) * deep * behind;
+                // (ground standing well clear of the sea is an island, and stays — ragged edges and all; only ground near or
+                // under sea level drowns, which is what drew the specks)
+                const stands = cfg.arcIsleToKm > 0 ? smooth(cfg.arcIsleFromKm, cfg.arcIsleToKm, lifted) : 0;
+                if (h > ridge) h -= cfg.arcDrown * Math.min(1, arcS) * deep * behind * (1 - stands) * (h - ridge);
+            }
         } else {
             // ── sea side: the slope from the shelf break down to the floor the ocean corners give ──
             const ow = (land[c0] ? 0 : w0) + (land[c1] ? 0 : w1) + (land[c2] ? 0 : w2);
             const oc = (c, w) => (land[c] ? 0 : w);
             const floor = ow > 0 ? (oc(c0, w0) * depthKm[c0] + oc(c1, w1) * depthKm[c1] + oc(c2, w2) * depthKm[c2]) / ow : 3;
             const slope = w0 * slopeKm[c0] + w1 * slopeKm[c1] + w2 * slopeKm[c2];
-            h = cfg.shelfEdgeKm + (-floor - cfg.shelfEdgeKm) * smooth(0, slope, -coast);
+            // (from the shelf's edge — or, off a drowned arc, from the depth its ground is held at: records.js arcEdgeKm)
+            let edge = cfg.shelfEdgeKm;
+            if (arcEdgeKm && ow > 0) {
+                let s = 0, sw = 0;
+                for (let j = 0; j < 3; j++) { const c = j === 0 ? c0 : j === 1 ? c1 : c2, e = arcEdgeKm[c], wj = oc(c, j === 0 ? w0 : j === 1 ? w1 : w2); if (wj > 0 && e === e) { s += wj * e; sw += wj; } }
+                if (sw > 0) edge += (sw / ow) * (s / sw - edge);
+            }
+            h = edge + (-floor - edge) * smooth(0, slope, -coast);
             // abyssal hills along the isochrons, faded where the mesh cannot show them
             if (ow > 0) {
                 const age = (oc(c0, w0) * ageMyr[c0] + oc(c1, w1) * ageMyr[c1] + oc(c2, w2) * ageMyr[c2]) / ow;

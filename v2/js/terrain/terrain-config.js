@@ -66,6 +66,28 @@ export const TERRAIN = {
     // islands (Japan, Java). In the crust's frame, renewing as the coast noise does.
     arcStraitKm: 35,            // (70 cut the arcs' texture away — their small islets and ragged edges; halfway keeps the chains and the texture: developer)
     arcIslandKm: 140,
+    // a broad, submerged arc plateau sinks back (issue #73: late in a history, broad plateaus of arc crust a kilometre down
+    // came out as fields of one-cell specks — the history's uplift and each cell's own age, varying cell to cell, poking
+    // through the surface). Where an arc's own ridge lies deep (its platform: arcYoungKm, arcOceanMatureKm) and the arc is
+    // broad, its ground is held under the sea and sinks deeper behind its front — a remnant ridge (the Kyushu–Palau, the
+    // Lau) — except along its volcanic front, near a live trench, and wherever its ground stands clear of the sea: those
+    // stay islands. A narrow arc (a chain: the Aleutians) and a mature arc near a continent (its ridge above the sea:
+    // Japan, Java) are untouched. (Developer, on a stronger first version that drowned every submerged arc behind its
+    // front: "some of those islands looked nice-ish but the big blobs dont really make sense".)
+    arcDrown: 1,                // share by which a submerged arc's ground is held at its ridge's depth between its volcanoes…
+    arcDrownFromKm: 0.2,        // …from where its ridge lies this deep…
+    arcDrownToKm: 0.8,          // …fully from this deep…
+    arcKeepFrontKm: 250,        // …except within this of a live trench, where it is kept as it is (0: drowned there too)…
+    arcKeepFrontFadeKm: 450,    // …drowned fully beyond this…
+    arcNarrowKm: 60,            // …nor a narrow arc, a chain of islands: only where the arc reaches this far from its edge within
+    arcWideKm: 200,             // this of a point, fully from this far — a broad plateau, its rim and all…
+    arcIsleFromKm: 0.1,         // …and where its ground stands clear of the sea — from this high, fully from arcIsleToKm — an island
+    arcIsleToKm: 0.5,           // that stays, ragged edges and all (0: none kept, only the front's)…
+    arcBackSinkKm: 2,           // …the rest, behind the front, subsiding up to this much deeper: a remnant ridge, not a broad shallow blob
+    // and an arc's volcanoes on its volcanic front: all within arcVolcanoNearKm of a live trench, fewer out to
+    // arcVolcanoFarKm, none beyond (0: wherever the arc's belt is active, as before — across a whole merged arc plateau)
+    arcVolcanoNearKm: 250,
+    arcVolcanoFarKm: 400,
     // submarine canyons (developer: a shelf edge with character; carve.js): from the mouth of each big river (drainage
     // canyonAreaKm2: none below the first, full from the second), down the shelf and the slope by the steepest way, up to
     // canyonKm: a trough canyonDepthKm deep at most — deepest across the shelf break and the upper slope — its sides half as

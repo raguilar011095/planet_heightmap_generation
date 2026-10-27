@@ -179,6 +179,9 @@ node v2/tools/check-far-field.mjs      # the far field: records only, through cr
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
+node v2/tools/trace-coasts.mjs 40000 12345 --stages --drawn 60,300,800 [--png] [--off mechanism,…] [--set key=value,…]
+                                       # how ragged the coasts get: the outline by kind of coast over time, which stage of a step adds or
+                                       # removes one-cell spits and inlets, and the coast as drawn (its roughness by kind of coast) → v2/out/coasts/
 node v2/tools/render-frames.mjs tug plates            # PNG frames of a scene → v2/out/
 node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 30 --time 290 [--cells 2500000] [--crop lon0,lon1,lat0,lat1] [--probe lat,lon;…] [--lakes] [--rivers [q0]] [--set key=value,…] [--debug]
                                        # a detailed moment (Add detail) headlessly, painted as the page paints it → v2/out/moments/; its lakes and any empty basins
@@ -233,7 +236,8 @@ js/tectonics/
                                     (records, suture / docking), orogeny
                                     (belt spreading, underthrusting), wings (trench wings, island arcs — as wide as their distance from
                                     continents allows: a Mariana at sea, a Japan near land), margin-isles
-                                    (fore-arc islands on accretionary margins, coast retreat on erosive ones),
+                                    (fore-arc islands on accretionary margins, coast retreat on erosive ones —
+                                    bays fill before spits grow, headlands go before coves: `marginCoastShape`),
                                     rifting (when a continent rifts), backarc (slab rollback, back-arc seas),
                                     subduction-init (when a passive margin founders — between two plates, or inside a giant
                                     one: its old ocean then breaks away as a plate of its own), ocean-plates (the pre-history
@@ -510,6 +514,12 @@ with each cell's slope as well, kept within each cell's neighbourhood range (`mo
 the distance across it that the ridge kernels carry (`crestFollow`: a main crest is one curved line, not a zig-zag).
 Hills go down to what the mesh can show, more on high ground, none at the shore (`hillsKm`); island arcs are cut
 into chains of islands by a noise of islands (`arcStraitKm`: straits are shallow sea; a broad arc keeps its interior).
+A broad, submerged arc plateau (its ridge 0.2–0.8 km down or deeper; reaching `arcNarrowKm`–`arcWideKm` in from its
+edge) drowns between its islands and sinks up to `arcBackSinkKm` deeper, a remnant ridge (`arcDrown`) — except along
+its volcanic front, within `arcKeepFrontKm` of a live trench, and wherever its ground stands clear of the sea
+(`arcIsleToKm`): those stay islands. Its volcanoes keep to that front (`arcVolcanoNearKm`/`FarKm`); the sea's slope
+off it starts at its drowned depth (records.js `arcEdgeKm`). A narrow arc — a chain — keeps every island. Without it,
+the broad arc plateaus of a late history came out as fields of one-cell islands (issue #73; `tools/trace-coasts.mjs`).
 In `carve.js`: drowned valleys where hills and mountains meet the sea — each big valley lowered near its mouth along
 the river, the sea then flooding in only where it connects — fjords (`drownKm` 180 km up the valley, 1.4 km deep at the
 mouth) where the coast is cold, short shallow rias elsewhere (`riaKm` 60, 0.15 km: the sea risen since the ice age);

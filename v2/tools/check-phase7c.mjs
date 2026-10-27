@@ -20,7 +20,9 @@ function run(id, overrides = {}, untilMyr = null) {
     return { world, frames, last: frames.at(-1), seconds: (performance.now() - started) / 1000, events: world.events, budget: world.budget };
 }
 const land = f => countWhere(numCells, w => isLand(f, w));
-const cratons = f => countWhere(numCells, w => f.owner[w] >= 0 && f.type[w] === CrustType.CRATON);
+// (craton crust counted on the plates themselves: the world grid's count moves by a few cells with where the plates sit —
+// 126…131 for the same 128 cells of craton — and two runs that differ end with their plates in slightly different places)
+const cratons = world => world.plates.reduce((n, p) => n + (p.alive ? countWhere(numCells, c => p.crust.mask[c] && p.crust.type[c] === CrustType.CRATON) : 0), 0);
 
 section('erosive and accretionary margins');
 {
@@ -30,7 +32,7 @@ section('erosive and accretionary margins');
     const share = erosive / Math.max(1, erosive + accretionary);
     check('one active coast has both kinds of stretch: erosive and accretionary', share >= 0.2 && share <= 0.8, `${(100 * share).toFixed(0)} % of active-coast cell-frames erosive`);
     check('an erosive coast retreats: its land turns to fore-arc sea', r.budget.erodedCells * cellAreaKm2 >= 1e5, `${Mkm2(r.budget.erodedCells).toFixed(2)} Mkm² of coast eaten in ${r.last.time} Myr`);
-    check('…and never a craton', cratons(r.last) >= cratons(off.last), `${cratons(r.last)} craton cells at the end, ${cratons(off.last)} with every margin accretionary`);
+    check('…and never a craton', cratons(r.world) >= cratons(off.world), `${cratons(r.world)} craton cells at the end, ${cratons(off.world)} with every margin accretionary`);
     // (a fore-arc island keeps its flag after it has grown into the mainland)
     const isles = countWhere(numCells, w => r.last.owner[w] >= 0 && (r.last.flags[w] & CrustFlag.MARGIN_ISLE));
     check('the accretionary stretches still build islands', isles > 0, `${isles} cells of fore-arc island, standing or grown into the coast`);
