@@ -306,10 +306,6 @@ export const TECTONICS = {
     marginErosionRefCmYr: 3,    // …around this rate (a typical active continental margin in these histories)
     marginErosionKmPerMyr: 2,   // an erosive margin's coast retreats this fast…
     marginErosionMaxGapKm: 500, // …until it lies this far from its trench (the Andes: ~250 km of coast lost since the Jurassic)
-    // how a fore-arc coast grows and retreats (issue #73: cell by cell at random, it frayed into specks and notches): an
-    // island or the coast fills its bays before it pushes out a spit, and the sea takes a headland before a cove — by
-    // (share of a cell's sides that are land, or sea)^this. The same number of cells change; 0: cell by cell, as before
-    marginCoastShape: 2,
 
     // ── Subduction initiation (Phase 6b, step/subduction-init.js) ──
     subductionInitRatePerMyr: 0.02,   // chance per Myr for a margin at the age threshold and the minimum length
@@ -479,6 +475,12 @@ export const TECTONICS = {
                                 // front's own belts are at work)…
     farBeltKm: [110, 320],      // …the range this wide — wider the harder it was pushed…
     farBeltWorkKm: 60,          // …(the width's scale of work)
+    // …but where the line runs through an old range, that range rises again on its own lines (developer, 2026-10-27: "less
+    // sporatic and more raising the ridgelines originally" — a new belt drawn from the line's scattered cells stood as blobs
+    // and rings over the old range): over the range's own cells, as far as a new belt would reach, its crests toward this
+    // share of its kind's and its broad uplift toward this share of its cross-section (the Tian Shan on its Paleozoic belt)
+    farRejuvenateCrests: 0.75,
+    farRejuvenateUplift: 0.35,  // (a plateau's back rises only a little: the ridges, not a new Tibet)
 
     // ── Reserved for later phases: not read by the engine; kept so the numbers from the research survive (the checks use maxPlates) ──
     reserved: {

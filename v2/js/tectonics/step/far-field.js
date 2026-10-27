@@ -20,6 +20,8 @@
 import { CrustType, CrustFlag, OrogenyType } from '../model/crust.js';
 import { MinHeap } from '../../core/min-heap.js';
 import { spreadBelt } from './orogeny.js';
+import { heightsOf, beltReliefKm } from './heights.js';
+import { broadProfile } from '../../terrain/profiles.js';
 import { cellDistanceKm } from '../../core/sphere-geom.js';
 
 const WEAK = CrustFlag.SUTURE | CrustFlag.FAILED_RIFT | CrustFlag.RIFT_MARGIN;
@@ -67,11 +69,12 @@ const REACTIVATES = CrustFlag.SUTURE | CrustFlag.FAILED_RIFT;      // (a rift ma
  * meets the line (cos² of the angle to the line's normal: struck head-on it thrusts, struck along its length it mostly
  * slides) × farReactivate, less farReactMinKmPerMyr × the time since the last spread (a weak push does not stir it, however
  * long it lasts — the yield strength); only from farNearKm of the front on (nearer, the front's own belts are at work),
- * eased in. The range is wider the harder it was pushed.
+ * eased in. The range is wider the harder it was pushed. Where the line runs through an old range, that range rises
+ * again instead (rejuvenate).
  */
 function reactivate(world, plate, push, window) {
     const cfg = world.config, { mesh } = world, { xyz } = mesh, crust = plate.crust, { type, flags } = crust;
-    const sources = [], works = [];
+    const sources = [], works = [], olds = [], oldWorks = [];
     for (let i = 0; i < push.cells.length; i++) {
         const c = push.cells[i];
         if (!(flags[c] & REACTIVATES) || type[c] === CrustType.CRATON) continue;
@@ -90,15 +93,69 @@ function reactivate(world, plate, push, window) {
         const t = lineStrike(crust, mesh, c);
         const along = t ? ax * t[0] + ay * t[1] + az * t[2] : 0, square = 1 - along * along;
         const w = push.inc[i] * square * far * cfg.farReactivate - cfg.farReactMinKmPerMyr * window;
-        if (w > 0) { sources.push(c); works.push(w); }
+        if (!(w > 0)) continue;
+        if (oldRange(crust, c, world.time, cfg)) { olds.push(c); oldWorks.push(w); }
+        else { sources.push(c); works.push(w); }
     }
+    const [narrow, wide] = cfg.farBeltKm, widthOf = w => narrow + (wide - narrow) * Math.tanh(w / cfg.farBeltWorkKm);
+    if (olds.length && cfg.farRejuvenateCrests > 0) rejuvenate(world, plate, olds, oldWorks.map(widthOf), oldWorks);
     if (!sources.length) return;
-    const [narrow, wide] = cfg.farBeltKm;
     // (its relief is uplift and crests: a basement block thrust up, the crust not thickened — a root stacked on whatever
     // thick crust lay there stood 13 km high where a reactivated line ran through an old plateau)
-    spreadBelt(plate, mesh, sources, { type: OrogenyType.INTRAPLATE, time: world.time, works, noRoot: true,
-        widths: works.map(w => narrow + (wide - narrow) * Math.tanh(w / cfg.farBeltWorkKm)) }, cfg);
+    spreadBelt(plate, mesh, sources, { type: OrogenyType.INTRAPLATE, time: world.time, works, noRoot: true, widths: works.map(widthOf) }, cfg);
 }
+
+/** Whether cell `c` lies in an old range with its geometry recorded — quiet, not a rift — that a push can raise again. */
+function oldRange(crust, c, time, cfg) {
+    const o = crust.oroType[c];
+    return cfg.farRejuvenateCrests > 0 && o !== OrogenyType.NONE && o !== OrogenyType.RIFT && crust.beltReach[c] > 0
+        && time - crust.oroLast[c] >= cfg.orogenyQuietMyr && crust.type[c] !== CrustType.CRATON;
+}
+
+/**
+ * An old range squeezed up again on its own lines: from the cells of it the push stirred, over the range's own cells
+ * (an old range, as oldRange) out to `widths` km, the work tapering to nothing there — its crests rise toward
+ * farRejuvenateCrests of its kind's crest height and its broad uplift toward farRejuvenateUplift of its cross-section,
+ * at the pace an intraplate belt builds (heights.js buildHeights; never lowered). Its kind, geometry and age stay: the
+ * old range's crests and ridges stand higher where they always ran, still worn as an old range's (the terrain reads its
+ * age). Records only.
+ */
+function rejuvenate(world, plate, sources, widths, works) {
+    const cfg = world.config, H = heightsOf(cfg), { mesh, time } = world, { adjOffset, adjList, xyz } = mesh, crust = plate.crust;
+    const { mask, type, upliftKm, rugged, beltU, beltReach, beltSide, oroType } = crust;
+    const n = mask.length;
+    if (!rj.d || rj.d.length !== n) { rj.d = new Float32Array(n).fill(Infinity); rj.src = new Int32Array(n).fill(-1); }
+    const { d, src } = rj, queue = [];
+    sources.forEach((c, i) => {
+        if (src[c] >= 0 && widths[i] <= widths[src[c]]) return;
+        if (src[c] < 0) queue.push(c);
+        d[c] = 0; src[c] = i;
+    });
+    // (breadth-first, relaxing: close enough for a record, as spreadBelt's)
+    for (let head = 0; head < queue.length; head++) {
+        const c = queue[head], reach = widths[src[c]];
+        for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+            const nb = adjList[k];
+            if (!mask[nb] || !oldRange(crust, nb, time, cfg)) continue;
+            const next = d[c] + cellDistanceKm(xyz, c, nb);
+            if (next >= d[nb] || next > reach) continue;
+            d[nb] = next; src[nb] = src[c];
+            queue.push(nb);
+        }
+    }
+    const reached = new Set(queue);
+    for (const c of reached) {
+        const i = src[c], work = works[i] * (1 - d[c] / widths[i]);
+        if (work > 0 && type[c] !== CrustType.OCEAN) {
+            const t = oroType[c], reach = beltReach[c], A = beltReliefKm(t, reach, H), share = 1 - Math.exp(-work / H.upliftBuildKm[OrogenyType.INTRAPLATE]);
+            const crests = cfg.farRejuvenateCrests * A, target = cfg.farRejuvenateUplift * A * broadProfile(t, beltSide[c], beltU[c] * reach, reach);
+            if (crests > rugged[c]) rugged[c] += (crests - rugged[c]) * share;
+            if (target > upliftKm[c]) upliftKm[c] += (target - upliftKm[c]) * share;
+        }
+    }
+    for (const c of reached) { d[c] = Infinity; src[c] = -1; }
+}
+const rj = { d: null, src: null };
 
 /** The strike of the weak line through `c`: the long axis of the weak cells within two rings of it (null if too few). */
 function lineStrike(crust, mesh, c) {

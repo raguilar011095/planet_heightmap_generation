@@ -81,7 +81,31 @@ harder — over the mountains 5 % more relief, 13 % less ground above 4 km than 
 deltas); soil creep where it is wet and warm; an Earth-like last ice age (U-troughs, fjords, scoured lake hollows,
 moraines, basins still sunk by the ice); and the wind (sand seas with dune ridges at 10M, pans, loess). It runs in its
 own worker (which alone holds a 10M-cell mesh) and returns an equirectangular picture of heights and the ocean, painted
-like the live terrain; one moment is kept in detail per history (the one before is let go once the next is done, so a cancel loses nothing). A finished moment brings **its own
+like the live terrain; one moment is kept in detail per history (the one before is let go once the next is done, so a cancel loses nothing).
+The finish's own carving (plans/V2_FINE_DETAIL_PLAN.md, 2026-10-26; measured against the real Alps and Nepal at the same
+detail): a rising belt's rivers are held back less on its wet, steep front (`activeHold`, `frontSlope`: the rain-fed front
+cuts ~10 % deeper, a plateau keeps its top — its high flat land no less than before), soil creep only lowers where a river
+drains (`creepChannelKm2`: the valleys keep their floors) and a valley wider than its cell lowers the cells beside it
+(`valleySides`). **Detail finer than the mesh**: the mesh's cells are 7–15 km apart and the page shows a detailed moment
+at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed in past its picture's own pixels, it is
+drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
+the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
+`detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
+costs nothing). They are painted as the planet is, in every layer but those with arrows, the planet's own rivers drawn
+over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
+the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
+before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
+the layer's, so each tile is painted and sent once and a pan sends only the tiles it brings, a few a frame. Its heights (`finish/fine-detail.js`) are the picture enlarged
+smoothly (a B-spline inland — the mesh's one-cell pits drew square blobs — a Catmull–Rom at the coast, which keeps it)
+plus a little detail only below the mesh's scale, octave by octave once a feature spans 6 pixels, drawn from a small
+picture of drivers saved with the moment (`finish/finish-drivers.js`: the relief, the wet, the belt's youth, the sand
+seas and the wind, the margin, …): faint ridges and valleys on steep ground (stripes along the slope summed as phasors
+over a jittered lattice, each octave turned by the slope the coarser left, so they branch — Rune Skovbo Johansen's
+erosion filter's idea — bent a little by noise, strongest on wet, rugged, young ranges and coming and going from place to
+place); dunes in the sand seas, across the wind (along it where the seasons' winds cross); the coast's headlands and
+coves. Plains and plateau tops get none, and the rivers are not cut into it. A tile depends only on its own pixels and a
+few km around them, so tiles meet exactly. An export wider than the picture is drawn the same way, band by band — its
+heightmaps included. A moment saved before has no drivers and is shown as before. A finished moment brings **its own
 climate, at its detail**: the grid's climate from the finish's climate stage, each cell's own (its height, its relief)
 again on the finished surface — the climate tabs (Köppen, temperature, rain, wind, currents, and More…'s layers) and the
 readout use it, drawn per pixel of the finished picture (the land's measures — temperature range, aridity, growing season,
@@ -110,7 +134,11 @@ sharp, noise-ragged edge and loose floes where the cover is partial. **Rivers an
 (`finish-hydro.js`): discharge in m³/s from each place's runoff, less what dry river beds lose; each river's year — its
 monthly flows from each month's rain and snowmelt (and groundwater draining back slowly), routed down the rivers — and
 its regime: permanent, permanent with a yearly flood season (the Nile's), seasonal, dry most of the year; every river ends at the sea: a
-lake stays only where its river fills it and it is big for its river, and passes all its water on; anything smaller —
+lake stays only where its river fills it and it is big for its river (`lakeKeepKm2` × √(inflow / 1000 m³/s); a major
+river's, from `lakeHugeQ` 500–1000 m³/s, only a huge one — `lakeHugeKm2`, 8 000 km²: 2026-10-27, major rivers ending in
+lakes "< 1% unless the lake is huge"; a lake may stand only in a hollow of the tectonic surface read on the carving's mesh
+nearest `tectonicHollowMeshKm` across, where a range's troughs and a lowland's hummocks average away), and passes all its
+water on; anything smaller —
 or a basin its river cannot fill — is cut through by a gorge to its floor (old basins that overflow have cut their rims
 down; the ice age's hollows are lake districts). A gorge keeps its river's own course through the basin, every bend of
 it, unless a shortcut is enough less work — the rock cut and a little for the length: along its own course a river does
@@ -123,7 +151,8 @@ off in a basin (≳ 5 000–20 000 km² and 50–200 m below sea level) has its 
 rim. It is its hole — the basin's cells below sea level — and its water stays in it (developer: lakes over trapped
 seas filled to the basin's sill were "just too enormous"): where its river keeps the hole full, a fresh inland sea to its
 brim, just above sea level, its outflow cut down through the basin's rim to it and the lowland round it draining as land
-does; short of it, it shrinks inside the hole by its water balance — a terminal salt sea where it is big for its river or
+does — each part of the hole a lake of its own, kept only where it is big for the basin's river (the pits scattered over
+such a lowland its rivers' deltas have filled: ground just above sea level); short of it, it shrinks inside the hole by its water balance — a terminal salt sea where it is big for its river or
 an old sea floor, else a salt pan filled to a flat — never a dry hole, never a lake drowning the lowland round it. A land
 basin (or a full trapped sea's lowland) left without water drains whole: every
 pocket in it (a sub-basin behind its own sill, which the gorge from the basin's floor does not reach) gets its own gorge
@@ -236,8 +265,7 @@ js/tectonics/
                                     (records, suture / docking), orogeny
                                     (belt spreading, underthrusting), wings (trench wings, island arcs — as wide as their distance from
                                     continents allows: a Mariana at sea, a Japan near land), margin-isles
-                                    (fore-arc islands on accretionary margins, coast retreat on erosive ones —
-                                    bays fill before spits grow, headlands go before coves: `marginCoastShape`),
+                                    (fore-arc islands on accretionary margins, coast retreat on erosive ones),
                                     rifting (when a continent rifts), backarc (slab rollback, back-arc seas),
                                     subduction-init (when a passive margin founders — between two plates, or inside a giant
                                     one: its old ocean then breaks away as a plate of its own), ocean-plates (the pre-history
@@ -250,7 +278,9 @@ js/tectonics/
                                     strongly coupled subduction coasts push through their plates every few Myr —
                                     cratons pass it on, weak lines take it up — and where a strong push meets a quiet
                                     old suture or failed rift square-on, it rises again as an intraplate range (the
-                                    Tian Shan behind the Tarim block) — records only too
+                                    Tian Shan behind the Tarim block); where the line runs through an old range, that
+                                    range rises again on its own lines instead (`farRejuvenateCrests`/`Uplift`: its
+                                    crests and some of its uplift, its kind, strike and age kept) — records only too
   ops/             plate surgery, called by the event stages: rift (path + split), merge-plates (suture with the
                    outline redraw), accrete-terrane (docking), scrape-arc, collapse-arc (fore-arc closure),
                    birth-ocean-plate (a plate carved out of the passive ocean), tidy-plates (integrity: fragments,
@@ -292,12 +322,14 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), export (a finished moment's maps as PNG files, or all in a ZIP)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-sediment (fans, floodplains, deltas; creep by climate),
                    finish-ice (the last ice age), finish-wind (sand seas, dunes, pans, loess), finish-hydro (rivers, their
-                   regimes, lakes), finish-cover (the land's cover and its colours from space)
+                   regimes, lakes), finish-cover (the land's cover and its colours from space), finish-drivers (what the detail
+                   finer than the mesh is drawn from) and fine-detail (that detail: any window of a detailed moment at any
+                   resolution — plans/V2_FINE_DETAIL_PLAN.md)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
@@ -492,7 +524,11 @@ along the river network (Tzathas, Gailleton, Steer & Cordonnier 2024): after `ca
 ground downstream stood, the erosion wave having travelled up at k·A^m, plus the rock uplift gathered on the way —
 with a short time (0.75 Myr) a valley floor drops only to the ground a little way downstream, so rivers descend with the
 existing topography and cut deep where the land falls steeply; ridges and plateau tops survive. The network
-is a priority flood from the sea with slope-weighted random receivers; drainage areas are in km² (rain-weighted). Every
+is a priority flood from the sea with slope-weighted random receivers; drainage areas are in km² (rain-weighted). Across
+a flat — a hollow filled to its spill level — the flood follows the ground under the water (its micro-relief and
+meanders bending the way), then the nearer first (`carve.js flatKey`, millimetres on its key: a metre down weighs as 5 km
+across; the Finish's water too, its flats bent by the meander, `riverWanderKm`): a river crossing a hollow runs down its
+low line to the outlet, joining the others, where the heap's arbitrary order had it wander all over (2026-10-27). Every
 river carves: a cell drops by the share of it its valley takes, the valley widening with √(discharge) (`carveValleyKm`
 wide at 10⁴ km²), so great rivers cut whole cells and streams barely mark theirs; valley sides are held to
 `carveHillSlope`. Solved coarse to fine (sim mesh, then the terrain meshes up to the one shown), so the big
@@ -514,12 +550,6 @@ with each cell's slope as well, kept within each cell's neighbourhood range (`mo
 the distance across it that the ridge kernels carry (`crestFollow`: a main crest is one curved line, not a zig-zag).
 Hills go down to what the mesh can show, more on high ground, none at the shore (`hillsKm`); island arcs are cut
 into chains of islands by a noise of islands (`arcStraitKm`: straits are shallow sea; a broad arc keeps its interior).
-A broad, submerged arc plateau (its ridge 0.2–0.8 km down or deeper; reaching `arcNarrowKm`–`arcWideKm` in from its
-edge) drowns between its islands and sinks up to `arcBackSinkKm` deeper, a remnant ridge (`arcDrown`) — except along
-its volcanic front, within `arcKeepFrontKm` of a live trench, and wherever its ground stands clear of the sea
-(`arcIsleToKm`): those stay islands. Its volcanoes keep to that front (`arcVolcanoNearKm`/`FarKm`); the sea's slope
-off it starts at its drowned depth (records.js `arcEdgeKm`). A narrow arc — a chain — keeps every island. Without it,
-the broad arc plateaus of a late history came out as fields of one-cell islands (issue #73; `tools/trace-coasts.mjs`).
 In `carve.js`: drowned valleys where hills and mountains meet the sea — each big valley lowered near its mouth along
 the river, the sea then flooding in only where it connects — fjords (`drownKm` 180 km up the valley, 1.4 km deep at the
 mouth) where the coast is cold, short shallow rias elsewhere (`riaKm` 60, 0.15 km: the sea risen since the ice age);
@@ -537,6 +567,21 @@ in the crust's frame) raises and lowers it. Old crests spread a little more with
 time), the parallel ridges and ridge noise wearing slightly by wavelength (`crestTextureShare`); a faint rounded massif
 texture (`massifKm`, `massifShare`). The parallel ridges are strong again, their troughs deeper than their crests are
 high (`stripeShare`, `stripeLowGain`). The history is unchanged (its uplift uses the unworn profile).
+**Broken ridgelines (2026-10-27).** Ridges run on in pieces: in patches about one ridge wavelength across, the parallel
+ridges drop toward their troughs and the crests dip by half as much (`ridgeBreak`, by kind of belt — the Andes least,
+then Laramide, Ural, Himalayan; the main range by the plate edge at `ridgeBreakFront` of that, rising to the full share
+behind it — `profiles.js mainRangeBackKm`). `ridgeBreak: {}` draws the ridges as before.
+**Old ranges keep their grain (2026-10-27).** An old range wears down, but its hard layers stand out and its soft ones
+wear into valleys between (the Appalachians' Valley and Ridge). As a belt falls quiet (`oldGrainMyr`), its massif and
+the hills on it are drawn out along its strike (`oldComb`, `oldHillsStretch`), its parallel ridges grow stronger and run
+on evenly (`oldRidgeGain`, `oldEven`: fewer segment gaps, crests that rise and fall less), and its rock is banded with
+them — harder on the ridges, softer in the troughs, the same on the whole (`oldGrainHardness`) — so its rivers settle
+into the valleys along the strike and cross the ridges in gaps. `oldGrainMyr: 0` draws old belts as before.
+**The land's floor (2026-10-27).** A push down that would take land under the sea — a valley between crests, a failed
+arm's sag, a fold's trough, the massif's lows, a dyke's — used to stop dead at 20–30 m: flat sheets at sea level. It now
+eases into a floor (`landFloorSoftKm`), and the floor is low, rough country: it rolls above `landFloorKm` by up to
+`landFloorRollKm`, more where the push went deeper (`landFloorDeepKm`), in octaves from `landFloorScaleKm` down to what
+the mesh can show. Roll, deep and soft at 0 give a hard floor at `landFloorKm` again.
 **Scale invariance:** all lengths are km; noise is a function of position; waves shorter than ~2 terrain cells are
 faded out, not aliased. `check-phase8a.mjs` compares 160K, 640K and 2.5M cells sim cell by sim cell.
 A phase that draws terrain sets `displayMesh` (its layers paint terrain cells) and may offer `profileAlong` (the

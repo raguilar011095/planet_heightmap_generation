@@ -30,6 +30,17 @@ import { MinHeap, spreadKm } from '../core/min-heap.js';
 import { locate } from '../core/mesh-locate.js';
 
 const R = 6371;
+// Across a flat — a hollow filled to its spill level — a priority flood takes its cells in whatever order its heap gives
+// them, and the ways it finds there (each cell's way: the cell it was reached from) wander: a river crossing a hollow
+// meandered all over it (developer, 2026-10-27: "rivers have gone crazy/are just meandering all over the place"). So
+// across a flat the flood follows the ground under the water — the lower first, so a river crossing a hollow runs down
+// its low line to the outlet, joining the others there (a tree, not parallel lines) — and, where that ground is flat
+// too, the nearer to where it came in: FLAT_KEY_DEPTH on the key per km below the level, FLAT_KEY_PER_KM per km crossed
+// (a metre down weighs as 5 km across — 1 km: "slightly too straight now", developer — so the ground under the water,
+// its micro-relief and meanders, still bends the way; at most millimetres in all — under any real slope's difference)
+export const FLAT_KEY_DEPTH = 1e-6, FLAT_KEY_PER_KM = 2e-10;
+/** The flood's key for a cell reached at `level`, its ground at `ground` (≤ level in a hollow), `km` across the flat. */
+export const flatKey = (level, ground, km) => level + FLAT_KEY_DEPTH * Math.min(0, ground - level) + FLAT_KEY_PER_KM * km;
 
 /** Per mesh: the distance (km) along each adjacency entry, and the area of a cell (km²; the meshes are near-uniform). */
 const infos = new WeakMap();
@@ -65,7 +76,7 @@ export function carveLevel(mesh, f, route, cfg) {
     const baseOf = sink ? c => (sink[c] > 0.5 ? f.base[c] : 0) : () => 0;
     // ── the priority flood: from the sea inward, lowest spill first ──
     const fill = new Float32Array(n), rank = new Int32Array(n).fill(-1), parent = new Int32Array(n).fill(-1), order = new Int32Array(n);
-    const heap = new MinHeap(1 << 16);
+    const heap = new MinHeap(1 << 16), flatKm = new Float32Array(n);     // (how far across the flat it is in: FLAT_KEY_PER_KM)
     let count = 0;
     for (let c = 0; c < n; c++) {
         if (land(c)) continue;
@@ -82,8 +93,8 @@ export function carveLevel(mesh, f, route, cfg) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
             const nb = adjList[k];
             if (rank[nb] !== -1 || !land(nb)) continue;
-            const level = Math.max(fill[c], route[nb]);
-            if (parent[nb] === -1 || level < fill[nb]) { parent[nb] = c; fill[nb] = level; heap.push(level, nb); }
+            const level = Math.max(fill[c], route[nb]), fk = route[nb] <= fill[c] ? flatKm[c] + dist[k] : 0;
+            if (parent[nb] === -1 || level < fill[nb] || (level === fill[nb] && fk < flatKm[nb])) { parent[nb] = c; fill[nb] = level; flatKm[nb] = fk; heap.push(flatKey(level, route[nb], fk), nb); }
         }
     }
     // ── receivers: the steepest way down to a neighbour already reached (or the sea); on a flat, the flood's way ──
@@ -170,6 +181,27 @@ export function carveLevel(mesh, f, route, cfg) {
     for (let i = 0; i < count; i++) {
         const c = order[i], share = Math.min(1, perCell * Math.sqrt(area[c] / 1e4));
         z[c] = f.z[c] - share * Math.max(0, f.z[c] - bed[c]);
+    }
+    // ── a valley wider than its cell (cfg.valleySides, the finish's: 0 none … 1): its sides carried into the cells beside it
+    // — each lowered toward the floor by how far inside the valley's half-width it lies, a V across — rather than the whole
+    // valley crammed into its own cell ──
+    if (cfg.valleySides > 0) {
+        const { xyz } = mesh, cellKm = Math.sqrt(cellArea), before = z.slice();
+        for (let i = 0; i < count; i++) {
+            const c = order[i], half = 0.5 * cfg.valleyKm * Math.sqrt(area[c] / 1e4);
+            if (half < 0.6 * cellKm) continue;
+            const x = xyz[3 * c], y = xyz[3 * c + 1], w = xyz[3 * c + 2], reach = Math.min(half, 4 * cellKm);
+            for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+                const q = adjList[k];
+                if (!land(q)) continue;
+                const d = R * Math.hypot(xyz[3 * q] - x, xyz[3 * q + 1] - y, xyz[3 * q + 2] - w);
+                if (d >= reach) continue;
+                const to = f.z[q] - cfg.valleySides * (1 - d / reach) * Math.max(0, f.z[q] - bed[c]);
+                if (to < z[q]) z[q] = to;
+            }
+        }
+        // (a side lowered below the ground it drains to — it drains elsewhere — stands at that ground: no new pits)
+        for (let i = 0; i < count; i++) { const c = order[i], r = recv[c]; if (r >= 0 && z[c] < before[c] && z[c] < z[r]) z[c] = Math.min(before[c], z[r]); }
     }
     // ── valley sides: no ground stands more than its critical gradient (f.slope) above the ground its water runs to
     // — a limit, like the paper's thermal erosion: the sides of a deep valley reach into the cells beside it ──
@@ -266,6 +298,15 @@ function terraceBasalt(f, C, cfg) {
 
 /** For each cell of `fine`: the 3 cells of `coarse` around it and their weights (barycentric), and its nearest. Cached. */
 const maps = new WeakMap();
+
+/** A field of the `fine` mesh as the `coarse` one sees it — each coarse cell the mean of the fine cells nearest it — and
+ *  each fine cell's nearest coarse cell. */
+export function meanOnCoarser(coarse, fine, values) {
+    const M = mapBetween(coarse, fine), n = coarse.numCells, sum = new Float64Array(n), count = new Uint32Array(n), out = new Float32Array(n);
+    for (let i = 0; i < fine.numCells; i++) { sum[M.nearest[i]] += values[i]; count[M.nearest[i]]++; }
+    for (let c = 0; c < n; c++) out[c] = count[c] ? sum[c] / count[c] : 0;
+    return { values: out, nearest: M.nearest };
+}
 /** Let go of what is cached for a mesh (its edge lengths, its maps to coarser meshes): ~0.5 GB at 10M cells (the finish). */
 export function forgetMesh(mesh) { infos.delete(mesh); maps.delete(mesh); }
 function mapBetween(coarse, fine) {

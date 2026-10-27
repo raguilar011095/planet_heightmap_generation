@@ -66,28 +66,6 @@ export const TERRAIN = {
     // islands (Japan, Java). In the crust's frame, renewing as the coast noise does.
     arcStraitKm: 35,            // (70 cut the arcs' texture away — their small islets and ragged edges; halfway keeps the chains and the texture: developer)
     arcIslandKm: 140,
-    // a broad, submerged arc plateau sinks back (issue #73: late in a history, broad plateaus of arc crust a kilometre down
-    // came out as fields of one-cell specks — the history's uplift and each cell's own age, varying cell to cell, poking
-    // through the surface). Where an arc's own ridge lies deep (its platform: arcYoungKm, arcOceanMatureKm) and the arc is
-    // broad, its ground is held under the sea and sinks deeper behind its front — a remnant ridge (the Kyushu–Palau, the
-    // Lau) — except along its volcanic front, near a live trench, and wherever its ground stands clear of the sea: those
-    // stay islands. A narrow arc (a chain: the Aleutians) and a mature arc near a continent (its ridge above the sea:
-    // Japan, Java) are untouched. (Developer, on a stronger first version that drowned every submerged arc behind its
-    // front: "some of those islands looked nice-ish but the big blobs dont really make sense".)
-    arcDrown: 1,                // share by which a submerged arc's ground is held at its ridge's depth between its volcanoes…
-    arcDrownFromKm: 0.2,        // …from where its ridge lies this deep…
-    arcDrownToKm: 0.8,          // …fully from this deep…
-    arcKeepFrontKm: 250,        // …except within this of a live trench, where it is kept as it is (0: drowned there too)…
-    arcKeepFrontFadeKm: 450,    // …drowned fully beyond this…
-    arcNarrowKm: 60,            // …nor a narrow arc, a chain of islands: only where the arc reaches this far from its edge within
-    arcWideKm: 200,             // this of a point, fully from this far — a broad plateau, its rim and all…
-    arcIsleFromKm: 0.1,         // …and where its ground stands clear of the sea — from this high, fully from arcIsleToKm — an island
-    arcIsleToKm: 0.5,           // that stays, ragged edges and all (0: none kept, only the front's)…
-    arcBackSinkKm: 2,           // …the rest, behind the front, subsiding up to this much deeper: a remnant ridge, not a broad shallow blob
-    // and an arc's volcanoes on its volcanic front: all within arcVolcanoNearKm of a live trench, fewer out to
-    // arcVolcanoFarKm, none beyond (0: wherever the arc's belt is active, as before — across a whole merged arc plateau)
-    arcVolcanoNearKm: 250,
-    arcVolcanoFarKm: 400,
     // submarine canyons (developer: a shelf edge with character; carve.js): from the mouth of each big river (drainage
     // canyonAreaKm2: none below the first, full from the second), down the shelf and the slope by the steepest way, up to
     // canyonKm: a trough canyonDepthKm deep at most — deepest across the shelf break and the upper slope — its sides half as
@@ -243,6 +221,20 @@ export const TERRAIN = {
     dykeWanderKm: 22,           // …wavering sideways by about this much as it runs (developer: "too straight and perfect")…
     dykeInKm: 150,              // …coming out from under the lava this far inside its edge…
     dykeOutKm: 120,             // …and reaching full strength this far outside it (developer: "no transition")
+    // The land's floor (developer, 2026-10-27: a push down "making the land floor at 0 … we cant have it just be that, it
+    // needs noise on top of it … or we can maybe soft floor"): where a push down would take land under the sea — a valley
+    // between crests, a failed arm's sag, a fold's trough, the massif's lows, a dyke's — it eases into a floor instead of
+    // stopping dead on it (a flat sheet at 20–30 m): unchanged until within landFloorSoftKm of it, then e-folding toward it.
+    // And the floor is low, rough country, not a sheet: it rolls above landFloorKm by up to landFloorRollKm, plus up to
+    // landFloorDeepKm more where the push would have gone landFloorDeepAtKm or more under the sea — in features from
+    // landFloorScaleKm across down to what the mesh can show, each octave landFloorRoughness of the one before
+    landFloorKm: 0.02,
+    landFloorRollKm: 0.1,
+    landFloorDeepKm: 0.22,
+    landFloorDeepAtKm: 0.3,
+    landFloorScaleKm: 240,
+    landFloorRoughness: 0.6,
+    landFloorSoftKm: 0.1,
     failedArmKm: 0.4,           // a failed rift arm (aulacogen) is a sagged, sediment-filled corridor this much lower…
     failedArmHalfKm: 45,        // …about twice this wide — low land, not sea (the Benue trough, the Reelfoot rift)
 
@@ -354,6 +346,22 @@ export const TERRAIN = {
     massifShare: 0.04,          // ± this share of the crest height on a belt as built (0.16 until 2026-09-29: "GREATLY turn down
                                 // the fractal" — developer)…
     massifWornShare: 0.1,       // …plus this share × how much its crests have spread (1 − their height kept)
+    // Old ranges keep their grain (developer, 2026-10-27: "old old mountain ranges really lose their definition and start
+    // looking like noise … i want the non-current orogenies to look like they have structure"): as a range wears down, its
+    // hard layers stand out and its soft ones wear into the valleys between — differential erosion (the Appalachians'
+    // Valley and Ridge, the Cape Fold Belt, the Flinders Ranges: 250–500 Myr old and still combed). As a belt falls quiet —
+    // by 1 − e^(−quiet / oldGrainMyr) — its massif and the hills on it are drawn out along its strike (the massif into the
+    // ridge noise; the hills oldHillsStretch times longer along it), its parallel ridges stand stronger, and its rock is
+    // banded with them: the ridges hard, the troughs between soft, so its rivers settle into the strike valleys and cross
+    // the ridges in gaps (trellis drainage). Broad, not lines: the bands are the ridges' own wavelength
+    oldGrainMyr: 80,
+    oldComb: 0.8,               // the share of the massif and of the hills drawn out along the strike, once old
+    oldHillsStretch: 4,
+    oldRidgeGain: 1,            // the parallel ridges this much stronger, once old…
+    oldEven: 0.7,               // …and this much more even along the strike: their segments' fading, their crests' rise and fall
+                                // and the crests' roughening × 1 − this (old ranges' even-crested ridges, the Appalachians'),
+                                // so their troughs run on and catch the rivers — broken only where ridgeBreak breaks them
+    oldGrainHardness: 0.6,      // erodibility × 1 ∓ this on the ridges and in the troughs (×0.4 … ×1.6, the same on the whole), once old
 
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
     stripeKm: {                 // wavelength of the main set of parallel ridges, per kind of belt
@@ -397,7 +405,23 @@ export const TERRAIN = {
     ridgeNoiseAcross: 0.8,      // its features are this share of the belt kind's ridge wavelength (stripeKm) across the strike…
     ridgeNoiseStretch: 8,       // …and this many times as long along it
     ridgeNoiseOctaves: 3,       // (then halves and quarters of that, where the mesh can show them)
-    minWavesPerCell: 2.0,       // a wavelength shorter than this many terrain cells is faded out (it would only alias)
+    // Broken ridgelines (developer, 2026-10-27: "the perfectly intact ridgelines we have may be unrealistic and they should
+    // be broken a little (less so in the front …)" — the main range by the plate edge the most whole, though it can break;
+    // the Andes least broken, "very close to what we have today", then Laramide, Ural, Himalayan). In patches of a noise
+    // about a ridge wavelength across (stripeKm: so they show wherever the ridges do), read in the crust's frame so they
+    // ride with the range, the parallel ridges and the ridge noise drop toward their valley floors and the crests dip:
+    // each ridge runs on in pieces, with saddles and gaps between. And the rock there gives, so a river crossing the
+    // range — the gaps are the lowest way across — deepens its gap into a water gap (the Susquehanna's, the Arun's).
+    ridgeBreak: {               // how broken, by kind of belt (0: whole, as before)
+        [OrogenyType.ANDEAN]: 0.15, [OrogenyType.LARAMIDE]: 0.45, [OrogenyType.URAL]: 0.7, [OrogenyType.HIMALAYAN]: 1,
+        [OrogenyType.ARC]: 0.15, [OrogenyType.RIFT]: 0.5, [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.INTRAPLATE]: 0.6,
+    },
+    ridgeBreakFront: 0.35,      // along the main range by the plate edge only this share of it, the full share 0.3 × the belt's width behind it
+    ridgeBreakSize: 1,          // the breaks' noise: features about this many ridge wavelengths across…
+    ridgeBreakPatch: [-0.25, 0.1],   // …a break where it rises from the first to the second (2 octaves, spread ~0.3: over half the ridge broken some)
+    ridgeBreakCrest: 0.5,       // the crests themselves dip by this share of what the ridges do (passes, not gaps)
+    ridgeBreakSoft: 0,          // the rock in a break erodes (1 + this) times as fast (1.5 cut new valley networks into the plateaus)
+    minWavesPerCell: 2.0,      // a wavelength shorter than this many terrain cells is faded out (it would only alias)
     fullWavesPerCell: 3.2,
 
     // ── Volcanoes ── (developer: fewer, thicker, and spreading out as they erode — not a pox of little cones)

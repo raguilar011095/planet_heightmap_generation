@@ -431,12 +431,6 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
     spreadKm(simMesh, riseDist, { canEnter: (a, b) => !land[b] && frame.owner[b] === frame.owner[a], maxKm: 500 });
     const trenchKm = new Float32Array(n), riseKm = new Float32Array(n);
     for (let w = 0; w < n; w++) { trenchKm[w] = Math.min(1e4, trenchDist[w]); riseKm[w] = Math.min(1e4, riseDist[w]); }
-    // …and through any crust (the above runs through the sea only): an island arc's volcanic front lies within a few
-    // hundred km of its trench (volcanoes.js; synthesize.js keeps a submerged arc's land there, drowns it behind)
-    const frontKm = new Float32Array(n).fill(Infinity);
-    for (let w = 0; w < n; w++) if (frame.boundary[w] === BoundaryKind.SUBDUCTING) frontKm[w] = 0;
-    spreadKm(simMesh, frontKm, { maxKm: 1000 });
-    for (let w = 0; w < n; w++) frontKm[w] = Math.min(1e4, frontKm[w]);
 
     // ── how fast things erode here: faster where it rains more (terrain-config.js rainByLatitude) ──
     const erosion = new Float32Array(n);
@@ -541,45 +535,7 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
         }
     }
 
-    // the sea off a drowned island arc (synthesize.js arcDrown): its slope down to the floor starts at the depth the arc's
-    // ground is held at there, not at the shelf's edge — or a drowned arc would stand ringed by a shallow rim
-    let arcEdgeKm = null, arcWide = null;
-    if (cfg.arcDrown > 0) {
-        // how broad the island arc is about each of its cells (0 a chain … 1 a plateau): the furthest any arc cell within
-        // arcWideKm lies from the arc's edge — so a broad plateau's rim counts as broad, a narrow chain as a chain
-        const isArc = w => arc[w] && !(frame.flags[w] & CrustFlag.MARGIN_ISLE);
-        let thick = new Float32Array(n), next = new Float32Array(n);
-        for (let w = 0; w < n; w++) if (isArc(w)) thick[w] = Math.max(0, coastKm[w]);
-        for (let pass = Math.max(1, Math.round(cfg.arcWideKm / simMesh.edgeKm)); pass > 0; pass--) {
-            for (let w = 0; w < n; w++) {
-                if (!isArc(w)) continue;
-                let m = thick[w];
-                for (let k = adjOffset[w]; k < adjOffset[w + 1]; k++) { const q = adjList[k]; if (isArc(q) && thick[q] > m) m = thick[q]; }
-                next[w] = m;
-            }
-            for (let w = 0; w < n; w++) if (isArc(w)) thick[w] = next[w];
-        }
-        arcWide = new Float32Array(n);
-        for (let w = 0; w < n; w++) if (isArc(w)) arcWide[w] = smooth(cfg.arcNarrowKm, cfg.arcWideKm, thick[w]);
-
-        arcEdgeKm = new Float32Array(n).fill(NaN);
-        for (let w = 0; w < n; w++) {
-            if (land[w]) continue;
-            let s = 0, c = 0;
-            for (let k = adjOffset[w]; k < adjOffset[w + 1]; k++) {
-                const q = adjList[k];
-                if (!arc[q] || frame.flags[q] & CrustFlag.MARGIN_ISLE) continue;
-                const p = platformKm[q], deep = smooth(cfg.arcDrownFromKm, cfg.arcDrownToKm, -p);
-                const behind = (cfg.arcKeepFrontKm > 0 ? smooth(cfg.arcKeepFrontKm, cfg.arcKeepFrontFadeKm, frontKm[q]) : 1) * arcWide[q];
-                const stands = cfg.arcIsleToKm > 0 ? smooth(cfg.arcIsleFromKm, cfg.arcIsleToKm, p + upliftKm[q]) : 0;
-                const held = Math.min(cfg.shelfEdgeKm, p) - (cfg.arcBackSinkKm ?? 0) * deep * behind;
-                s += cfg.shelfEdgeKm + Math.min(1, cfg.arcDrown) * deep * behind * (1 - stands) * (Math.min(cfg.shelfEdgeKm, held) - cfg.shelfEdgeKm); c++;
-            }
-            if (c) arcEdgeKm[w] = s / c;
-        }
-    }
-
-    return { coastRaster, arcEdgeKm, arcWide, land, arc, craton, riverIncKm: frame.riverIncKm, riverKm2: frame.riverKm2, coastKm, coastKind, maturity, coastFresh: fresh, shelfKm, plainKm, slopeKm, depthKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, frontKm, fractureU,
+    return { coastRaster, land, arc, craton, riverIncKm: frame.riverIncKm, riverKm2: frame.riverKm2, coastKm, coastKind, maturity, coastFresh: fresh, shelfKm, plainKm, slopeKm, depthKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, fractureU,
         platformKm, upliftKm, cratons, terrane: frame.terrane, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, quietMyr, armKm, erosion, kind, dKm, reach, reliefKm, shear, across, belts: [current, overprinted], time,
         ...farFieldRecords(frame, n, cfg) };
 }

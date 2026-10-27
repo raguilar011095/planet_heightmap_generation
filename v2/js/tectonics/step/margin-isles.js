@@ -61,44 +61,37 @@ export function growMarginIsles(world, dt) {
         const erosive = c => (flags[nearestTrench[c]] & CrustFlag.EROSIVE) !== 0;
         // an erosive margin eats its coast (never a craton), back to marginErosionMaxGapKm from its trench
         if (pErode > 0) {
-            const coastCells = [], exposed = [];
+            const coastCells = [];
             for (let c = 0; c < numCells; c++) {
                 if (!mask[c] || trenchD[c] < 0 || trenchD[c] >= erodeHops || !erosive(c)) continue;
                 if (type[c] === CrustType.OCEAN || type[c] === CrustType.CRATON) continue;
-                let sea = null, seaSide = 0;                             // a coast cell: sea of its own plate beside it
-                for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (mask[nb] && type[nb] === CrustType.OCEAN) { sea ??= nb; seaSide++; } }
-                if (sea !== null) { coastCells.push([c, sea]); exposed.push(shapeWeight(seaSide / (adjOffset[c + 1] - adjOffset[c]), config.marginCoastShape)); }
+                let sea = null;                                          // a coast cell: sea of its own plate beside it
+                for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (mask[nb] && type[nb] === CrustType.OCEAN) { sea = nb; break; } }
+                if (sea !== null) coastCells.push([c, sea]);
             }
             // (the coast retreats marginErosionKmPerMyr along the TRENCH's length: a coast counted cell by cell is longer
             // the finer the mesh — its every inlet drawn — so per coast cell it lost twice the land at 160K as at 20K;
             // where the coast is more intricate than its trench, the same retreat is shared among more cells)
-            // (the sea takes a headland before a cove — the more of a cell's sides face the sea, the sooner it goes — so a
-            // retreating coast straightens instead of fraying cell by cell (issue #73); as many cells go as before)
             let erosiveTrench = 0;
             for (const c of trench) if (flags[c] & CrustFlag.EROSIVE) erosiveTrench++;
-            const p = pErode * Math.min(1, erosiveTrench / Math.max(1, coastCells.length)) / meanOf(exposed), eaten = [];
-            for (let i = 0; i < coastCells.length; i++) { const [c, sea] = coastCells[i]; if (rng() < p * exposed[i]) eaten.push([c, crust.formedAt[sea]]); }
+            const p = pErode * Math.min(1, erosiveTrench / Math.max(1, coastCells.length)), eaten = [];
+            for (const [c, sea] of coastCells) if (rng() < p) eaten.push([c, crust.formedAt[sea]]);
             for (const [c, age] of eaten) { crust.create(c, CrustType.OCEAN, age); flags[c] = CrustFlag.APRON; }
             if (eaten.length) { plate.dirty = true; changed += eaten.length; world.budget.erodedCells += eaten.length; }
         }
         // the fore-arc: sea between this coast and its trench, keeping the gap in front of the trench
-        // (an island or the coast grows into its bays before it pushes out a spit — the more of a sea cell's sides are land,
-        // the sooner it rises — so islands grow as bodies and the coast creeps out evenly, not cell by cell at random
-        // (issue #73); as many cells rise as before, each kind of growth by its own rate)
-        const raise = [], cand = [], kindOf = [], weight = [], sum = [0, 0, 0], count = [0, 0, 0], rate = [pGrow, pCoast, pBorn];
+        const raise = [];
         for (let c = 0; c < numCells; c++) {
             if (!mask[c] || type[c] !== CrustType.OCEAN || (flags[c] & CrustFlag.TRENCH) || trenchD[c] < gapHops || landD[c] < 1 || landD[c] + trenchD[c] > reachHops + 1 || erosive(c)) continue;
-            let island = false, coast = false, edge = false, landSides = 0;
+            let island = false, coast = false, edge = false;
             for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
                 const nb = adjList[k];
                 if (!mask[nb]) { edge = true; break; }
-                if (type[nb] === CrustType.ARC && (flags[nb] & CrustFlag.MARGIN_ISLE)) { island = true; landSides++; } else if (isLand(nb)) { coast = true; landSides++; }
+                if (type[nb] === CrustType.ARC && (flags[nb] & CrustFlag.MARGIN_ISLE)) island = true; else if (isLand(nb)) coast = true;
             }
             if (edge) continue;
-            const kind = island ? 0 : coast ? 1 : 2, w = kind < 2 ? shapeWeight(landSides / (adjOffset[c + 1] - adjOffset[c]), config.marginCoastShape) : 1;
-            cand.push(c); kindOf.push(kind); weight.push(w); sum[kind] += w; count[kind]++;
+            if (rng() < (island ? pGrow : coast ? pCoast : pBorn)) raise.push(c);
         }
-        for (let i = 0; i < cand.length; i++) { const k = kindOf[i]; if (rng() < rate[k] * (weight[i] * count[k] / sum[k])) raise.push(cand[i]); }
         if (raise.length) {
             plate.marginIsleTerrane ??= world.nextTerraneId();
             for (const c of raise) {
@@ -169,9 +162,5 @@ function erosionField(world) {
 }
 
 function cellsWhere(n, test) { const out = []; for (let c = 0; c < n; c++) if (test(c)) out.push(c); return out; }
-
-/** How strongly a cell's share of land (or sea) sides favours it: share^shape (shape 0: every cell alike, as before #73). */
-const shapeWeight = (share, shape) => (shape > 0 ? share ** shape : 1);
-const meanOf = a => { let s = 0; for (const v of a) s += v; return a.length && s > 0 ? s / a.length : 1; };
 
 /** Hops through this plate's crust from the given cells (−1 beyond `maxHops`). */

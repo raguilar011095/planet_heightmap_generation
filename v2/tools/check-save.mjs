@@ -133,6 +133,7 @@ const out = await finishPlanet({ frame: slim, simMesh, seed: SEED, cells: CELLS,
 const raster = finishRaster(out.mesh, out.z, out.ocean, W, null, out.lake, out.lakeLevel, out.climate.cell);
 const climate = { ...out.climate.page, raster: raster.climate };
 delete raster.climate;
+raster.drivers = out.drivers;                                 // (as finish-worker.js keeps them: the detail finer than the mesh's)
 const fin = structuredClone({ cells: CELLS, raster, rivers: out.rivers, climate, stats: out.stats, secs: 12.5, climateKey: '0|0' });
 fin.paths = new Map([['a cache', 1]]);                      // (a view's cache: never saved)
 console.log(`detailed moment: ${moment.time} Myr at ${CELLS} cells, ${W} px (${secs()})`);

@@ -10,13 +10,14 @@ import { closedBasins } from './finish-basins.js';
 import { depositSediment, creepByClimate, dissect } from './finish-sediment.js';
 import { lastIceAge } from './finish-ice.js';
 import { windWork } from './finish-wind.js';
+import { detailDrivers } from './finish-drivers.js';
 import { hydrology, openStraits, fillSeaBasins, Water } from './finish-hydro.js';
 import { landCover, coverRgb, newCover, biasTowardClimate, coverRain, coverRainScale, newVariety, placeVariety, placeGround, fineMottle, terrainLook } from './finish-cover.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { terrainMesh } from '../terrain/terrain-mesh.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { carveLadder, carveSettings } from '../terrain/synthesize.js';
-import { carveTerrain, forgetMesh } from '../terrain/carve.js';
+import { carveTerrain, forgetMesh, meanOnCoarser } from '../terrain/carve.js';
 import { forgetEdgeKm } from '../core/min-heap.js';
 import { planetClimate } from '../climate/climate.js';
 import { CORE_DEFAULTS, cellClimate } from '../climate/core.js';
@@ -38,14 +39,14 @@ export function erosionAt(F, cfg) {
 }
 
 /** The stages, in order, with their rough share of the time (for the progress bar). */
-export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['final climate', 0.03], ['picture', 0.09]];
+export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['final climate', 0.03], ['picture', 0.09]];
 
 /**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
  *          onStage?: (name: string) => void, F?: Object, cfg?: Object}} o
  * @returns {Promise<{mesh: Object, z: Float32Array, ocean: Uint8Array, ms: Object, stats: Object}>}
  */
-export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {} }) {
+export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024 }) {
     const ms = {}, stats = {};
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
@@ -127,15 +128,33 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     for (let c = 0; c < n; c++) if (z[c] > 0 && pAnn[c] === pAnn[c])
         carveIn.rain[c] = meanW * Math.min(F.wetMax, Math.max(F.runoffFloor, (1 - F.rainShare) * runoff[c] / meanR + F.rainShare * Math.max(0, pAnn[c]) / meanP) ** F.wetPower);
     meander(mesh, carveIn.micro, seed, F, fade);
-    const B = closedBasins(mesh, z, runoff, pet, pAnn, cellKm2, F);
+    // (the tectonic surface's own hollows, where lakes may stand, read on the carving's mesh nearest tectonicHollowMeshKm
+    // across: a range's troughs and a lowland's hummocks averaged away there — finish-basins.js)
+    const ladder = carveLadder(simMesh, mesh, terrainMesh);
+    let bm = ladder[0];
+    for (const m of ladder) if (Math.abs(Math.log(m.edgeKm / F.tectonicHollowMeshKm)) < Math.abs(Math.log(bm.edgeKm / F.tectonicHollowMeshKm))) bm = m;
+    const coarse = bm !== mesh && F.tectonicHollowMeshKm > 0 ? meanOnCoarser(bm, mesh, z) : null;
+    const B = closedBasins(mesh, z, runoff, pet, pAnn, cellKm2, F, coarse && { mesh: bm, z: coarse.values, nearest: coarse.nearest });
     stats.closedBasins = B.basins;
     const before = z.slice();
     // (how cold each coast is — its warmest month at sea level: fjords where it is cold, rias where not; carve.js drownValleys)
     const [warmC, coldC] = cfg.drownColdC ?? [19, 13];
     carveIn.fjord = new Float32Array(n);
     for (let c = 0; c < n; c++) carveIn.fjord[c] = smooth(warmC, coldC, warmSl[c]);
-    const settings = carveSettings({ ...cfg, carveM: E.m, carveTimeMyr: F.carveTimeMyr, carveRounds: F.carveRounds });
-    const C = carveTerrain(carveLadder(simMesh, mesh, terrainMesh), { ...carveIn, z, sink: B.sink, base: B.base }, settings);
+    // (the finish's own: on a rising belt's wet, steep front its rivers are held back less — from the timeline's hold to
+    // F.activeHold as the drainage's water goes from the mean to twice it, and the ground from gentle to steep: the
+    // rain-fed front cuts as deep as the Himalayan front's, while a plateau — flat, and mostly dry — keeps its rivers high
+    // and its top whole; and a valley wider than its cell carried into the cells beside it)
+    const hold = carveIn.hold.slice(), wetHold = (F.activeHold ?? cfg.carveActiveHold) / cfg.carveActiveHold, { adjOffset: aO, adjList: aL } = mesh;
+    for (let c = 0; c < n; c++) {
+        if (!(hold[c] > 0)) continue;
+        let s = 0;
+        for (let k = aO[c]; k < aO[c + 1]; k++) s += Math.abs(z[aL[k]] - z[c]);
+        const steep = smooth(F.frontSlope[0], F.frontSlope[1], s / (aO[c + 1] - aO[c]) / mesh.edgeKm);
+        hold[c] *= 1 - (1 - wetHold) * smooth(meanW, 2 * meanW, carveIn.rain[c]) * steep;
+    }
+    const settings = carveSettings({ ...cfg, carveM: E.m, carveTimeMyr: F.carveTimeMyr, carveRounds: F.carveRounds, carveValleySides: F.valleySides ?? 0 });
+    const C = carveTerrain(ladder, { ...carveIn, hold, z, sink: B.sink, base: B.base }, settings);
     // (where flood basalt still caps the ground after the carving — its pile not cut through — for the satellite view)
     const basalt = new Uint8Array(n);
     for (let c = 0; c < n; c++) if (carveIn.lip[c] > 0) basalt[c] = Math.round(255 * carveIn.lip[c] * smooth(0, 0.05, C.z[c] - carveIn.lipBase[c]));
@@ -152,7 +171,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     stats.deltas = depositSediment(mesh, before, C, B.sink, cellKm2, F).deltas;
     lap('sediment');
     onStage('hillslopes');
-    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm });
+    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm }, C.area);
     lap('hillslopes');
 
     // ── F3: the last ice age ──
@@ -187,11 +206,18 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     for (let c = 0; c < n; c++) if (koppen[c] === KOPPEN_ID.EF) ice[c] = 1;
     const bi = new Int32Array(4), bw = new Float64Array(4), at = (f, c) => f[bi[0]] * bw[0] + f[bi[1]] * bw[1] + f[bi[2]] * bw[2] + f[bi[3]] * bw[3];
     const months = { at: (c, m0, M, share, arid) => { corners(climGrid, lat[c], lon[c], bi, bw); for (let j = 0; j < M; j++) { share[j] = at(monthly.share[m0 + j], c); arid[j] = at(monthly.arid[m0 + j], c); } } };
-    const Hy = hydrology({ mesh, z: C.z, ocean, runoff, pet, rain: pAnn, wetMonths, ice, glaciated: I.ice, tectonic: B.tectonic, seaBasin, fillHollows: true, lat, lon, months, debug }, F);
+    // (across a flat, the rivers wander as the carving's did: the same meander, read where the water needs it)
+    const wander = meanderAt(mesh, seed, F, fade);
+    const Hy = hydrology({ mesh, z: C.z, ocean, runoff, pet, rain: pAnn, wetMonths, ice, glaciated: I.ice, tectonic: B.tectonic, seaBasin, fillHollows: true, lat, lon, months, wander, debug }, F);
     Object.assign(stats, { water: Hy.stats });
     // (the sea again, after the rivers' gorges)
     ocean = oceanMask(mesh, C.z);
     lap('water');
+
+    // ── what the detail finer than the mesh is drawn from (finish-drivers.js; plans/V2_FINE_DETAIL_PLAN.md) ──
+    onStage('detail');
+    const drivers = detailDrivers({ mesh, z: C.z, ice: I.ice, iceH: I.H, iceS: I.S, erg: W.erg, wind, climGrid, warmSl, rain: pAnn, young, frame, simMesh, cfg, seed, width: driversWidth });
+    lap('detail');
 
     // ── the finished moment's climate, at its detail: the grid's climate as calculated above, each cell's own (its
     // height, its relief, and sunk basins the sea does not reach as land) on the finished surface ──
@@ -243,7 +269,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     lap('final climate');
     const flow = new Float32Array(n);
     for (let c = 0; c < n; c++) flow[c] = Math.log10(Math.max(1, Hy.area[c]));
-    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, ms, stats,
+    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, drivers, ms, stats,
         climate: { page: pageC, cell: { koppen: cellsClimate.koppen, tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, sat, cover, stats: cellStats.stats, mottleSeed: ((seed | 0) * 0x2f71 + 0x6d) >>> 0,
             flow, young, rivers: Hy.rivers, ripSat } },
         layers: debug ? { ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
@@ -265,14 +291,21 @@ function warpPositions(mesh, seed, F) {
 /** The rivers' fine routing relief (added to the carve's micro-relief, which shapes the routing only): octaves from
  *  F.meanderFromKm down to what the mesh can show — channels wander instead of running straight down smooth slopes. */
 function meander(mesh, micro, seed, F, fade) {
-    const { xyz, numCells: n } = mesh, noise = new FastNoise((seed | 0) * 37 + 29), oct = [];
+    const at = meanderAt(mesh, seed, F, fade);
+    if (!at) return;
+    for (let c = 0; c < mesh.numCells; c++) micro[c] += F.meanderKm * at(c);
+}
+
+/** The rivers' wander at cell c (about −1 … 1): its octaves from F.meanderFromKm down to what the mesh shows; null if none. */
+function meanderAt(mesh, seed, F, fade) {
+    const { xyz } = mesh, noise = new FastNoise((seed | 0) * 37 + 29), oct = [];
     for (let lam = F.meanderFromKm, a = 1; lam > 1 && oct.length < 5; lam /= 2, a *= 0.6) { const s = a * fade(lam); if (s > 0.02) oct.push([R / lam, s]); }
-    if (!oct.length) return;
-    for (let c = 0; c < n; c++) {
+    if (!oct.length) return null;
+    return c => {
         let v = 0;
         for (let o = 0; o < oct.length; o++) { const [f, s] = oct[o]; v += s * noise.noise3D(xyz[3 * c] * f + 7.7 * o, xyz[3 * c + 1] * f + 2.2, xyz[3 * c + 2] * f + 4.4 * o); }
-        micro[c] += F.meanderKm * v;
-    }
+        return v;
+    };
 }
 
 /** Fine relief on high ground (craggier the higher), octaves from F.craggyFromKm down to what the mesh can show. */

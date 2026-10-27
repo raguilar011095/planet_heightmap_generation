@@ -210,7 +210,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
             progress(0, 'Starting…'); await tick();
             const needing = [...new Set(list.map(j => j.row).filter(r => r.needs))];
             if (needing.length && adapter.ensure) await adapter.ensure(needing, progress, ctx);
-            const rctx = await adapter.begin(W, opts, ctx);
+            const rctx = await adapter.begin(W, opts, ctx, progress);
             const files = [], meta = [], n = list.length, prefix = adapter.names(ctx, opts);
             try {
                 for (let i = 0; i < n; i++) {

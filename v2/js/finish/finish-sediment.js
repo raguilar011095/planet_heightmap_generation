@@ -104,9 +104,13 @@ export function dissect(mesh, z, C, cellKm2, F) {
 /**
  * Soil creep by climate: the land relaxed toward its neighbours' mean over about F.creepKm (σ) where it is wet and warm
  * (wetness from the annual rain and temperature), not at all in deserts and on frozen ground; the coast stays where it is.
+ * Where a river drains (`area`, km²: from F.creepChannelKm2[0], fully from [1]) the creep only lowers: the soil that slides
+ * into a valley is carried off by its river, so the crests round and the valleys keep their floors (developer, 2026-10-26:
+ * the wet sides were not carved enough — the creep had been filling their valleys).
  */
-export function creepByClimate(mesh, z, rainMm, tempC, F) {
+export function creepByClimate(mesh, z, rainMm, tempC, F, area = null) {
     const { adjOffset, adjList, edgeKm, numCells: n } = mesh;
+    const ch = area && F.creepChannelKm2 ? F.creepChannelKm2.map(Math.log) : null;
     const need = 2 * F.creepKm * F.creepKm / (edgeKm * edgeKm), passes = Math.min(30, Math.ceil(need / 0.5));
     if (passes < 1) return 0;
     const a = Math.min(0.5, need / passes), wet = new Float32Array(n);
@@ -118,7 +122,9 @@ export function creepByClimate(mesh, z, rainMm, tempC, F) {
             if (!(w > 0)) { next[c] = z[c]; continue; }
             let s = 0, k0 = 0;
             for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (z[nb] > 0) { s += z[nb]; k0++; } }
-            next[c] = k0 ? Math.max(0.002, z[c] + w * (s / k0 - z[c])) : z[c];
+            let dz = k0 ? w * (s / k0 - z[c]) : 0;
+            if (dz > 0 && ch && area[c] > 0) dz *= 1 - smooth(ch[0], ch[1], Math.log(area[c]));
+            next[c] = k0 ? Math.max(0.002, z[c] + dz) : z[c];
         }
         z.set(next);
     }
