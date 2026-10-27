@@ -178,8 +178,11 @@ export class CrustRaster {
             this.oroStart[cell] = time;
             this.oroWork[cell] = 0;
             this.oroType[cell] = oroType;
-        } else if (oroType > this.oroType[cell] && oroType !== OrogenyType.ARC && oroType !== OrogenyType.TRANSPRESSION && oroType !== OrogenyType.INTRAPLATE) {
-            this.oroType[cell] = oroType;   // escalate (e.g. Andean → Himalayan), never downgrade
+        } else if ((oroType > this.oroType[cell] || this.oroType[cell] === OrogenyType.INTRAPLATE)
+            && oroType !== OrogenyType.ARC && oroType !== OrogenyType.TRANSPRESSION && oroType !== OrogenyType.INTRAPLATE) {
+            // escalate (e.g. Andean → Himalayan), never downgrade — and a front reaching a line the far field squeezed up
+            // takes it over, whatever its number (INTRAPLATE is numbered last, not ranked highest)
+            this.oroType[cell] = oroType;
         }
         this.oroWork[cell] += workKm;
         this.oroLast[cell] = time;

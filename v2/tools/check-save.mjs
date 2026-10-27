@@ -195,13 +195,14 @@ if (!FIXTURE) {
     await write(path.join(OUT, 'check-save-old-detail.orogen'), older);
     const o = await readPlanet(older);
     check(o.detail === null && /older World Orogen/.test(o.detailNote ?? '') && o.frames.length === frames.length, `an older detailed moment is left in the file, its history opened, with a note (${o.detailNote})`);
-    // (the margins — a field the history gained in October 2026 — and the mantle's heat, gone from every frame)
-    const gone = ['margin', 'mantleHeat'];
+    // (the margins — a field the history gained in October 2026 — the mantle's heat, and the far field's axis — three
+    // values a cell — gone from every frame)
+    const gone = ['margin', 'mantleHeat', 'farDir'], per = { farDir: 3 };
     const without = frames.map(f => { const p = f._packed ? { meta: metaOf(f), fields: { ...f._packed } } : packFrame(f).packed; for (const k of gone) delete p.fields[k]; return new PackedFrame(p); });
     const lacking = (await savePlanet({ settings, history: { ...history, frames: without }, detail: { frame: without[frames.indexOf(moment)], fin } })).blob;
     await write(path.join(OUT, 'check-save-no-margin.orogen'), lacking);
     const l = await readPlanet(lacking), lf = new PackedFrame(l.frames[3]);
-    check(gone.every(k => lf[k]?.length === simMesh.numCells && lf[k].every(v => v === 0)), 'a field the file lacks reads as zeros');
+    check(gone.every(k => lf[k]?.length === (per[k] ?? 1) * simMesh.numCells && lf[k].every(v => v === 0)), "a field the file lacks reads as zeros, as long as today's (the far field's axis: three a cell)");
     check(!differ(lf.owner, frames[3].owner), '…and the fields it has are as saved');
     console.log(`older files ✓ → v2/out/check-save-old-detail.orogen, check-save-no-margin.orogen (${secs()})`);
 }

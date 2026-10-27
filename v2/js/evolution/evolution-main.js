@@ -897,8 +897,12 @@ function updateCard() {
     const b = B, frame = painted, job = b?.finishJob, det = detailedOf(b), detFrame = det?.[0], fin = det?.[1];
     const isDet = !!frame && frame === detFrame, cells = Number($('finishCells').value);
     // (on a desktop, once the history is there, the Finish's meshes are built ahead — those it keeps, from 2.5M: the first
-    // Add detail skips ~3 s of building them)
-    if (b && !b.live && !b.loading && b.simMesh && !job && !SMALL_DEVICE && cells >= 2.5e6) finisher.prepare(cells, b.simMesh.numCells);
+    // Add detail skips ~3 s of building them — once per world and detail: not again after a cancel or a run out of memory
+    // let the worker go)
+    if (b && !b.live && !b.loading && b.simMesh && !job && !SMALL_DEVICE && cells >= 2.5e6 && b.prepared !== cells) {
+        b.prepared = cells;
+        finisher.prepare(cells, b.simMesh.numCells);
+    }
     const t = frame ? frame.time.toFixed(0) : '', dt = detFrame?.time.toFixed(0), pct = job ? (100 * Math.min(1, job.share)).toFixed(0) : 0;
     // the one thing to do next: the card's button and the timeline's
     let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate and the Satellite view (seconds to a minute)';

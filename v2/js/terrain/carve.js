@@ -346,12 +346,24 @@ export function prepareCarve(meshes, pairs = []) {
 }
 
 /** A field of the `fine` mesh as the `coarse` one sees it — each coarse cell the mean of the fine cells nearest it — and
- *  each fine cell's nearest coarse cell. */
+ *  each fine cell's nearest coarse cell. (Their map if it is cached — prepareCarve — or else the nearest cells alone, not
+ *  kept: at 10M cells the whole map, ~280 MB, would stay until the carve is done.) */
 export function meanOnCoarser(coarse, fine, values) {
-    const M = mapBetween(coarse, fine), n = coarse.numCells, sum = new Float64Array(n), count = new Uint32Array(n), out = new Float32Array(n);
-    for (let i = 0; i < fine.numCells; i++) { sum[M.nearest[i]] += values[i]; count[M.nearest[i]]++; }
+    const nearest = maps.get(fine)?.get(coarse)?.nearest ?? nearestOn(coarse, fine), n = coarse.numCells, sum = new Float64Array(n), count = new Uint32Array(n), out = new Float32Array(n);
+    for (let i = 0; i < fine.numCells; i++) { sum[nearest[i]] += values[i]; count[nearest[i]]++; }
     for (let c = 0; c < n; c++) out[c] = count[c] ? sum[c] / count[c] : 0;
-    return { values: out, nearest: M.nearest };
+    return { values: out, nearest };
+}
+/** Each cell of `fine`'s nearest cell of `coarse`, as mapBetween finds it. */
+function nearestOn(coarse, fine) {
+    const n = fine.numCells, nearest = new Int32Array(n), c3 = [0, 0, 0], w3 = [0, 0, 0];
+    for (let i = 0; i < n; i++) {
+        locate(coarse, fine.xyz[3 * i], fine.xyz[3 * i + 1], fine.xyz[3 * i + 2], c3, w3);
+        let best = 0;
+        for (let j = 1; j < 3; j++) if (w3[j] > w3[best]) best = j;
+        nearest[i] = c3[best];
+    }
+    return nearest;
 }
 /** Let go of what is cached for a mesh (its edge lengths, its maps to coarser meshes): ~0.5 GB at 10M cells (the finish). */
 export function forgetMesh(mesh) { infos.delete(mesh); maps.delete(mesh); }
