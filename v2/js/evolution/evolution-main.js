@@ -199,13 +199,11 @@ console.info(`[evolution] painting ${gpu ? `on the GPU at ${GPU_WIDTH} px` : 'on
 const seaMask = texture(MAP_WIDTH);     // where the sea is, for the glint (the lighter resolution is enough for a glint)
 let glinting = false, glintFrom = null;
 let lines = null, linesKey = null;      // the GPU's overlay: the grid and a climate layer's arrows, drawn again only when they change
-const PALETTE_KEY = 'orogen.evolution.palette', EXPERIMENTAL_KEY = 'orogen.evolution.experimental';
+const PALETTE_KEY = 'orogen.evolution.palette';
 const storedPalette = (() => { try { return localStorage.getItem(PALETTE_KEY); } catch { return null; } })();
-const storedExperimental = (() => { try { return localStorage.getItem(EXPERIMENTAL_KEY) === '1'; } catch { return false; } })();
 const view = { layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, projection: 'equirect', projOpts: {}, season: 'year', finished: true,
     water: true, riverQ: 40, byRegime: false,                        // (rivers and lakes on finished moments: the density's threshold, m³/s; coloured by regime)
-    shaded: true,                                                    // (the hillshade; off, every view flat colour)
-    experimental: storedExperimental };                              // (views still being worked out, shown: the Farming tab's Cradles)
+    shaded: true };                                                  // (the hillshade; off, every view flat colour)
 let flat = null;
 /** Every cell lit as flat ground (hillshade 1): the live views' colours without the relief's shading. */
 const flatShade = n => (flat?.length === n ? flat : (flat = new Float32Array(n).fill(1)));
@@ -745,8 +743,8 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
     // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
     // are ground, not lines — the Satellite view draws none)
-    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand' || view.layer === 'farmCradle') && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
-    // (the Cradles view's sites and the Crop spread view's hearths: numbered pins over the planet — placePins)
+    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
+    // (the Crop spread view's hearths: numbered pins over the planet — placePins)
     drawLines(t, C);
     show(t);
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
@@ -823,8 +821,8 @@ function paintTile(fin, t, look) {
     const ctx = t.canvas.getContext('2d'), x0 = t.win.x0 + 1, y0 = t.win.y0 + 1;     // (the canvas's pixel 0, 0 on the planet W px wide)
     ctx.putImageData(tileImage, -1, -1);                                    // (the window's outer pixel the hillshade's neighbours only)
     // (the planet's rivers, crisp: a little thicker the closer the view, not as thick as the picture's enlarged)
-    // (and on Farmland and Cradles, as the picture has them: the water canals and floods come from)
-    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand' || view.layer === 'farmCradle') && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime && view.layer === 'terrain', W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
+    // (and on Farmland, as the picture has them: the water canals and floods come from)
+    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime && view.layer === 'terrain', W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
     if (view.grid) {
         // (the grid's lines, as thin as the screen's pixels)
         const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
@@ -1152,14 +1150,14 @@ function tick(now) {
 }
 requestAnimationFrame(tick);
 
-// ── the numbered pins (the Crop spread view's hearths, the Cradles view's sites): drawn over the planet, not on its
+// ── the numbered pins (the Crop spread view's hearths): drawn over the planet, not on its
 // texture, so that they stay round and sharp on the globe and on the map at any projection and zoom — placed again each
 // time the planet is drawn again ──
 const pinBox = $('mapPins');
 let pinsKey = '', pinsShown = [];
 function placePins() {
     const fin = painted && B ? finishedShown(painted) : null;
-    const list = fin && (view.layer === 'farmSpread' || view.layer === 'farmCradle') ? farmingPins(view.layer, fin) : [];
+    const list = fin && view.layer === 'farmSpread' ? farmingPins(view.layer, fin) : [];
     const key = list.map(p => `${p.label}:${p.lat}:${p.lon}:${p.fill}`).join('|');
     if (key !== pinsKey) {
         pinsKey = key; pinsShown = list;
@@ -1269,20 +1267,6 @@ $('sMapCenterLon').addEventListener('input', e => {
 $('chkGrid').checked = view.grid;
 $('chkGrid').addEventListener('change', e => { view.grid = e.target.checked; dirty = true; $('gridSpacingGroup').hidden = !view.grid; });
 $('gridSpacing').addEventListener('change', e => { view.gridStep = Number(e.target.value); dirty = true; });
-// (the experimental views: their tabs and layer-list entries shown or hidden — and left, if one was showing)
-function showExperimental() {
-    for (const el of document.querySelectorAll('[data-experimental]')) { el.hidden = !view.experimental; if (el.tagName === 'OPTION') el.disabled = !view.experimental; }
-    if (view.experimental) return;
-    if (farmingLayer === 'farmCradle') farmingLayer = 'farmLand';
-    if (view.layer === 'farmCradle') setLayer('farmLand');
-}
-$('chkExperimental').checked = view.experimental;
-$('chkExperimental').addEventListener('change', e => {
-    view.experimental = e.target.checked;
-    try { localStorage.setItem(EXPERIMENTAL_KEY, view.experimental ? '1' : '0'); } catch { /* (remembered only where the browser allows) */ }
-    showExperimental();
-});
-showExperimental();
 $('statsDetails').addEventListener('toggle', () => { dirty = true; });
 // the view strip under the layer bar (Globe | Map and what applies to it; on a phone, in the bottom sheet)
 initViewStrip();

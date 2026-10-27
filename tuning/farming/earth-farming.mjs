@@ -29,7 +29,7 @@ function dataDir() {
 export const PLACES = {
     breadbasket: { test: v => v.rain >= 4, words: 'a long rain-fed season (≥ 4 months)', at: [['Ukraine', 49, 32], ['Iowa', 42, -93.5], ['Paris Basin', 48.5, 2.5],
         ['Pampas', -34.5, -61], ['Bengal', 24, 89], ['Java', -7.3, 110.5], ['Po Valley', 45, 10], ['Yangtze plain', 30.5, 115]] },
-    watered: { test: v => v.rain <= 1.5 && v.warm >= 9, words: 'barren by rain, ≥ 9 months watered (the irrigation cradles)', at: [['Nile, Egypt', 26.5, 31.5], ['Mesopotamia', 32.5, 44.5],
+    watered: { test: v => v.rain <= 1.5 && v.warm >= 9, words: 'barren by rain, ≥ 9 months watered (the irrigated river valleys)', at: [['Nile, Egypt', 26.5, 31.5], ['Mesopotamia', 32.5, 44.5],
         ['Indus, Sindh', 26, 68.5], ['Imperial Valley', 32.8, -115.5], ['Arizona (Hohokam)', 33.5, -112]] },
     // (coastal Peru's irrigated valleys, the Moche's, lie in a desert strip narrower than the 1° grid: not checked)
     cold: { test: v => v.warm <= 2.5, words: 'too cold for crops (≤ 2.5 warm months)', at: [['North Siberia', 70, 100], ['Greenland coast', 64, -51], ['Tibet', 33, 88], ['Nunavut', 65, -95]] },

@@ -229,6 +229,10 @@ them over per pixel; the page combines them with the techniques chosen, at once.
     ~82° N — now settled by the great-circle distance; check-geology's two belt checks pooled over three histories (the
     rebuilt start world left seed 12345 34 cells at the foot of its active belts) and the unroofing one counts mountain
     belts only (a rift's shoulders — now most of the old belts — retreat as an escarpment). 62/62, 20/20, check-save.
+- **Cradles taken out** (developer, 2026-10-27: "Can we remove everything about cradles from this branch/pr? I dont like
+  how it is today and would rather redo it in the future"): the Cradles view, `farming/cradles.js`, its checks and the
+  Experimental Views toggle (which held only it) are gone; People keeps its count (`farming/people.js`: the same people a
+  km² and the same whole land's number as before). C3 above is how it was built — to be done again later.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

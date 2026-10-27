@@ -5,8 +5,7 @@
 // C2 — staples: the same at two details; each where its climate puts it (rice on rich wet monsoon lowland, wheat and
 // barley in the cool-season climates, maize and millet in the warm summer-rain ones, roots on the leached tropics,
 // herding on the steppes); a watered desert grows wheat and barley, not rice.
-// C3 — cradles and people: a few sites, each a heartland of grain on a river or a coast that could feed a state's critical
-// mass, glowing across its reach; the same at two details; the land's people plausible; quick on the page.
+// C3 — people: how many the land could feed, plausible and the same at two details; quick on the page.
 // C4 — hearths and the spread of crops: a few hearths, far apart by the way crops travel; every staple domesticated
 // somewhere, each hearth two or three; its strains spread far — over seas, never the open ocean — leaving little good crop
 // land unreached and little farmland to
@@ -22,7 +21,7 @@ import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { GEO_FRAME_FIELDS } from '../js/tectonics/model/geology.js';
 import { TerrainPool, FRAME_FIELDS } from '../js/terrain/terrain-pool.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
-import { cradleMap, siteWords } from '../js/farming/cradles.js';
+import { landPeople } from '../js/farming/people.js';
 import { spreadMap, spreadBase, spreadGround, spreadHearths, spreadStrains, spreadPlace, hearthWords, SPREAD } from '../js/farming/spread.js';
 import { VARIETALS, NAMING, climateFit, likeOf, nearness, strainNiche } from '../js/farming/varietals.js';
 import { KOPPEN_ID, KOPPEN_CLASSES } from '../js/climate/koppen.js';
@@ -149,35 +148,16 @@ section('C2 — harvests: one sure one a year makes good land; two or three, off
         `${temperate.length} cells: good ${(100 * shareOf(temperate, x => farmClass(x.tech) === 3)).toFixed(0)} %, excellent ${(100 * shareOf(temperate, x => farmClass(x.tech) === 4)).toFixed(0)} %`);
 }
 
-// (the page's way for C3 and C4: the finished picture, then the cradles and the spread on it — at both details)
+// (the page's way for C3 and C4: the finished picture, then the people and the spread on it — at both details)
 const pic = out => finishRaster(out.mesh, out.z, out.ocean, 2048, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
 const pf = pic(fine), pc = pic(coarse);
 
-section('C3 — cradles and people');
+section('C3 — people');
 {
-    const t0 = performance.now(), fineMap = cradleMap(pf.farming, pf.climate, ALL), ms = performance.now() - t0;
-    const coarseMap = cradleMap(pc.farming, pc.climate, ALL);
-    const words = m => m.sites.map((s, k) => `${k + 1}. ${s.lat.toFixed(0)}°, ${s.lon.toFixed(0)}° ${s.score.toFixed(2)} — ${siteWords(s)}`).join('\n         ');
-    console.log(`      640K: ${fineMap.sites.length} sites; the land could feed ${(fineMap.people / 1e6).toFixed(0)} million (${(fineMap.people / fineMap.land).toFixed(1)} a km²)\n         ${words(fineMap)}`);
-    console.log(`      160K: ${coarseMap.sites.length} sites\n         ${words(coarseMap)}`);
-    check('a few cradles: 2–10 sites', fineMap.sites.length >= 2 && fineMap.sites.length <= 10, `${fineMap.sites.length}`);
-    check('…each a grain staple (rice, wheat or maize)', fineMap.sites.every(s => s.staple >= Staple.RICE && s.staple <= Staple.MAIZE), fineMap.sites.map(s => STAPLE_WORDS[s.staple]).join(', '));
-    check('…each on a river or a coast', fineMap.sites.every(s => s.river || s.coast), '');
-    check('…each a heartland that could feed a state’s critical mass (≥ 250 thousand on its grain)', fineMap.sites.every(s => s.people >= 2.5e5),
-        fineMap.sites.map(s => `${(s.people / 1e6).toFixed(1)} M within ${s.km} km`).join(', '));
-    // (the top site's heartland glows across its reach, not at a speck: its land within its reach as likely as half it)
-    const s0 = fineMap.sites[0], g = fineMap.grid;
-    let lit = 0;
-    if (s0) for (let c = 0; c < g.size; c++) {
-        const la = 90 - (Math.floor(c / g.w) + 0.5) * g.step, lo = -180 + (c % g.w + 0.5) * g.step, d = Math.PI / 180;
-        const km = 6371 * Math.acos(Math.min(1, Math.sin(la * d) * Math.sin(s0.lat * d) + Math.cos(la * d) * Math.cos(s0.lat * d) * Math.cos((lo - s0.lon) * d)));
-        if (km <= s0.km && fineMap.cradle[c] >= 0.5 * s0.score) lit += (111 * g.step) ** 2 * Math.cos(la * d);
-    }
-    check('…glowing across its heartland, not a speck (≥ 20,000 km² of it as likely as half the top site)', !s0 || lit >= 20000, `${Math.round(lit).toLocaleString()} km²`);
-    const near = (a, b) => b.some(s => Math.hypot(s.lat - a.lat, (s.lon - a.lon) * Math.cos(a.lat * Math.PI / 180)) * 111 < 700);
-    const top = fineMap.sites.slice(0, 3), found = top.filter(s => near(s, coarseMap.sites)).length;
-    check('the same at 160K: the 640K\'s top three within 700 km of a 160K site (≥ 2 of 3)', top.length < 3 || found >= 2, `${found} of ${top.length}`);
-    const ppl = fineMap.people / fineMap.land, pplC = coarseMap.people / coarseMap.land;
+    const t0 = performance.now(), fineCount = landPeople(pf.farming, pf.climate, ALL), ms = performance.now() - t0;
+    const coarseCount = landPeople(pc.farming, pc.climate, ALL);
+    console.log(`      640K: the land could feed ${(fineCount.people / 1e6).toFixed(0)} million (${(fineCount.people / fineCount.land).toFixed(1)} a km²)`);
+    const ppl = fineCount.people / fineCount.land, pplC = coarseCount.people / coarseCount.land;
     check('the land could feed 10–40 people a km² on average (pre-industrial Earth\'s potential ~20–30), the same at 160K (within 15 %)', ppl >= 10 && ppl <= 40 && Math.abs(ppl - pplC) <= 0.15 * ppl, `640K ${ppl.toFixed(1)} · 160K ${pplC.toFixed(1)}`);
     check('…worked out quickly on the page (≤ 1.5 s)', ms <= 1500, `${ms.toFixed(0)} ms`);
 }

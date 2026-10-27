@@ -12,22 +12,20 @@
 //              second crop striped; a legend chip shows one crop's strains alone, another colours by hearth; each strain
 //              named after a real crop (farming/varietals.js: Earth's crops domesticated together, by climate), each
 //              name a choice in the legend's list of hearths;
-//   People (C3) — how many the land could feed, pre-industrial, with the techniques chosen;
-//   Cradles (C3, an experimental view) — where the first states could rise (farming/cradles.js): a glow over the farmland
-//              of each likely heartland, the likeliest numbered, each said why (and how many it could feed) in the legend;
+//   People (C3) — how many the land could feed, pre-industrial, with the techniques chosen (farming/people.js);
 //   Soil — how fertile the ground is (on flat ground), its kind in the readout: river silt, loess, black earth…;
 //   Growing season — the months crops grow, by rain alone or watered.
 // What the land could grow — not who would live there.
 
 import { farmPlace, farmClass, decHarvests, Staple, STAPLE_WORDS, CROPS, TECHNIQUES, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
-import { cradleMap, siteWords, siteAt, peopleWords, peopleAt } from '../farming/cradles.js';
+import { landPeople, peopleAt } from '../farming/people.js';
 import { spreadGround, spreadHearths, spreadStrains, spreadPlace, strainAt, hearthWords } from '../farming/spread.js';
 import { VARIETALS, HOME, cropsFor, likeOf } from '../farming/varietals.js';
 import { landPixel } from './climate-view.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 
-export const FARMING_LAYERS = new Set(['farmLand', 'farmStaple', 'farmSpread', 'farmPeople', 'farmCradle', 'farmSoil', 'farmSeason']);
-export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staples', farmSpread: 'Crop spread', farmPeople: 'People', farmCradle: 'Cradles', farmSoil: 'Soil', farmSeason: 'Growing season' };
+export const FARMING_LAYERS = new Set(['farmLand', 'farmStaple', 'farmSpread', 'farmPeople', 'farmSoil', 'farmSeason']);
+export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staples', farmSpread: 'Crop spread', farmPeople: 'People', farmSoil: 'Soil', farmSeason: 'Growing season' };
 /** The techniques chosen and the looks (the legend's chips) — every view's, for as long as the page is open. `only`: the
  *  Staples view's one staple shown alone (a Staple, or 0 for all); `spreadOnly` the Crop spread view's; `byHearth`: Crop
  *  spread coloured by the hearth each place's crops came from; `realCrops`: its strains named after real crops (`picks`:
@@ -58,8 +56,6 @@ const STAPLE_PALE = [226, 218, 202], STAPLE_FULL = 0.9;
 // could feed the most — the densest river plains
 const PEOPLE = [[0, [216, 210, 198]], [1, [228, 220, 190]], [5, [228, 206, 154]], [20, [216, 170, 108]], [60, [186, 110, 74]], [150, [120, 50, 62]]];
 const PEOPLE_LOG = PEOPLE.map(([v, c]) => [Math.log10(1 + v), c]);
-// the cradles: a warm glow over the farmland, greyed
-const GLOW = [212, 64, 34];
 // the hearths: a colour each — their pins, the Crop spread view by hearth, and one crop's strains alone
 const HEARTH_RGB = [[204, 68, 58], [54, 112, 206], [224, 168, 34], [50, 150, 82], [150, 84, 186], [26, 164, 176], [214, 108, 160], [128, 124, 58]];
 // …and in the Crop spread view's crop colours, each strain of a crop a shade of it (by its hearth's place among the
@@ -94,16 +90,17 @@ function placeAt(F, i, p, e, opt, r) {
     for (let k = 0; k < n; k++) e[k] = decHarvests(F.crops[n * i + k]);
     return farmPlace(p, e, F.pasture[i] / 255, opt, r);
 }
-/** A finished moment's cradles with the options (farming/cradles.js), worked out once per moment and options. */
-const cradleCache = new WeakMap();
-export function cradlesOf(fin) {
+/** The people a finished moment's whole land could feed with the options (farming/people.js), worked out once per moment
+ *  and options. */
+const peopleCache = new WeakMap();
+function peopleOf(fin) {
     const F = fin?.raster?.farming, L = fin?.climate?.raster;
     if (!F?.crops || !L) return null;
-    const key = farmOptionsKey(), kept = cradleCache.get(F);
-    if (kept?.key === key) return kept.map;
-    const map = cradleMap(F, L, farmOptions);
-    cradleCache.set(F, { key, map });
-    return map;
+    const key = farmOptionsKey(), kept = peopleCache.get(F);
+    if (kept?.key === key) return kept.count;
+    const count = landPeople(F, L, farmOptions);
+    peopleCache.set(F, { key, count });
+    return count;
 }
 /** A finished moment's hearths and the spread of its crops (farming/spread.js) with the techniques chosen, at the roll
  *  (the legend's Re-roll), and each strain's crop (as chosen in the legend; with Real crops off, the staple groups alone) —
@@ -138,11 +135,6 @@ function drawPins(ctx, W, points, fill, ring, ink) {
         }
     });
     ctx.restore();
-}
-/** The cradle sites drawn on a texture W wide: numbered pins (the export's; the page draws them over the planet). */
-export function drawCradleSites(ctx, W, fin) {
-    const map = cradlesOf(fin);
-    if (map) drawPins(ctx, W, map.sites, () => 'rgba(255, 248, 236, 0.95)', () => 'rgb(150, 40, 24)', () => 'rgb(120, 30, 20)');
 }
 /** The hearths drawn on a texture W wide: numbered pins in their colours (the export's; the page draws them over the
  *  planet: farmingPins). */
@@ -206,7 +198,7 @@ export function finishedFarmingColor(layer, fin, W) {
     const F = fin?.raster?.farming, K = fin?.climate?.raster;
     if (!F || !K) return (out, o, x, y, wet, kk) => { const k = shadeK(kk); const c = wet ? SEA : NONE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; };
     const p = {}, r = { scores: new Float64Array(6), foods: new Float64Array(6) }, c = [0, 0, 0], tmp = [0, 0, 0], opt = { ...farmOptions }, kef = KOPPEN_ID.EF, e = new Float64Array(2 * CROPS.length);
-    const cradles = layer === 'farmCradle' ? cradlesOf(fin) : null, spread = layer === 'farmSpread' ? spreadOf(fin) : null, sp = {}, H = W >> 1;
+    const spread = layer === 'farmSpread' ? spreadOf(fin) : null, sp = {}, H = W >> 1;
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet || lake === 1 || lake === 2) { const s = wet ? SEA : LAKE; out[o] = s[0] * k; out[o + 1] = s[1] * k; out[o + 2] = s[2] * k; out[o + 3] = 255; return; }
@@ -237,14 +229,6 @@ export function finishedFarmingColor(layer, fin, W) {
                     else if (opt.byHearth && from >= 0) { const niche = spread.niche(from, st); hearthColour(from, r.scores[st] * (niche ? niche[K.koppen[i]] : 1), c); }
                     else strainColour(spread, st, opt.byHearth ? -1 : from, c);
                 }
-            } else if (layer === 'farmCradle') {
-                // (the farmland, greyed, under the cradles' glow — how likely a first state rises here)
-                farmColour(r.tech, r.tech, false, c, tmp);
-                const l = 0.3 * c[0] + 0.59 * c[1] + 0.11 * c[2];
-                for (let ch = 0; ch < 3; ch++) c[ch] = c[ch] + (l - c[ch]) * 0.75;
-                const q = cradles ? cradles.grid.at(cradles.cradle, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180) : 0;
-                const t = 0.9 * smooth(0.04, 0.5, q);
-                for (let ch = 0; ch < 3; ch++) c[ch] += (GLOW[ch] - c[ch]) * t;
             } else farmColour(r.tech, r.rain, opt.classes, c, tmp);
         }
         out[o] = Math.min(255, c[0] * k); out[o + 1] = Math.min(255, c[1] * k); out[o + 2] = Math.min(255, c[2] * k); out[o + 3] = 255;
@@ -270,14 +254,12 @@ export function finishedFarmingValue(key, fin, W) {
     };
 }
 
-/** The numbered pins a farming view shows (the Crop spread view's hearths, the Cradles view's sites), for the page to
- *  draw over the planet: [{lat, lon, label, fill, ring, ink}] — none on the other views. */
+/** The numbered pins a farming view shows (the Crop spread view's hearths), for the page to draw over the planet:
+ *  [{lat, lon, label, fill, ring, ink}] — none on the other views. */
 export function farmingPins(layer, fin) {
-    const map = layer === 'farmSpread' ? spreadOf(fin) : layer === 'farmCradle' ? cradlesOf(fin) : null;
+    const map = layer === 'farmSpread' ? spreadOf(fin) : null;
     if (!map) return [];
-    return layer === 'farmSpread'
-        ? map.hearths.map((h, k) => ({ lat: h.lat, lon: h.lon, label: String(k + 1), fill: css(hearthRGB(k)), ring: 'rgba(255, 252, 244, 0.95)', ink: '#fff' }))
-        : map.sites.map((s, k) => ({ lat: s.lat, lon: s.lon, label: String(k + 1), fill: 'rgba(255, 248, 236, 0.95)', ring: 'rgb(150, 40, 24)', ink: 'rgb(120, 30, 20)' }));
+    return map.hearths.map((h, k) => ({ lat: h.lat, lon: h.lon, label: String(k + 1), fill: css(hearthRGB(k)), ring: 'rgba(255, 252, 244, 0.95)', ink: '#fff' }));
 }
 
 // ── the legend ──
@@ -398,7 +380,7 @@ export function farmingLegendHTML(layer, fin) {
             const like = likeOf(h, h.crops.map(st => strainCrop(fin, map, k, st)));
             return (only ? [only] : h.crops).map(st => pick(h, k, st)).join(' ') + (like.length && !only ? ` <em>${likeWords(like.slice(0, 3))}</em>` : '');
         };
-        const list = map.hearths.map((h, k) => (only && !h.crops.includes(only) ? '' : `<div class="evo-cradle-site">${pin(k)}<span>${crops(h, k)} — ` +
+        const list = map.hearths.map((h, k) => (only && !h.crops.includes(only) ? '' : `<div class="evo-hearth">${pin(k)}<span>${crops(h, k)} — ` +
             (only ? `the main crop on ${pct(S2.strain[k][only])} of the land` : `its crops the main ones on ${pct(S2.hearth[k])} of the land`) + '</span></div>')).join('');
         return head(only ? `Crop spread — ${STAPLE_WORDS[only].toLowerCase()} alone: each hearth’s strain, where it spread` : 'Crop spread — where each place’s crops came from') +
             `<div class="evo-farm-chips">${[Staple.RICE, Staple.WHEAT, Staple.MAIZE, Staple.ROOTS].map(crop).join('')}${by}</div><div class="evo-farm-chips">${chips}</div>` +
@@ -413,20 +395,14 @@ export function farmingLegendHTML(layer, fin) {
                 'Over thousands of years each strain spread wherever it grows: fast along rivers, coasts and plains, slowly over hills, deserts, mountains and land it does not suit, ' +
                 'over seas where none grew yet but never an ocean’s breadth; a place grows one strain of each crop — the first to reach it — and the one or two of those that do best there');
     }
-    if (layer === 'farmPeople' || layer === 'farmCradle') {
-        const map = cradlesOf(fin);
-        if (!map) return head(`${layer === 'farmPeople' ? 'People' : 'Cradles'} — add detail again to see them (this moment was detailed before the harvests were counted)`);
+    if (layer === 'farmPeople') {
+        const count = peopleOf(fin);
+        if (!count) return head('People — add detail again to see them (this moment was detailed before the harvests were counted)');
         const millions = v => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} billion` : `${Math.round(v / 1e6).toLocaleString()} million`);
-        if (layer === 'farmPeople') return head('People — how many the land could feed, pre-industrial, with these techniques') + `<div class="evo-farm-chips">${chips}</div>` +
+        return head('People — how many the land could feed, pre-industrial, with these techniques') + `<div class="evo-farm-chips">${chips}</div>` +
             bar(PEOPLE_LOG, '1 · 5 · 20 · 60 · 150+ a km²') +
-            note(`The whole land could feed about ${millions(map.people)} — ${Math.round(map.people / Math.max(1, map.land))} a km² on average; its richest river plains well over 100. ` +
+            note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average; its richest river plains well over 100. ` +
                 'What it could support, not how many would live there');
-        const list = map.sites.length ? map.sites.map((s, k) => `<div class="evo-cradle-site"><b>${k + 1}</b><span>${siteWords(s)}</span></div>`).join('')
-            : '<div class="evo-legend-note">No place here meets them all — try the techniques</div>';
-        return head('Cradles — where the first states could rise') + `<div class="evo-farm-chips">${chips}</div>` + bar([[0, [196, 192, 186]], [1, GLOW]], 'likelier') + list +
-            note('Madeline James’s conditions, over a heartland 150–600 km across: a critical mass of people — hundreds of thousands to millions — fed by a taxable grain, ' +
-                'most of it on navigable water; the land beyond walled in by desert, mountains or sea, so its farmers cannot slip away; farming that needs organising — canals, terraces — ' +
-                'and herders near. Where the land allows a first state, not where one must rise');
     }
     // Farmland
     const any = farmOptions.flood || farmOptions.canal;
@@ -513,11 +489,6 @@ export function farmingLines(fin, u, v, sea, layer = null) {
             lines.unshift(L('Crops', crops));
             if (sp.missed) lines.splice(1, 0, L('Never came', `${STAPLE_WORDS[sp.missed]} would feed more here — no strain of it ever reached it`));
         }
-    }
-    if (layer === 'farmCradle') {
-        const map = cradlesOf(fin), lat = 90 - v * 180, lon = u * 360 - 180, q = map ? map.grid.at(map.cradle, lat, lon) : 0, k = map ? siteAt(map, lat, lon) : -1, s = map?.sites[k];
-        lines.unshift(L('Cradle', `<b>${q >= 0.5 ? 'likely' : q >= 0.25 ? 'possible' : q >= 0.08 ? 'unlikely' : 'no'}</b> (${q.toFixed(2)})` +
-            (s ? ` · ${k + 1}’s heartland: ${peopleWords(s.people)} could live on its grain within ${s.km} km` : '')));
     }
     if (r.water >= 0.05 && (opt.flood || opt.canal)) {
         const how = opt.flood && p.flood >= p.canal * 0.8 && p.flood >= 0.05 ? 'a big river’s floodplain' : 'canals from a river or lake';

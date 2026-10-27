@@ -7,8 +7,8 @@
     background: transparent;
 }
 #mapCanvas[hidden] { display: none; }
-/* the numbered pins over the planet (the Crop spread view's hearths, the Cradles view's sites): as the legend's, round and
-   sharp on the globe and on the map at any projection and zoom; the pointer passes through them to the readout */
+/* the numbered pins over the planet (the Crop spread view's hearths): as the legend's, round and sharp on the globe and on
+   the map at any projection and zoom; the pointer passes through them to the readout */
 .evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
 .evo-pin {
     position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
@@ -201,12 +201,10 @@
     border-radius: 10px; padding: 1px 4px; margin: 0 2px 2px 0; max-width: 100%; cursor: pointer;
 }
 .evo-farm-pick option { background: #1d2230; color: #dde; }
-.evo-cradle-site em { color: #99a; font-style: normal; }
-/* (an experimental view's tab, hidden until Experimental Views is on) */
-.map-tab[hidden] { display: none; }
-/* the Cradles view's sites and the Crop spread view's hearths: a numbered pin (as on the map) and why */
-.evo-cradle-site { display: flex; gap: 7px; align-items: baseline; margin: 3px 0; color: #bbc; line-height: 1.35; }
-.evo-cradle-site b {
+.evo-hearth em { color: #99a; font-style: normal; }
+/* the Crop spread view's hearths: a numbered pin (as on the map) and its crops */
+.evo-hearth { display: flex; gap: 7px; align-items: baseline; margin: 3px 0; color: #bbc; line-height: 1.35; }
+.evo-hearth b {
     flex: none; width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
     background: #fff8ec; color: #78201a; border: 2px solid #96281a; font-size: 10px;
 }

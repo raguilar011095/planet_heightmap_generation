@@ -215,7 +215,6 @@
             <option value="farmStaple">Staples</option>
             <option value="farmSpread">Crop spread</option>
             <option value="farmPeople">People</option>
-            <option value="farmCradle" data-experimental hidden disabled>Cradles</option>
             <option value="farmSoil">Soil</option>
             <option value="farmSeason">Growing season</option>
         </optgroup>
@@ -280,10 +279,9 @@
                 <option value="8">Many</option>
                 </select></span>
             </span>
-            <label class="toggle-label" title="Views still being worked out, shown among the others: the Farming tab's Cradles — where the first states could rise"><input type="checkbox" id="chkExperimental"><span class="toggle-track"><span class="toggle-thumb"></span></span>Experimental Views</label>
         </div>
         <div class="layer-row">
-            <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, grid lines, colours, hillshade, rivers, experimental views"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, grid lines, colours, hillshade, rivers"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <div class="map-tabs" id="mapTabs">
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
                 <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
@@ -331,7 +329,6 @@
                 <button class="map-tab" data-layer="farmStaple" title="What each place would grow most — rice, wheat and barley, maize and millet, roots and tubers, or herding — what grows best there, paler where it grows less well. The legend's chips show one alone">Staples</button>
                 <button class="map-tab" data-layer="farmSpread" title="What each place grows of the crops that reached it: farming began at a few hearths far apart (numbered), each domesticating the staples that grew best around it, and each strain spread over thousands of years — fast along rivers, coasts and plains, slowly over deserts and mountains, over seas where none grew yet but never an ocean’s breadth. Each strain named after a real crop (choose them in the legend, or re-roll the whole history: another likely one by the same rules); the legend's chips show one crop's strains alone, or colour by hearth">Crop spread</button>
                 <button class="map-tab" data-layer="farmPeople" title="How many people the land could feed, pre-industrial, with the farming techniques chosen — a few on herders' pasture, over a hundred a km² on the richest river plains">People</button>
-                <button class="map-tab" data-layer="farmCradle" data-experimental hidden title="An experimental view — where the first states could rise (Madeline James's conditions): a heartland with a critical mass of people fed by a taxable grain, on navigable water, walled in by desert, mountains or sea, farming that needs organising, herders near — the likeliest heartlands numbered">Cradles</button>
                 <button class="map-tab" data-layer="farmSoil" title="How fertile the ground is: river silt and loess richest, then volcanic ash; black earth under grassland, leached red earth in the wet tropics, acid podzol under boreal forest">Soil</button>
                 <button class="map-tab" data-layer="farmSeason" title="The months crops grow: warm enough and wet enough — by rain alone, or watered">Growing season</button>
             </div>
