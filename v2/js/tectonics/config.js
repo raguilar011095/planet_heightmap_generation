@@ -489,6 +489,12 @@ export const TECTONICS = {
         beltExhumKm: [6, 16],       // …the older continental crust about the cratons (its Proterozoic mobile belts)
         platformCoverKm: 2.5,       // platform sediment over the old crust, at most (in its sags; over half of it)
         platformNoiseKm: 1500,      // the size of the sags and arches
+        platformLowGain: 1,         // the sags lean to the start world's lowlands (1 − its swells' height, heights.js seedBaseRelief:
+        platformLowMid: 0.9,        // its uplands along the seams bare): the noise + this × (that − this) — about as much under cover
+                                    // as with the noise alone, most of the lowlands and little of the uplands
+        startBeltExhumKm: [8, 26],  // an old range of its assembly (start-world.js oldRanges) worn from the first toward the second the
+        startBeltExhumMyr: 400,     // longer ago it rose (e-folding over this): the major seams' (300 Myr) to ~17 km, the inner seams'
+                                    // (1100 Myr) to ~25 — the Appalachians' schists, the Grenville's gneiss
     },
 
     // ── The far field (step/far-field.js; plans/V2_FAR_FIELD_PLAN.md). Records only. ──

@@ -351,3 +351,36 @@ the Climate views. On the rebuilt start world, more of the belts quiet for 150 M
 retreating, hardly unroofed): `check-geology.mjs` pools its two belt checks over three histories and counts mountain
 belts only for the unroofing (seeds 12345, 777, 2024: foot of the active belts ×1.85 against elsewhere, mountain belts
 quiet 150 Myr unroofed 2.0 km; before the start world, ×1.79 and 3.5 km).
+
+## Rocks follow main's terrain (2026-10-27)
+
+Developer, after main's merge: "check on the geology features that may require update to be more physically accurate
+based on any changes to the detail/etc" — five found, then "lets fix all of it all at once":
+
+- **The structure the terrain draws, followed.** The surface hands the rocks a cue a cell with the record cell
+  (synthesize.js `cue`; terrain-pool `cues`; the heights and the carving's inputs byte-identical with it or without):
+  - an **old belt's band** — main's old ranges are carved as banded rock (terrain-config `oldGrainHardness`: the ridges
+    hard, the troughs soft, trellis drainage): now sandstone and gneiss hold up the ridges, shale, limestone, slate and
+    schist floor the troughs (`bandGain` 1.6; seed 12345 at 640K: resistant rock on 35 % of the ridges, 22 % of the
+    troughs);
+  - the **far field's folds** — where main raises them over the platform (~320 km apart): a crest bares beds
+    `farFoldDepthKm` (0.6 km) deeper, a trough keeps them (basement on 54 % of the crests, 39 % of the troughs);
+  - a **shield's grain** — main draws "greenstone belts between granite domes" along each craton's length; the rocks'
+    greenstone took a random trend per craton. Now its keels lie on the grain's ridges, read over a cell's ring (thin
+    keels the majority filter would take on a coarse mesh: greenstone 14 % of the shields at 640K, 18 % with the old
+    pattern at 160K, where the terrain draws no grain).
+- **Zoomed in.** The tiles drew the rocks' picture in squares, and land the finer coast has where the picture has sea
+  as young sediment — a yellow rim on every coast. geology-view.js `rockPixel`: wider than the picture, each place the
+  kind its four nearest land pixels' bilinear weights favour (contacts run smoothly between their centres — a warp
+  alone, under half a pixel, left the squares' staircase showing), through a small fractal warp (they wander); the
+  finer coast's land the nearest land's rock; at the picture's own width, as before. The readout and the rock-index
+  export read it so too.
+- **The start world** (main's assembled supercontinent). Its platform sediment lay by a noise of its own, over the
+  swells along its seams as often as the lowlands between: now it leans to the lowlands (`platformLowGain`, about as
+  much covered: 46 %, the swells under it ~0 km, 0.12 km where bare). Its old ranges were all worn like any old crust
+  (6–16 km): now by their age (`startBeltExhumKm` 8 → 26 over `startBeltExhumMyr` 400): the major seams (300 Myr,
+  still standing) ~17.5 km, schist; the ring seams (650) ~23; the inner seams (1100) ~25, gneiss.
+- **Checks.** check-geology's foreland check compared the deepest cover ever, the start world's platform included —
+  which the lowland platform raised elsewhere (×1.06 on seed 12345): now the cover laid in the history, over the same
+  three histories as the belt checks (×1.45). Six new: the start world's cover in its lowlands; its ranges worn by age;
+  bands, folds and keels followed; the heights untouched. 26/26.

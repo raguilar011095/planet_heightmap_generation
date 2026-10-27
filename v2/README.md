@@ -443,18 +443,30 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    Tian Shan) and young rift basins lay it down (every `geology.everyMyr`).
    The sea's stand comes from the ocean floor's mean depth (GDH1): the lowest land joined to the sea floods, up to
    `floodShareMax` of it when the oceans are young. Plus the time spent under shallow sea and in a live arc, and the
-   settings the other records forget (`GeoFlag`). The start world's crust is seeded worn deep, half under platform
-   cover (`seedGeology`). Frames carry it a byte or two a cell (~11 % of a packed frame). Constants: config.js
+   settings the other records forget (`GeoFlag`). The start world's crust is seeded worn deep — its old ranges by their
+   age (`startBeltExhumKm`: the major seams' ~17 km, the inner seams' ~25) — and about half of it under platform cover,
+   in its lowlands between the swells along its seams (`seedGeology`, after heights.js `seedBaseRelief`;
+   `platformLowGain`). Frames carry it a byte or two a cell (~11 % of a packed frame). Constants: config.js
    `geology`. The finish turns it into rocks (`geology/rocks.js`, its `geology` stage): per cell, the record where the
    terrain read it (the surface hands over each cell's record cell: synthesize.js `recCell`), read smoothly and through a
    fractal warp (contacts that wander but stay whole). The basement by its last setting and depth (an arc's volcanics
    bared to granite, a belt's slate and schist to gneiss, a shield's domes and greenstone keels, ophiolite); the cover as
    beds cut by the finished surface — older beds crop out where the ground lies below the land around it, so outcrops
-   follow the valleys, and a fold belt's folds bare them in stripes along it; young sediment over both (floodplains: the
+   follow the valleys, and a fold belt's folds bare them in stripes along it; the structure the surface drew followed
+   (it hands over, with the record cell, a cue a cell — synthesize.js `cue`, the heights untouched): an old belt's rock
+   banded as its carving wears it (`oldGrainHardness`: sandstone and gneiss on its ridges, shale, limestone, slate and
+   schist in its troughs — `bandGain`), the far field's folds where the terrain raises them (a crest bares older beds,
+   `farFoldDepthKm`), a shield's greenstone keels on the ridges of its grain (drawn out along the craton's length);
+   young sediment over both (floodplains: the
    low ground along rivers over `floodplainQ`, wider down bigger ones; deltas and basin floors, `plainsShare` of the
    land; dunes, loess, moraines) and flood basalt; a majority filter for specks. The land's families come out near
    Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's record views read
-   each pixel's record cell too, and its rock (bare basement or cover).
+   each pixel's record cell too, and its rock (bare basement or cover). Drawn wider than the rocks' picture (zoomed in
+   on the fine detail's tiles, or an export enlarged: geology-view.js `rockPixel`), each place takes the kind its four
+   nearest land pixels' bilinear weights favour (as a category map is enlarged: contacts run smoothly between their
+   centres, not round their squares), read through a small fractal warp (so they wander as contacts do); land only, so
+   where the finer coast has land the picture has as sea, the nearest land's rock (no rim of young sediment along every
+   coast); the readout and the rock-index export read them so too.
    **Farming** (plans/V2_FARMING_PLAN.md, after Madeline James's culture series, Part 4, and Ramankutty et al. 2002's
    cropland suitability): the finish's `farming` stage (`farming/farming.js`) works out each land cell's parts — the
    growing season from its final climate's months (each month warm, 5 → 15 °C, × wet, its rain, melt and 100 mm of soil

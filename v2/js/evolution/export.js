@@ -11,9 +11,9 @@
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { GEOLOGY_LAYERS, finishedGeologyColor, hasRecord } from './geology-view.js';
+import { GEOLOGY_LAYERS, finishedGeologyColor, hasRecord, rockPixel } from './geology-view.js';
 import { finishedFarmingColor, finishedFarmingValue, drawHearths, farmOptions } from './farming-view.js';
-import { ROCK_INFO } from '../geology/rocks.js';
+import { ROCK_INFO, Rock } from '../geology/rocks.js';
 import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
@@ -273,8 +273,9 @@ export function viewMap(fin, W, layer, look, at = {}) {
 /** A Geology or Farming quantity as numbers (8-bit for a class index, else 16-bit), on its scale. */
 export function viewValueMap(fin, W, file, centerLon = 0) {
     const H = W >> 1, { sea } = pictureAt(fin, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
-    const G = fin.raster.geology, at = file.key === 'rockIndex'
-        ? (x, y) => G.rock[Math.min(G.h - 1, Math.floor((y + 0.5) / H * G.h)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) / W * G.w))]
+    // (the rock's index as the Rocks view draws it: geology-view.js rockPixel — land the picture has as sea, its nearest)
+    const G = fin.raster.geology, px = file.key === 'rockIndex' ? rockPixel(G, W) : null, at = px
+        ? (x, y) => { const i = px(x, y); return (i >= 0 && G.rock[i]) || Rock.ALLUVIUM; }
         : finishedFarmingValue(file.key, fin, W);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x; out[p] = sea[p] ? 0 : Math.round(top * scaled(at(x, y), file.scale)); }
     return { kind: file.bits === 8 ? 'gray8' : 'gray16', W, H, data: rollRows(out, W, H, 1, rollShift(W, centerLon)) };

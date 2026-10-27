@@ -75,8 +75,9 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     if (closePool) pool.terminate();                                  // (its workers' memory back before the heavy stages)
     pool.forget?.(warped);
     let carveIn = surf.carveIn;
-    // (for the geology: the world cell whose record each cell shows, as the surface read it — geology/rocks.js)
-    const recCell = surf.recCell;
+    // (for the geology: the world cell whose record each cell shows, as the surface read it, and the structure the
+    // surface drew there — an old belt's bands, the far field's folds, a shield's grain: geology/rocks.js)
+    const recCell = surf.recCell, cues = surf.cues;
     const z = surf.heightKm;
     surf = null; warped = null;
     roughen(mesh, z, seed, F, fade, carveIn.lip);
@@ -296,8 +297,8 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     if (geo) {
         onStage('geology');
         rocks = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
-            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q } });
-        geology = { rock: rocks.rock, rec: rocks.rec, simCells: simMesh.numCells };
+            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues } });
+        geology = { rock: rocks.rock, rec: rocks.rec, simCells: simMesh.numCells, cues };          // (cues: for the checks; not in the picture)
         stats.rocks = Array.from(rocks.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(rocks.youngBy, v => +v.toFixed(4));
         lap('geology');
     }

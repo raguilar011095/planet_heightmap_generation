@@ -42,7 +42,7 @@ import { CATALOGUE, produceMap, rowAvailable } from '../js/evolution/export.js';
 import { GEO_FRAME_FIELDS } from '../js/tectonics/model/geology.js';
 import { hasRecord } from '../js/evolution/geology-view.js';
 import { heightLutOf } from '../js/evolution/looks.js';
-import { riverPaths } from '../js/evolution/finish-view.js';
+import { riverPaths, rasterAt } from '../js/evolution/finish-view.js';
 
 setDelaunator(Delaunator);
 // (the maps are painted into ImageData, and the rivers' lines traced into Path2D, which Node lacks: the lines counted)
@@ -187,6 +187,15 @@ check(!!back.detail.moment.raster.geology?.rock && !!back.detail.moment.raster.f
             drawn++;
         }
     }
+    // (drawn wider than the rocks' picture — zoomed in, or an export enlarged: geology-view.js rockPixel — no land reads
+    // as sea, and the colour map drawn so too)
+    const m = back.detail.moment, Wb = 2 * m.raster.geology.w, rocks = CATALOGUE.find(g => g.id === 'geology').rows.find(r => r.id === 'geoRocks');
+    const idx = produceMap(m, Wb, look0, { variant: 'data', file: rocks.data[0], row: rocks, season: 'year' }, { frame: moment, simMesh }), { sea } = rasterAt(m.raster, Wb);
+    let landPx = 0, asSea = 0;
+    for (let p = 0; p < sea.length; p++) if (!sea[p]) { landPx++; if (!idx.data[p]) asSea++; }
+    const wide = produceMap(m, Wb, look0, { variant: 'colour', row: rocks, season: 'year' }, { frame: moment, simMesh });
+    check(landPx > 0 && asSea === 0 && wide.data.length === 4 * Wb * (Wb >> 1), `the rocks drawn at ${Wb} px, twice their picture: no land read as sea (${asSea} of ${landPx} land pixels)`);
+    drawn += 2;
     console.log(`the rocks' and the farming's ${drawn} maps drawn from the moment read back (${secs()})`);
 }
 check(back.manifest.detail.time === moment.time && back.manifest.settings.seed === SEED, 'the manifest says what it holds');

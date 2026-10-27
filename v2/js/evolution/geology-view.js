@@ -10,6 +10,7 @@
 import { CrustType, OrogenyType, VolcanicType } from '../tectonics/model/crust.js';
 import { GeoFlag, decodeCoverKm, decodeExhumKm, decodeFloodMyr, decodeFloodAge, decodeArcMyr, decodeFacies } from '../tectonics/model/geology.js';
 import { locate } from '../core/mesh-locate.js';
+import { FastNoise } from '../core/fast-noise.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../geology/rocks.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { GEOLOGY } from '../geology/geology-config.js';
@@ -123,14 +124,66 @@ function pictureOf(layer, frame, simMesh) {
 // ── Rocks (G2): each pixel's kind of rock, from the finish (geology/rocks.js) — the sea floor a shelf's sediment or the deep
 // sea's, the ice caps a pale veil over the rock beneath ──
 const SHELF = [52, 78, 112], DEEP = [22, 32, 60], ICE = [236, 240, 246];
+// ── the rocks' picture (on the climate's: finish.js finishRaster) read at any width ──
+const contactNoise = new FastNoise(0x7e0c);
+/** The rock picture's pixel under a place (gx, gy: in its pixels): of its four nearest land pixels, one of the kind
+ *  their bilinear weights favour — so a contact runs smoothly between its pixels' centres instead of stepping round their
+ *  squares (as a category map is enlarged) — read through a small fractal warp (waves ~1.6 and ~0.6 of its pixels, by up
+ *  to ~0.45 of one, wrapping east–west), so it wanders as a contact does; land only, so the finer coast's land takes its
+ *  nearest land's rock, not a rim of young sediment (none of the four: the nearest land round it) — or −1, none. */
+const vote = new Float64Array(ROCK_COUNT), quad = new Int32Array(4), quadW = new Float64Array(4);
+function rockPixelAt(G, gx, gy) {
+    const th = 2 * Math.PI * gx / G.w, r1 = 0.6 * G.w / (2 * Math.PI), r2 = 1.7 * G.w / (2 * Math.PI), ct = Math.cos(th), st = Math.sin(th), n = contactNoise;
+    const u = gx + 0.35 * n.noise3D(r1 * ct, r1 * st, 0.6 * gy + 3.7) + 0.12 * n.noise3D(r2 * ct + 9.1, r2 * st, 1.7 * gy);
+    const v = gy + 0.35 * n.noise3D(r1 * ct + 5.2, r1 * st, 0.6 * gy + 1.3) + 0.12 * n.noise3D(r2 * ct, r2 * st + 6.4, 1.7 * gy + 2.9);
+    const fx = u - 0.5, fy = Math.min(G.h - 1, Math.max(0, v - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), ax = fx - x0, ay = fy - y0;
+    for (let k = 0; k < 4; k++) {
+        const j = Math.min(G.h - 1, y0 + (k >> 1)) * G.w + (((x0 + (k & 1)) % G.w) + G.w) % G.w;
+        quad[k] = j; quadW[k] = ((k & 1) ? ax : 1 - ax) * ((k >> 1) ? ay : 1 - ay);
+        vote[G.rock[j]] += quadW[k];
+    }
+    let kind = 0, top = -1;
+    for (let k = 0; k < 4; k++) { const r = G.rock[quad[k]]; if (r && vote[r] > top) { top = vote[r]; kind = r; } }
+    for (let k = 0; k < 4; k++) vote[G.rock[quad[k]]] = 0;
+    if (kind) {
+        // (the pixel shown: the heaviest of the winning kind's — its record cell for the record views, its ice)
+        let won = -1, wonW = -1;
+        for (let k = 0; k < 4; k++) if (G.rock[quad[k]] === kind && quadW[k] > wonW) { wonW = quadW[k]; won = quad[k]; }
+        return won;
+    }
+    const cx = Math.floor(u), cy = Math.min(G.h - 1, Math.max(0, Math.floor(v)));
+    let best = -1, bd = Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+        const yy = cy + dy;
+        if (yy < 0 || yy >= G.h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+            const j = yy * G.w + (((cx + dx) % G.w) + G.w) % G.w;
+            if (!G.rock[j]) continue;
+            const du = cx + dx + 0.5 - u, dv = yy + 0.5 - v, d = du * du + dv * dv;
+            if (d < bd) { bd = d; best = j; }
+        }
+    }
+    return best;
+}
+/**
+ * The rock picture's pixel shown at pixel (x, y) of a picture W wide: at its own width or narrower, the pixel under it
+ * (as ever: 0 where it has sea); wider — zoomed in past it, or an export enlarged — rockPixelAt's: contacts wandering
+ * below its pixels, the finer coast's land its nearest land's rock (−1: none near).
+ */
+export function rockPixel(G, W) {
+    const s = G.w / W;
+    if (s >= 1) return (x, y) => Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
+    return (x, y) => rockPixelAt(G, (x + 0.5) * s, (y + 0.5) * s);
+}
+
 function rocksColor(fin, W) {
-    const G = fin.raster.geology, s = G.w / W, K = fin.climate?.raster, kef = KOPPEN_ID.EF;
+    const G = fin.raster.geology, K = fin.climate?.raster, kef = KOPPEN_ID.EF, pixel = rockPixel(G, W);
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet) { const c = v > -0.25 ? SHELF : DEEP; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; return; }
         if (lake === 1 || lake === 2) { out[o] = LAKE[0] * k; out[o + 1] = LAKE[1] * k; out[o + 2] = LAKE[2] * k; out[o + 3] = 255; return; }
-        const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
-        const rgb = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb, ice = K && K.koppen[i] === kef ? 0.72 : 0;
+        const i = pixel(x, y);
+        const rgb = ROCK_INFO[(i >= 0 && G.rock[i]) || Rock.ALLUVIUM].rgb, ice = i >= 0 && K && K.koppen[i] === kef ? 0.72 : 0;
         for (let ch = 0; ch < 3; ch++) out[o + ch] = Math.min(255, (rgb[ch] + (ICE[ch] - rgb[ch]) * ice) * k);
         out[o + 3] = 255;
     };
@@ -157,11 +210,12 @@ function colourSet(layer, frame) {
     return set;
 }
 function recordColor(layer, frame, fin, W) {
-    const G = fin.raster.geology, s = G.w / W, { cover, bare } = colourSet(layer, frame);
+    const G = fin.raster.geology, { cover, bare } = colourSet(layer, frame), pixel = rockPixel(G, W);
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; return; }
-        const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
+        const i = pixel(x, y);
+        if (i < 0) { out[o] = LAND[0] * k; out[o + 1] = LAND[1] * k; out[o + 2] = LAND[2] * k; out[o + 3] = 255; return; }
         const rgb = BASEMENT.has(G.rock[i]) ? bare : cover, j = 3 * G.rec[i];
         out[o] = Math.min(255, rgb[j] * k); out[o + 1] = Math.min(255, rgb[j + 1] * k); out[o + 2] = Math.min(255, rgb[j + 2] * k); out[o + 3] = 255;
     };
@@ -267,18 +321,22 @@ const BELT_KIND = { [OrogenyType.ANDEAN]: 'an Andean range', [OrogenyType.LARAMI
     [OrogenyType.INTRAPLATE]: 'an intraplate range' };
 const FLAG_WORDS = [[GeoFlag.WAS_ARC, 'born in an island arc'], [GeoFlag.OPHIOLITE, 'old sea floor thrust up'], [GeoFlag.FORELAND, 'a foreland basin'], [GeoFlag.RIFT_BASIN, 'a rift basin'],
     [GeoFlag.SLAB_CHANGE, 'its slab once turned']];
-/** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it), or −1 if unknown. */
+/** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it, and as the views
+ *  draw it: rockPixelAt), or −1 if unknown. */
 export function recAt(fin, u, v) {
     const G = fin?.raster?.geology;
     if (!G?.rec) return -1;
-    return G.rec[Math.min(G.h - 1, Math.floor(v * G.h)) * G.w + Math.min(G.w - 1, Math.floor(u * G.w))];
+    const i = rockPixelAt(G, u * G.w, v * G.h);
+    return i >= 0 ? G.rec[i] : -1;
 }
 
-/** The kind of rock at a place [u (west → east), v (north → south)] of a finished moment (0 the sea), or −1 without rocks. */
+/** The kind of rock at a place [u (west → east), v (north → south)] of a finished moment (0 the sea), or −1 without rocks
+ *  — as the Rocks view draws it (rockPixelAt). */
 export function rockAt(fin, u, v) {
     const G = fin?.raster?.geology;
     if (!G) return -1;
-    return G.rock[Math.min(G.h - 1, Math.floor(v * G.h)) * G.w + Math.min(G.w - 1, Math.floor(u * G.w))];
+    const i = rockPixelAt(G, u * G.w, v * G.h);
+    return i >= 0 ? G.rock[i] : 0;
 }
 
 /** A rock's line for the readout: its kind and where it came from, read off the history's record (frame cell w). */
