@@ -22,6 +22,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # every release tag, for the past versions below
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -32,14 +34,46 @@ jobs:
           name: github-pages
           failOnError: false
 
+      # Past versions: the latest patch of each minor release from 2.1 on stays online at /v/<major>.<minor>/
+      # (orogen.studio/v/2.1/generate), so a planet made in an older version still opens as it was; the base
+      # address is always the release being published. Each is unpacked from its tag, its links to the site's
+      # pages (href="/generate", the home page's redirect of old links) point into its own folder, and search
+      # engines are asked to leave it out (the base address is the one to find).
+      - name: Past versions under /v/
+        run: |
+          FIRST=2.1   # the release current when past versions began to be kept; older ones are not
+          declare -A latest
+          for tag in $(git tag -l 'v*' | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sort -V); do
+            minor=${tag#v}; minor=${minor%.*}
+            latest[$minor]=$tag   # (sorted, so the last patch wins)
+          done
+          for minor in "${!latest[@]}"; do
+            [ "$(printf '%s\n' "$FIRST" "$minor" | sort -V | head -n1)" = "$FIRST" ] || continue
+            d="v/$minor"
+            mkdir -p "$d"
+            git archive "${latest[$minor]}" | tar -x -C "$d"
+            rm -rf "$d/.github" "$d/CNAME" "$d/404.html" "$d/robots.txt" "$d/sitemap.xml"
+            find "$d" -name '*.html' -exec sed -i \
+              -e "s#href=\"/\([^/]\)#href=\"/$d/\1#g" \
+              -e "s#location\.replace('/#location.replace('/$d/#g" \
+              -e 's#<head>#<head>\n    <meta name="robots" content="noindex">#' {} +
+            echo "/$d/ ← ${latest[$minor]}"
+          done
+
       # Publish only the site: the tuning tools, plans, dev notes and lab pages stay in the repo, not on orogen.studio
       # (the climate lab page reads gitignored data and cannot work there; its JS stays — Evolution imports
-      # v2/js/climate-lab/palettes.js). This edits the CI copy only.
+      # v2/js/climate-lab/palettes.js). This edits the CI copy only, the past versions too.
       - name: Leave out developer files
         run: |
-          rm -rf tuning plans reports research_notes v2/tools
-          rm -f v2/index.html v2/lab.css v2/climate-lab.html v2/climate-lab.css v2/README.md
-          rm -f CLAUDE.md HEIGHTMAP_REALISM_PLAN.md OCEAN_REWORK_PLAN.md V1_REVIEW.md
+          for d in . v/*/; do
+            [ -d "$d" ] || continue
+            (
+              cd "$d"
+              rm -rf tuning plans reports research_notes v2/tools
+              rm -f v2/index.html v2/lab.css v2/climate-lab.html v2/climate-lab.css v2/README.md
+              rm -f CLAUDE.md HEIGHTMAP_REALISM_PLAN.md OCEAN_REWORK_PLAN.md V1_REVIEW.md
+            )
+          done
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v4

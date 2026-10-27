@@ -78,6 +78,7 @@ Every generated planet produces a **planet code** (shown below the Build button)
 - **Copy** the code with the copy button and send it to someone
 - **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
 - **URL sharing** — the code is also stored in the URL hash (e.g. `#a7f3kq9xp2b`), so you can share the full URL directly (`orogen.studio/generate#…`; a link from before Generate moved there, `orogen.studio/#…`, is sent on to it by the home page). Opening a URL with a valid hash auto-loads that planet, including any plate edits.
+- **Previous versions** — `orogen.studio` always runs the newest release; from 2.1 on, each minor release also stays online at `orogen.studio/v/<major>.<minor>/` (its last patch, e.g. `orogen.studio/v/2.1/generate#…`), so a planet can be opened in the version it was made with even after later releases change how worlds are built. The deploy (`.github/workflows/deploy.yml`) unpacks each from its release tag; search engines are asked to leave them out.
 
 ## Controls
 
