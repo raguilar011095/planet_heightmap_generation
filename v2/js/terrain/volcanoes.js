@@ -127,7 +127,9 @@ export function buildVolcanoes(frame, rec, simMesh, cfg, seed, anchor, edgeKm) {
         const onArc = type === CrustType.ARC && !(frame.flags[w] & CrustFlag.MARGIN_ISLE);
         if (onArc && (frame.oroType[w] === OrogenyType.ARC || frame.oroType[w] === OrogenyType.ANDEAN) && rec.quietMyr[w] < cfg.arcActiveMyr && rec.dKm[w] <= cfg.arcFrontKm) {
             const rng = cellRng(seed, rc, SALT.arc), m = Math.min(1, Math.max(0, (time - frame.formedAt[w]) / cfg.arcMatureMyr));
-            if (rng() < cfg.arcConeShare) {
+            // (on a broad arc plateau, only along its front: a narrow chain keeps its volcanoes all along — records.js arcWide)
+            const front = cfg.arcVolcanoFarKm > 0 && rec.arcWide ? 1 - rec.arcWide[w] * (1 - smooth(cfg.arcVolcanoFarKm, cfg.arcVolcanoNearKm, rec.frontKm[w])) : 1;
+            if (rng() < cfg.arcConeShare * front) {
                 const h = (cfg.coneKm.young + (cfg.coneKm.mature - cfg.coneKm.young) * m) * (0.75 + 0.5 * rng());
                 const r = (cfg.coneRadiusKm.young + (cfg.coneRadiusKm.mature - cfg.coneRadiusKm.young) * m) * (0.85 + 0.3 * rng());
                 add(w, rc, rng, 45, h, r, 10 + 40 * m * rng(), strikeAt(w), 'arc');      // (a mature arc's older volcanoes have spread)

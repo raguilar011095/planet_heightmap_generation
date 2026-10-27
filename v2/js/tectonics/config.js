@@ -273,6 +273,10 @@ export const TECTONICS = {
     marginErosionRefCmYr: 3,    // …around this rate (a typical active continental margin in these histories)
     marginErosionKmPerMyr: 2,   // an erosive margin's coast retreats this fast…
     marginErosionMaxGapKm: 500, // …until it lies this far from its trench (the Andes: ~250 km of coast lost since the Jurassic)
+    // how a fore-arc coast grows and retreats (issue #73: cell by cell at random, it frayed into specks and notches): an
+    // island or the coast fills its bays before it pushes out a spit, and the sea takes a headland before a cove — by
+    // (share of a cell's sides that are land, or sea)^this. The same number of cells change; 0: cell by cell, as before
+    marginCoastShape: 2,
 
     // ── Subduction initiation (Phase 6b, step/subduction-init.js) ──
     subductionInitRatePerMyr: 0.02,   // chance per Myr for a margin at the age threshold and the minimum length
