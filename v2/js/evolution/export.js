@@ -9,7 +9,7 @@
 // weighted majority of the nearest pixels, satellite colours blended — then painted at the full width, so the hillshade,
 // the coasts and the rivers' lines stay sharp.
 
-import { paintFinished, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
+import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, hasRecord } from './geology-view.js';
 import { finishedFarmingColor, finishedFarmingValue, drawHearths, farmOptions } from './farming-view.js';
@@ -105,6 +105,23 @@ function drawRiversRolled(ctx, W, k, shift, fin, look) {
     }
 }
 
+// ── an export wider than the picture, with the detail finer than the mesh (detail-view.js: drawn in begin(), band by band,
+// the whole planet at the export's width) — its heights, sea and lakes ──
+/** The picture at width W: the detail drawn for this export where there is one, else the picture averaged or enlarged. */
+function pictureAt(fin, W, opts = {}) {
+    const f = fin.fine?.W === W ? fin.fine : null;
+    if (!f) return rasterAt(fin.raster, W, opts);
+    if (!opts.landOnly) return f;
+    const h = new Float32Array(f.h.length);
+    for (let i = 0; i < h.length; i++) h[i] = f.sea[i] ? 0 : Math.max(0, f.h[i]);
+    return { h, sea: f.sea, wat: f.wat };
+}
+/** The picture painted at width W (paintFinished's palette, hillshade, lakes and colours) — the detail's where drawn. */
+function paintAt(fin, W, image, lut, opts) {
+    if (fin.fine?.W === W) paintWindow(fin.fine, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, image.data, lut, opts);
+    else paintFinished(fin.raster, { width: W, image }, lut, opts);
+}
+
 /**
  * The widths offered: from 1024 px, doubling, up to `maxW` — its own width and those under it averaged down (a whole
  * fraction of it), those above it enlarged.
@@ -118,22 +135,22 @@ export function exportWidths(r, maxW = EXPORT_MAX) {
 
 
 /** The 16-bit heightmap, the sea floor included: −11 km black … +9 km white. */
-export function heightmap16(r, W, centerLon = 0) {
-    const { h } = rasterAt(r, W), [lo, hi] = HEIGHT_RANGE_M, out = new Uint16Array(h.length);
+export function heightmap16(fin, W, centerLon = 0) {
+    const { h } = pictureAt(fin, W), [lo, hi] = HEIGHT_RANGE_M, out = new Uint16Array(h.length);
     for (let i = 0; i < h.length; i++) out[i] = Math.round(65535 * Math.min(1, Math.max(0, (1000 * h[i] - lo) / (hi - lo))));
     return rollRows(out, W, W >> 1, 1, rollShift(W, centerLon));
 }
 
 /** The 16-bit land heightmap: the sea black, land 0…+9 km as 1…65535 (a lake's bed below sea level as 0 m). */
-export function landHeightmap16(r, W, centerLon = 0) {
-    const { h, sea } = rasterAt(r, W, { landOnly: true }), out = new Uint16Array(h.length);
+export function landHeightmap16(fin, W, centerLon = 0) {
+    const { h, sea } = pictureAt(fin, W, { landOnly: true }), out = new Uint16Array(h.length);
     for (let i = 0; i < h.length; i++) out[i] = sea[i] ? 0 : 1 + Math.round(65534 * Math.min(1, Math.max(0, 1000 * h[i] / LAND_TOP_M)));
     return rollRows(out, W, W >> 1, 1, rollShift(W, centerLon));
 }
 
 /** The land mask: land white (lakes are land), the sea black. */
-export function landMask8(r, W, centerLon = 0) {
-    const { sea } = rasterAt(r, W), out = new Uint8Array(sea.length);
+export function landMask8(fin, W, centerLon = 0) {
+    const { sea } = pictureAt(fin, W), out = new Uint8Array(sea.length);
     for (let i = 0; i < sea.length; i++) out[i] = sea[i] ? 0 : 255;
     return rollRows(out, W, W >> 1, 1, rollShift(W, centerLon));
 }
@@ -144,7 +161,7 @@ export function landMask8(r, W, centerLon = 0) {
  */
 export function colorMap(fin, W, look) {
     const H = W >> 1, image = new ImageData(W, H), shift = rollShift(W, look.centerLon);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false });
+    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false });
     const rgba = rollRows(image.data, W, H, 4, shift);
     if (!(look.water && fin.rivers)) return { kind: 'rgba', W, H, data: rgba };
     const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
@@ -157,7 +174,7 @@ export function colorMap(fin, W, look) {
 /** The Satellite view as shown, for the year, January or July: no grid, no glint (and, as on screen, no rivers' lines). */
 export function satelliteMap(fin, W, season, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true, shaded: look.shaded !== false,
+    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true, shaded: look.shaded !== false,
         colorAt: finishedClimateColor('satellite', season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
@@ -169,7 +186,7 @@ export function satelliteMap(fin, W, season, look) {
  * climate picture marks as sea (a coast a pixel apart) takes the nearest zone.
  */
 export function koppenIndexMap(fin, W, centerLon = 0) {
-    const r = fin.raster, R = fin.climate.raster, H = W >> 1, { sea } = rasterAt(r, W), out = new Uint8Array(W * H);
+    const R = fin.climate.raster, H = W >> 1, { sea } = pictureAt(fin, W), out = new Uint8Array(W * H);
     const s = R.w / W, K = Math.max(1, Math.round(s)), votes = new Float32Array(KOPPEN_RGB.length), bx = [0, 0, 0, 0], by = [0, 0, 0, 0];
     const bspline = (t, w) => { const t2 = t * t, t3 = t2 * t, u = 1 - t; w[0] = u * u * u / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6; };
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
@@ -217,7 +234,7 @@ function nearestZone(R, cx, cy) {
  * the rivers drawn as the Terrain view draws them (the density and the colouring chosen there).
  */
 export function riversMap(fin, W, look) {
-    const H = W >> 1, { wat, sea } = rasterAt(fin.raster, W, { lakes: true }), image = new ImageData(W, H), d = image.data, shift = rollShift(W, look.centerLon);
+    const H = W >> 1, { wat, sea } = pictureAt(fin, W, { lakes: true }), image = new ImageData(W, H), d = image.data, shift = rollShift(W, look.centerLon);
     if (wat) for (let p = 0; p < W * H; p++) {
         if (!wat[p] || sea[p]) continue;
         const c = lakeColor(look.lut, wat[p]), o = 4 * p;
@@ -233,7 +250,7 @@ export function riversMap(fin, W, look) {
 /** A climate layer as shown (climate-view.js finishedClimateColor), shaded or flat, the lakes as the Terrain view has them. */
 export function climateMap(fin, W, layer, season, look) {
     const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false,
+    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false,
         colorAt: finishedClimateColor(layer, season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
@@ -244,7 +261,7 @@ export function climateMap(fin, W, layer, season, look) {
 export function viewMap(fin, W, layer, look, at = {}) {
     const H = W >> 1, image = new ImageData(W, H), shift = rollShift(W, look.centerLon);
     const colorAt = GEOLOGY_LAYERS.has(layer) ? finishedGeologyColor(layer, at.frame, at.simMesh, W, fin) : finishedFarmingColor(layer, fin, W);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt });
+    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt });
     const rgba = rollRows(image.data, W, H, 4, shift);
     if (layer !== 'farmSpread') return { kind: 'rgba', W, H, data: rgba };
     // (the hearths' pins, drawn for the map's own width: as large, relative to it, at any width — turned as the map is)
@@ -255,7 +272,7 @@ export function viewMap(fin, W, layer, look, at = {}) {
 }
 /** A Geology or Farming quantity as numbers (8-bit for a class index, else 16-bit), on its scale. */
 export function viewValueMap(fin, W, file, centerLon = 0) {
-    const H = W >> 1, { sea } = rasterAt(fin.raster, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
+    const H = W >> 1, { sea } = pictureAt(fin, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
     const G = fin.raster.geology, at = file.key === 'rockIndex'
         ? (x, y) => G.rock[Math.min(G.h - 1, Math.floor((y + 0.5) / H * G.h)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) / W * G.w))]
         : finishedFarmingValue(file.key, fin, W);
@@ -264,13 +281,13 @@ export function viewValueMap(fin, W, file, centerLon = 0) {
 }
 /** A climate quantity as numbers (climate-view.js finishedClimateValue), 16-bit on its scale. */
 export function valueMap(fin, W, key, season, scale, centerLon = 0) {
-    const H = W >> 1, { sea } = rasterAt(fin.raster, W), at = finishedClimateValue(key, season, fin.climate, W), out = new Uint16Array(W * H);
+    const H = W >> 1, { sea } = pictureAt(fin, W), at = finishedClimateValue(key, season, fin.climate, W), out = new Uint16Array(W * H);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x; out[p] = Math.round(65535 * scaled(at(x, y, !!sea[p]), scale)); }
     return { kind: 'gray16', W, H, data: rollRows(out, W, H, 1, rollShift(W, centerLon)) };
 }
 /** The hillshade of the moment's heights, 8-bit. */
 export function hillshadeMap(fin, W, exaggeration, centerLon = 0) {
-    const H = W >> 1, { h } = rasterAt(fin.raster, W);
+    const H = W >> 1, { h } = pictureAt(fin, W);
     return { kind: 'gray8', W, H, data: rollRows(hillshade8(h, W, H, exaggeration), W, H, 1, rollShift(W, centerLon)) };
 }
 
@@ -291,9 +308,9 @@ export function produceMap(fin, W, lk, job, at = {}) {
         return climateMap(fin, W, CLIMATE_LAYER_OF[id] || id, s, lk);
     }
     const key = job.file.key, H = W >> 1;
-    if (key === 'heightmap') return { kind: 'gray16', W, H, data: heightmap16(fin.raster, W, c) };
-    if (key === 'landheightmap') return { kind: 'gray16', W, H, data: landHeightmap16(fin.raster, W, c) };
-    if (key === 'landmask') return { kind: 'gray8', W, H, data: landMask8(fin.raster, W, c) };
+    if (key === 'heightmap') return { kind: 'gray16', W, H, data: heightmap16(fin, W, c) };
+    if (key === 'landheightmap') return { kind: 'gray16', W, H, data: landHeightmap16(fin, W, c) };
+    if (key === 'landmask') return { kind: 'gray8', W, H, data: landMask8(fin, W, c) };
     if (key === 'hillshade') return hillshadeMap(fin, W, lk.exaggeration, c);
     if (key === 'koppenIndex') return { kind: 'gray8', W, H, data: koppenIndexMap(fin, W, c) };
     if (job.row.needs === 'geology' || job.row.needs === 'farming') return viewValueMap(fin, W, job.file, c);
@@ -313,7 +330,7 @@ function farmingNote() {
  * `simMesh()`: the history's plate mesh (the Geology views of its rock record); `planetFile`: the page's planet file
  * ({ status, save }: export-panel.js), offered beside the maps.
  */
-export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, simMesh = () => null, planetFile = null }) {
+export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, simMesh = () => null, planetFile = null, fine = null }) {
     const adapter = {
         page: 'evolution',
         options: { hillshade: true },
@@ -322,11 +339,19 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
         widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
         available: (row, ctx) => rowAvailable(row, ctx.fin, ctx.frame),
         titleNote: (ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`,
-        begin: async (W, opts, ctx) => ({ W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon }, fin: ctx.fin, at: { frame: ctx.frame, simMesh: simMesh() } }),
+        begin: async (W, opts, ctx, progress) => {
+            let fin = ctx.fin;
+            // (wider than the picture: drawn with the detail finer than the mesh — fine(), detail-view.js — not merely enlarged)
+            if (fine && W > fin.raster.w && fin.raster.drivers) {
+                const data = await fine(fin, ctx.seed, W, p => progress?.(0, `Adding the detail finer than the mesh… ${Math.round(100 * p)} %`));
+                fin = { ...fin, fine: { W, ...data } };
+            }
+            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon }, fin, at: { frame: ctx.frame, simMesh: simMesh() } };
+        },
         end: async () => {},
         names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
         about: (ctx, opts) => ({ page: 'Evolution', planet: `seed ${ctx.seed}, the moment at ${Math.round(ctx.frame.time)} Myr`, link: location.href,
-            sizeNote: opts.width > ctx.fin.raster.w ? `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at` : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at',
+            sizeNote: opts.width > ctx.fin.raster.w ? (ctx.fin.raster.drivers ? `drawn from the ${ctx.fin.raster.w} px the moment was detailed at, with the detail finer than its mesh added` : `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at`) : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at',
             notes: ctx.fin.raster?.farming ? [farmingNote()] : [] }),
         produce: async (rctx, job) => produceMap(rctx.fin, rctx.W, rctx.look, job, rctx.at),
     };

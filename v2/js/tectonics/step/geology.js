@@ -24,7 +24,8 @@ import { heightsOf } from './heights.js';
 import { landHeightParts } from './rivers.js';
 
 const R = 6371, DEG = 180 / Math.PI;
-const FORELAND_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.LARAMIDE, OrogenyType.URAL, OrogenyType.HIMALAYAN]);
+// (an intraplate range too: the Tarim and Junggar basins at the Tian Shan's feet)
+const FORELAND_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.LARAMIDE, OrogenyType.URAL, OrogenyType.HIMALAYAN, OrogenyType.INTRAPLATE]);
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ── the zonal palaeoclimate: what a basin or a sea at this latitude (degrees, absolute) lays down ──

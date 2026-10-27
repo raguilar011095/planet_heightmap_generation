@@ -63,9 +63,10 @@ export function beltShape(headOn, slabAgeMyr, config) {
  * @param {import('../model/plate.js').Plate} plate
  * @param {number[]} sources        raster cells at the front (each with `workKm` of convergence this step)
  * @param {{type: number, widthKm: number, workKm: number, time: number, widths?: number[], works?: number[],
- *          side?: number, shear?: number, shears?: number[], keepShear?: boolean}} belt   side: BeltSide (default NONE);
+ *          side?: number, shear?: number, shears?: number[], keepShear?: boolean, noRoot?: boolean}} belt   side: BeltSide (default NONE);
  *          shear / shears: the obliquity in degrees (+ dextral), for the whole front or per source (default 0, head-on);
  *          keepShear: leave the obliquity the cells already carry (a suture redrawing the belts its collision built)
+ *          noRoot: the belt raises its uplift and crests but does not thicken the crust (an intraplate range: step/far-field.js)
  * @param {(cell: number) => boolean} [allow]   restrict the belt to these cells (e.g. one side of a seam)
  */
 export function spreadBelt(plate, mesh, sources, belt, config, allow = null) {
@@ -138,7 +139,7 @@ export function spreadBelt(plate, mesh, sources, belt, config, allow = null) {
             if (!belt.keepShear) crust.beltShear[c] = Math.max(-90, Math.min(90, Math.round(belt.shears?.[src[c]] ?? belt.shear ?? 0)));
         }
         // the thickening: the same share everywhere, with a smooth plateau profile
-        const thickened = rimCell ? 0 : workKm * config.beltWorkShare * (1 - u[c] ** 2) * config.thickeningPerWorkKm;
+        const thickened = rimCell || belt.noRoot ? 0 : workKm * config.beltWorkShare * (1 - u[c] ** 2) * config.thickeningPerWorkKm;
         crust.thickKm[c] += thickened;
         // heights (records only): the root thickens with the crust; uplift and crests rise toward the belt's shape — the
         // whole belt at the pace of its front's convergence

@@ -215,16 +215,26 @@ section('C4 — hearths and the spread of crops');
     // no strain of it reached)
     for (let y = 0; y < F.h; y += 2) for (let x = 0; x < F.w; x += 2) if (pf.climate.koppen[y * F.w + x]) landMask[g.index(90 - (y + 0.5) / F.h * 180, (x + 0.5) / F.w * 360 - 180)] = 1;
     const nearLand = g.maxWithin(landMask, SPREAD.oceanKm), gb = spreadBase(pf.farming, pf.climate, ALL);
+    // (the window is a box of latitude and longitude: near a pole it misses land across it — there, the great-circle
+    // distance to the nearest land settles it)
+    const lands = [], unit = c => { const la = (90 - (Math.floor(c / g.w) + 0.5) * g.step) * d, lo = ((c % g.w + 0.5) * g.step - 180) * d; return [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)]; };
+    for (let c = 0; c < g.size; c++) if (landMask[c]) lands.push(unit(c));
+    const cosOcean = Math.cos(SPREAD.oceanKm / 6371), across = new Map();
+    const landNear = c => {
+        if (nearLand[c] > 0) return true;
+        if (!across.has(c)) { const [x, y, z] = unit(c); across.set(c, lands.some(p => p[0] * x + p[1] * y + p[2] * z >= cosOcean)); }
+        return across.get(c);
+    };
     let open = 0, good = 0, unreached = 0;
     for (let k = 0; k < CROPS.length; k++) for (let c = 0; c < g.size; c++) {
         const o = fineMap.owner[k][c], a = Math.cos((90 - (Math.floor(c / g.w) + 0.5) * g.step) * d);
         if (gb.land[c] > 0 && gb.fit[k][c] >= 0.3) { good += a; if (o < 0) unreached += a; }
         if (o < 0) continue;
         far[o] = Math.max(far[o], fineMap.km[k][c]);
-        if (!(nearLand[c] > 0)) open += a;
+        if (!landNear(c)) open += a;
     }
     check('…each hearth’s strains spread far (≥ 1500 km from it)', far.every(v => v >= 1500), far.map(v => `${Math.round(v)} km`).join(' · '));
-    check('…over seas but never the open ocean (nothing reached past ~1000 km from land)', open === 0, '');
+    check('…over seas but never the open ocean (nothing reached past ~1000 km from land)', open === 0, across.size ? `(${across.size} places near a pole measured across it)` : '');
     check('…leaving little good crop land unreached (≤ 10 % of where each crop grows well)', unreached <= 0.1 * good, `${(100 * unreached / Math.max(1e-9, good)).toFixed(1)} %`);
     // (each place's crops: a second where one does nearly as well — a minority; little farmland no crop reached; each crop
     // in its own climates — its niche where it is the main crop, against the staple groups' spread named the same)

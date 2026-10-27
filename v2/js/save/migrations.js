@@ -49,9 +49,10 @@ const FINISH_STEPS = {};
 /** Whether a detailed moment of this finish version can be read today (else it is left in the file). */
 export const momentReadable = v => { for (let k = v; k < FINISH_VERSION; k++) if (!FINISH_STEPS[k]) return false; return true; };
 
-/** Today's per-cell fields and their types (frameArrays: captureFrame's). */
+/** Today's per-cell fields, their types and how many values each cell has (frameArrays: captureFrame's; the far field's
+ *  axis has three). */
 let schema = null;
-const fieldTypes = () => (schema ??= Object.entries(frameArrays(1)).map(([k, v]) => [k, v.constructor.name]));
+const fieldTypes = () => (schema ??= Object.entries(frameArrays(1)).map(([k, v]) => [k, v.constructor.name, v.length]));
 
 /**
  * A frame read from a file ({meta, fields}, packed by `manifest.frameCodec`, meaning `manifest.frameVersion`), as today's
@@ -70,12 +71,14 @@ export function migrateFrame(frame, manifest, numCells) {
         }
         ({ meta, fields } = packFrame(plain).packed);
     }
-    // (zeros, packed: every cell the background — one bitmap of none, shared)
-    let none = null;
-    for (const [k, type] of fieldTypes()) {
+    // (zeros, packed: every value the background — one bitmap of none per length, shared)
+    const none = new Map();
+    for (const [k, type, per] of fieldTypes()) {
         if (fields[k]) continue;
         if (fields === frame.fields) fields = { ...fields };
-        fields[k] = { type, length: numCells, bg: 0, bits: (none ??= new Uint8Array((numCells + 7) >> 3)), values: new CTORS[type](0) };
+        const length = per * numCells;
+        if (!none.has(length)) none.set(length, new Uint8Array((length + 7) >> 3));
+        fields[k] = { type, length, bg: 0, bits: none.get(length), values: new CTORS[type](0) };
     }
     return { meta, fields };
 }

@@ -19,6 +19,7 @@ import { CM_PER_YR_TO_RAD_PER_MYR } from '../config.js';
 import { PLANET_RADIUS_KM } from '../../core/sim-mesh.js';
 import { tangentToward } from '../../core/sphere-geom.js';
 import { spreadBelt, beltWidthKm, beltShape, obliquityDeg, OrogenyType, BeltSide } from './orogeny.js';
+import { feedFarField } from './far-field.js';
 import { mergePlates } from '../ops/merge-plates.js';
 import { accreteTerrane, landmassOf } from '../ops/accrete-terrane.js';
 import { scrapeArc } from '../ops/scrape-arc.js';
@@ -148,6 +149,9 @@ export function trackCollisions(world, dt) {
             const shear = obliquityDeg([vx, vy, vz], n, c, closing);
             spreadBelt(U, mesh, uniq(upperFront), { type, widthKm: upperWidth, workKm: km, time, side: BeltSide.UPPER, shear }, config);
             spreadBelt(L, mesh, uniq(lowerFront), { type, widthKm: lowerWidth, workKm: km, time, side: BeltSide.LOWER, shear }, config);
+            // …and the push it sends through both plates, far beyond the belts (step/far-field.js; records only)
+            feedFarField(world, U, `c${key}:u`, uniq(upperFront), km, rec.frontKm, config.farCollisionShare);
+            feedFarField(world, L, `c${key}:l`, uniq(lowerFront), km, rec.frontKm, config.farCollisionShare);
         }
 
         // the lower plate's continent slides under the upper one: its land deep in the overlap is consumed, and the

@@ -28,15 +28,19 @@ export function plateOutlineWithApron(simMesh, isLand, cfg) {
     return { inPlate, rim };
 }
 
+/** The passive stretch of the rim (WBP: a few subduction zones are enough to start with), at a random azimuth (degrees). */
+export function passiveStretch(coverage, rng) {
+    return { from: rng() * 360 - 180, span: 360 * (1 - Math.max(0, Math.min(1, coverage))) };
+}
+
 /**
- * Which rim cells start as an active trench. A single passive stretch of the rim is left
- * without one (WBP: a few subduction zones are enough to start with); its position is random.
+ * Which rim cells start as an active trench: all but the passive stretch (passiveStretch, chosen before the land so the
+ * coast is drawn for it — init/landmass.js), azimuths about `centre` measured from `reference`.
  * @returns {{active: Uint8Array, passiveFrom: number, passiveTo: number}} azimuths in degrees about `centre`
  */
-export function chooseActiveRim(simMesh, rim, centre, reference, coverage, rng) {
+export function chooseActiveRim(simMesh, rim, centre, reference, { from, span }) {
     const { xyz, numCells } = simMesh;
     const toPolar = polarFrame(centre, reference);
-    const span = 360 * (1 - Math.max(0, Math.min(1, coverage))), from = rng() * 360 - 180;
     const active = new Uint8Array(numCells);
     for (const c of rim) {
         const az = toPolar(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]).azimuth;

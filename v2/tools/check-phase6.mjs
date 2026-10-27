@@ -43,8 +43,11 @@ section('the rift path');
     }
     check('rifts never cut a craton', paths >= 6 && cratonCells === 0, `${paths} rifts found from random junctions, ${cratonCells} craton cells on them`);
     // (a preference, not a rule: over a long history about half of the rift length follows old weak lines — Phase 13, developer;
-    // since the crust's grain bends rifts — "way too straight … rectangle continents" — it competes with the sutures: ≥ 15 %)
-    check('rifts follow the old sutures a good part of the way', weakCells / cells >= 0.15, `${(100 * weakCells / cells).toFixed(0)} % of rift cells lie on a suture`);
+    // since the crust's grain bends rifts — "way too straight … rectangle continents" — it competes with the sutures: ≥ 15 %.
+    // Since the start world is assembled (plans/V2_START_WORLD_PLAN.md S2) its weak seams are the major and inner ones only,
+    // 4–6 % of the land where the honeycomb of terrane borders was 7–10 %, so rifts from RANDOM junctions find fewer: 19 → 13 %;
+    // ≥ 12 %)
+    check('rifts follow the old sutures a good part of the way', weakCells / cells >= 0.12, `${(100 * weakCells / cells).toFixed(0)} % of rift cells lie on a suture`);
     check('rifts zig-zag but do not meander', tortuosity <= world.config.riftTortuosityMax + 0.05, `longest path ÷ end-to-end distance: ${tortuosity.toFixed(2)} (cap ${world.config.riftTortuosityMax})`);
 }
 

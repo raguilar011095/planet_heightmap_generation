@@ -263,7 +263,8 @@ function rocksLegendHTML(fin, sw, head, frame) {
 
 // ── the readout: the record under the pointer ──
 const BELT_KIND = { [OrogenyType.ANDEAN]: 'an Andean range', [OrogenyType.LARAMIDE]: 'a flat-slab range', [OrogenyType.URAL]: 'a collision belt', [OrogenyType.HIMALAYAN]: 'a great collision belt',
-    [OrogenyType.ARC]: 'a volcanic arc', [OrogenyType.RIFT]: 'rift shoulders', [OrogenyType.TRANSPRESSION]: 'a transform ridge' };
+    [OrogenyType.ARC]: 'a volcanic arc', [OrogenyType.RIFT]: 'rift shoulders', [OrogenyType.TRANSPRESSION]: 'a transform ridge',
+    [OrogenyType.INTRAPLATE]: 'an intraplate range' };
 const FLAG_WORDS = [[GeoFlag.WAS_ARC, 'born in an island arc'], [GeoFlag.OPHIOLITE, 'old sea floor thrust up'], [GeoFlag.FORELAND, 'a foreland basin'], [GeoFlag.RIFT_BASIN, 'a rift basin'],
     [GeoFlag.SLAB_CHANGE, 'its slab once turned']];
 /** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it), or −1 if unknown. */

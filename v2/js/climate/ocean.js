@@ -24,8 +24,10 @@
 //  • The overturning. Warm surface water also flows poleward to the seas that open onto the polar ocean, sinks there
 //    and gives up its heat (the North Atlantic Drift: a mild north-west Europe, an ice-free Norwegian Sea). It forms in
 //    a hemisphere's seas that reach the polar ocean through open water from the midlatitudes (the Atlantic through the
-//    Nordic seas; not the Pacific, closed at the Bering Strait) and not beyond a circumpolar channel (its current
-//    blocks the way, as the Antarctic Circumpolar Current does).
+//    Nordic seas; little to the Pacific, behind the narrow Bering Strait) and not beyond a circumpolar channel (its current
+//    blocks the way, as the Antarctic Circumpolar Current does). The water gives its heat up all along its way to the
+//    polar sea (the subpolar and Nordic seas, the Barents Sea), and little in the polar sea itself: there it sinks
+//    below a cold, fresh surface layer (the Arctic's halocline) that keeps its heat from the ice.
 
 import { LatLonGrid, coarsenField, refineField, refineForDrawing } from './grid.js';
 import { HelmholtzSolver } from './solver.js';
@@ -41,7 +43,12 @@ const CARRY_CALM_MS = 0.005;         // … faded where the surface current is b
 const MOC_FROM_DEG = 40;             // the overturning's heat is released poleward of this latitude …
 const MOC_FULL_DEG = 55;             // … fully from here …
 const MOC_POLAR_DEG = 75;            // … in seas connected to the polar sea (poleward of this) …
-const MOC_REACH_KM = 2500;           // … most near the polar opening (e-folding distance by sea)
+const MOC_REACH_KM = 2500;           // … all along the way there from MOC_FROM_DEG, less in seas off the way (e-folding
+                                     //   per km of detour by sea) …
+const MOC_POLAR_FADE_KM = 600;       // … and fading past MOC_POLAR_DEG into the polar sea (e-folding), where the water
+                                     //   sinks below a cold, fresh surface layer (Atlantic water under the Arctic halocline)
+const MOC_GATEWAY_KM = 300;          // … through gateways about this wide or wider (the Fram Strait ≈ 450 km, the Barents
+                                     //   opening ≈ 750); narrower straits (Bering, 85 km) pass on less of it
 
 /**
  * stage(ctx, circulation, temperature) → { psi (G, Sv), u, v (G, surface current m/s, annual), qflux (G, W/m², annual:
@@ -51,10 +58,15 @@ const MOC_REACH_KM = 2500;           // … most near the polar opening (e-foldi
  */
 /**
  * Heat of the overturning (W/m², G): per hemisphere without a circumpolar channel, the sea poleward of MOC_FROM_DEG
- * connected to the polar sea (≥ MOC_POLAR_DEG) gets the heat, weighted by e^{−(distance by sea from the polar sea)/
- * MOC_REACH_KM} and a ramp from MOC_FROM_DEG to MOC_FULL_DEG — most in the seas nearest the polar opening. (The same
- * heat is taken from all the sea evenly, with the rest of the ocean's net, below: taking it from the hemisphere's
- * tropics alone cooled them enough to move the rain belts.)
+ * connected to the polar sea (≥ MOC_POLAR_DEG) gets the heat, weighted by a ramp from MOC_FROM_DEG to MOC_FULL_DEG,
+ * by e^{−(distance by sea from where the water comes in at MOC_FROM_DEG + distance by sea from the polar sea)/
+ * MOC_REACH_KM} — the same all along the way to the polar sea, less in the seas off it — and by e^{−(km past
+ * MOC_POLAR_DEG)/MOC_POLAR_FADE_KM}: given up on the way (the subpolar and Nordic seas, the Barents Sea), little in the
+ * polar sea itself. (Weighted by the distance from the polar sea alone, more than half of it went into the polar sea
+ * north of 75°: ≈ 60 W/m² over the Arctic Ocean against an observed 2–4 under the ice (Maykut & Untersteiner 1971;
+ * Krishfield & Perovich 2005) — an Arctic open from August to November, its coasts continental where they are tundra.)
+ * (The same heat is taken from all the sea evenly, with the rest of the ocean's net, below: taking it from the
+ * hemisphere's tropics alone cooled them enough to move the rain belts.)
  */
 function overturningHeat(g, isSea, channels, pw) {
     const G = g.size, w = g.w, h = g.h, dRad = g.step * DEG;
@@ -62,29 +74,56 @@ function overturningHeat(g, isSea, channels, pw) {
     if (!(pw > 0)) return q;
     const area = (j) => R_PLANET * R_PLANET * dRad * dRad * Math.cos(g.lat[j] * DEG);
     const stepKm = g.step * 111.2;
-    for (const s of [1, -1]) {
-        // a channel between the midlatitudes and the polar sea blocks it (an open polar cap is not one)
-        if (channels.some(ch => [ch.jStart, ch.jEnd].some(jj => s * g.lat[jj] > 0 && s * g.lat[jj] < MOC_POLAR_DEG))) continue;
-        // distance by sea from the polar sea, over the sea poleward of MOC_FROM_DEG (breadth-first, ≈ km)
-        const dist = new Float64Array(G).fill(Infinity), queue = [];
-        for (let j = 0; j < h; j++) if (s * g.lat[j] >= MOC_POLAR_DEG) for (let i = 0; i < w; i++) { const c = j * w + i; if (isSea[c]) { dist[c] = 0; queue.push(c); } }
+    // distance by sea (breadth-first, ≈ km) from the cells in `queue`, over the sea cells `ok` allows; each step out of a
+    // cell × cost(cell), if given
+    const seaDistance = (queue, ok, cost = null) => {
+        const dist = new Float64Array(G).fill(Infinity);
+        for (const c of queue) dist[c] = 0;
         for (let k = 0; k < queue.length; k++) {
-            const c = queue[k], j = Math.floor(c / w), i = c % w;
+            const c = queue[k], j = Math.floor(c / w), i = c % w, f = cost ? cost(c) : 1;
             const nb = [j * w + (i + 1) % w, j * w + (i - 1 + w) % w, j > 0 ? c - w : -1, j < h - 1 ? c + w : -1];
             for (const n of nb) {
-                if (n < 0 || !isSea[n] || s * g.lat[Math.floor(n / w)] < MOC_FROM_DEG) continue;
-                const d = dist[c] + (n === c - w || n === c + w ? stepKm : stepKm * Math.cos(g.lat[j] * DEG));
+                if (n < 0 || !isSea[n] || !ok(n)) continue;
+                const d = dist[c] + f * (n === c - w || n === c + w ? stepKm : stepKm * Math.cos(g.lat[j] * DEG));
                 if (d < dist[n]) { dist[n] = d; queue.push(n); }
             }
         }
+        return dist;
+    };
+    // Going on through narrow sea counts as farther: × (MOC_GATEWAY_KM / the sea's width there)², width ≈ twice the
+    // distance from land — a strait narrower than a gateway passes the water on only in part (Bering, 85 km: the
+    // Pacific's share falls from about a fifth to a tenth), smoothly, and where every way is narrow the heat still goes
+    // the same ways as before.
+    // (A step out of a cell costs that cell's narrowness, so the sea along a coast is reached at the open sea's cost.)
+    const land = [];
+    for (let c = 0; c < G; c++) if (!isSea[c]) land.push(c);
+    const fromLand = seaDistance(land, () => true);
+    const narrow = (c) => { const x = MOC_GATEWAY_KM / (2 * Math.max(1, fromLand[c])); return x > 1 ? x * x : 1; };
+    for (const s of [1, -1]) {
+        // a channel between the midlatitudes and the polar sea blocks it (an open polar cap is not one)
+        if (channels.some(ch => [ch.jStart, ch.jEnd].some(jj => s * g.lat[jj] > 0 && s * g.lat[jj] < MOC_POLAR_DEG))) continue;
+        // the seas poleward of MOC_FROM_DEG connected to the polar sea …
+        const polar = [];
+        for (let j = 0; j < h; j++) if (s * g.lat[j] >= MOC_POLAR_DEG) for (let i = 0; i < w; i++) { const c = j * w + i; if (isSea[c]) polar.push(c); }
+        const fromPolar = seaDistance(polar, (n) => s * g.lat[Math.floor(n / w)] >= MOC_FROM_DEG, narrow);
+        // … and in them, the distance from where the warm water comes in: their first row poleward of MOC_FROM_DEG. On the
+        // way from there to the polar sea the two distances add up to the way's length; off it (a bay the current does
+        // not run through) to more.
+        const entry = [];
+        for (let j = 0; j < h; j++) {
+            const la = s * g.lat[j];
+            if (la >= MOC_FROM_DEG && la < MOC_FROM_DEG + g.step) for (let i = 0; i < w; i++) { const c = j * w + i; if (fromPolar[c] < Infinity) entry.push(c); }
+        }
+        const along = seaDistance(entry, (n) => fromPolar[n] < Infinity, narrow);
         let wsum = 0;
         const wt = new Float64Array(G);
         for (let j = 0; j < h; j++) {
             const la = s * g.lat[j];
             const ramp = Math.max(0, Math.min(1, (la - MOC_FROM_DEG) / (MOC_FULL_DEG - MOC_FROM_DEG)));
+            const into = Math.exp(-Math.max(0, la - MOC_POLAR_DEG) * 111.2 / MOC_POLAR_FADE_KM);
             for (let i = 0; i < w; i++) {
                 const c = j * w + i; if (!isSea[c]) continue;
-                if (la >= MOC_FROM_DEG && dist[c] < Infinity) { wt[c] = ramp * ramp * (3 - 2 * ramp) * Math.exp(-dist[c] / MOC_REACH_KM); wsum += wt[c] * area(j); }
+                if (la >= MOC_FROM_DEG && along[c] < Infinity) { wt[c] = ramp * ramp * (3 - 2 * ramp) * Math.exp(-(along[c] + fromPolar[c]) / MOC_REACH_KM) * into; wsum += wt[c] * area(j); }
             }
         }
         if (!(wsum > 0)) continue;

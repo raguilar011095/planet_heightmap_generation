@@ -137,6 +137,7 @@ const out = await finishPlanet({ frame: slim, simMesh, seed: SEED, cells: CELLS,
 const raster = finishRaster(out.mesh, out.z, out.ocean, W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
 const climate = { ...out.climate.page, raster: raster.climate };
 delete raster.climate;
+raster.drivers = out.drivers;                                 // (as finish-worker.js keeps them: the detail finer than the mesh's)
 const fin = structuredClone({ cells: CELLS, raster, rivers: out.rivers, climate, stats: out.stats, secs: 12.5, climateKey: '0|0' });
 fin.paths = new Map([['a cache', 1]]);                      // (a view's cache: never saved)
 console.log(`detailed moment: ${moment.time} Myr at ${CELLS} cells, ${W} px (${secs()})`);
@@ -217,13 +218,14 @@ if (!FIXTURE) {
     await write(path.join(OUT, 'check-save-old-detail.orogen'), older);
     const o = await readPlanet(older);
     check(o.detail === null && /older World Orogen/.test(o.detailNote ?? '') && o.frames.length === frames.length, `an older detailed moment is left in the file, its history opened, with a note (${o.detailNote})`);
-    // (the margins — a field the history gained in October 2026 — and the mantle's heat, gone from every frame)
-    const gone = ['margin', 'mantleHeat'];
+    // (the margins — a field the history gained in October 2026 — the mantle's heat, and the far field's axis — three
+    // values a cell — gone from every frame)
+    const gone = ['margin', 'mantleHeat', 'farDir'], per = { farDir: 3 };
     const without = frames.map(f => { const p = f._packed ? { meta: metaOf(f), fields: { ...f._packed } } : packFrame(f).packed; for (const k of gone) delete p.fields[k]; return new PackedFrame(p); });
     const lacking = (await savePlanet({ settings, history: { ...history, frames: without }, detail: { frame: without[frames.indexOf(moment)], fin } })).blob;
     await write(path.join(OUT, 'check-save-no-margin.orogen'), lacking);
     const l = await readPlanet(lacking), lf = new PackedFrame(l.frames[3]);
-    check(gone.every(k => lf[k]?.length === simMesh.numCells && lf[k].every(v => v === 0)), 'a field the file lacks reads as zeros');
+    check(gone.every(k => lf[k]?.length === (per[k] ?? 1) * simMesh.numCells && lf[k].every(v => v === 0)), "a field the file lacks reads as zeros, as long as today's (the far field's axis: three a cell)");
     check(!differ(lf.owner, frames[3].owner), '…and the fields it has are as saved');
     // (a history saved before the rock record was kept: its fields read as zeros, and it is known to lack it — so its
     // moments are detailed without rocks, not with rocks from an empty record: geology-view.js hasRecord)

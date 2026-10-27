@@ -138,7 +138,9 @@ export function simRocks(frame, simMesh, seed, G = GEOLOGY) {
             continue;
         }
         // older continental crust with no belt of its own: the start world's mobile belts about the cratons (gneiss and
-        // schist with granite) — or crust a newer history made
+        // schist with granite) — or crust a newer history made; and an intraplate range (an old suture or failed rift far
+        // inland squeezed up again by a distant front's push — step/far-field.js; the Tian Shan): that old line's rocks,
+        // raised and folded again
         meta(1, G.beltGranite);
     }
     return S;

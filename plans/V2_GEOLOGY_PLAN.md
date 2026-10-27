@@ -339,3 +339,15 @@ cover was decided over ~50 km regions with noise patches, so nothing of the fini
 - One **Geology** tab (Rocks · Resources · Fuel) for now.
 - The Resources look: **soft districts**, mindful of overlap — one metal at a time from the legend, or all with the
   scarcer metal winning ties and second metals as stripes (§6).
+
+## Fitted to main (2026-10-27)
+
+Main gained the start world (an assembled supercontinent of rifted cratons, old ranges along its seams), the far field
+(a front's push felt far inland: old sutures and failed rifts squeezed up as **intraplate ranges**, the Tian Shan) and
+the fine detail zoom. The record and rocks run unchanged on them (a history is still the same with the record or
+without); intraplate ranges are named in the readout, keep the old line's rocks (raised and folded again) and lay a
+foreland at their feet (the Tarim, the Junggar). The Geology views get the fine detail's tiles and wider exports, as
+the Climate views. On the rebuilt start world, more of the belts quiet for 150 Myr are rift shoulders (an escarpment
+retreating, hardly unroofed): `check-geology.mjs` pools its two belt checks over three histories and counts mountain
+belts only for the unroofing (seeds 12345, 777, 2024: foot of the active belts ×1.85 against elsewhere, mountain belts
+quiet 150 Myr unroofed 2.0 km; before the start world, ×1.79 and 3.5 km).

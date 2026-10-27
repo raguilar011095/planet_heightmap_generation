@@ -106,7 +106,8 @@ export const TERRAIN = {
     cratonKm: 0.28,             // shields: low, flat, stable
     // ── Cratons against the ranges, and their look (Phase 10; terrain/cratons.js — the research is in the roadmap) ──
     cratonBlendKm: 60,          // a shield's platform blends into its neighbours over ± this across its edge line…
-    cratonEdgeNoiseKm: 70,      // …the line moved in and out by up to about this (the shield's own bays and promontories)
+    cratonEdgeNoiseKm: 45,      // …the line moved in and out by up to about this (the shield's own bays and promontories —
+                                // small: the history's craton is already a fragment with its own edges, plans/V2_START_WORLD_PLAN.md)
     cratonScrapKm: 110,         // a craton patch whose deepest point is less than about this from its edge is a scrap: it reads
                                 // as what surrounds it (no flat, stair-edged hole in a range)
     cratonRimInKm: 10,          // a range pressed against a shield fades across its rim, from this far in…
@@ -122,7 +123,7 @@ export const TERRAIN = {
     forebulgeGain: 3,           // the forebulge, this many times the thin elastic plate's (tens of metres)
     forelandByKind: {           // how much a front of each kind loads the shield beside it (0: none)
         [OrogenyType.ANDEAN]: 1, [OrogenyType.HIMALAYAN]: 1, [OrogenyType.URAL]: 1, [OrogenyType.LARAMIDE]: 0.6,
-        [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.ARC]: 0.3, [OrogenyType.RIFT]: 0,
+        [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.ARC]: 0.3, [OrogenyType.RIFT]: 0, [OrogenyType.INTRAPLATE]: 0.6,
     },
     forelandUpperPlate: 0.15,   // …× this where a collision's UPPER plate — its plateau's back — meets the block: a steep front
                                 // with little foreland (the Longmen Shan against the Sichuan Basin)
@@ -133,7 +134,31 @@ export const TERRAIN = {
     cratonFlatKm: 0.08,         // …a flat shield only undulates by this
     cratonShapeKm: 900,         // (the scale of the noise that makes a swell or a sag irregular)
     cratonGrainKm: 0.06,        // a grain of domes and keels (granite domes between greenstone belts), this high…
-    cratonGrainScaleKm: 90,     // …its domes about this far apart (faded where the mesh cannot show them)
+    cratonGrainScaleKm: 90,     // …its domes about this far apart (faded where the mesh cannot show them)…
+    cratonGrainStretch: 4,      // …drawn out along the craton's length this many times (greenstone belts; plans/V2_START_WORLD_PLAN.md S4)
+    // ── The far field in the terrain (tectonics/step/far-field.js; plans/V2_FAR_FIELD_PLAN.md F3–F4) ──
+    // Read across the fronts that pushed the crust: records.js farPhase, how far the push came, its level lines along the
+    // fronts (an average over the pushes, so it holds still while a front keeps pushing: the folds and the grain ride with
+    // the crust from frame to frame).
+    // The lithosphere's folds: broad, low swells and basins across a recent push, their crests along the front
+    // (Central Asia, the Central Indian Ocean: Burov et al. 1993, Cloetingh & Burov 2011). Subtle (developer).
+    farFoldKm: 0.12,            // up to this high (± about the platform)…
+    farFoldWavelengthKm: 320,   // …this far apart across the push (lithospheric folds: 200–600 km; over a craton further, as
+                                // the push crosses it with little loss — the phase changes slowly there: a stiff plate's)…
+    farFoldStretch: 4,          // …drawn out along the front this many times…
+    farFoldWander: 0.4,         // …the bands wandering by up to this many wavelengths' phase…
+    farFoldWanderKm: 700,       // …over features this big (not rings round a short front like ripples round a stone)…
+    farFoldWorkKm: 150,         // …brought up by the push taken up lately: 1 − e^(−push ÷ this)
+    // The grain a push leaves: what noise draws on the platform (its basins and arches) and the start world's swells is
+    // drawn out along the fronts that pushed it — combed, not blotchy (the Appalachian Valley and Ridge at continent scale)
+    farGrainStretch: 4,         // up to this many times longer along the front than across it…
+    farGrainOctaves: 2,         // …over this many of the platform noise's 4 octaves, broadest first; the finer stay as they
+                                // were (drawn out too, they shift the small rivers from frame to frame — Phase 9: 4 failed
+                                // its 290→300 Myr rivers check — for a grain hardly stronger)…
+    farGrainWorkKm: 200,        // …as strongly as 1 − e^(−push taken up in all ÷ this): the drawn-out noise fades in as it
+                                // grows (a stronger push changes how much of it there is, never where it lies)…
+    farCratonTakeTerrain: 0.15, // …what a craton takes up of the push reaching it (tectonics config farCratonTake)…
+    farWeakTakeTerrain: 1.6,    // …and a weak line (farWeakTake)
     platformNoiseKm: 0.16,      // broad basins and arches (the Michigan basin, the Ozark dome), 400–2000 km across
     // The first continents are not flat (developer, 8b round 5: "start the baseline with some large noise … that can erode
     // over time and direct rivers more consistently"): broad swells and the lowlands between them, a record of the crust
@@ -143,6 +168,13 @@ export const TERRAIN = {
     baseReliefScaleKm: 2500,    // …the largest this many km across (then halves and quarters of it)…
     baseReliefTauMyr: 200,      // …and wear away over this e-folding time (at erosionHeight.refKm, like the uplift)
     baseReliefCraton: 0.5,      // a shield rises this share as high (cold, thick and stiff: the flattest ground there is)
+    // …placed, in a generated start world, by its assembly (plans/V2_START_WORLD_PLAN.md S4; step/heights.js seedBaseRelief):
+    baseSeamShare: 0.75,        // uplands along the major seams, this share of the full height…
+    baseSeamKm: 900,            // …fading over this distance from them (a highland round the old range)…
+    baseRingShare: 0.35,        // …and along the young accreted belts, this share…
+    baseRingKm: 500,            // …over this…
+    baseFloor: 0.1,             // …the ground away from them this much lower (the lowlands and interior basins)…
+    baseNoiseShare: 1.15,       // …all broken up by the swell noise at this share of its strength alone
     // Airy isostasy: thickened crust floats higher, with diminishing returns (a 35 km thicker crust stands ~5 km: Tibet)
     isoMaxKm: 6,
     isoScaleKm: 30,             // (≈ 0.17 km of height per km of extra crust at first; 35 km → 4.2 km, before the belt's relief)
@@ -180,7 +212,33 @@ export const TERRAIN = {
     lipRiser: 0.35,             // …a cliff taking this share of each step, the rest a flat tread…
     lipStairShare: 0.35,        // …and the stair only this strong: a hint of benches on the slopes, not cliffed treads
     lipCliff: 2,                // canyon walls in basalt stand this many times steeper (a hard cap: cliffs, not slopes)…
-    lipHardness: 0.3,           // …and its rivers cut this much slower (k × 1 − this)
+    lipHardness: 0.75,          // …and its rivers cut this much slower (k × 1 − this; 0.3 until 2026-10-27: every stream cut
+                                // it into hills — a hard cap lets only the big rivers cut canyons, the tops between stay flat)
+    // How a flood basalt lies on the land (developer, 2026-10-27: LIPs "dont have the same profiles of real LIPs" — the
+    // Deccan, Siberia, Ethiopia): its lavas level the land — a flat surface over the broad ground, ponded in the lows,
+    // older hills standing through — thinning out over lipFeatherKm inside its edge (the line wandering by lipEdgeNoiseKm,
+    // in lobes lipEdgeNoiseScaleKm across) instead of standing there as a wall; no hills or crags on it. 0: as before (a slab)
+    lipFeatherKm: 250,
+    lipEdgeNoiseKm: 40,
+    lipEdgeNoiseScaleKm: 140,
+    // its escarpment retreats where its edge stands above the ground beyond — from the first km (none) to the second (all;
+    // the sea too): a rifted coast's Western Ghats, not every edge…
+    lipEscarpDropKm: [0.2, 0.7],
+    // …a river cuts down through the whole pile from the first drainage (km², none) to the second (all), its side valleys
+    // leaving the divides' flat tops standing (Putorana); a cap left smaller than lipMesaMinKm2 goes (no one-cell pinnacles)
+    lipValleyCutAreaKm2: [3000, 40000],
+    lipMesaMinKm2: 2500,
+    // …and young lava has hardly been cut: its erodibility rises from lipYoungFloor of it to all over lipYoungMyr of wear (a
+    // fresh province — the Columbia River's — a plain cut only by its big rivers' canyons; older, dissected all over)
+    lipYoungMyr: 40,
+    lipYoungFloor: 0.15,
+    lipFoldedMyr: 20,           // lavas a belt was still at work on this long after they erupted ride on its relief (folded and lifted), not levelling it
+    // the plume under a young province: a dome lipSwellKm high, falling off over lipSwellReach × the province's radius,
+    // subsiding over lipSwellTauMyr (Ethiopia's plateau stands 2–3 km); and shield volcanoes on its lavas near the centre
+    // (Simien, Choke, Guna) up to lipShieldKm high and ~lipShieldRadiusKm across, on provinces from lipShieldMinRadiusKm
+    // across (radius), worn down over lipShieldTauMyr
+    lipSwellKm: 1, lipSwellReach: 1.2, lipSwellTauMyr: 60,
+    lipShieldKm: 1.6, lipShieldRadiusKm: 70, lipShieldMinRadiusKm: 450, lipShieldTauMyr: 80,
     dykeKm: 0.15,               // the radiating dyke swarm: a grain ± this high…
     dykeAcrossKm: 90,           // …its highs this far apart where they leave the province (fanning out beyond)…
     dykeAlongKm: 500,           // …each running about this far along its ray…
@@ -189,6 +247,20 @@ export const TERRAIN = {
     dykeWanderKm: 22,           // …wavering sideways by about this much as it runs (developer: "too straight and perfect")…
     dykeInKm: 150,              // …coming out from under the lava this far inside its edge…
     dykeOutKm: 120,             // …and reaching full strength this far outside it (developer: "no transition")
+    // The land's floor (developer, 2026-10-27: a push down "making the land floor at 0 … we cant have it just be that, it
+    // needs noise on top of it … or we can maybe soft floor"): where a push down would take land under the sea — a valley
+    // between crests, a failed arm's sag, a fold's trough, the massif's lows, a dyke's — it eases into a floor instead of
+    // stopping dead on it (a flat sheet at 20–30 m): unchanged until within landFloorSoftKm of it, then e-folding toward it.
+    // And the floor is low, rough country, not a sheet: it rolls above landFloorKm by up to landFloorRollKm, plus up to
+    // landFloorDeepKm more where the push would have gone landFloorDeepAtKm or more under the sea — in features from
+    // landFloorScaleKm across down to what the mesh can show, each octave landFloorRoughness of the one before
+    landFloorKm: 0.02,
+    landFloorRollKm: 0.1,
+    landFloorDeepKm: 0.22,
+    landFloorDeepAtKm: 0.3,
+    landFloorScaleKm: 240,
+    landFloorRoughness: 0.6,
+    landFloorSoftKm: 0.1,
     failedArmKm: 0.4,           // a failed rift arm (aulacogen) is a sagged, sediment-filled corridor this much lower…
     failedArmHalfKm: 45,        // …about twice this wide — low land, not sea (the Benue trough, the Reelfoot rift)
 
@@ -223,11 +295,11 @@ export const TERRAIN = {
     // ── Mountain belts: relief on top of the isostatic platform (profiles.js lays out the cross-sections) ──
     reliefKm: {                 // crest height of each kind of belt when mature and active
         [OrogenyType.ANDEAN]: 3.4, [OrogenyType.LARAMIDE]: 1.5, [OrogenyType.URAL]: 1.7, [OrogenyType.HIMALAYAN]: 3.2,
-        [OrogenyType.ARC]: 0.8, [OrogenyType.RIFT]: 1.4, [OrogenyType.TRANSPRESSION]: 1.9,
+        [OrogenyType.ARC]: 0.8, [OrogenyType.RIFT]: 1.4, [OrogenyType.TRANSPRESSION]: 1.9, [OrogenyType.INTRAPLATE]: 3.0,
     },
     fullReachKm: {              // a belt this wide counts as mature (a young one is narrower and lower)
         [OrogenyType.ANDEAN]: 450, [OrogenyType.LARAMIDE]: 900, [OrogenyType.URAL]: 250, [OrogenyType.HIMALAYAN]: 900,
-        [OrogenyType.ARC]: 200, [OrogenyType.RIFT]: 220, [OrogenyType.TRANSPRESSION]: 80,
+        [OrogenyType.ARC]: 200, [OrogenyType.RIFT]: 220, [OrogenyType.TRANSPRESSION]: 80, [OrogenyType.INTRAPLATE]: 300,
     },
     youngShare: 0.55,           // a belt just begun stands at this share of a mature one's relief (a young arc like the Cascades: 3–4 km with its volcanoes)
     // ── Heights evolving through the history (tectonics/step/heights.js) ── every rate below is × the erosion factor of
@@ -236,7 +308,7 @@ export const TERRAIN = {
                                 // many km its front absorbs (Andean fronts count 12 % of the slab — andeanWorkShare — so
                                 // theirs is shorter; rifts and accretions build theirs at once)
         [OrogenyType.ANDEAN]: 20, [OrogenyType.LARAMIDE]: 20, [OrogenyType.URAL]: 30, [OrogenyType.HIMALAYAN]: 50,
-        [OrogenyType.ARC]: 20, [OrogenyType.RIFT]: 1, [OrogenyType.TRANSPRESSION]: 30,
+        [OrogenyType.ARC]: 20, [OrogenyType.RIFT]: 1, [OrogenyType.TRANSPRESSION]: 30, [OrogenyType.INTRAPLATE]: 15,
     },
     // (developer, round 4: erosion here a little slower overall — 8b's rivers cut down more, and the two should balance;
     // then, after Phase 13, "a ton of the land is above 400m": over 600–1200 Myr only 18–26 % of land was below 400 m
@@ -300,11 +372,27 @@ export const TERRAIN = {
     massifShare: 0.04,          // ± this share of the crest height on a belt as built (0.16 until 2026-09-29: "GREATLY turn down
                                 // the fractal" — developer)…
     massifWornShare: 0.1,       // …plus this share × how much its crests have spread (1 − their height kept)
+    // Old ranges keep their grain (developer, 2026-10-27: "old old mountain ranges really lose their definition and start
+    // looking like noise … i want the non-current orogenies to look like they have structure"): as a range wears down, its
+    // hard layers stand out and its soft ones wear into the valleys between — differential erosion (the Appalachians'
+    // Valley and Ridge, the Cape Fold Belt, the Flinders Ranges: 250–500 Myr old and still combed). As a belt falls quiet —
+    // by 1 − e^(−quiet / oldGrainMyr) — its massif and the hills on it are drawn out along its strike (the massif into the
+    // ridge noise; the hills oldHillsStretch times longer along it), its parallel ridges stand stronger, and its rock is
+    // banded with them: the ridges hard, the troughs between soft, so its rivers settle into the strike valleys and cross
+    // the ridges in gaps (trellis drainage). Broad, not lines: the bands are the ridges' own wavelength
+    oldGrainMyr: 80,
+    oldComb: 0.8,               // the share of the massif and of the hills drawn out along the strike, once old
+    oldHillsStretch: 4,
+    oldRidgeGain: 1,            // the parallel ridges this much stronger, once old…
+    oldEven: 0.7,               // …and this much more even along the strike: their segments' fading, their crests' rise and fall
+                                // and the crests' roughening × 1 − this (old ranges' even-crested ridges, the Appalachians'),
+                                // so their troughs run on and catch the rivers — broken only where ridgeBreak breaks them
+    oldGrainHardness: 0.6,      // erodibility × 1 ∓ this on the ridges and in the troughs (×0.4 … ×1.6, the same on the whole), once old
 
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
     stripeKm: {                 // wavelength of the main set of parallel ridges, per kind of belt
         [OrogenyType.ANDEAN]: 75, [OrogenyType.LARAMIDE]: 190, [OrogenyType.URAL]: 70, [OrogenyType.HIMALAYAN]: 95,
-        [OrogenyType.ARC]: 60, [OrogenyType.RIFT]: 90, [OrogenyType.TRANSPRESSION]: 55,
+        [OrogenyType.ARC]: 60, [OrogenyType.RIFT]: 90, [OrogenyType.TRANSPRESSION]: 55, [OrogenyType.INTRAPLATE]: 80,
     },
     // Their height is GUIDANCE layered on the belt's own uplift (developer: "guides, layered on top of other
     // increases"): a share of the local relief, plus a little on a young belt's low ground; 8b carves the rest
@@ -343,7 +431,23 @@ export const TERRAIN = {
     ridgeNoiseAcross: 0.8,      // its features are this share of the belt kind's ridge wavelength (stripeKm) across the strike…
     ridgeNoiseStretch: 8,       // …and this many times as long along it
     ridgeNoiseOctaves: 3,       // (then halves and quarters of that, where the mesh can show them)
-    minWavesPerCell: 2.0,       // a wavelength shorter than this many terrain cells is faded out (it would only alias)
+    // Broken ridgelines (developer, 2026-10-27: "the perfectly intact ridgelines we have may be unrealistic and they should
+    // be broken a little (less so in the front …)" — the main range by the plate edge the most whole, though it can break;
+    // the Andes least broken, "very close to what we have today", then Laramide, Ural, Himalayan). In patches of a noise
+    // about a ridge wavelength across (stripeKm: so they show wherever the ridges do), read in the crust's frame so they
+    // ride with the range, the parallel ridges and the ridge noise drop toward their valley floors and the crests dip:
+    // each ridge runs on in pieces, with saddles and gaps between. And the rock there gives, so a river crossing the
+    // range — the gaps are the lowest way across — deepens its gap into a water gap (the Susquehanna's, the Arun's).
+    ridgeBreak: {               // how broken, by kind of belt (0: whole, as before)
+        [OrogenyType.ANDEAN]: 0.15, [OrogenyType.LARAMIDE]: 0.45, [OrogenyType.URAL]: 0.7, [OrogenyType.HIMALAYAN]: 1,
+        [OrogenyType.ARC]: 0.15, [OrogenyType.RIFT]: 0.5, [OrogenyType.TRANSPRESSION]: 0.5, [OrogenyType.INTRAPLATE]: 0.6,
+    },
+    ridgeBreakFront: 0.35,      // along the main range by the plate edge only this share of it, the full share 0.3 × the belt's width behind it
+    ridgeBreakSize: 1,          // the breaks' noise: features about this many ridge wavelengths across…
+    ridgeBreakPatch: [-0.25, 0.1],   // …a break where it rises from the first to the second (2 octaves, spread ~0.3: over half the ridge broken some)
+    ridgeBreakCrest: 0.5,       // the crests themselves dip by this share of what the ridges do (passes, not gaps)
+    ridgeBreakSoft: 0,          // the rock in a break erodes (1 + this) times as fast (1.5 cut new valley networks into the plateaus)
+    minWavesPerCell: 2.0,      // a wavelength shorter than this many terrain cells is faded out (it would only alias)
     fullWavesPerCell: 3.2,
 
     // ── Volcanoes ── (developer: fewer, thicker, and spreading out as they erode — not a pox of little cones)

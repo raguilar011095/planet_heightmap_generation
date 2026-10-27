@@ -213,6 +213,22 @@ them over per pixel; the page combines them with the techniques chosen, at once.
   - **Planet files**: the rocks and the farming saved with the moment (generic, as the save plan meant); the re-roll in
     the settings (`crops`); a history saved before the rock record is detailed without rocks, not from zeros. check-save
     draws the rocks' and farming's maps from a planet read back.
+- **Fitted to main again** (2026-10-27): developer, after main gained the start world (an assembled supercontinent), the
+  far field (intraplate ranges), coasts as arc chains, the fine detail zoom, flood basalts re-imagined, a faster Add
+  detail, the polar climate fix and past versions online: "look at all the changes and make sure everything is up to
+  date and matches up". Merged main into `farming`, then:
+  - **Fine detail zoom**: the Geology and Farming views get main's tiles too (evolution-main.js `patchLayer`,
+    `paintTile`): zoomed in past the picture, their colours over the detail's relief and coasts, as the Climate views;
+    Farmland's and Cradles' rivers crisp on them; a farming choice repaints them (its options in the tiles' look).
+  - **Exports wider than the picture**: the Geology and Farming maps drawn on the detail too (export.js `paintAt`,
+    `pictureAt`), as main's other maps.
+  - **Intraplate ranges** (main's new belt kind): named in the Geology readout; their rocks the old line's, raised and
+    folded again (rocks.js, as before by default — now said); a foreland at their feet (step/geology.js).
+  - **Checks**: check-farming's open-ocean check measured land near a pole through a box of latitude and longitude, so
+    a crop's way round the pole (the spread's own distance, right there) read as open ocean once main's world had land at
+    ~82° N — now settled by the great-circle distance; check-geology's two belt checks pooled over three histories (the
+    rebuilt start world left seed 12345 34 cells at the foot of its active belts) and the unroofing one counts mountain
+    belts only (a rift's shoulders — now most of the old belts — retreat as an escarpment). 62/62, 20/20, check-save.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

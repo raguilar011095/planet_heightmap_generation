@@ -17,7 +17,8 @@ import { terrainConfig } from '../../terrain/terrain-config.js';
 import { kindType, deriveRecords } from '../../terrain/records.js';
 import { locate } from '../../core/mesh-locate.js';
 import { hillshade, paintRelief, tintOf } from '../../view/terrain-shade.js';
-import { colorByCrustType, colorByOrogeny, colorByMantleHeat, OROGENY_RGB, css } from '../../view/palettes.js';
+import { colorByCrustType, colorByOrogeny, colorByMantleHeat, colorByFarField, OROGENY_RGB, css } from '../../view/palettes.js';
+import { quatToMat3 } from '../../core/rotation.js';
 import { EventKind } from '../../tectonics/model/world.js';
 import { TECTONICS } from '../../tectonics/config.js';
 import { flowOfCycle } from '../../tectonics/step/supercontinent.js';
@@ -82,6 +83,11 @@ const CHECKLISTS = {
         'The two shields differ (a sag basin, a swell or a flat shield, with a faint grain of domes and keels); the “Cratons” slider sets how strongly — at 0 both are flat.',
     ],
     rift: ['The new coasts are lifted into shoulders — an escarpment facing the young ocean, sloping gently inland. The arm that failed is a low corridor into the continent. The young ocean has a ridge along its middle.'],
+    farfield: [
+        'Far field layer: the push is strongest along India’s front and fades inland; it passes through the Tarim-like shield with little taken up (the shield stays flat and low) and is felt beyond it, ~1500 km and more from the front. The ticks show the axis each place was squeezed along: roughly square to the front.',
+        'The old suture square across the push rises as a range far inland, beyond the shield (the Tian Shan): narrower and lower than the main range, with no volcanoes and no plateau behind it. The suture running along the push barely stirs; the failed rift striking north-east is squeezed into a low ridge (an inverted aulacogen).',
+        'Hillshade: across the continent behind the front, broad, low swells and basins run parallel to the front (long-wavelength folds, a few hundred metres at most, a few hundred km apart), and the fine grain of the plains is stretched along them — the continent reads as squeezed from one side, not as even noise. Neither drowns any land.',
+    ],
     history: [
         'Young belts stand high and sharp; old belts are low but keep their grain of parallel ridges; cratons are calm and low; about half the land is lowland.',
         'Cratons against the ranges (Phase 10; the Crust type layer shows where the cratons are): a range pressed against a craton follows the craton’s large shape but never its sim cells’ staircase; its foothills ride a little way onto the shield, then a lowland — slightly below the shield beyond — runs along the front; where a plateau’s back meets a craton the front stays steep.',
@@ -425,6 +431,29 @@ export function terrainPhase(spec) {
             },
         },
         ...(spec.extraLayers?.({ terrainOf, tMesh, view }) ?? []),
+        {
+            // the far field (step/far-field.js): how much push distant fronts sent through each place, and the axis it was
+            // squeezed along — a tick across it at every other land cell that felt any (the plate's frame turned to the world's)
+            label: 'Far field', paint: simLayer(colorByFarField),
+            overlay(g, raster, frame) {
+                if (!frame.farDir) return;
+                const { xyz } = simMesh, L = 45 / 6371, m = new Float64Array(9);
+                g.save(); g.lineWidth = 1.2; g.strokeStyle = 'rgba(255,255,255,0.85)';
+                for (let w = 0; w < simMesh.numCells; w += 2) {
+                    const o = frame.owner[w];
+                    if (o < 0 || frame.type[w] === CrustType.OCEAN || !(frame.farWork[w] > 20)) continue;
+                    const dx = frame.farDir[3 * w] / 127, dy = frame.farDir[3 * w + 1] / 127, dz = frame.farDir[3 * w + 2] / 127;
+                    if (!(dx || dy || dz)) continue;
+                    quatToMat3(frame.plates[o].quat, m);
+                    const ax = m[0] * dx + m[1] * dy + m[2] * dz, ay = m[3] * dx + m[4] * dy + m[5] * dz, az = m[6] * dx + m[7] * dy + m[8] * dz;
+                    const x = xyz[3 * w], y = xyz[3 * w + 1], z = xyz[3 * w + 2];
+                    const [x0, y0] = raster.project(x - L * ax, y - L * ay, z - L * az), [x1, y1] = raster.project(x + L * ax, y + L * ay, z + L * az);
+                    if (Math.abs(x1 - x0) > raster.width / 2) continue;
+                    g.beginPath(); g.moveTo(x0, y0); g.lineTo(x1, y1); g.stroke();
+                }
+                g.restore();
+            },
+        },
         { label: 'Crust type', paint: simLayer(colorByCrustType) },
         ...(cycle ? [{ label: 'Mantle', paint: simLayer(colorByMantleHeat), overlay: drawMantleFlow }] : []),
         {

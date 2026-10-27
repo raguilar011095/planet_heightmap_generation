@@ -7,6 +7,7 @@ import { BoundaryKind, Provisional } from './model/world.js';
 import { speedCmYrAt } from './step/kinematics.js';
 import { classifyMargins } from './measure.js';
 import { encodeCoverKm, encodeAge, encodeFacies, encodeExhumKm, encodeUnroofKm, encodeFloodMyr, encodeFloodAge, encodeArcMyr } from './model/geology.js';
+import { recentPush } from './step/far-field.js';
 
 const LIVE_TRENCH_HOPS = 2;   // a flagged cell this close to an overriding edge counts as part of the live trench:
                               // the visible edge of a rotated raster jitters by about a cell from step to step
@@ -84,6 +85,10 @@ export function frameArrays(n) {
         // the geological record (step/geology.js), a byte or two per cell, land only (model/geology.js: the encodings)
         geoFlags: new Uint8Array(n), coverKm: new Uint8Array(n), coverMaxKm: new Uint8Array(n), coverMaxAge: new Uint8Array(n), facies: new Uint16Array(n),
         exhumKm: new Uint8Array(n), unroofKm: new Int8Array(n), floodMyr: new Uint8Array(n), floodAge: new Uint8Array(n), arcMyr: new Uint8Array(n),
+        // the far field (step/far-field.js): the push felt in all (the grain), how far it came (km of path cost, to the
+        // km: what the terrain reads the folds and the grain across), the push felt lately as of the frame's time (the
+        // folds), and its axis — 3 per cell, × 127, in the plate's frame (as the terrain reads its points)
+        farWork: new Float32Array(n), farDist: new Uint16Array(n), farFold: new Float32Array(n), farDir: new Int8Array(3 * n),
     };
 }
 
@@ -116,6 +121,7 @@ export function captureFrame(world, reuse = null) {
         f.riverKm2[w] = world.riverKm2 ? world.riverKm2[w] : 0;
         f.fzU[w] = 0;
         f.geoFlags[w] = 0; f.coverKm[w] = 0; f.coverMaxKm[w] = 0; f.coverMaxAge[w] = 0; f.facies[w] = 0; f.exhumKm[w] = 0; f.unroofKm[w] = 0; f.floodMyr[w] = 0; f.floodAge[w] = 0; f.arcMyr[w] = 0;
+        f.farWork[w] = 0; f.farDist[w] = 0; f.farFold[w] = 0; f.farDir[3 * w] = 0; f.farDir[3 * w + 1] = 0; f.farDir[3 * w + 2] = 0;
         if (owner[w] < 0) { f.type[w] = 0; f.formedAt[w] = 0; f.flags[w] = 0; f.terrane[w] = 0; f.slabKm[w] = 0; f.oroType[w] = 0; f.oroWork[w] = 0; f.oroStart[w] = 0; f.oroLast[w] = 0; f.thickKm[w] = 0; continue; }
         const crust = plates[owner[w]].crust, c = ownerCell[w];
         if (provisional[w] === Provisional.NEWBORN) {          // the ridge axis: crust forming right now
@@ -134,6 +140,8 @@ export function captureFrame(world, reuse = null) {
         f.prevSide[w] = crust.prevSide[c]; f.prevShear[w] = crust.prevShear[c];
         f.rootKm[w] = crust.rootKm[c]; f.upliftKm[w] = crust.upliftKm[c]; f.rugged[w] = crust.rugged[c]; f.prevRugged[w] = crust.prevRugged[c]; f.volcWornKm[w] = crust.volcWornKm[c];
         f.riverIncKm[w] = crust.riverIncKm[c]; f.baseKm[w] = crust.baseKm[c];
+        f.farWork[w] = crust.farWork[c]; f.farDist[w] = Math.min(65535, Math.round(crust.farDist[c])); f.farFold[w] = recentPush(crust.farFold[c], crust.farAt[c], world.time, world.config.farFoldMyr);
+        f.farDir[3 * w] = crust.farDx[c]; f.farDir[3 * w + 1] = crust.farDy[c]; f.farDir[3 * w + 2] = crust.farDz[c];
         f.volcType[w] = crust.volcType[c]; f.volcAt[w] = crust.volcAt[c]; f.volcKm[w] = crust.volcKm[c]; f.volcSource[w] = crust.volcSource[c];
         if (crust.type[c] !== CrustType.OCEAN) {
             const t = world.time;

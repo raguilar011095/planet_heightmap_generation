@@ -23,7 +23,8 @@ import { ENDINGS } from '../tectonics/ending.js';
 import { TerrainPlayer } from './terrain-player.js';
 import { paintPalette, heightLutOf, PALETTES, CRUST_WORDS, settingOf } from './looks.js';
 import { ClimateService, CLIMATE_LAYERS, SEASONAL_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paintUnavailable, drawArrows, drawItcz, drawLegend, readoutLines, finishedClimateColor, finishedClimateLines } from './climate-view.js';
-import { FinishService, paintFinished, riverPaths, drawRivers, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from './finish-view.js';
+import { FinishService, paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from './finish-view.js';
+import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, hasRecord } from './geology-view.js';
 import { GEO_FRAME_FIELDS } from '../tectonics/model/geology.js';
 import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmPickChanged, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
@@ -210,6 +211,16 @@ let flat = null;
 const flatShade = n => (flat?.length === n ? flat : (flat = new Float32Array(n).fill(1)));
 const climate = new ClimateService();   // the climate, on request, for the moment shown (climate-view.js)
 const finisher = new FinishService();   // the Finish step, on request, for the moment shown (finish-view.js)
+// (the detail finer than the mesh: drawn in tiles where the view is zoomed in past a detailed moment's own pixels —
+// detail-view.js; plans/V2_FINE_DETAIL_PLAN.md — and for exports enlarged past them; a phone keeps fewer, coarser)
+const detail = new DetailService(IS_TOUCH ? 2 : Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) >> 1)));
+// (a layer of tiles on the GPU at most this many across or down: its texture within the GPU's largest, and 8192 px)
+const PATCH_SPAN = Math.floor(Math.min(8192, globe.renderer.capabilities.maxTextureSize) / SLOT);
+const tiles = new DetailTiles(detail, { ...(IS_TOUCH ? { keep: 64, most: 48, maxLevel: 8 } : { keep: 200, most: 150, maxLevel: 9 }), maxSpan: PATCH_SPAN });   // (~0.9 MB a tile)
+const layers = new TileLayers(globe, PATCH_SPAN);
+const PATCH_EVERY_MS = 50;      // (a moving view asks for its tiles this often)
+const PATCH_BUDGET_MS = IS_TOUCH ? 4 : 6;   // (a frame paints and lays tiles for about this long: the rest come in the frames after)
+let patchLook = 0, patchLookKey = '', patchClimate = null, viewSig = '', wantedAt = 0;
 // (one detailed moment per history — its pictures, rivers and climate: ~50 MB on a phone, ~190 MB at 2.5M on a desktop,
 // ~320 MB at 10M; the one before is kept until the next is done, so a cancel loses nothing: at most two at once)
 /** The bytes of the typed arrays in a finished moment (each buffer once). */
@@ -753,6 +764,90 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     stats(T, frame);
 }
 
+// ── the detail finer than the mesh (detail-view.js): where the view, paused on a detailed moment, is zoomed in past its
+// picture's own pixels, the tiles in view are drawn at about the screen's resolution — as it moves, nearest its middle
+// first — and laid over the planet as they come, each sent to the GPU once (TileLayers) ──
+/** The layers a patch is painted for: the heights', the climate's, the geology's and the farming's — not those whose
+ *  arrows or lines are on the picture (the farming's pins are over the planet, not on it). */
+const patchLayer = layer => layer === 'terrain' || layer === 'heightmap' || (CLIMATE_LAYERS.has(layer) && !ARROW_LAYERS[layer] && layer !== 'pressure')
+    || GEOLOGY_LAYERS.has(layer) || FARMING_LAYERS.has(layer);
+/** The view's places: a 9 × 9 grid over the globe's canvas or the map's frame, as [lon, lat] (null off the planet), and
+ *  its height in device pixels. */
+function viewPlaces() {
+    const map = view.mode === 'map', el = map ? ui.map : ui.canvas, r = el.getBoundingClientRect(), places = [];
+    for (let j = 0; j <= 8; j++) for (let i = 0; i <= 8; i++) {
+        const x = r.left + r.width * i / 8, y = r.top + r.height * j / 8;
+        let p = null;
+        if (map) p = globe.mapUvAt(x, y); else { const uv = globe.uvAt(x, y, r); p = uv ? [uv.x, 1 - uv.y] : null; }
+        places.push(p ? [p[0] * 360 - 180, 90 - p[1] * 180] : null);
+    }
+    return { places, px: r.height * Math.min(devicePixelRatio || 1, 1.5) };
+}
+/** What the patch's tiles are painted for: a number that changes when the layer, its colours or what is drawn over it do. */
+function patchLookOf(fin) {
+    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${FARMING_LAYERS.has(view.layer) ? `|${farmOptionsKey()}` : ''}`;
+    if (key !== patchLookKey || fin.climate !== patchClimate) { patchLookKey = key; patchClimate = fin.climate; patchLook++; }
+    return patchLook;
+}
+/** Each tick: the tiles the view wants — asked for as it moves, every PATCH_EVERY_MS — and those drawn laid over the planet. */
+function updatePatch(now) {
+    if (tiles.fin && detailedOf(B)?.[1] !== tiles.fin) { tiles.reset(); layers.clear(); }   // (that moment is gone: its tiles too)
+    const fin = painted && !playing ? finishedShown(painted) : null;
+    if (!fin || !DetailService.can(fin) || !patchLayer(view.layer)) { layers.hide(); return; }
+    const mv = globe.mapView, sig = view.mode === 'map' ? `m|${mv?.zoom}|${mv?.panX}|${mv?.panY}|${view.centerLon}|${view.projection}|${ui.map.clientWidth}|${ui.map.clientHeight}`
+        : `${globe.camera.position.toArray().map(v => v.toFixed(4)).join()}|${ui.canvas.clientWidth}|${ui.canvas.clientHeight}`;
+    if ((sig !== viewSig || fin !== tiles.fin) && now - wantedAt >= PATCH_EVERY_MS) {
+        viewSig = sig; wantedAt = now;
+        if (fin !== tiles.fin) layers.clear();
+        const { places, px } = viewPlaces();
+        tiles.want(fin, B.seed, places, px, SHARP_WIDTH || MAP_WIDTH);
+    }
+    const look = patchLookOf(fin);
+    layers.lay(tiles, look, t => paintTile(fin, t, look), PATCH_BUDGET_MS);
+}
+let tileImage = null;                                   // (a tile's pixels, painted before they go on its canvas: one, reused)
+const tileColors = { look: -1, byWidth: new Map() };    // (a climate, geology or farming layer's colours, per level's width, for the look painted)
+/** A tile painted for the layer shown (as paintFinishedFrame paints the planet), once per look: a SLOT-px canvas — the
+ *  tile and a pixel of its neighbours' all round — with the rivers' lines and the grid over it. */
+function paintTile(fin, t, look) {
+    if (t.look === look) return t.canvas;
+    const W = t.win.W, lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
+    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
+    if (tileColors.look !== look) { tileColors.look = look; tileColors.byWidth.clear(); }
+    if ((C || geo || farm) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, painted, B.simMesh, W, fin) : farm ? finishedFarmingColor(view.layer, fin, W)
+        : finishedClimateColor(view.layer, view.season, C, W, lut, fin));
+    if (tileImage?.width !== t.win.w || tileImage.height !== t.win.h) tileImage = new ImageData(t.win.w, t.win.h);
+    paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm, shaded: view.shaded,
+        colorAt: C || geo || farm ? tileColors.byWidth.get(W) : null });
+    if (!t.canvas) { t.canvas = document.createElement('canvas'); t.canvas.width = t.canvas.height = SLOT; }
+    const ctx = t.canvas.getContext('2d'), x0 = t.win.x0 + 1, y0 = t.win.y0 + 1;     // (the canvas's pixel 0, 0 on the planet W px wide)
+    ctx.putImageData(tileImage, -1, -1);                                    // (the window's outer pixel the hillshade's neighbours only)
+    // (the planet's rivers, crisp: a little thicker the closer the view, not as thick as the picture's enlarged)
+    // (and on Farmland and Cradles, as the picture has them: the water canals and floods come from)
+    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand' || view.layer === 'farmCradle') && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime && view.layer === 'terrain', W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
+    if (view.grid) {
+        // (the grid's lines, as thin as the screen's pixels)
+        const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
+        const X = lon => (lon + 180) / 360 * W - x0, Y = lat => (90 - lat) / 180 * (W >> 1) - y0;
+        ctx.save();
+        ctx.strokeStyle = 'rgba(255,255,255,0.13)'; ctx.lineWidth = 1.5; ctx.beginPath();
+        for (let lon = Math.ceil(w0 / st) * st; lon <= e0; lon += st) { ctx.moveTo(X(lon), 0); ctx.lineTo(X(lon), SLOT); }
+        for (let lat = Math.ceil(s0 / st) * st; lat <= n0; lat += st) { if (Math.abs(lat) >= 90) continue; ctx.moveTo(0, Y(lat)); ctx.lineTo(SLOT, Y(lat)); }
+        ctx.stroke();
+        ctx.restore();
+    }
+    t.look = look;
+    return t.canvas;
+}
+/** The patch's height (m), sea and lake at a place [u, v] of the map, where a tile of it is drawn — the finer picture's. */
+function patchAt(fin, u, v) {
+    if (!layers.shown || tiles.fin !== fin) return null;
+    const hit = tiles.at(u, v);
+    if (!hit) return null;
+    const { t: { data }, i } = hit;
+    return { heightM: Math.round(1000 * data.h[i]), ocean: data.sea[i], water: data.wat[i] };
+}
+
 // ── the Finish step: on request, for the moment shown — kept per moment while the history is open ──
 const CANCEL_GRACE_MS = 600;
 async function finishMoment(again = null) {
@@ -830,6 +925,13 @@ const showIf = (el, on) => { el.hidden = !on; return on; };
 function updateCard() {
     const b = B, frame = painted, job = b?.finishJob, det = detailedOf(b), detFrame = det?.[0], fin = det?.[1];
     const isDet = !!frame && frame === detFrame, cells = Number($('finishCells').value);
+    // (on a desktop, once the history is there, the Finish's meshes are built ahead — those it keeps, from 2.5M: the first
+    // Add detail skips ~3 s of building them — once per world and detail: not again after a cancel or a run out of memory
+    // let the worker go)
+    if (b && !b.live && !b.loading && b.simMesh && !job && !SMALL_DEVICE && cells >= 2.5e6 && b.prepared !== cells) {
+        b.prepared = cells;
+        finisher.prepare(cells, b.simMesh.numCells);
+    }
     const t = frame ? frame.time.toFixed(0) : '', dt = detFrame?.time.toFixed(0), pct = job ? (100 * Math.min(1, job.share)).toFixed(0) : 0;
     // the one thing to do next: the card's button and the timeline's
     let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate and the Satellite view (seconds to a minute)';
@@ -932,7 +1034,9 @@ const exportPanel = initEvolutionExport({
     moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed }; },
     look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH,
-    simMesh: () => B?.simMesh, planetFile });
+    simMesh: () => B?.simMesh, planetFile,
+    // (an export wider than the picture: the whole planet drawn with the detail finer than the mesh, in bands)
+    fine: (fin, _seed, W, onProgress) => detail.window(fin, B.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress) });
 
 // ── the climate (step D): calculated on request for the moment shown, kept per moment while the history is open ──
 const climateOf = frame => { const e = B?.climates.get(frame); return e && e.tMesh === B.tMesh && e.key === climateKey() ? e.data : null; };
@@ -1042,6 +1146,7 @@ function tick(now) {
         }
     }
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
+    updatePatch(now);
     globe.resize();
     if (globe.renderIfNeeded()) placePins();                // (the globe, or the map: the same renderer draws both)
 }
@@ -1207,7 +1312,7 @@ function readout(e) {
     else if (weights[3 * t + 2] > weights[3 * t] && weights[3 * t + 2] > weights[3 * t + 1]) w = cells[3 * t + 2];
     const f = painted, lat = 90 - p[1] * 180, lon = p[0] * 360 - 180, lines = [];
     // (a finished moment shown: its own heights, its lakes and rivers, its own climate)
-    const fin = finishedShown(f), at = fin ? finishedAt(fin, p[0], p[1]) : null;
+    const fin = finishedShown(f), at = fin ? patchAt(fin, p[0], p[1]) ?? finishedAt(fin, p[0], p[1]) : null;
     const plate = f.owner[w], type = f.type[w], oceanic = type === 0;
     if (plate >= 0) lines.push(`<span style="color:${oceanic ? '#4af' : '#6b3'}">●</span> <b>${CRUST_WORDS[type] ?? 'Crust'}</b> · plate ${plate}`);
     lines.push(`<span class="hi-label">Elev</span> ${Math.round(at ? at.heightM : h * 1000).toLocaleString()} m`);

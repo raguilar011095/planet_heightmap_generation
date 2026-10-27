@@ -31,7 +31,7 @@ function handle(msg) {
             const { tried, fit } = evaluateAttempt(mesh, msg.seed, msg.cfg, msg.attempt);
             const land = fit?.land;
             post({ jobId: msg.jobId, tried: tried.map(c => ({ areaScale: c.areaScale, excess: c.excess })), fit: fit ? { areaScale: fit.areaScale, land } : null },
-                land ? [land.type.buffer, land.terrane.buffer, land.suture.buffer] : []);
+                land ? [land.type.buffer, land.terrane.buffer, land.suture.buffer, land.owner.buffer, land.pair.buffer] : []);
         }
     } catch (err) {
         post({ jobId: msg.jobId, error: err?.stack ?? String(err) });

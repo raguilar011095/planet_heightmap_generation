@@ -510,6 +510,16 @@ export function energyBalanceTemperature({ tiltDeg = 23.44 } = {}) {
                 const q = dailyInsolation(g.lat[j] * Math.PI / 180, delta);
                 let x = 1 - q / WEAK_SUN; x = x <= 0 ? 0 : x >= 1 ? 1 : x;
                 const dark = x * x * (3 - 2 * x);
+                // Polar summers held back, by the ground like the inversion: near the poles the summer's heat goes into
+                // melting snow and ice (and the sea under the pack) rather than warming the air by the ground, while nothing
+                // holds the winter up — so above the yearly mean that air keeps only (1 − TEMP_POLAR_SUMMER_DAMP) of its
+                // rise, fully from TEMP_POLAR_FULL_DEG, none equatorward of TEMP_POLAR_FROM_DEG (smooth between). Below the
+                // yearly mean it is left alone. (In the air the circulation reads, it moved the summer's storm tracks and
+                // cost Europe's climate.)
+                let px = withInversion && P.TEMP_POLAR_SUMMER_DAMP > 0 ? (Math.abs(g.lat[j]) - P.TEMP_POLAR_FROM_DEG) / (P.TEMP_POLAR_FULL_DEG - P.TEMP_POLAR_FROM_DEG) : 0;
+                px = px <= 0 ? 0 : px >= 1 ? 1 : px * px * (3 - 2 * px);
+                const keep = 1 - P.TEMP_POLAR_SUMMER_DAMP * px;
+                if (px > 0) for (let i = 0; i < w; i++) { const c = j * w + i; if (tmp[c] > c0[c]) tmp[c] = c0[c] + (tmp[c] - c0[c]) * keep; }
                 for (let i = 0; i < w; i++) {
                     const c = j * w + i;
                     let T = tmp[c];

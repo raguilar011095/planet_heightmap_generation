@@ -79,31 +79,52 @@ const last = on.kept.at(-1), fac = {};
     }
     check('limestone is laid in warm seas: ≥ 80 % of the carbonate under today\'s shallow seas lies within 35° of the equator', all > 20 && warm / all >= 0.8, `${warm} of ${all} cells`);
 }
-{
-    // the plains at the foot of today's active belts: within 150 km of a belt's outer edge, outside the belt
+/**
+ * The belts' record at a history's end, into `into`: the cover at the foot of the active belts (within 150 km of a belt's
+ * outer edge, outside the belt) and elsewhere; the unroofing of the mountain belts quiet for 150 Myr and of the active
+ * ones (a rift's shoulders are left out: an escarpment retreating at its own pace, not a range worn down).
+ */
+function beltRecord(last, into) {
     const isLand = w => last.owner[w] >= 0 && last.type[w] !== CrustType.OCEAN && last.type[w] !== CrustType.ARC;
     const live = w => ACTIVE.has(last.oroType[w]) && last.time - last.oroLast[w] <= 10;
     const dist = new Float32Array(n).fill(Infinity);
     for (let w = 0; w < n; w++) if (isLand(w) && live(w) && last.beltU[w] / 255 >= 0.8) dist[w] = 0;
     spreadKm(mesh, dist, { canEnter: (c, nb) => isLand(nb) && !live(nb), maxKm: 150 });
-    const foot = new Int8Array(n);                         // 1 at a range's foot, 2 in or at a live belt, 0 elsewhere
-    for (let w = 0; w < n; w++) foot[w] = live(w) ? 2 : dist[w] < 150 ? 1 : 0;
-    const fore = [], rest = [], basin = [], notBasin = [], craton = [], oldBelt = [], youngBelt = [];
+    for (let w = 0; w < n; w++) {
+        if (!isLand(w)) continue;
+        if (!live(w)) (dist[w] < 150 ? into.basin : into.notBasin).push(decodeCoverKm(last.coverKm[w]));
+        // (a belt's unroofing since it was last active: what erosion has taken off it since it went quiet)
+        if (last.oroType[w] && last.oroType[w] !== OrogenyType.RIFT && last.oroLast[w] >= 0) {
+            const age = last.time - last.oroLast[w], un = decodeUnroofKm(last.unroofKm[w]);
+            if (age > 150) into.oldBelt.push(un); else if (age < 20) into.youngBelt.push(un);
+        }
+    }
+    return into;
+}
+{
+    const fore = [], rest = [], craton = [];
     for (let w = 0; w < n; w++) {
         if (last.owner[w] < 0 || last.type[w] === CrustType.OCEAN || last.type[w] === CrustType.ARC) continue;
-        const cover = decodeCoverKm(last.coverKm[w]), ex = decodeExhumKm(last.exhumKm[w]);
         // (a foreland fills deep — though a range advancing over it may strip it again: its deepest fill, then)
         (last.geoFlags[w] & GeoFlag.FORELAND ? fore : rest).push(decodeCoverKm(last.coverMaxKm[w]));
-        (foot[w] === 1 ? basin : foot[w] === 0 ? notBasin : []).push(cover);
-        if (last.type[w] === CrustType.CRATON) craton.push(ex);
-        // (a belt's unroofing since it was last active: what erosion has taken off it since it went quiet)
-        if (last.oroType[w] && last.oroLast[w] >= 0) { const age = last.time - last.oroLast[w], un = decodeUnroofKm(last.unroofKm[w]); if (age > 150) oldBelt.push(un); else if (age < 20) youngBelt.push(un); }
+        if (last.type[w] === CrustType.CRATON) craton.push(decodeExhumKm(last.exhumKm[w]));
+    }
+    // (the belts' record over three histories: one world's active belts at its end may be few — seed 12345's were 34
+    // cells' foot after the start world was rebuilt as an assembly)
+    const { basin, notBasin, oldBelt, youngBelt } = beltRecord(last, { basin: [], notBasin: [], oldBelt: [], youngBelt: [] });
+    for (const seed of [777, 2024]) {
+        const world = scene.build(mesh, seed, { continentalFraction: 0.3 });
+        world.config.heights = terrainConfig({});
+        world.config.geology.records = true;
+        let end = null;
+        simulate(world, { untilMyr: UNTIL, drive: w => scene.drive(w), snapshotEveryMyr: 10, keepFrames: false, onFrame: f => { end = f; } });
+        beltRecord(end, { basin, notBasin, oldBelt, youngBelt });
     }
     check('forelands fill: deeper than the rest of the land ever was', fore.length > 20 && median(fore) > 1.1 * median(rest), `deepest cover, median ${median(fore).toFixed(2)} km against ${median(rest).toFixed(2)} km (${fore.length} foreland cells)`);
-    check('…and the plains at the foot of the active ranges are filling', basin.length > 20 && median(basin) > 1.5 * median(notBasin), `cover, median ${median(basin).toFixed(2)} km against ${median(notBasin).toFixed(2)} km elsewhere (${basin.length} cells within 150 km of an active belt)`);
+    check('…and the plains at the foot of the active ranges are filling (three histories)', basin.length > 60 && median(basin) > 1.5 * median(notBasin), `cover, median ${median(basin).toFixed(2)} km against ${median(notBasin).toFixed(2)} km elsewhere (${basin.length} cells within 150 km of an active belt)`);
     check('shields were worn deep: a craton\'s basement once lay ≥ 10 km down', median(craton) >= 10, `median ${median(craton).toFixed(1)} km`);
-    check('a belt is unroofed as it wears: ones quiet for 150 Myr have lost more since than active ones', oldBelt.length > 20 && youngBelt.length > 20 && median(oldBelt) > median(youngBelt) + 1,
-        `median ${median(oldBelt).toFixed(1)} km since (quiet > 150 Myr) against ${median(youngBelt).toFixed(1)} km (active)`);
+    check('a mountain belt is unroofed as it wears: ones quiet for 150 Myr have lost more since than active ones (three histories)', oldBelt.length > 60 && youngBelt.length > 60 && median(oldBelt) > median(youngBelt) + 1,
+        `median ${median(oldBelt).toFixed(1)} km since (quiet > 150 Myr, ${oldBelt.length} cells) against ${median(youngBelt).toFixed(1)} km (active)`);
 }
 
 // ── G2: rocks on a finished moment ──
