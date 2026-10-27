@@ -479,7 +479,19 @@ it — rates × the wear's age, a river's valley only once it has cut through th
 (to `lipWallKm`) and wandering with a noise — so a young province is a plateau with canyons, then a dissected plateau
 (the Deccan), then flat-topped hills along the divides, then remnants; the slopes are faintly benched
 (terraceBasalt at `lipStairShare`); and its dykes radiate from the plume's centre as a wavy, fanned grain that comes out
-from under the lava across its edge. The fine detail belongs to the crust (`anchor.js`): noise is read in the frame
+from under the lava across its edge. **How a province lies (2026-10-27**, aimed at the Deccan, Siberia and Ethiopia — the
+slab-on-top had every profile a box, cliffed all round, its top as rough as the land under it): the lavas level the land —
+the surface is the broad ground under them (platform and evolved uplift, not the hills, ridges and crests a flow buries)
+raised by the pile, ponded thick in the lows, older ground higher than that standing through (kipukas); where a belt was
+still at work after the eruption (`lipFoldedMyr`) they ride on its relief instead. The pile thins out over
+`lipFeatherKm` inside the province's edge (a signed distance, wandering by `lipEdgeNoiseKm`); no hills on intact lava
+and no crags in the Finish; a young province resists its rivers (`lipYoungMyr`) and the cap is hard (`lipHardness`), so
+only the big rivers cut canyons and the tops between stay flat; an edge retreats as an escarpment only where it stands
+`lipEscarpDropKm` above the ground beyond or meets the sea (a rifted coast's Western Ghats); a river cuts down through the
+whole pile only where it is big (`lipValleyCutAreaKm2`); caps smaller than `lipMesaMinKm2` go (no one-cell pinnacles), and
+the Finish's creep spares the cap (mesas, not rounded hills). The plume lifts a young province in a broad dome
+(`lipSwellKm`, subsiding over `lipSwellTauMyr`) and builds a few shield volcanoes on its lavas near the centre
+(`lipShieldKm`; Simien, Choke, Guna) — `lips.js lipPlumeAt`. `lipFeatherKm: 0` lays the pile on as before. The fine detail belongs to the crust (`anchor.js`): noise is read in the frame
 of the plate under each point, and ridge kernels and volcanoes are keyed to crust cells — scrub the history and a
 drifting continent carries its ridges and volcanoes with it. So does what they ride on (Phase 9): a frame carries every
 plate's crust (its cells, their types and belts — the world view shows only the crust cell nearest each world cell, and

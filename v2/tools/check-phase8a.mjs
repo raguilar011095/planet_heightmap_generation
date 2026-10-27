@@ -264,11 +264,12 @@ section('a continent splits');
     const upShoulder = lifted(0.05, 0.35), upInland = lifted(0.7, 1.01);
     check('the new coasts are lifted into shoulders that slope down inland', upShoulder >= upInland + 0.3 && shoulder >= inland + 0.1,
         `evolved uplift ${upShoulder.toFixed(2)} km on the shoulders (u 0.05–0.35), ${upInland.toFixed(2)} km inland (u > 0.7); terrain median ${shoulder.toFixed(2)} vs ${inland.toFixed(2)} km, flood basalt aside`);
-    // along the failed arm vs the land 150–400 km from it (both away from the coast)
+    // along the failed arm vs the land 150–400 km from it (both away from the coast; flood basalt aside, as for the
+    // shoulders — since 2026-10-27 its plume domes the land round it, highest by the arm, which sags it the same)
     const arm = [], around = [];
     for (let t = 0; t < T.tm.numCells; t++) {
         const [c0, c1, c2] = [0, 1, 2].map(i => T.sampler.cells[3 * t + i]), [w0, w1, w2] = [0, 1, 2].map(i => T.sampler.weights[3 * t + i]);
-        if (!rec.land[c0] || rec.coastKm[c0] < 150) continue;
+        if (!rec.land[c0] || rec.coastKm[c0] < 150 || frame.volcType[c0] === VolcanicType.LIP) continue;
         const d = w0 * rec.armKm[c0] + w1 * rec.armKm[c1] + w2 * rec.armKm[c2];
         if (d < 20) arm.push(heightKm[t]); else if (d > 150 && d < 400) around.push(heightKm[t]);
     }
@@ -427,9 +428,12 @@ section('flood basalts through time');
     // (0.75 since 2026-09-29: measured on the carved terrain, where the rivers' canyons count — the carving alone leaves 82 %)
     check('a young flood basalt is an unbroken plateau', young.thick >= 200 && young.kept >= 0.75,
         `10 Myr after it erupted, the cap still stands over ${(100 * young.kept).toFixed(0)} % of ${young.thick} terrain cells of the province`);
-    check('as it wears its cap is cut away into mesas, which shrink with time — but remnants stand for hundreds of Myr', mid.kept <= 0.7 && mid.kept >= 0.15 && old.kept < mid.kept && old.kept >= 0.02,
+    // (≤ 0.8 since 2026-10-27: the cap is hard, and only an edge standing above the ground beyond retreats — Paraná keeps
+    // most of its cap at 132 Myr, Siberia about a third at 252)
+    check('as it wears its cap is cut away into mesas, which shrink with time — but remnants stand for hundreds of Myr', mid.kept <= 0.8 && mid.kept >= 0.15 && old.kept < mid.kept && old.kept >= 0.02,
         `the cap still stands over ${(100 * mid.kept).toFixed(0)} % 100 Myr after the eruption, ${(100 * old.kept).toFixed(0)} % after 250 Myr`);
-    check('its escarpment retreats from the edge: the cap goes sooner there than inside', mid.third >= 100 && mid.inner >= mid.edge + 0.15,
+    // (≥ 60 cells a third since 2026-10-27: the lava thins out toward its edge, so fewer cells of it are thick)
+    check('its escarpment retreats from the edge: the cap goes sooner there than inside', mid.third >= 60 && mid.inner >= mid.edge + 0.15,
         `100 Myr on, the cap stands over ${(100 * mid.edge).toFixed(0)} % of the third of the province nearest its edge, ${(100 * mid.inner).toFixed(0)} % of the third furthest in (${mid.third} terrain cells each)`);
     // the dykes: the grain alone (with and without it), around the province; against itself along the rays and across them
     const f = mid.f, T = terrain(f), N = terrainWith(f, 640000, { dykeKm: 0 }), tm = T.tm, cells = lipCells(f);

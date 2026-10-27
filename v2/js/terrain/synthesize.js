@@ -15,7 +15,7 @@ import { TERRAIN } from './terrain-config.js';
 import { deriveRecords, kindType, kindSide } from './records.js';
 import { beltProfile, broadProfile, crestProfile, stripeZone, beltEdge, mainRangeBackKm } from './profiles.js';
 import { buildStripeKernels, stripeAt, crossAt, beltAt, carriedField, carriedStripeAt } from './stripes.js';
-import { lipPieces, dykeAt } from './lips.js';
+import { lipPieces, dykeAt, lipPlumeAt } from './lips.js';
 import { SEGMENT_KM } from '../tectonics/model/segments.js';
 import { buildVolcanoes, coneAt, volcanoNoise } from './volcanoes.js';
 import { cratonCharacter } from './cratons.js';
@@ -108,6 +108,7 @@ export const ladderCells = (simCells, cells) => [160000, 640000, 2500000].filter
 export function carveSettings(cfg) {
     return { timeMyr: cfg.carveTimeMyr, m: cfg.carveM, rounds: cfg.carveRounds, valleyKm: cfg.carveValleyKm, valleySides: cfg.carveValleySides ?? 0, activeHold: cfg.carveActiveHold, lipStepKm: cfg.lipStepKm, lipRiser: cfg.lipRiser,
         lipEdgeRetreat: cfg.lipEdgeRetreatKmPerMyr ?? 0, lipValleyRate: cfg.lipValleyKmPerMyr ?? 0, lipValleyAreaKm2: cfg.lipValleyAreaKm2 ?? 3000, lipWallKm: cfg.lipWallKm ?? 6, lipWallNoise: cfg.lipWallNoise ?? 0, lipStairShare: cfg.lipStairShare ?? 1, lipIncisionMyr: cfg.lipIncisionMyr ?? 0,
+        lipEscarpDropKm: cfg.lipEscarpDropKm ?? null, lipValleyCutAreaKm2: cfg.lipValleyCutAreaKm2 ?? null, lipMesaMinKm2: cfg.lipMesaMinKm2 ?? 0,
         drownKm: cfg.drownKm ?? 0, drownDepthKm: cfg.drownDepthKm ?? 0, drownAreaKm2: cfg.drownAreaKm2, drownReliefKm: cfg.drownReliefKm, drownWiden: cfg.drownWiden ?? 0,
         riaKm: cfg.riaKm ?? cfg.drownKm ?? 0, riaDepthKm: cfg.riaDepthKm ?? cfg.drownDepthKm ?? 0, drownColdLat: cfg.drownColdLat,
         canyonKm: cfg.canyonKm ?? 0, canyonDepthKm: cfg.canyonDepthKm ?? 0, canyonAreaKm2: cfg.canyonAreaKm2 };
@@ -355,6 +356,9 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     const cratF = R / 600, shapeF = R / cfg.cratonShapeKm, grainF = R / cfg.cratonGrainScaleKm, grainShow = fade(cfg.cratonGrainScaleKm), grainStretch = cfg.cratonGrainStretch ?? 1;
     const coastF = R / 700, platF = R / 2000, strikeF = R / 900, segF = R / cfg.stripeSegmentKm, meanderF = R / cfg.stripeMeanderAlongKm, meander = cfg.stripeMeanderKm / R;
     const blendF = R / cfg.blendNoiseKm, crestF = R / 150, slopeF = R / 300, microF = R / cfg.carveMicroScaleKm, lipNoiseF = R / cfg.lipWallNoiseKm;
+    // (a flood basalt's edge: the pile thinning out over lipFeatherKm inside it, the line wandering by lipEdgeNoiseKm as
+    // flow lobes do; its plume's dome and shields — lips.js lipPlumeAt)
+    const lipFeather = cfg.lipFeatherKm ?? 0, lipEdgeF = R / (cfg.lipEdgeNoiseScaleKm ?? 120), lipEdgeAmp = cfg.lipEdgeNoiseKm ?? 0, plume = { dome: 0, shield: 0 };
     // old ranges erode fatter; every belt's massif texture (terrain-config.js crestSpreadKm, massifKm): its octaves'
     // wavelengths and shares, down to what the mesh can show
     const spreadOn = (cfg.crestSpreadKm ?? 0) > 0, fineR2 = (cfg.stripeFineRatio ?? 2.6) ** 2 - 1, PI2x2 = 2 * Math.PI * Math.PI;
@@ -395,7 +399,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     };
     const floorFor = after => floorKm + (floorRoll > 0 || floorDeep > 0 ? (floorRoll + floorDeep * Math.min(1, Math.max(0, floorKm - after) / floorDeepAt)) * floorNoise() : 0);
     const { cratons: CR, terrane } = rec;
-    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, armKm, fractureU, coastFresh, envShape, rootShape, farGrain, farFold, farPhase } = rec;
+    const { coastKm, land, arc: arcCrust, craton, quietMyr, kind: beltKind, riverIncKm, platformKm, upliftKm, lipKm, lipWornKm, lipSrc, lipBornMyr, lipEdgeKm, lipOutKm, depthKm, shelfKm, plainKm, maturity, slopeKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, armKm, fractureU, coastFresh, envShape, rootShape, farGrain, farFold, farPhase } = rec;
     // the far field (records.js farFieldRecords; plans/V2_FAR_FIELD_PLAN.md F3–F4): its folds and the grain it leaves, both
     // read as noise ACROSS its phase — near enough the distance from the fronts that pushed the crust — and slowly along it
     const farOn = !!farPhase, foldStretch = cfg.farFoldStretch ?? 1, foldWanderF = R / (cfg.farFoldWanderKm ?? 800);
@@ -513,7 +517,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 coast = Math.max(coast - cut, Math.min(coast, -10));
             }
         }
-        let h, platform = 0, relief = 0, stripes = 0, lipTop = 0, lipKeep = 0, lipAge = 0, ramp = 0, shieldS = 0, rimFade = 1, foldLow = 0, notchMax = 0, combOld = 0, combD = 0, grainNum = 0, grainDen = 0;
+        let h, platform = 0, relief = 0, stripes = 0, lipTop = 0, lipKeep = 0, lipAge = 0, ramp = 0, shieldS = 0, rimFade = 1, foldLow = 0, notchMax = 0, combOld = 0, combD = 0, grainNum = 0, grainDen = 0, lipPile = 0, lavaCover = 0, lavaBelow = 0;
 
         if (coast >= 0) {
             // ── land side: the platform over the land corners (interfingering), dropping to the shelf toward the coast ──
@@ -552,15 +556,28 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 if (platform < 0.04 && platform < before) platform = Math.min(before, 0.04);
                 foldLow = Math.min(0, platform - before);                         // (given back below if a basin beside takes it under)
             }
-            // ── a flood basalt (lips.js): the pile as it has worn — here the whole plateau, its top lowering a little as it
-            // wears and gone once worn through; the carving cuts it up (carve.js stripBasalt: its escarpment retreating
-            // from the province's edge, its rivers' valleys widening — mesas left on the divides between them) ──
-            lipTop = lw > 0 ? (n0 * lipKm[c0] + n1 * lipKm[c1] + n2 * lipKm[c2]) / lw : 0;
+            // ── a flood basalt (lips.js): the pile as it has worn, its top lowering a little as it wears and gone once worn
+            // through — thinning out across the province's edge (the distance to it, signed, read over the corners; the line
+            // wandering as flow lobes do) instead of standing there as a wall — and not added to the ground: it is laid on
+            // as a level surface below (the lavas fill the land's lows and bury its texture), and the carving cuts it up
+            // (carve.js stripBasalt: its escarpment retreating where its edge stands above lower ground, its rivers'
+            // canyons widening into valleys — flat-topped mesas left on the divides) ──
+            if (lipFeather > 0) {
+                const a0 = lipKm[c0] > 0 ? n0 : 0, a1 = lipKm[c1] > 0 ? n1 : 0, a2 = lipKm[c2] > 0 ? n2 : 0, aw = a0 + a1 + a2;
+                lipTop = aw > 0 ? (a0 * lipKm[c0] + a1 * lipKm[c1] + a2 * lipKm[c2]) / aw : 0;
+            } else lipTop = lw > 0 ? (n0 * lipKm[c0] + n1 * lipKm[c1] + n2 * lipKm[c2]) / lw : 0;
             if (lipTop > 0.002) {
+                let feather = 1;
+                if (lipFeather > 0) {
+                    const inside = (n0 * (lipEdgeKm[c0] - lipOutKm[c0]) + n1 * (lipEdgeKm[c1] - lipOutKm[c1]) + n2 * (lipEdgeKm[c2] - lipOutKm[c2])) / lw
+                        + lipEdgeAmp * 1.6 * noise.fbm(x * lipEdgeF + 4.7, y * lipEdgeF + 9.3, z * lipEdgeF + 1.9, 3, 0.5);
+                    feather = smooth(0, lipFeather, inside);
+                }
+                lipPile = lipTop * feather;
                 const worn = (n0 * lipWornKm[c0] + n1 * lipWornKm[c1] + n2 * lipWornKm[c2]) / lw, p = worn / Math.max(0.15, lipTop);
-                lipKeep = lipTop * (1 - cfg.lipWearFloor * Math.min(1, p)) * (1 - smooth(1, 1.5, p));
+                lipKeep = lipPile * (1 - cfg.lipWearFloor * Math.min(1, p)) * (1 - smooth(1, 1.5, p));
                 lipAge = worn / cfg.lipWearKmPerMyr;           // (Myr of wear at the reference rate: its age, × its climate's erosion)
-                platform += lipKeep;
+                if (!(lipFeather > 0)) platform += lipKeep;       // (as before: a slab on the ground)
             }
             // ── a craton (terrain/cratons.js): its edge a line — the signed distance to it, on the plate's own raster where
             // the point was read there, moved in and out by noise — not the sim cells' staircase; a range pressed against it
@@ -625,7 +642,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // (a low of the grain stops just above the sea)
             if (L.count && ramp > 0 && lw > 0) {
                 const out = (n0 * (lipOutKm[c0] - lipEdgeKm[c0]) + n1 * (lipOutKm[c1] - lipEdgeKm[c1]) + n2 * (lipOutKm[c2] - lipEdgeKm[c2])) / lw;
-                const show = ramp * smooth(-cfg.dykeInKm, cfg.dykeOutKm, out) * (lipTop > 0.002 ? 1 - lipKeep / lipTop : 1);
+                const show = ramp * smooth(-cfg.dykeInKm, cfg.dykeOutKm, out) * (lipPile > 0.002 ? 1 - lipKeep / lipPile : lipTop > 0.002 ? 1 - lipKeep / lipTop : 1);
                 if (show > 0) { const dk = show * dykeAt(L, A.owner[c0], x, y, z, noise, fade, cfg); if (dk) h = dk > 0 ? h + dk : softFloor(h, h + dk, floorFor(h + dk), floorSoft); }
             }
 
@@ -849,6 +866,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 h += ramp * notShield * (rootHere - rootCover * (n0 * rootShape[c0] + n1 * rootShape[c1] + n2 * rootShape[c2]) / lw);
             }
             const along = relief !== 0 || uplift !== 0 ? atEdge * (1 + cfg.alongStrikeVar * noise.fbm(x * strikeF + 8.8, y * strikeF + 2.2, z * strikeF + 6.6, 3, 0.5) * 1.5) : 0;
+            const broadKm = h + uplift * along;   // (the ground without its ridges, noise and crests: what a lava flow levels to)
             let lifted = h + uplift * along + stripes;
             // (the massif never takes land under the sea: a low of it eases into the floor above sea level)
             if (massif) lifted = massif > 0 ? lifted + massif : softFloor(lifted, lifted + massif, floorFor(lifted + massif), floorSoft);
@@ -862,9 +880,32 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             if (crests < 0 && coast >= shelf && lifted > floorKm && w0 * arcCrust[c0] + w1 * arcCrust[c1] + w2 * arcCrust[c2] < 0.5) h = softFloor(lifted, h, floorFor(h), floorSoft);
             // a failed rift arm: a sagged corridor, low but still land (unless it reaches the sea as an embayment)
             const arm = w0 * armKm[c0] + w1 * armKm[c1] + w2 * armKm[c2];
-            if (arm < 3 * cfg.failedArmHalfKm) { const sag = h - cfg.failedArmKm * Math.exp(-((arm / cfg.failedArmHalfKm) ** 2)); h = softFloor(h, sag, floorFor(sag), floorSoft); }
+            let armDrop = 0;                       // (a failed arm opens after the lavas that came with its plume: it sags them too)
+            if (arm < 3 * cfg.failedArmHalfKm) { const was = h, sag = h - cfg.failedArmKm * Math.exp(-((arm / cfg.failedArmHalfKm) ** 2)); h = softFloor(h, sag, floorFor(sag), floorSoft); armDrop = was - h; }
             // (a fold's trough never takes land under the sea: where a basin beside it would, the trough gives back what it took)
             if (foldLow < 0) h = softFloor(h - foldLow * ramp, h, floorFor(h), floorSoft);
+            // ── a flood basalt levels the land (the Deccan, Putorana): its lavas ponded in the lows and buried the ground's
+            // texture — its surface the broad ground under it (the platform and the evolved uplift: not the hills, ridges or
+            // crests a flow buries) raised by the pile, so its top is flat where the pile is whole; older ground higher than
+            // that stands through it (kipukas, steptoes). The ground under it is kept for the carving, bared as it wears ──
+            if (lipFeather > 0 && lipKeep > 0.002 && ramp > 0) {
+                // (lavas a belt has folded and lifted since they erupted ride on its relief — draped over the range, not
+                // levelling it: by how long the belt was still at work after the eruption, over lipFoldedMyr)
+                let folded = 0;
+                if (lipBornMyr) {
+                    let bw = 0, b = 0, q = 0;
+                    for (let j = 0; j < 3; j++) { const c = j === 0 ? c0 : j === 1 ? c1 : c2, wj = j === 0 ? n0 : j === 1 ? n1 : n2; if (lipKm[c] > 0) { bw += wj; b += wj * lipBornMyr[c]; q += wj * (beltKind[c] ? Math.min(quietMyr[c], 1e4) : 1e4); } }
+                    if (bw > 0) folded = smooth(0, cfg.lipFoldedMyr ?? 20, b / bw - q / bw);
+                }
+                const S = (folded > 0 ? folded * h + (1 - folded) * broadKm : broadKm) + lipKeep * ramp - (1 - folded) * armDrop, d = S - h, k = 0.04;
+                lavaBelow = h; lavaCover = smooth(-0.02, 0.04, d);
+                h = Math.max(h, S) + (Math.abs(d) < k ? (k - Math.abs(d)) ** 2 / (4 * k) : 0);   // (a smooth max: no crease at the shore of a kipuka)
+            }
+            // ── the plume that erupted it: a broad dome over a young province, and shield volcanoes on its lavas (lips.js) ──
+            if (L.count && ramp > 0 && (cfg.lipSwellKm > 0 || cfg.lipShieldKm > 0)) {
+                lipPlumeAt(L, A.owner[c0], x, y, z, cfg, plume);
+                if (plume.dome > 1e-4 || plume.shield > 1e-4) { h += ramp * (plume.dome + plume.shield); if (lavaCover > 0) lavaBelow += ramp * plume.dome; }   // (the dome lifts the ground under the lava too; a shield is lava)
+            }
             // ── hills down to what the mesh can show: more on high ground, none at the shore ──
             if (hillsF.length && h > 0) {
                 let sum = 0;
@@ -882,7 +923,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                     }
                     sum += hillsAmp[o] * v;
                 }
-                h += sum * (1 + ((cfg.hillsUplandGain ?? 4) - 1) * smooth(0.1, 1.5, h)) * smooth(0, 0.08, h);
+                h += sum * (1 + ((cfg.hillsUplandGain ?? 4) - 1) * smooth(0.1, 1.5, h)) * smooth(0, 0.08, h) * (1 - lavaCover);   // (none on a lava plain)
             }
         } else {
             // ── sea side: the slope from the shelf break down to the floor the ocean corners give ──
@@ -940,17 +981,24 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             carve.rain[i] = rainAtLatitude(Math.asin(Math.max(-1, Math.min(1, pz))) * 180 / Math.PI, cfg) / cfg.rainRefMm;
             carve.slope[i] = cfg.carveHillSlope * (1 + cfg.carveHillRelief * belt) * (1 + cfg.carveHillNoise * noise.fbm(x * slopeF + 4.4, y * slopeF + 8.2, z * slopeF + 1.6, 2, 0.5) * 1.6);
             // flood basalt: a hard cap — cliffed canyon walls, slower rivers; and the stair it is cut into (carve.js)
-            const basalt = coast >= 0 ? smooth(0, 0.05, lipTop * ramp) : 0;
-            carve.lip[i] = basalt; carve.lipTop[i] = lipTop * ramp; carve.lipBase[i] = heightKm[t] - lipKeep * ramp;
+            // (levelled: the lava where it lies on top, as thick as it stands above the ground under it)
+            const lavaKm = lipFeather > 0 ? (lavaCover > 0 ? Math.max(0, heightKm[t] - cone - lavaBelow) : 0) : lipKeep * ramp;
+            const basalt = coast >= 0 ? (lipFeather > 0 ? smooth(0, 0.05, lavaKm) * lavaCover : smooth(0, 0.05, lipTop * ramp)) : 0;
+            carve.lip[i] = basalt; carve.lipTop[i] = lipFeather > 0 ? lavaKm : lipTop * ramp; carve.lipBase[i] = heightKm[t] - lavaKm;
             carve.lipAge[i] = basalt > 0 ? lipAge : 0;
             carve.lipNoise[i] = basalt > 0 ? 1.6 * noise.fbm(x * lipNoiseF + 2.9, y * lipNoiseF + 1.3, z * lipNoiseF + 6.1, 3, 0.5) : 0;
-            if (basalt > 0) { carve.slope[i] *= 1 + cfg.lipCliff * basalt; carve.k[i] *= 1 - cfg.lipHardness * basalt; }
+            // (young lava has hardly been cut: its rivers' wave starts slow — erodibility from lipYoungFloor of its share
+            // to all of it over lipYoungMyr of wear — so a fresh province is a plain cut only by its big rivers' canyons)
+            if (basalt > 0) {
+                carve.slope[i] *= 1 + cfg.lipCliff * basalt; carve.k[i] *= 1 - cfg.lipHardness * basalt;
+                if (cfg.lipYoungMyr > 0) carve.k[i] *= 1 - basalt * (1 - cfg.lipYoungFloor) * (1 - Math.min(1, lipAge / cfg.lipYoungMyr));
+            }
             carve.micro[i] = cfg.carveMicroKm * noise.fbm(x * microF + 7.3, y * microF + 2.9, z * microF + 5.1, 3, 0.5) * 1.6;
             // how deep the history's rivers cut here (8b-2), over the land corners
             const l0 = land[c0] ? w0 : 0, l1 = land[c1] ? w1 : 0, l2 = land[c2] ? w2 : 0, lw2 = l0 + l1 + l2;
             carve.inc[i] = coast >= 0 && lw2 > 0 ? (l0 * riverIncKm[c0] + l1 * riverIncKm[c1] + l2 * riverIncKm[c2]) / lw2 : 0;
         }
-        if (parts) { parts.platform[t] = coast >= 0 ? platform : h; parts.relief[t] = relief; parts.stripes[t] = stripes; parts.cones[t] = cone; parts.lip[t] = lipKeep * ramp; }
+        if (parts) { parts.platform[t] = coast >= 0 ? platform : h; parts.relief[t] = relief; parts.stripes[t] = stripes; parts.cones[t] = cone; parts.lip[t] = lipFeather > 0 ? (lavaCover > 0 ? Math.max(0, h - lavaBelow) : 0) : lipKeep * ramp; }   // (levelled: the lava as thick as it stands)
     }
 }
 

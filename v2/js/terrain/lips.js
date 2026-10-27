@@ -86,3 +86,44 @@ export function dykeAt(L, owner, x, y, z, noise, fade, cfg) {
     }
     return v;
 }
+
+/**
+ * The plume under a young province (developer, 2026-10-27: Ethiopia): the head that erupted it lifts the land around it
+ * — a broad dome, lipSwellKm high at its centre, falling off over lipSwellReach times the province's radius, subsiding
+ * as the head cools (e-folding over lipSwellTauMyr: the Ethiopian plateau's 2–3 km, the Deccan's long gone) — and builds
+ * a few broad shield volcanoes on the lavas near its centre (Simien, Choke, Guna: lipShieldKm high, lipShieldRadiusKm
+ * across, the bigger provinces more of them), worn down over lipShieldTauMyr. At a point (x, y, z) of plate `owner`'s
+ * crust (plate frame), km, into out: { dome, shield }.
+ */
+export function lipPlumeAt(L, owner, x, y, z, cfg, out) {
+    out.dome = 0; out.shield = 0;
+    for (let i = 0; i < L.count; i++) {
+        if (L.owner[i] !== owner) continue;
+        const cx = L.c[3 * i], cy = L.c[3 * i + 1], cz = L.c[3 * i + 2], dot = x * cx + y * cy + z * cz, Rp = L.rKm[i], age = L.age[i];
+        const rKm = Math.acos(Math.min(1, Math.max(-1, dot))) * R;
+        if (cfg.lipSwellKm > 0) {
+            const reach = cfg.lipSwellReach * Rp;
+            if (rKm < 3 * reach) out.dome += cfg.lipSwellKm * Math.exp(-age / cfg.lipSwellTauMyr) * Math.exp(-((rKm / reach) ** 2));
+        }
+        // (the shields: on a province big enough, near its centre, each placed by the province's own numbers)
+        if (cfg.lipShieldKm > 0 && Rp >= cfg.lipShieldMinRadiusKm && rKm < 0.8 * Rp) {
+            const H0 = cfg.lipShieldKm * Math.exp(-age / cfg.lipShieldTauMyr);
+            if (H0 < 0.01) continue;
+            const count = 1 + Math.floor(Math.min(2, (Rp - cfg.lipShieldMinRadiusKm) / 400 + hash(L.salt[i], 9.1) * 1.2));
+            for (let k = 0; k < count; k++) {
+                const ang = 2 * Math.PI * hash(L.salt[i], 1.3 + 2.7 * k), dist = Rp * (0.12 + 0.33 * hash(L.salt[i], 4.9 + 1.9 * k)) / R;
+                const ca = Math.cos(ang), sa = Math.sin(ang), cd = Math.cos(dist), sd = Math.sin(dist);
+                const sx = cd * cx + sd * (ca * L.e1[3 * i] + sa * L.e2[3 * i]), sy = cd * cy + sd * (ca * L.e1[3 * i + 1] + sa * L.e2[3 * i + 1]), sz = cd * cz + sd * (ca * L.e1[3 * i + 2] + sa * L.e2[3 * i + 2]);
+                const rs = cfg.lipShieldRadiusKm * (0.7 + 0.6 * hash(L.salt[i], 7.7 + 3.1 * k));
+                const d = Math.acos(Math.min(1, Math.max(-1, x * sx + y * sy + z * sz))) * R;
+                if (d >= rs) continue;
+                const u = 1 - (d / rs) ** 2;
+                out.shield += H0 * (0.6 + 0.4 * hash(L.salt[i], 2.2 + 5.3 * k)) * u * u;
+            }
+        }
+    }
+    return out;
+}
+
+/** A number in [0, 1) from a province's salt and a key: the same for every worker. */
+const hash = (s, k) => { const v = Math.sin(s * 12.9898 + k * 78.233) * 43758.5453; return v - Math.floor(v); };

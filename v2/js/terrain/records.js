@@ -438,7 +438,7 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
 
     // ── the continental platform: crust kind, isostasy of the thickened crust, mantle swell (relative), flood basalts apart ──
     const platformKm = new Float32Array(n), quietMyr = new Float32Array(n);
-    const lipKm = new Float32Array(n), lipWornKm = new Float32Array(n), lipSrc = new Uint16Array(n);
+    const lipKm = new Float32Array(n), lipWornKm = new Float32Array(n), lipSrc = new Uint16Array(n), lipBornMyr = new Float32Array(n);
     // dynamic topography is relative: the land rises where the mantle under it is hotter than under the land on average
     // (a continent that sat still while the others drifted), and none rises where all of it is as hot (a supercontinent)
     let heatSum = 0, landCount = 0;
@@ -472,6 +472,7 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
         h += frame.baseKm[w];                                               // (the start world's swells, as worn so far)
         if (frame.volcType[w] === VolcanicType.LIP) {                   // (the pile, and how far it has worn: lips.js)
             lipKm[w] = cfg.lipLandKm * Math.min(cfg.lipMaxKm, frame.volcKm[w]); lipWornKm[w] = frame.volcWornKm[w]; lipSrc[w] = frame.volcSource[w];
+            lipBornMyr[w] = Math.max(0, frame.time - frame.volcAt[w]);     // (how long ago it erupted: a belt active since folded it)
         }
         platformKm[w] = h;
     }
@@ -536,7 +537,7 @@ export function deriveRecords(frame, simMesh, cfg, seed = 0, A = buildAnchor(fra
     }
 
     return { coastRaster, land, arc, craton, riverIncKm: frame.riverIncKm, riverKm2: frame.riverKm2, coastKm, coastKind, maturity, coastFresh: fresh, shelfKm, plainKm, slopeKm, depthKm, ageMyr, fabricKm, trenchKm, riseKm, trenchDepthKm, fractureU,
-        platformKm, upliftKm, cratons, terrane: frame.terrane, lipKm, lipWornKm, lipSrc, lipEdgeKm, lipOutKm, quietMyr, armKm, erosion, kind, dKm, reach, reliefKm, shear, across, belts: [current, overprinted], time,
+        platformKm, upliftKm, cratons, terrane: frame.terrane, lipKm, lipWornKm, lipSrc, lipBornMyr, lipEdgeKm, lipOutKm, quietMyr, armKm, erosion, kind, dKm, reach, reliefKm, shear, across, belts: [current, overprinted], time,
         ...farFieldRecords(frame, n, cfg) };
 }
 

@@ -212,7 +212,33 @@ export const TERRAIN = {
     lipRiser: 0.35,             // …a cliff taking this share of each step, the rest a flat tread…
     lipStairShare: 0.35,        // …and the stair only this strong: a hint of benches on the slopes, not cliffed treads
     lipCliff: 2,                // canyon walls in basalt stand this many times steeper (a hard cap: cliffs, not slopes)…
-    lipHardness: 0.3,           // …and its rivers cut this much slower (k × 1 − this)
+    lipHardness: 0.75,          // …and its rivers cut this much slower (k × 1 − this; 0.3 until 2026-10-27: every stream cut
+                                // it into hills — a hard cap lets only the big rivers cut canyons, the tops between stay flat)
+    // How a flood basalt lies on the land (developer, 2026-10-27: LIPs "dont have the same profiles of real LIPs" — the
+    // Deccan, Siberia, Ethiopia): its lavas level the land — a flat surface over the broad ground, ponded in the lows,
+    // older hills standing through — thinning out over lipFeatherKm inside its edge (the line wandering by lipEdgeNoiseKm,
+    // in lobes lipEdgeNoiseScaleKm across) instead of standing there as a wall; no hills or crags on it. 0: as before (a slab)
+    lipFeatherKm: 250,
+    lipEdgeNoiseKm: 40,
+    lipEdgeNoiseScaleKm: 140,
+    // its escarpment retreats where its edge stands above the ground beyond — from the first km (none) to the second (all;
+    // the sea too): a rifted coast's Western Ghats, not every edge…
+    lipEscarpDropKm: [0.2, 0.7],
+    // …a river cuts down through the whole pile from the first drainage (km², none) to the second (all), its side valleys
+    // leaving the divides' flat tops standing (Putorana); a cap left smaller than lipMesaMinKm2 goes (no one-cell pinnacles)
+    lipValleyCutAreaKm2: [3000, 40000],
+    lipMesaMinKm2: 2500,
+    // …and young lava has hardly been cut: its erodibility rises from lipYoungFloor of it to all over lipYoungMyr of wear (a
+    // fresh province — the Columbia River's — a plain cut only by its big rivers' canyons; older, dissected all over)
+    lipYoungMyr: 40,
+    lipYoungFloor: 0.15,
+    lipFoldedMyr: 20,           // lavas a belt was still at work on this long after they erupted ride on its relief (folded and lifted), not levelling it
+    // the plume under a young province: a dome lipSwellKm high, falling off over lipSwellReach × the province's radius,
+    // subsiding over lipSwellTauMyr (Ethiopia's plateau stands 2–3 km); and shield volcanoes on its lavas near the centre
+    // (Simien, Choke, Guna) up to lipShieldKm high and ~lipShieldRadiusKm across, on provinces from lipShieldMinRadiusKm
+    // across (radius), worn down over lipShieldTauMyr
+    lipSwellKm: 1, lipSwellReach: 1.2, lipSwellTauMyr: 60,
+    lipShieldKm: 1.6, lipShieldRadiusKm: 70, lipShieldMinRadiusKm: 450, lipShieldTauMyr: 80,
     dykeKm: 0.15,               // the radiating dyke swarm: a grain ± this high…
     dykeAcrossKm: 90,           // …its highs this far apart where they leave the province (fanning out beyond)…
     dykeAlongKm: 500,           // …each running about this far along its ray…

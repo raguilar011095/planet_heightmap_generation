@@ -75,7 +75,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     let carveIn = surf.carveIn;
     const z = surf.heightKm;
     surf = null; warped = null;
-    roughen(mesh, z, seed, F, fade);
+    roughen(mesh, z, seed, F, fade, carveIn.lip);
     lap('surface');
 
     // ── the climate, on this surface ──
@@ -177,7 +177,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     stats.deltas = depositSediment(mesh, before, C, B.sink, cellKm2, F).deltas;
     lap('sediment');
     onStage('hillslopes');
-    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm }, C.area);
+    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm }, C.area, basalt);
     lap('hillslopes');
 
     // ── F3: the last ice age ──
@@ -334,8 +334,9 @@ function meanderAt(mesh, seed, F, fade) {
     };
 }
 
-/** Fine relief on high ground (craggier the higher), octaves from F.craggyFromKm down to what the mesh can show. */
-function roughen(mesh, z, seed, F, fade) {
+/** Fine relief on high ground (craggier the higher), octaves from F.craggyFromKm down to what the mesh can show — none on
+ *  the lava of a flood basalt (`lava`: its share per cell), whose flows lie flat (developer, 2026-10-27). */
+function roughen(mesh, z, seed, F, fade, lava = null) {
     const { xyz, numCells: n } = mesh, noise = new FastNoise((seed | 0) * 71 + 3), oct = [];
     for (let lam = F.craggyFromKm, a = 1; lam > 1 && oct.length < 5; lam /= 2, a *= 0.55) { const s = a * fade(lam); if (s > 0.02) oct.push([R / lam, s]); }
     if (!oct.length) return;
@@ -343,7 +344,7 @@ function roughen(mesh, z, seed, F, fade) {
         if (!(z[c] > 0.3)) continue;
         let v = 0;
         for (let o = 0; o < oct.length; o++) { const [f, s] = oct[o]; v += s * noise.noise3D(xyz[3 * c] * f + 3.3 * o, xyz[3 * c + 1] * f + 1.7, xyz[3 * c + 2] * f + 5.9 * o); }
-        z[c] += F.craggyKm * smooth(0.3, 3, z[c]) * v;
+        z[c] += F.craggyKm * smooth(0.3, 3, z[c]) * v * (lava ? 1 - Math.min(1, lava[c]) : 1);
     }
 }
 

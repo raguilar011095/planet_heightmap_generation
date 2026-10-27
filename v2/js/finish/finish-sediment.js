@@ -106,15 +106,16 @@ export function dissect(mesh, z, C, cellKm2, F) {
  * (wetness from the annual rain and temperature), not at all in deserts and on frozen ground; the coast stays where it is.
  * Where a river drains (`area`, km²: from F.creepChannelKm2[0], fully from [1]) the creep only lowers: the soil that slides
  * into a valley is carried off by its river, so the crests round and the valleys keep their floors (developer, 2026-10-26:
- * the wet sides were not carved enough — the creep had been filling their valleys).
+ * the wet sides were not carved enough — the creep had been filling their valleys). None where a flood basalt still caps the
+ * ground (`hard`: its share, 0–255): its tops stay flat and its edges sharp — mesas, not rounded hills (2026-10-27).
  */
-export function creepByClimate(mesh, z, rainMm, tempC, F, area = null) {
+export function creepByClimate(mesh, z, rainMm, tempC, F, area = null, hard = null) {
     const { adjOffset, adjList, edgeKm, numCells: n } = mesh;
     const ch = area && F.creepChannelKm2 ? F.creepChannelKm2.map(Math.log) : null;
     const need = 2 * F.creepKm * F.creepKm / (edgeKm * edgeKm), passes = Math.min(30, Math.ceil(need / 0.5));
     if (passes < 1) return 0;
     const a = Math.min(0.5, need / passes), wet = new Float32Array(n);
-    for (let c = 0; c < n; c++) if (z[c] > 0 && rainMm[c] === rainMm[c]) wet[c] = a * smooth(F.creepRainMm[0], F.creepRainMm[1], rainMm[c]) * smooth(F.creepTempC[0], F.creepTempC[1], tempC[c]);
+    for (let c = 0; c < n; c++) if (z[c] > 0 && rainMm[c] === rainMm[c]) wet[c] = a * smooth(F.creepRainMm[0], F.creepRainMm[1], rainMm[c]) * smooth(F.creepTempC[0], F.creepTempC[1], tempC[c]) * (hard ? 1 - hard[c] / 255 : 1);
     const next = new Float32Array(n);
     for (let p = 0; p < passes; p++) {
         for (let c = 0; c < n; c++) {
