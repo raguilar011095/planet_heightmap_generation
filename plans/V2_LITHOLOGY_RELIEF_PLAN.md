@@ -120,7 +120,23 @@ soft retreats into bays (discordant coasts: Dorset; the noise keeps a share).
 rock's colour: red sandstone, near-black basalt and ophiolite, pale limestone, white salt, pink-grey granite. The rocks
 are classified before the land's cover (the deposits stay after it), so the cover's bare ground can be tinted by them.
 
+*Built:* the tint is the bare ground's only (deserts and tundra; vegetated land as before): ~1 in 5 desert cells visibly
+changed, most by limestone, slate, ophiolite and salt; the rock map is the same as before the move.
+
 **L7 — docs.** README, v2/README, llms.txt, the tutorial if needed; What's New asked, not done.
+
+## Results (2026-10-28)
+
+Commits on `lithology-relief`: the plan, L0 (exact: 242 windows hashed byte-identical), L1–L6, the docs. Renders of every
+phase: `v2/out/litho/` (`index.html`: any two phases side by side, or blinking; the height change between them). In
+Chrome, a 2.5M finish of seed 432175 at 300 Myr: 39 s, the `bedrock` stage ~1.8 s; no console errors.
+- **What shows most:** the satellite's deserts (their bedrock's colours); ice-scoured shields (knobs, L8–L9); layered rock
+  in dry country stepped (L9); limestone plains pocked with hollows (L9); granite and shale cut differently (L7+).
+- **Subtle by design:** the mesh-scale relief (±100–200 m in uplands, broad), the coasts by rock (~1 km).
+- **Tried and dropped:** strike ridges (worms over every belt), inselbergs, tower karst and salt domes (bubbles), contact
+  scarps (the rock picture's squares as staircases).
+- **Left open:** the contacts' scarps would need the rock's contacts finer than its picture (its own vector or a finer
+  rock grid); inselbergs would need shapes of their own (a dome's joints, its talus apron), not bumps.
 
 ## Not done (and why)
 
