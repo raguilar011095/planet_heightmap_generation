@@ -42,6 +42,16 @@ export const FINE = {
     dissectPower: 0.6,
     dissectSpectrum: 0.4,       // …its finer octaves stronger on soft rock, weaker on hard: the spectrum's power less this × (dissect − ½)
     badlands: 0.5,              // …and soft rock cut where it is dry too (badlands): its dryness counts for no more than this
+    // bedding (geology-config.js lithology.bedded): slopes stepped through layered rock — a tread, then a riser…
+    bedStepKm: 0.12,            // …each step about this high (0.75–1.25 × it from place to place)…
+    bedRiser: 0.35,             // …its riser this share of it…
+    bedDipKm: 0.35,             // …through beds tilted gently: their surface wandering by this over…
+    bedDipWaveKm: 90,           // …waves this long (dips of a degree or two: cuestas where the ground slopes the other way)
+    bedSlope: [0.01, 0.05],     // on slopes from none … full (plateau tops and plains stay whole)
+    bedWet: 0.3,                // crisp where it is dry; where it is wet (soil and creep round them) this share
+    bedRainMm: [300, 1200],     // …dry … wet
+    // (no strike ridges: drawn as phacelle stripes across a fold belt's strike they read as worms over every belt — the
+    // first fine detail's fault, V2_FINE_DETAIL_PLAN §5; a belt's ridges and its rock bands are the mesh's: synthesize.js)
     // dunes
     duneKm: 3.2, duneAmpKm: 0.05,
     // coasts: the coastline wandering by up to this (more on rocky coasts), on a slope of at least this
@@ -91,7 +101,7 @@ function rockProps(src, W, X0, Y0, ew, eh, latR, seaB, G = GEOLOGY) {
     // (the climate's picture: the same grid as the rocks' — finishRaster makes both — so the same pixels)
     const climate = c && (c.fw ?? c.w) === GW && (c.x0 ?? 0) === gx0 && (c.y0 ?? 0) === gy0 && c.w === gw && c.h === gh ? c : null;
     const out = { land: new Float32Array(N), hard: new Float32Array(N), dissect: new Float32Array(N).fill(0.5), bedded: new Float32Array(N), dome: new Float32Array(N),
-        soluble: new Float32Array(N), strike: new Float32Array(N), T: new Float32Array(N).fill(10), P: new Float32Array(N).fill(600) };
+        soluble: new Float32Array(N), T: new Float32Array(N).fill(10), P: new Float32Array(N).fill(600) };
     const xA = new Int32Array(ew), xB = new Int32Array(ew), fx = new Float32Array(ew), rA = new Int32Array(eh), rB = new Int32Array(eh), fy = new Float32Array(eh);
     for (let i = 0; i < ew; i++) {
         const u = ((((X0 + i + 0.5) / W) % 1 + 1) % 1) * GW - 0.5, xf = Math.floor(u), a0 = (xf + GW) % GW, t = u - xf;
@@ -111,15 +121,15 @@ function rockProps(src, W, X0, Y0, ew, eh, latR, seaB, G = GEOLOGY) {
         let ws = 0, T = 0, P = 0;
         if (climate) for (let q = 0; q < 4; q++) { const t = climate.tAnnual[idx[q]]; if (t === -32768) continue; ws += wt[q]; T += wt[q] * t / 100; P += wt[q] * climate.pAnnual[idx[q]]; }
         if (ws > 0) { T /= ws; P /= ws; out.T[p] = T; out.P[p] = P; } else { T = out.T[p]; P = out.P[p]; }
-        let wl = 0, hard = 0, dis = 0, bed = 0, dome = 0, sol = 0, str = 0;
+        let wl = 0, hard = 0, dis = 0, bed = 0, dome = 0, sol = 0;
         for (let q = 0; q < 4; q++) {
             const k = g.rock[idx[q]];
             if (!k) continue;
             const w = wt[q];
-            wl += w; hard += w * rockHard(k, T, P, G); dis += w * L.dissect[k]; bed += w * L.bedded[k]; dome += w * L.dome[k]; sol += w * L.soluble[k]; str += w * L.strike[k];
+            wl += w; hard += w * rockHard(k, T, P, G); dis += w * L.dissect[k]; bed += w * L.bedded[k]; dome += w * L.dome[k]; sol += w * L.soluble[k];
         }
         if (!(wl > 0)) continue;
-        out.land[p] = wl; out.hard[p] = hard / wl; out.dissect[p] = dis / wl; out.bedded[p] = bed / wl; out.dome[p] = dome / wl; out.soluble[p] = sol / wl; out.strike[p] = str / wl;
+        out.land[p] = wl; out.hard[p] = hard / wl; out.dissect[p] = dis / wl; out.bedded[p] = bed / wl; out.dome[p] = dome / wl; out.soluble[p] = sol / wl;
     }
     return out;
 }
@@ -168,6 +178,11 @@ function phacelle(px, py, pz, ax, ay, az, lam, s) {
     }
     return Math.atan2(im, re);
 }
+/** Bed k's top (in steps; bed k from its top to bed k + 1's): k jittered by ± 0.3 — beds 0.4–1.6 steps thick, the same
+ *  everywhere for a seed. */
+const bedLevel = (k, seed) => k + 0.6 * (hash3(k, 17, 3, seed * 7 + 5) / 4294967296 - 0.5);
+/** How hard bed k is, 0.25…1: its riser's share (a cliff-former's full, a soft bed's faint, ~0.6 on the whole). */
+const bedHard = (k, seed) => 0.25 + 0.75 * (hash3(k, 41, 9, seed * 7 + 6) / 4294967296) ** 0.7;
 /** Smooth noise at p (lattice units: one feature a cell), about −1 … 1: each lattice point's random slope, faded out by its kernel. */
 function smoothNoise(fx, fy, fz, s) {
     const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
@@ -298,8 +313,10 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // weights are not needed)
     let drawn = false;
     for (let lam = lam0, o = 0; fade(lam) > 0 && o < 7; lam /= 2, o++) if (octaveF(lam) > 0.02) { drawn = true; break; }
-    // (the rocks, where any of their features is drawn at this zoom)
-    const lith = src.g?.rock && drawn ? rockProps(src, W, X0, Y0, ew, eh, latR, seaB) : null;
+    // (the rocks, where any of their features is drawn at this zoom: the ridges' octaves, steps on the gentlest slopes
+    // they are drawn on)
+    const bedOn = fade(0.75 * FINE.bedStepKm / FINE.bedSlope[0]) > 0;
+    const lith = src.g?.rock && (drawn || bedOn) ? rockProps(src, W, X0, Y0, ew, eh, latR, seaB) : null;
     // (each pixel's spectrum by its rock: the finer octaves × (λ / 12 km) to this — 0 where the rock is neutral)
     const spec = lith ? new Float32Array(N) : null;
     if (drawn) for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
@@ -351,6 +368,41 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     }
 
     lap('ridges');
+    // ── the rock's structure: layered rock stepped where the ground slopes through it — each place's height measured
+    // from the beds' gently tilted surface, through a stair of treads and risers rounded at foot and rim (benches, the
+    // rims of mesas, stepped canyon walls; cuestas where the beds dip against the slope) — crisp where it is dry ──
+    if (lith && bedOn) {
+        const dipF = 1 / FINE.bedDipWaveKm, riser = FINE.bedRiser, centre = 0.5 * (1 - riser) * 0.6, [rLo, rHi] = FINE.bedRainMm;
+        const shareCap = (v, p) => { if (!(v < 0)) return v; const b = FINE.gullyMaxShare * Math.max(1e-4, hb[p]); return -(-v * b / Math.hypot(v, b)); };
+        for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
+            const p = j * ew + i;
+            if (seaB[p] || !(lith.land[p] > 0) || !(hb[p] > 0)) continue;
+            const bed = lith.bedded[p];
+            if (bed > 0.02) {
+                const slope = Math.hypot(gE[p] + dE[p], gN[p] + dN[p]), gate = smooth(FINE.bedSlope[0], FINE.bedSlope[1], slope);
+                if (gate > 0) {
+                    place(j, i);
+                    const n1 = smoothNoise(P[0] * dipF, P[1] * dipF, P[2] * dipF, seed * 5 + 21), n2 = smoothNoise(P[0] * dipF * 2.3, P[1] * dipF * 2.3, P[2] * dipF * 2.3, seed * 5 + 22);
+                    const t = FINE.bedStepKm * (1 + 0.25 * Math.max(-1, Math.min(1, 2.4 * n2))), fS = fade(t / slope);
+                    if (fS > 0) {
+                        // (the beds: each its own thickness, 0.6–1.4 of a step, and its own hardness — a cliff-former's riser
+                        // full, a soft bed's faint — the tread's foot at each bed's top, then its riser up to the next;
+                        // continuous across every bed's top, where the stair meets the slope)
+                        const phi = (hb[p] + D[p] - FINE.bedDipKm * (n1 + 0.5 * n2)) / t;
+                        let k = Math.floor(phi), lo = bedLevel(k, seed);
+                        if (phi < lo) lo = bedLevel(--k, seed);
+                        let hi = bedLevel(k + 1, seed);
+                        if (phi >= hi) { lo = hi; hi = bedLevel(++k + 1, seed); }
+                        const span = hi - lo, f = (phi - lo) / span, u = Math.max(0, Math.min(1, (f - (1 - riser)) / riser));
+                        const crisp = FINE.bedWet + (1 - FINE.bedWet) * (1 - smooth(rLo, rHi, lith.P[p]));
+                        D[p] += bed * crisp * gate * fS * shareCap(t * (span * bedHard(k, seed) * (u * u * (3 - 2 * u) - f) + centre), p);
+                    }
+                }
+            }
+        }
+    }
+
+    lap('rock');
     // ── dunes ──
     {
         const lam = FINE.duneKm, f = fade(lam);

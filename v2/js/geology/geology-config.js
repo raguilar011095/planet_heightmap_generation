@@ -97,8 +97,6 @@ export const GEOLOGY = {
         dome: [0, 0, 0.15, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.8, 0, 0],
         // dissolves — karst (limestone; salt and gypsum some), 0…1
         soluble: [0, 0, 0, 0, 1, 0.6, 0, 0, 0, 0, 0, 0, 0, 0],
-        // stands as strike ridges where a fold belt has tilted it (bedded cover; slate's cleavage), 0…1
-        strike: [0, 0, 1, 0.6, 1, 0, 0, 0.4, 0, 0.8, 0.3, 0, 0, 0],
     },
 
     // ── deposits (deposits.js; research §2, §4–6) ──

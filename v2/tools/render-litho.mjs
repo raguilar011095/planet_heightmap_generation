@@ -153,17 +153,29 @@ const simMesh = buildSimMesh(SIM, MESH_SEED);
 for (const [seed, time] of MOMENTS) {
     const key = `${seed}-${time}`, dir = path.join(phaseDir, key), baseDir = BASE ? path.join(OUT, BASE, key) : null;
     fs.mkdirSync(dir, { recursive: true });
-    const frame = await momentFrame(seed, time);
-    console.log(`${key}: frame (${secs()})`);
-    const pool = await TerrainPool.create(simMesh);
-    const out = await finishPlanet({ frame, simMesh, seed, cells: CELLS, pool, closePool: true, driversWidth: 2048 });
-    const raster = finishRaster(out.mesh, out.z, out.ocean, RASTER_W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology);
-    const climate = { ...out.climate.page, raster: raster.climate };
-    delete raster.climate;
-    raster.drivers = out.drivers;
-    const fin = { cells: CELLS, raster, rivers: out.rivers, climate, stats: out.stats };
-    const S = { ms: Object.fromEntries(Object.entries(out.ms).map(([k, v]) => [k, Math.round(v)])), ...landStats(out), windows: {} };
-    console.log(`${key}: finished (${secs()})`);
+    // (--reuse-finish: the moment finished by the last run, kept — for phases that change only how it is drawn)
+    const cacheFile = path.join(OUT, 'cache', `${key}-${CELLS}.bin`);
+    let fin, S;
+    if (process.argv.includes('--reuse-finish') && fs.existsSync(cacheFile)) {
+        ({ fin, S } = v8.deserialize(fs.readFileSync(cacheFile)));
+        S.windows = {};
+        console.log(`${key}: the finish kept from the last run (${secs()})`);
+    } else {
+        const frame = await momentFrame(seed, time);
+        console.log(`${key}: frame (${secs()})`);
+        const pool = await TerrainPool.create(simMesh);
+        const out = await finishPlanet({ frame, simMesh, seed, cells: CELLS, pool, closePool: true, driversWidth: 2048 });
+        const raster = finishRaster(out.mesh, out.z, out.ocean, RASTER_W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology);
+        const climate = { ...out.climate.page, raster: raster.climate };
+        delete raster.climate;
+        raster.drivers = out.drivers;
+        fin = { cells: CELLS, raster, rivers: out.rivers, climate, stats: out.stats };
+        S = { ms: Object.fromEntries(Object.entries(out.ms).map(([k, v]) => [k, Math.round(v)])), ...landStats(out), windows: {} };
+        fs.mkdirSync(path.dirname(cacheFile), { recursive: true });
+        fs.writeFileSync(cacheFile, v8.serialize({ fin, S }));
+        console.log(`${key}: finished (${secs()})`);
+    }
+    const { raster, climate } = fin;
     // ── the whole planet ──
     {
         const H = GLOBAL_W >> 1, image = { data: new Uint8ClampedArray(4 * GLOBAL_W * H) };

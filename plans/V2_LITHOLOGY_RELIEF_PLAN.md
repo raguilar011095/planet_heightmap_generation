@@ -72,8 +72,11 @@ measured from a gently tilted structural surface (a slow noise, its dip a few de
 near flat on platforms), in steps of ~100–150 m — a tread, then a riser rounded at foot and rim (no hairlines). Flat beds
 give benches, mesas' and buttes' rims and stepped canyon walls; tilted ones cuestas. Crisp where dry, faint where wet;
 none on gentle ground (plateau tops stay whole), none where the steps would be narrower than a few pixels. Basalt's
-flows step the same way, thinner. And in a fold belt, folded cover and slate run as strike ridges along the belt
-(the drivers' `fold`/`foldDir`, until now unused): hogbacks, one face steep — faint, and only where the rock is folded.
+flows step the same way. *Built:* each bed its own thickness (0.4–1.6 steps) and hardness (its riser full or faint) —
+uniform steps read as contour lines; strongest at L9, a hint at L8.
+~~And in a fold belt, folded cover and slate run as strike ridges~~ — *tried and dropped*: phacelle stripes across the
+belts' strike read as worms over every belt (the first fine detail's fault, V2_FINE_DETAIL_PLAN §5); a belt's ridges and
+rock bands stay the mesh's (synthesize.js, the old-belt bands).
 
 **L3 — rocks shape the relief (mesh scale, the finish).** After the climate and before the rivers:
 1. *Provisional rocks* — classifyRocks on the uncarved surface (no rivers, sediment or ice yet): what the carve will cut.
