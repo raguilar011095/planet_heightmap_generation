@@ -8,6 +8,7 @@ import { FINISH, COVER } from './finish-config.js';
 import { LatLonGrid } from './finish-grid.js';
 import { closedBasins } from './finish-basins.js';
 import { depositSediment, creepByClimate, dissect } from './finish-sediment.js';
+import { rocksBefore, differentialRelief, carveByRock, coverStairs } from './finish-lithology.js';
 import { lastIceAge } from './finish-ice.js';
 import { windWork } from './finish-wind.js';
 import { detailDrivers } from './finish-drivers.js';
@@ -43,7 +44,7 @@ export function erosionAt(F, cfg) {
 }
 
 /** The stages, in order, with their rough share of the time (for the progress bar). */
-export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['final climate', 0.03], ['geology', 0.03], ['deposits', 0.04], ['picture', 0.09]];
+export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['bedrock', 0.03], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['final climate', 0.03], ['geology', 0.03], ['deposits', 0.04], ['picture', 0.09]];
 
 /**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
@@ -128,6 +129,22 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     res = null;                                                       // (the rest of the climate's arrays go)
     lap('climate');
 
+    // ── the rocks shape the land (plans/V2_LITHOLOGY_RELIEF_PLAN.md; finish-lithology.js): what the uncarved surface is made
+    // of — the history's record read where the terrain read it — hard rock left standing and soft rock worn down, the
+    // carve's stream power and critical slope by the rock. A moment without the record: none of it ──
+    const grid = new LatLonGrid(0.25);
+    let rocks0 = null, lithoDz = null;
+    if (frame.coverKm && recCell) {
+        onStage('bedrock');
+        rocks0 = rocksBefore({ mesh, z, frame, simMesh, seed, cfg, recCell, cues, lat, lon, rain: pAnn, temp: tAnn, grid });
+        lithoDz = differentialRelief(mesh, z, rocks0, { frame, recCell, lat, lon, hold: carveIn.hold, lip: carveIn.lip }, F);
+        carveByRock(carveIn, rocks0, F);
+        let sum = 0, land = 0;
+        for (let c = 0; c < n; c++) if (rocks0.rock[c]) { sum += Math.abs(lithoDz[c]); land++; }
+        stats.lithoMeanM = land ? Math.round(1000 * sum / land) : 0;
+        lap('bedrock');
+    }
+
     // ── the rivers: runoff (rain less evaporation) weights the drainage; dry basins stay closed; carved for longer ──
     onStage('rivers');
     const runoff = new Float32Array(n), pet = new Float32Array(n);
@@ -169,14 +186,18 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     const settings = carveSettings({ ...cfg, carveM: E.m, carveTimeMyr: F.carveTimeMyr, carveRounds: F.carveRounds, carveValleySides: F.valleySides ?? 0 });
     const C = carveTerrain(ladder, { ...carveIn, hold, z, sink: B.sink, base: B.base }, settings);
     // (where flood basalt still caps the ground after the carving — its pile not cut through — for the satellite view)
-    const basalt = new Uint8Array(n);
+    const basalt = new Uint8Array(n), lip0 = carveIn.lip;
     for (let c = 0; c < n; c++) if (carveIn.lip[c] > 0) basalt[c] = Math.round(255 * carveIn.lip[c] * smooth(0, 0.05, C.z[c] - carveIn.lipBase[c]));
     // (and how young the mountains are: the belt's activity, 1 while the history still raises it — the satellite view's tone)
     const young = new Uint8Array(n);
     for (let c = 0; c < n; c++) young[c] = Math.round(255 * Math.max(0, Math.min(1, carveIn.hold[c])));
     carveIn = null;
     forgetMesh(mesh); forgetEdgeKm(mesh);                             // (the carve's caches for this mesh: ~0.5 GB at 10M)
-    dissect(mesh, C.z, C, cellKm2, { ...F, dissectKm: E.dissectKm });
+    // (the dissection deeper in soft rock; and where the rivers cut into bedded cover, its walls stepped)
+    let soft = null;
+    if (rocks0) { soft = new Float32Array(n); const [s0, s1] = F.lithDissect; for (let c = 0; c < n; c++) soft[c] = rocks0.rock[c] ? s0 + (s1 - s0) * rocks0.hard[c] : 1; }
+    dissect(mesh, C.z, C, cellKm2, { ...F, dissectKm: E.dissectKm }, soft);
+    if (rocks0) coverStairs(C.z, before, C, rocks0, pAnn, lip0, F, seed);
     lap('rivers');
 
     // ── F2: sediment, then hillslopes by climate ──
@@ -191,12 +212,16 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     zPre = null;
     lap('sediment');
     onStage('hillslopes');
-    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm }, C.area, basalt);
+    // (none on a flood basalt's cap; less on hard rock)
+    let hardC = basalt;
+    if (rocks0) { hardC = new Uint8Array(n); for (let c = 0; c < n; c++) hardC[c] = Math.max(basalt[c], Math.round(255 * F.lithCreep * rocks0.hard[c])); }
+    creepByClimate(mesh, C.z, pAnn, tAnn, { ...F, creepKm: E.creepKm }, C.area, hardC);
+    hardC = null;
+    rocks0 = null;                                                    // (~120 MB at 10M cells)
     lap('hillslopes');
 
     // ── F3: the last ice age ──
     onStage('ice age');
-    const grid = new LatLonGrid(0.25);
     const I = lastIceAge({ mesh, z: C.z, lat, lon, warmSl, rain: pAnn, grid, cellKm2, seed }, F);
     forgetEdgeKm(mesh);
     stats.iceKm2 = I.iceKm2; stats.iceSheets = I.sheets;
@@ -298,7 +323,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     if (geo) {
         onStage('geology');
         const G = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
-            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues } });
+            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues, lithoDz } });
         geology = { rock: G.rock, rec: G.rec, simCells: simMesh.numCells, cues };          // (cues: for the checks; not in the picture)
         stats.rocks = Array.from(G.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(G.youngBy, v => +v.toFixed(4));
         forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)

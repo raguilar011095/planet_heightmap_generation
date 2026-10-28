@@ -215,7 +215,8 @@ function readRecord(mesh, simMesh, S, seed, cfg) {
  *                     erg (sand seas, 0…1), loess (km, × loessShare), till (moraines and outwash, 0…255), glaciated (under
  *                     the last ice age's ice, 0/1), lava (a flood basalt's cap, 0…255), cues (3 a cell, × 127: the structure
  *                     the surface drew — an old belt's band, the far field's folds, a shield's grain: synthesize.js
- *                     surfaceRange `cue`) }
+ *                     surfaceRange `cue`), lithoDz (km: what the rock itself raised or lowered the surface by —
+ *                     finish-lithology.js; the relief read without it, so a hard ridge it raised keeps its hard rock) }
  * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array}} rec: each cell's record cell;
  *          shares: each kind's share of the land (by cell);
  *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice
@@ -224,7 +225,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     const n = mesh.numCells, { xyz } = mesh, rock = new Uint8Array(n), shares = new Float64Array(ROCK_COUNT);
     const S = simRocks(frame, simMesh, seed, G), rec = recCell ?? readRecord(mesh, simMesh, S, seed, cfg);
     const { grid, lat, lon } = on;
-    const { cut, cutStepKm = 0, alluv, alluvStepKm = 0, erg, loess, loessShare = 1, till, glaciated, lava, q = null, cues = null } = local;
+    const { cut, cutStepKm = 0, alluv, alluvStepKm = 0, erg, loess, loessShare = 1, till, glaciated, lava, q = null, cues = null, lithoDz = null } = local;
     const nz = new FastNoise(((seed | 0) * 0x2c1b + 0x4d) >>> 0), patchF = R / G.patchKm, domeF = R / G.domeKm, beltF = 2 * Math.PI * R / G.beltSpacingKm;
     const score = new Float64Array(ROCK_COUNT);
     // ── the record, smooth: its cover, the cover's make-up, its folding — each cell's record cell's, averaged over a sim
@@ -242,10 +243,12 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     // ── the finished surface: each place's relief (its height over the land around it), and over its region (~50 km)
     // the height and the rivers' cuts (whether the cover is gone is a region's matter — high ground shedding it, a canyon
     // country cut through it) ──
-    const ref = grid.blur(grid.average(lat, lon, z, isLand), G.reliefKm), hReg = coarse.blur(coarse.average(lat, lon, z, isLand), 50);
+    // (the relief without what the rock itself added: the rock decides it, not the other way round)
+    const zr = lithoDz ? Float32Array.from(z, (v, c) => v - lithoDz[c]) : z;
+    const ref = grid.blur(grid.average(lat, lon, zr, isLand), G.reliefKm), hReg = coarse.blur(coarse.average(lat, lon, z, isLand), 50);
     // (the surface a little smoothed — over a cell or two — so a feature the map can show sets the rocks, not one cell's
     // roughness: its valleys and ridges, not their speckle)
-    const zs = Float32Array.from(z);
+    const zs = Float32Array.from(zr);
     {
         const { adjOffset, adjList } = mesh;
         for (let pass = 0; pass < 2; pass++) {

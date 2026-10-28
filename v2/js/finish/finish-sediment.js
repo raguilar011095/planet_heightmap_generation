@@ -84,9 +84,9 @@ function spread(mesh, f, z, km) {
  * Dissection everywhere: every drainage line cut in by a share of how steep the ground around it is — by how many cells
  * drain there (none on a ridge, all of it in a valley the mesh can show) — so mountains are cut all over, plains stay
  * calm, and the ridges between the valleys stand. Rivers still run downhill after it (each cell no lower than the one it
- * drains into, as the carve leaves them); land stays land.
+ * drains into, as the carve leaves them); land stays land. `soft`: each cell's depth × this (its rock: finish-lithology.js).
  */
-export function dissect(mesh, z, C, cellKm2, F) {
+export function dissect(mesh, z, C, cellKm2, F, soft = null) {
     const { adjOffset, adjList, edgeKm } = mesh, { recv, area, order } = C;
     const la1 = Math.log(F.dissectKm2[0]), la2 = Math.log(F.dissectKm2[1]), before = z.slice();
     for (let i = 0; i < order.length; i++) {
@@ -95,7 +95,7 @@ export function dissect(mesh, z, C, cellKm2, F) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (before[nb] > 0) { m += Math.abs(before[nb] - before[c]); k0++; } }
         if (!k0) continue;
         const steep = smooth(F.dissectSlope[0], F.dissectSlope[1], m / k0 / edgeKm), valley = smooth(la1, la2, Math.log(Math.max(1, area[c])));
-        if (steep > 0 && valley > 0) z[c] = Math.max(Math.min(before[c], 0.002), before[c] - F.dissectKm * steep * valley);
+        if (steep > 0 && valley > 0) z[c] = Math.max(Math.min(before[c], 0.002), before[c] - F.dissectKm * (soft ? soft[c] : 1) * steep * valley);
     }
     // (downhill still: in the flood's order every cell comes after the one it drains into)
     for (let i = 0; i < order.length; i++) { const c = order[i], r = recv[c]; if (r >= 0 && z[c] < z[r]) z[c] = Math.min(before[c], z[r]); }

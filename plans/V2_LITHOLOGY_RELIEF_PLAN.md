@@ -84,7 +84,11 @@ rock bands stay the mesh's (synthesize.js, the old-belt bands).
 3. *Differential lowering*: `Δz = amp · unroofed · (hard − regional mean)` — mean-preserving over ~80 km, so the land's
    heights stay where they were overall; `unroofed` grows with how much rock the history has stripped there (the
    record's `unroofKm`, and its `exhumKm`), so old worn belts and shields get the most, a young range little (its hold).
-   None on lava (its own stack), none at sea level.
+   None on lava (its own stack), none at sea level. *Built:* the record's stripping is km almost everywhere (median
+   6–10 km), so the strength is also by the height above base level (`lithBaseKm` 0.02 … 0.6 km: a lowland plain at the
+   rivers' grade cannot stand in relief, whatever its rock) — mean change ~25 m over the land, ±100–200 m in uplands
+   where hard and soft rock meet; the land's heights stay put (median +10 m). Broad: the contacts' scarps are finer than
+   the mesh — the fine detail's (L4).
 4. *The carve and hillslopes agree*: the carve's k × e^(κ(½ − hard)), its critical slope × (0.75 + 0.5 hard); creep and
    dissection weaker on hard rock.
 5. *Cover stairs*: where the carve has cut into bedded cover, its walls stepped (`terraceBasalt` generalised: steps of
