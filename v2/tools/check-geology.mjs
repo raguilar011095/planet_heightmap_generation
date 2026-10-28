@@ -389,7 +389,7 @@ section('G6 — districts, stories, exports');
         `${rows.length} districts · atlas ${atlas.length.toLocaleString()} characters`);
     // (the export panel's Geology rows: each view's map, and as data the rock types and a mask per resource — every
     // metal and fuel, each age's resources and its potential — at a width other than the rocks' picture's)
-    const lk = { lut: heightLutOf('relief'), exaggeration: 20, shaded: true, deposit: 'all', frame: last, simMesh: mesh, seed: SEED };
+    const lk = { lut: heightLutOf('relief'), exaggeration: 20, shaded: true, deposit: 'all', frame: last, seed: SEED };
     let maps = 0, masks = 0, blank = 0;
     const empty = [];
     for (const r of GEOLOGY_GROUP.rows) for (const job of [...(r.colour ? [{ variant: 'colour' }] : []), ...(r.data ?? []).map(file => ({ variant: 'data', file }))]) {

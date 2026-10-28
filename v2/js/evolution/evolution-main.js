@@ -744,7 +744,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology views
     // their lakes too, as water)
     paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo,
-        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, frame, B.simMesh, t.width, fin, view.deposit, view.age, view.ageRes) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
     if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
     t.ctx.putImageData(t.image, 0, 0);
     // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
@@ -755,7 +755,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
     const legend = $('climateLegend'), legendKey = C || geo ? `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}` : '';
     if (legend.dataset.key !== legendKey) {
-        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, frame, fin, view.deposit, view.age, view.ageRes);
+        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
         legend.dataset.key = legendKey;
@@ -816,7 +816,7 @@ function paintTile(fin, t, look) {
     const W = t.win.W, lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
     const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer);
     if (tileColors.look !== look) { tileColors.look = look; tileColors.byWidth.clear(); }
-    if ((C || geo) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, painted, B.simMesh, W, fin, view.deposit, view.age, view.ageRes)
+    if ((C || geo) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, W, fin, view.deposit, view.age, view.ageRes)
         : finishedClimateColor(view.layer, view.season, C, W, lut, fin));
     if (tileImage?.width !== t.win.w || tileImage.height !== t.win.h) tileImage = new ImageData(t.win.w, t.win.h);
     paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo, shaded: view.shaded,
@@ -1029,7 +1029,7 @@ const planetFile = {
 };
 const exportPanel = initEvolutionExport({
     moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed }; },
-    look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit, simMesh: B.simMesh }),
+    look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH, planetFile,
     // (an export wider than the picture: the whole planet drawn with the detail finer than the mesh, in bands)
     fine: (fin, _seed, W, onProgress) => detail.window(fin, B.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress) });
@@ -1297,7 +1297,7 @@ function readout(e) {
     if (plate >= 0) lines.push(`<span class="hi-label">Age</span> ${Math.max(0, Math.round(f.time - f.formedAt[w])).toLocaleString()} Myr`);
     const setting = plate >= 0 ? settingOf(f, w) : null;
     if (setting) lines.push(`<span class="hi-label">Setting</span> ${setting}`);
-    // the geology views: the record under the pointer (its belt, its seas, its cover, its wear)
+    // the geology views: the rock under the pointer and the record it came from (its belt, its seas, its cover, its wear)
     if (fin && GEOLOGY_LAYERS.has(view.layer)) {
         // (the record where the terrain read it, if the finish handed that over: the cell the pixel shows)
         const rw = !at.ocean ? recAt(fin, p[0], p[1]) : -1, wr = rw >= 0 ? rw : w;

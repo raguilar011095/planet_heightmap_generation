@@ -1,7 +1,7 @@
 // The geology's exports (plans/V2_GEOLOGY_PLAN.md G6; finished moments only, as every export): a group of rows in the
 // export panel (export.js CATALOGUE, view/export-panel.js), so they come in its widths and projections, centred as the
-// map is, over the hillshade or flat. Each view's map in its own colours — the Rocks, the Deposits as shown, each age's,
-// the record's — and as data its numbers: the rock types' index, a greyscale richness mask per resource (0 none … 255 the
+// map is, over the hillshade or flat. Each view's map in its own colours — the Rocks, the Deposits as shown, each
+// age's — and as data its numbers: the rock types' index, a greyscale richness mask per resource (0 none … 255 the
 // richest, the sea black: to paint with downstream). And two that are not maps: the districts as GeoJSON and CSV with
 // their stories, and a resource atlas — each landmass's resources and its richest districts, in words.
 
@@ -34,10 +34,6 @@ export const GEOLOGY_GROUP = { id: 'geology', label: 'Geology', rows: [
         data: [...a.resources.map(r => mask(`${a.id}.${r.id}`, kebab(r.id), TECH.has(a.id) ? `${r.name}, as the ${a.name} could reach it` : `${r.name} richness`)),
             ...(a.potential ? [mask(`${a.id}.potential`, 'potential', `${a.potential.name} potential: ${a.potential.words}`)] : [])],
         tip: `${a.name}: ${a.words}. Its map, all of it; as data, a richness mask for each${a.potential ? `, and where ${a.potential.name.toLowerCase()} could be made` : ''}` })),
-    row('belts', 'Mountain belts', 'geology', 'geoBelts', { colour: true, tip: 'Mountain belts by when each was last active: red while active, orange while its range stands, tan as it wears, violet once worn flat' }),
-    row('seas', 'Past seas', 'geology', 'geoSeas', { colour: true, tip: 'Where shallow seas lay over the continents, and when' }),
-    row('sediment', 'Sediment', 'geology', 'geoCover', { colour: true, tip: 'The sediment laid on the continents — sand and mud, limestone, salt, coal, black shale — by its top, deeper the thicker' }),
-    row('erosion', 'Erosion depth', 'geology', 'geoWear', { colour: true, tip: 'How deep erosion has cut into the basement: the rock now at the surface once lay this deep' }),
     row('districts', 'Districts', 'deposits', 'districts', { data: [textFile('districtsGeojson', 'geojson', 'Districts'), textFile('districtsCsv', 'csv', 'Districts')],
         tip: 'Every district of every metal, fuel and gem — its kind of deposit, grade, area, landmass, rank on the world and the story of how it formed — as GeoJSON points (longitude, latitude) and a CSV table. Not maps: the projection and centre leave them as they are' }),
     row('atlas', 'Resource atlas', 'deposits', 'atlas', { data: [textFile('atlas', 'md', 'Resource atlas')],
@@ -53,7 +49,7 @@ const PLAIN = { pictureAt: (fin, W) => rasterAt(fin.raster, W), paintAt: (fin, W
 /**
  * One file of a geology row, W wide, as the panel asks for it (`job`: {row, variant, file}), unturned (export.js centres it):
  * a map ({kind, W, H, data}) or a file that is not one ({kind: 'file', blob, about}). `lk`: the look ({lut, exaggeration,
- * shaded, deposit (the Deposits view's pick), frame (the moment's), simMesh, seed}); `pic`: the picture at W, and painted
+ * shaded, deposit (the Deposits view's pick), frame (the moment's: the districts' stories), seed}); `pic`: the picture at W, and painted
  * ({pictureAt, paintAt}: export.js's, the detail finer than the mesh where drawn).
  */
 export function produceGeology(fin, W, lk, job, pic = PLAIN) {
@@ -81,7 +77,7 @@ export function geologyMap(fin, W, layer, lk, { pick = 'all', age = 'bronze', ag
         const { sea } = pic.pictureAt(fin, W), K = fin.climate?.raster, ef = KOPPEN_ID.EF;
         const kop = K?.koppen ? classIndexMap(K, K.koppen, KOPPEN_CLASSES.length, W, sea) : null;
         colorAt = rocksColor(fin, W, { rock: classIndexMap(G, G.rock, ROCK_COUNT, W, sea), ice: kop && kop.map(z => (z === ef ? 1 : 0)) });
-    } else colorAt = finishedGeologyColor(layer, lk.frame, lk.simMesh, W, fin, pick, age, agePick);
+    } else colorAt = finishedGeologyColor(layer, W, fin, pick, age, agePick);
     pic.paintAt(fin, W, image, lk.lut, { exaggeration: lk.exaggeration, lakes: true, shaded: lk.shaded !== false, colorAt });
     return { kind: 'rgba', W, H, data: image.data };
 }

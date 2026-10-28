@@ -220,7 +220,7 @@ if (!FIXTURE) {
 
 // ── (a) the geology's maps and files, as the Export panel draws them, from the fresh moment ──
 {
-    const lk = { lut: heightLutOf('relief'), exaggeration: 20, water: false, shaded: true, centerLon: 30, deposit: 'all', frame: moment, simMesh, seed: SEED };
+    const lk = { lut: heightLutOf('relief'), exaggeration: 20, water: false, shaded: true, centerLon: 30, deposit: 'all', frame: moment, seed: SEED };
     // (a richness mask may be blank — a rare resource this small world lacks, as tin often is — the rest never)
     let n = 0, masks = 0, blank = 0, bad = null;
     for (const row of CATALOGUE.find(g => g.id === 'geology').rows) {
@@ -282,7 +282,7 @@ for (const name of kept) {
         const jobs = [...(row.colour && row.id !== 'rivers' ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))];
         for (const job of jobs) for (const season of seasons) {
             let r = null, e = null;
-            try { r = produceMap(m, 256, { ...look, frame: f, simMesh: mesh, seed: p.manifest.settings.seed, deposit: 'all' }, { ...job, row, season }); } catch (x) { e = x.message; }
+            try { r = produceMap(m, 256, { ...look, frame: f, seed: p.manifest.settings.seed, deposit: 'all' }, { ...job, row, season }); } catch (x) { e = x.message; }
             const data = r?.data, varied = r?.kind === 'file' ? r.blob.size > 100 : data && data.some(v => v !== data[0]);
             check(r?.kind === 'file' ? varied : data && data.length >= 256 * 128 && varied, `${name}: ${row.id} ${job.variant}${job.file ? ` ${job.file.key}` : ''} ${season} is drawn (${e ?? (data ? 'one colour' : 'nothing')})`);
             maps++;

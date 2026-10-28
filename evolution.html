@@ -207,10 +207,6 @@
             <option value="geoRocks">Rocks</option>
             <option value="geoDeposits">Deposits</option>
             <option value="geoAges">Ages</option>
-            <option value="geoBelts">Mountain belts</option>
-            <option value="geoSeas">Past seas</option>
-            <option value="geoCover">Sediment</option>
-            <option value="geoWear">Erosion depth</option>
         </optgroup>
         <optgroup label="Climate: more">
             <option value="pressure">Pressure</option>
@@ -280,7 +276,7 @@
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
                 <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
-                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach; its mountain belts, active, worn and long gone; where shallow seas lay over the continents; the sediment on them; how deep erosion has cut. Comes with Add detail">Geology</button>
+                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. Comes with Add detail">Geology</button>
                 <button class="map-tab" data-layer="heightmap">Heightmap</button>
                 <button class="map-tab" data-layer="plates">Plates</button>
             </div>
@@ -314,10 +310,6 @@
                 <button class="map-tab" data-layer="geoRocks" title="What the land is made of at the surface: sediment and sedimentary rock, volcanic rock, granite, metamorphic rock and the ancient shields — from the history's rock record">Rocks</button>
                 <button class="map-tab" data-layer="geoDeposits" title="Where the ores, fuels and minerals lie — each system from the history's arcs, belts, basins, plumes and cratons, and from the climate and the rivers: poor, moderate or rich">Deposits</button>
                 <button class="map-tab" data-layer="geoAges" title="What a people of each technological age could reach — Stone, Copper, Bronze, Iron, Industrial — and fuel, gems and building stone: each one's resources, poor to rich, and where bronze or iron could be made">Ages</button>
-                <button class="map-tab" data-layer="geoBelts" title="Mountain belts by when each was last active: red while active, orange while its range stands, tan as it wears, violet once worn flat">Mountain belts</button>
-                <button class="map-tab" data-layer="geoSeas" title="Where shallow seas lay over the continents, and when: the sea rises when the ocean floor is young and falls under a supercontinent">Past seas</button>
-                <button class="map-tab" data-layer="geoCover" title="The sediment laid on the continents — sand and mud, limestone, salt, coal, black shale — by its top, deeper the thicker">Sediment</button>
-                <button class="map-tab" data-layer="geoWear" title="How deep erosion has cut into the basement: the rock now at the surface once lay this deep">Erosion depth</button>
             </div>
             <select id="depositPick" aria-label="Which deposits" title="Which deposits: all the metals and minerals together (each place its richest), one metal or fuel alone — or a kind of deposit, by how it formed" hidden>
                 <option value="all" selected>All metals and minerals</option>
@@ -478,7 +470,7 @@
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
                 <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (scroll to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
-                <p>Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> &mdash; hover for how each came to be there &mdash; its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit), its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone &mdash; tap a legend entry to see it alone; hover a deposit for its district, its rank on the world and how it formed), its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut.</p>
+                <p>Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> &mdash; hover for how each came to be there &mdash; its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit) and its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone &mdash; tap a legend entry to see it alone; hover a deposit for its district, its rank on the world and how it formed).</p>
                 <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate layer can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; and the geology's: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words. Several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
             <div class="tutorial-step" data-step="4">

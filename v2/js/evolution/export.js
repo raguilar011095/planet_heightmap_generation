@@ -199,8 +199,8 @@ export function hillshadeMap(fin, W, exaggeration, centerLon = 0) {
 /**
  * One map of a finished moment, W wide, as the panel asks for it: `job` {row (a CATALOGUE row), variant ('colour' or
  * 'data'), file (one of the row's data files), season}; `lk` the look ({lut, exaggeration, water, riverQ, byRegime,
- * shaded, centerLon} — and for the geology's rows the Deposits view's pick, the moment's frame, the plate mesh and the
- * seed: geology-export.js). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
+ * shaded, centerLon} — and for the geology's rows the Deposits view's pick, the moment's frame and the seed:
+ * geology-export.js). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
  */
 export function produceMap(fin, W, lk, job) {
     const s = job.season || 'year', id = job.row.id, c = lk.centerLon;
@@ -227,7 +227,7 @@ export function produceMap(fin, W, lk, job) {
 /**
  * Wire the export panel on the Evolution page. `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null;
  * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }, and the geology's: { deposit (the
- * Deposits view's pick), simMesh }); `centerLon()`: the map view's; `planetFile`: the page's planet file ({ status, save }:
+ * Deposits view's pick) }); `centerLon()`: the map view's; `planetFile`: the page's planet file ({ status, save }:
  * export-panel.js), offered beside the maps.
  */
 export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null }) {

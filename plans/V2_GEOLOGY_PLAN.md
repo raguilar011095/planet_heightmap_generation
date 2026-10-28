@@ -513,6 +513,14 @@ code:
   and keels followed, the heights untouched. `check-save.mjs` draws the rocks at twice their picture over the finer
   detail: no land read as sea.
 
+## The record's views dropped (2026-10-27)
+
+Developer: "i dont think we need belts, seas, sediment, and erosion depth in geology tab". The Geology tab is now Rocks,
+Deposits and Ages; the four views of G1's record (Mountain belts, Past seas, Sediment, Erosion depth) are gone from it,
+from the phone's view picker and from the export panel, with their colours and legends. The record itself stays — the
+rocks, deposits and district stories are made from it — and the readout still says it under the pointer (its belt, its
+seas, its cover, how deep it is worn).
+
 ## Decided (developer, 2026-10-19)
 
 - The four departures: take a stance for the look and the stories, undoable — science in all four, each a `guideRules`

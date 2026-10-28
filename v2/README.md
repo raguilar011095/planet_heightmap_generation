@@ -173,8 +173,7 @@ Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; and
 ground (the Terrain view's density and colouring). And the geology's, a Geology group (`js/evolution/geology-export.js`): the
 Rocks map (as data, each pixel's rock type, 8-bit, the README listing them), the Deposits map as shown (as data, a richness
 mask per metal, mineral and fuel: 8-bit, 0 none … 255 the richest, the sea black but for oil and gas on the shelf), each
-age's map (as data, a mask for each of its resources and its potential), the record's views (mountain belts, past seas,
-sediment, erosion depth), and two that are not maps, left unprojected: the districts as GeoJSON points and CSV rows
+age's map (as data, a mask for each of its resources and its potential), and two that are not maps, left unprojected: the districts as GeoJSON points and CSV rows
 (resource, kind of deposit, grade, area, landmass, rank, story) and a resource atlas in Markdown (each landmass's rocks,
 metals, fuels and gems, bronze and ironworking, and its richest districts with their stories). Its maps wider than the
 picture are drawn over the detail finer than the mesh, as the others are (its relief and coasts). The rocks, a picture
@@ -348,7 +347,7 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, the record's views, deposits, ages, the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-sediment (fans, floodplains, deltas; creep by climate),
@@ -453,8 +452,8 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    young sediment over both (floodplains: the
    low ground along rivers over `floodplainQ`, wider down bigger ones; deltas and basin floors, `plainsShare` of the
    land; dunes, loess, moraines) and flood basalt; a majority filter for specks. The land's families come out near
-   Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's record views read
-   each pixel's record cell too, and its rock (bare basement or cover). Drawn wider than the rocks' picture (zoomed in
+   Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's readout reads
+   each pixel's record cell too (its belt, past seas, cover and wear; the record has no view of its own). Drawn wider than the rocks' picture (zoomed in
    on the fine detail's tiles, or an export enlarged: geology-view.js `rockPixel`), each place takes the kind its four
    nearest land pixels' bilinear weights favour (as a category map is enlarged: contacts run smoothly between their
    centres, not round their squares), read through a small fractal warp (so they wander as contacts do); land only, so
