@@ -239,7 +239,12 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     lap('slope');
     // ── ridges and valleys, octave by octave, each turned by the slope the coarser ones left ──
     const amp = new Float32Array(N), dE = new Float32Array(N), dN = new Float32Array(N), ps = 1 / FINE.gullyPatchKm;
-    for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
+    const lam0 = Math.min(FINE.gullyMaxKm, FINE.gullyCells * src.cellKm), octaveF = lam => fade(lam) * smooth(1.02 * lam0, 0.45 * lam0, lam);
+    // (none of the octaves drawn at this zoom — all of them wider than the mesh holds or too fine for the pixels: the
+    // weights are not needed)
+    let drawn = false;
+    for (let lam = lam0, o = 0; fade(lam) > 0 && o < 7; lam /= 2, o++) if (octaveF(lam) > 0.02) { drawn = true; break; }
+    if (drawn) for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
         const p = j * ew + i;
         if (seaB[p] || !(hb[p] > 0)) continue;
         const slope = Math.hypot(gE[p], gN[p]);
@@ -253,11 +258,11 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
         const patchy = FINE.gullyCalm + (1 - FINE.gullyCalm) * smooth(-0.35, 0.35, v);
         amp[p] = m * Math.min(1, rug / FINE.gullyFullKm) * (FINE.gullyDry + (1 - FINE.gullyDry) * val(d.wet)) * (0.85 + 0.3 * val(d.young)) * patchy;
     }
-    const lam0 = Math.min(FINE.gullyMaxKm, FINE.gullyCells * src.cellKm), side = new Float32Array(N).fill(1);
+    const side = new Float32Array(N).fill(1);
     let oct = 0;
-    for (let lam = lam0; fade(lam) > 0 && oct < 7; lam /= 2, oct++) {
+    for (let lam = lam0; drawn && fade(lam) > 0 && oct < 7; lam /= 2, oct++) {
         // (the coarsest octaves subdued: the big valleys are the mesh's own)
-        const f = fade(lam) * smooth(1.02 * lam0, 0.45 * lam0, lam), A = FINE.gullyGamma * lam * (lam / 12) ** FINE.gullySpectrum * f, s = seed * 31 + oct * 7919;
+        const f = octaveF(lam), A = FINE.gullyGamma * lam * (lam / 12) ** FINE.gullySpectrum * f, s = seed * 31 + oct * 7919;
         if (!(f > 0.02)) continue;
         for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
             const p = j * ew + i;
