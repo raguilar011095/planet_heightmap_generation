@@ -44,7 +44,7 @@ export function erosionAt(F, cfg) {
 }
 
 /** The stages, in order, with their rough share of the time (for the progress bar). */
-export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['bedrock', 0.03], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['final climate', 0.03], ['geology', 0.03], ['deposits', 0.04], ['picture', 0.09]];
+export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['bedrock', 0.03], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['geology', 0.03], ['final climate', 0.03], ['deposits', 0.04], ['picture', 0.09]];
 
 /**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
@@ -264,6 +264,20 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     const drivers = detailDrivers({ mesh, z: C.z, ice: I.ice, iceH: I.H, iceS: I.S, erg: W.erg, wind, climGrid, warmSl, rain: pAnn, young, frame, simMesh, cfg, seed, width: driversWidth });
     lap('detail');
 
+    // ── the geology (plans/V2_GEOLOGY_PLAN.md G2): what each place is made of at the surface — the history's rock column
+    // (the frame's geological record), read where the terrain read it, with the cuts and the young sediment of this
+    // surface (geology/rocks.js) — before the land's cover, whose bare ground shows its rock (L6) ──
+    let geology = null, Rk = null;
+    if (geo) {
+        onStage('geology');
+        Rk = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
+            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues, lithoDz } });
+        geology = { rock: Rk.rock, rec: Rk.rec, simCells: simMesh.numCells, cues };          // (cues: for the checks; not in the picture)
+        stats.rocks = Array.from(Rk.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(Rk.youngBy, v => +v.toFixed(4));
+        forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
+        lap('geology');
+    }
+
     // ── the finished moment's climate, at its detail: the grid's climate as calculated above, each cell's own (its
     // height, its relief, and sunk basins the sea does not reach as land) on the finished surface ──
     // And the land's cover from each cell's twelve months (finish-cover.js; plans/V2_SATELLITE_PLAN.md): its colour as from
@@ -302,7 +316,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
         if (clim) climateTests(T, P12, c, clim);
         landCover(T, coverRainScale(P12, rainTarget[c], P12c), cv, F, COVER, lat[c]);
         placeVariety(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2], varyNoise, vy);
-        placeGround(vy, W.erg[c], W.loess[c] / F.loessKm, basalt[c] / 255);
+        placeGround(vy, W.erg[c], W.loess[c] / F.loessKm, basalt[c] / 255, COVER, Rk ? Rk.rock[c] : 0);
         for (let v = 0; v < 3; v++) coverRgb(cv, v, sat[v], 3 * c, undefined, vy);
         if (cv.wetness < COVER.ripWetness) {
             const k = COVER.ripWetness / Math.max(0.02, cv.wetness);
@@ -316,21 +330,11 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     biasTowardClimate(sat, cellsClimate.koppen, lat, lon, c => land[c] === 1 && cellsClimate.koppen[c] > 0, new LatLonGrid(0.5), seed);
     lap('final climate');
 
-    // ── the geology (plans/V2_GEOLOGY_PLAN.md G2): what each place is made of at the surface — the history's rock column
-    // (the frame's geological record), read where the terrain read it, with the cuts and the young sediment of this
-    // surface (geology/rocks.js) ──
-    let geology = null;
+    // the deposits (G3, G4): the history's mineral systems where they survive, the climate's and the rivers' — on a grid (after
+    // the land's cover: its biomes and climate tests)
     if (geo) {
-        onStage('geology');
-        const G = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
-            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues, lithoDz } });
-        geology = { rock: G.rock, rec: G.rec, simCells: simMesh.numCells, cues };          // (cues: for the checks; not in the picture)
-        stats.rocks = Array.from(G.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(G.youngBy, v => +v.toFixed(4));
-        forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
-        lap('geology');
-        // the deposits (G3, G4): the history's mineral systems where they survive, the climate's and the rivers' — on a grid
         onStage('deposits');
-        const Dp = depositFields({ mesh, z: C.z, ocean, frame, simMesh, seed, rock: G.rock, rec: G.rec, on: { grid, lat, lon },
+        const Dp = depositFields({ mesh, z: C.z, ocean, frame, simMesh, seed, rock: Rk.rock, rec: Rk.rec, on: { grid, lat, lon },
             local: { glaciated: I.ice, till: I.till, lake: Hy.lake, q: Hy.q, recv: Hy.recv, order: Hy.order, biome: cover, clim, ice } });
         geology.deposits = Dp;
         stats.deposits = Object.fromEntries(DEPOSIT_IDS.map((id, k) => [id, [+Dp.shares[3 * k].toFixed(4), +Dp.shares[3 * k + 1].toFixed(4), +Dp.shares[3 * k + 2].toFixed(4)]]));

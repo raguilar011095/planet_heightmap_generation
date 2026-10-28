@@ -310,6 +310,14 @@ export const COVER = {
     sandTint: [1.22, 1.1, 0.86],
     loessTint: [1.1, 1.05, 0.92],
     basaltTint: [0.5, 0.48, 0.47],
+    // …and by the rock under it (plans/V2_LITHOLOGY_RELIEF_PLAN.md L6; geology/rocks.js Rock's order: sea, young sediment,
+    // sandstone, shale, limestone, salt, basalt, andesite & rhyolite, granite, slate & schist, gneiss, shield, greenstone,
+    // ophiolite) — where the land is bare enough to show it (deserts, tundra): red sandstone, pale limestone, white salt,
+    // dark slate, greenstone and ophiolite, pink-grey granite (basalt's own: basaltTint, by the flood basalt's cap);
+    // rockTintShare of each
+    rockTint: [[1, 1, 1], [1, 1, 1], [1.4, 0.9, 0.62], [0.78, 0.78, 0.8], [1.4, 1.38, 1.3], [1.8, 2.2, 3], [1, 1, 1], [0.72, 0.66, 0.72],
+        [1.2, 1.04, 0.96], [0.62, 0.65, 0.72], [0.85, 0.83, 0.83], [1.1, 1, 0.92], [0.6, 0.7, 0.58], [0.5, 0.53, 0.42]],
+    rockTintShare: 1,
 
     // ── the terrain in the satellite view (S2, plans/V2_SATELLITE_PLAN.md) ──
     // the cover's temperatures at each place's own full height (the climate takes only part of a place's height above
