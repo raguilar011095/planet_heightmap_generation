@@ -78,6 +78,29 @@ export const GEOLOGY = {
     basalSand: 0.5,             // the lowest bed, laid as the sea first spread over the basement, sandier by this
     patchKm: 110,               // the patches each kind of rock comes in (noise, so edges are ragged, never the sim's cells)
 
+    // ── what each rock does to the land (plans/V2_LITHOLOGY_RELIEF_PLAN.md): per kind of rock, in rocks.js Rock's order —
+    // sea, young sediment, sandstone, shale, limestone, salt, basalt, andesite & rhyolite, granite, slate & schist, gneiss,
+    // shield, greenstone, ophiolite ──
+    lithology: {
+        // against erosion, 0…1 (rock mass strength: quartz sandstone, granite and gneiss strong; shale, salt and loose
+        // sediment weak — Selby 1980)
+        hard: [0, 0.1, 0.7, 0.2, 0.75, 0.1, 0.8, 0.55, 0.85, 0.5, 0.8, 0.75, 0.7, 0.4],
+        // limestone dissolves where it is wet: its hardness from `hard` (dry: the Grand Canyon's Redwall cliffs) to this
+        // (wet: a dissolving lowland), by the year's rain (mm) — and where it is warm enough to (°C)
+        solubleHard: 0.3, solubleRainMm: [500, 1400], solubleTempC: [-2, 8],
+        // how densely valleys cut it, 0…1 (½: as the fine detail cut every rock before) — impermeable shale and tuff densely,
+        // permeable sandstone and limestone, and granite, sparsely (drainage density differs ~10× by rock: Carlston 1963)
+        dissect: [0.5, 0.5, 0.3, 0.9, 0.25, 0.5, 0.35, 0.7, 0.3, 0.75, 0.4, 0.35, 0.45, 0.6],
+        // layered and flat enough to stand in steps (benches, mesas, stepped canyon walls, cuestas), 0…1
+        bedded: [0, 0, 0.9, 0.4, 0.8, 0, 0.7, 0.3, 0, 0, 0, 0, 0, 0],
+        // rises as domes and inselbergs (granite's bornhardts and sugarloaves; a shield's), 0…1
+        dome: [0, 0, 0.15, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.8, 0, 0],
+        // dissolves — karst (limestone; salt and gypsum some), 0…1
+        soluble: [0, 0, 0, 0, 1, 0.6, 0, 0, 0, 0, 0, 0, 0, 0],
+        // stands as strike ridges where a fold belt has tilted it (bedded cover; slate's cleavage), 0…1
+        strike: [0, 0, 1, 0.6, 1, 0, 0, 0.4, 0, 0.8, 0.3, 0, 0, 0],
+    },
+
     // ── deposits (deposits.js; research §2, §4–6) ──
     deposits: {
         gridDeg: 0.25,              // kept on a grid this fine (each cell the richest of its cells): soft districts
@@ -135,4 +158,5 @@ export const PRIORS = {
     greenstoneShare: [0.15, 0.35],
     domeKm: [60, 140],
     beltSpacingKm: [150, 300],
+    lithology: { solubleHard: [0.2, 0.5], solubleRainMm: [[300, 800], [1000, 2000]] },
 };

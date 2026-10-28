@@ -5,13 +5,17 @@
 //   · ridges and valleys on steep ground — stripes aligned with the slope, each octave turned by the slope the coarser
 //     ones left, so the finer run down into the coarser (the idea of Rune Skovbo Johansen's erosion filter, its "phacelle"
 //     noise: kernels' stripes summed as phasors, the sum's phase taken, so they never wash out) — faint: strongest on wet,
-//     rugged, young ranges, and coming and going from place to place, so no two ranges look alike;
+//     rugged, young ranges, and coming and going from place to place, so no two ranges look alike; and by the rock
+//     (plans/V2_LITHOLOGY_RELIEF_PLAN.md: the finish's rock picture, geology/rocks.js) — shale, slate and tuff cut densely
+//     and finely, sandstone, limestone and granite sparsely;
 //   · dunes in the sand seas, across the year's wind (or along it where the seasons' winds cross);
 //   · the coast's headlands and coves.
 // Plains and plateau tops get none. The rivers are the moment's own lines (drawn by the page and the exports). A window
 // reads only its own pixels and a margin of a few km around them, so windows drawn apart (tiles, bands) meet.
 
 import { DRIVER_FIELDS } from './finish-drivers.js';
+import { GEOLOGY } from '../geology/geology-config.js';
+import { rockHard } from '../geology/lithology.js';
 
 const R = 6371, D2R = Math.PI / 180, TAU = 2 * Math.PI;
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
@@ -34,16 +38,21 @@ export const FINE = {
     gullyDry: 0.35,             // on dry ground this share of the wet ground's
     gullyPatchKm: 110,          // the texture comes and goes over about this distance…
     gullyCalm: 0.12,            // …its calmest stretches this share of its strongest
+    // …and by the rock (geology-config.js lithology.dissect: ½ as before): its depth × (dissect / ½) to this power…
+    dissectPower: 0.6,
+    dissectSpectrum: 0.4,       // …its finer octaves stronger on soft rock, weaker on hard: the spectrum's power less this × (dissect − ½)
+    badlands: 0.5,              // …and soft rock cut where it is dry too (badlands): its dryness counts for no more than this
     // dunes
     duneKm: 3.2, duneAmpKm: 0.05,
     // coasts: the coastline wandering by up to this (more on rocky coasts), on a slope of at least this
     coastWiggleKm: 2.2, coastMinSlope: 0.004,
 };
 
-/** What a finished moment's detail is drawn from: { r (the picture), d (its drivers, or null), seed, cellKm (the mesh's spacing) }. */
+/** What a finished moment's detail is drawn from: { r (the picture), d (its drivers, or null), g (its rock picture, or
+ *  null: a moment without geology), c (its climate's picture: tAnnual, pAnnual — or null), seed, cellKm (the mesh's spacing) }. */
 export function detailSource(fin, seed) {
     const r = fin.raster, cells = fin.cells ?? 2.5e6;
-    return { r, d: r.drivers ?? null, seed, cellKm: 24200 / Math.sqrt(cells) };
+    return { r, d: r.drivers ?? null, g: r.geology?.rock ? r.geology : null, c: fin.climate?.raster?.tAnnual ? fin.climate.raster : null, seed, cellKm: 24200 / Math.sqrt(cells) };
 }
 
 /** How many pixels a window reads past its edges: its coasts' reach, and the octaves' slopes a pixel each. */
@@ -67,7 +76,52 @@ export function cropSource(src, win) {
         }
         return out;
     };
-    return { r: sub(src.r, ['heightM', 'ocean', 'water'], src.r.w / W), d: src.d ? sub(src.d, DRIVER_FIELDS, src.d.w / W) : null, seed: src.seed, cellKm: src.cellKm };
+    return { r: sub(src.r, ['heightM', 'ocean', 'water'], src.r.w / W), d: src.d ? sub(src.d, DRIVER_FIELDS, src.d.w / W) : null,
+        g: src.g ? sub(src.g, ['rock'], src.g.w / W) : null, c: src.c ? sub(src.c, ['tAnnual', 'pAnnual'], src.c.w / W) : null, seed: src.seed, cellKm: src.cellKm };
+}
+
+/**
+ * The rocks under each pixel of a window's extended rows and columns (the finish's rock picture, `src.g`) and their
+ * climate (`src.c`, the same grid): each rock's properties (geology-config.js lithology; a soluble rock's hardness by its
+ * climate) read eased-bilinear over the picture's land pixels — a contact soft over one of its pixels (~10 km), never its
+ * squares. Land pixels only (`seaB` 0); elsewhere the neutral values (dissect ½). Arrays of ew × eh.
+ */
+function rockProps(src, W, X0, Y0, ew, eh, latR, seaB, G = GEOLOGY) {
+    const g = src.g, c = src.c, GW = g.fw ?? g.w, GH = g.fh ?? g.h, gx0 = g.x0 ?? 0, gy0 = g.y0 ?? 0, gw = g.w, gh = g.h, N = ew * eh, L = G.lithology;
+    // (the climate's picture: the same grid as the rocks' — finishRaster makes both — so the same pixels)
+    const climate = c && (c.fw ?? c.w) === GW && (c.x0 ?? 0) === gx0 && (c.y0 ?? 0) === gy0 && c.w === gw && c.h === gh ? c : null;
+    const out = { land: new Float32Array(N), hard: new Float32Array(N), dissect: new Float32Array(N).fill(0.5), bedded: new Float32Array(N), dome: new Float32Array(N),
+        soluble: new Float32Array(N), strike: new Float32Array(N), T: new Float32Array(N).fill(10), P: new Float32Array(N).fill(600) };
+    const xA = new Int32Array(ew), xB = new Int32Array(ew), fx = new Float32Array(ew), rA = new Int32Array(eh), rB = new Int32Array(eh), fy = new Float32Array(eh);
+    for (let i = 0; i < ew; i++) {
+        const u = ((((X0 + i + 0.5) / W) % 1 + 1) % 1) * GW - 0.5, xf = Math.floor(u), a0 = (xf + GW) % GW, t = u - xf;
+        fx[i] = t * t * (3 - 2 * t); xA[i] = Math.min(gw - 1, ((a0 - gx0) % GW + GW) % GW); xB[i] = Math.min(gw - 1, (((a0 + 1) % GW - gx0) % GW + GW) % GW);
+    }
+    for (let j = 0; j < eh; j++) {
+        const v = (90 - latR[j] / D2R) / 180 * GH - 0.5, ya = Math.max(0, Math.min(GH - 1, Math.floor(v))), yb = Math.min(GH - 1, ya + 1), t = Math.max(0, Math.min(1, v - ya));
+        fy[j] = t * t * (3 - 2 * t); rA[j] = Math.min(gh - 1, Math.max(0, ya - gy0)) * gw; rB[j] = Math.min(gh - 1, Math.max(0, yb - gy0)) * gw;
+    }
+    const idx = [0, 0, 0, 0], wt = [0, 0, 0, 0];
+    for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
+        const p = j * ew + i;
+        if (seaB[p]) continue;
+        idx[0] = rA[j] + xA[i]; idx[1] = rA[j] + xB[i]; idx[2] = rB[j] + xA[i]; idx[3] = rB[j] + xB[i];
+        wt[0] = (1 - fx[i]) * (1 - fy[j]); wt[1] = fx[i] * (1 - fy[j]); wt[2] = (1 - fx[i]) * fy[j]; wt[3] = fx[i] * fy[j];
+        // (the climate first: a soluble rock's hardness needs it)
+        let ws = 0, T = 0, P = 0;
+        if (climate) for (let q = 0; q < 4; q++) { const t = climate.tAnnual[idx[q]]; if (t === -32768) continue; ws += wt[q]; T += wt[q] * t / 100; P += wt[q] * climate.pAnnual[idx[q]]; }
+        if (ws > 0) { T /= ws; P /= ws; out.T[p] = T; out.P[p] = P; } else { T = out.T[p]; P = out.P[p]; }
+        let wl = 0, hard = 0, dis = 0, bed = 0, dome = 0, sol = 0, str = 0;
+        for (let q = 0; q < 4; q++) {
+            const k = g.rock[idx[q]];
+            if (!k) continue;
+            const w = wt[q];
+            wl += w; hard += w * rockHard(k, T, P, G); dis += w * L.dissect[k]; bed += w * L.bedded[k]; dome += w * L.dome[k]; sol += w * L.soluble[k]; str += w * L.strike[k];
+        }
+        if (!(wl > 0)) continue;
+        out.land[p] = wl; out.hard[p] = hard / wl; out.dissect[p] = dis / wl; out.bedded[p] = bed / wl; out.dome[p] = dome / wl; out.soluble[p] = sol / wl; out.strike[p] = str / wl;
+    }
+    return out;
 }
 
 // ── a hash of a lattice point; phacelle noise (stripes of one wavelength summed as phasors over a jittered lattice) and a
@@ -244,6 +298,10 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // weights are not needed)
     let drawn = false;
     for (let lam = lam0, o = 0; fade(lam) > 0 && o < 7; lam /= 2, o++) if (octaveF(lam) > 0.02) { drawn = true; break; }
+    // (the rocks, where any of their features is drawn at this zoom)
+    const lith = src.g?.rock && drawn ? rockProps(src, W, X0, Y0, ew, eh, latR, seaB) : null;
+    // (each pixel's spectrum by its rock: the finer octaves × (λ / 12 km) to this — 0 where the rock is neutral)
+    const spec = lith ? new Float32Array(N) : null;
     if (drawn) for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
         const p = j * ew + i;
         if (seaB[p] || !(hb[p] > 0)) continue;
@@ -256,13 +314,17 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
         place(j, i);
         const v = smoothNoise(P[0] * ps, P[1] * ps, P[2] * ps, seed * 5 + 11) + 0.5 * smoothNoise(P[0] * ps * 2.3, P[1] * ps * 2.3, P[2] * ps * 2.3, seed * 5 + 12);
         const patchy = FINE.gullyCalm + (1 - FINE.gullyCalm) * smooth(-0.35, 0.35, v);
-        amp[p] = m * Math.min(1, rug / FINE.gullyFullKm) * (FINE.gullyDry + (1 - FINE.gullyDry) * val(d.wet)) * (0.85 + 0.3 * val(d.young)) * patchy;
+        if (!lith) { amp[p] = m * Math.min(1, rug / FINE.gullyFullKm) * (FINE.gullyDry + (1 - FINE.gullyDry) * val(d.wet)) * (0.85 + 0.3 * val(d.young)) * patchy; continue; }
+        // (by the rock: soft rock cut densely — where it is dry too, a badland's — hard rock sparsely)
+        const dis = lith.dissect[p], wet = Math.max(val(d.wet), FINE.badlands * smooth(0.6, 0.9, dis));
+        amp[p] = m * Math.min(1, rug / FINE.gullyFullKm) * (FINE.gullyDry + (1 - FINE.gullyDry) * wet) * (0.85 + 0.3 * val(d.young)) * patchy * (dis / 0.5) ** FINE.dissectPower;
+        spec[p] = FINE.dissectSpectrum * (0.5 - dis);
     }
     const side = new Float32Array(N).fill(1);
     let oct = 0;
     for (let lam = lam0; drawn && fade(lam) > 0 && oct < 7; lam /= 2, oct++) {
         // (the coarsest octaves subdued: the big valleys are the mesh's own)
-        const f = octaveF(lam), A = FINE.gullyGamma * lam * (lam / 12) ** FINE.gullySpectrum * f, s = seed * 31 + oct * 7919;
+        const f = octaveF(lam), A = FINE.gullyGamma * lam * (lam / 12) ** FINE.gullySpectrum * f, s = seed * 31 + oct * 7919, lnL = Math.log(lam / 12);
         if (!(f > 0.02)) continue;
         for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
             const p = j * ew + i;
@@ -281,7 +343,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
             const prof = 2 * (0.5 * (1 + Math.cos(ph))) ** 0.75 - 1;
             side[p] = Math.abs(Math.sin(ph));
             // (never deeper than a share of the ground's height: a soft minimum, which has no kink)
-            const a = A * amp[p], b = FINE.gullyMaxShare * Math.max(1e-4, hb[p]);
+            const a = A * amp[p] * (spec && spec[p] ? Math.exp(spec[p] * lnL) : 1), b = FINE.gullyMaxShare * Math.max(1e-4, hb[p]);
             D[p] += gate * (a * b / Math.hypot(a, b)) * prof;
         }
         gradient(D, dE, dN);
