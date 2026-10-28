@@ -16,7 +16,8 @@ const CHUNKS_PER_WORKER = 8;          // more chunks than workers, dealt round-r
 // rotation, below)
 export const FRAME_FIELDS = ['time', 'owner', 'type', 'flags', 'terrane', 'formedAt', 'boundary', 'margin', 'mantleHeat', 'oroType', 'oroLast', 'thickKm',
     'beltU', 'beltReach', 'beltSide', 'beltShear', 'prevType', 'prevLast', 'prevU', 'prevReach', 'prevSide', 'prevShear', 'volcType', 'volcAt', 'volcKm', 'volcSource',
-    'crustCells', 'crustType', 'crustBelt', 'crustReach', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'riverKm2', 'fzU'];
+    'crustCells', 'crustType', 'crustBelt', 'crustReach', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'riverKm2', 'fzU',
+    'farWork', 'farDist', 'farFold', 'farDir'];
 
 async function spawn(file = './terrain-worker.js') {
     const url = new URL(file, import.meta.url);
@@ -116,7 +117,8 @@ export class TerrainPool {
      * synthesizeTerrain(frame, simMesh, tMesh, { cfg, seed, parts }) on the pool: same result (heightKm, parts, rec,
      * sampler, kernels, volcanoes), bit for bit. `records: false` leaves out the records (rec null): heights only, and
      * nothing of the job runs on the caller's thread. `recCells: true` adds recCell: the world cell whose record each
-     * terrain cell shows (for the geology).
+     * terrain cell shows (for the geology), and cues: the structure the surface drew there that the rocks follow (3 a
+     * cell: synthesize.js surfaceRange's `cue`).
      */
     synthesize(frame, tMesh, opts) {
         const run = this.queue.then(() => this.run(frame, tMesh, opts));
@@ -232,7 +234,7 @@ export class TerrainPool {
         const sampler = reuseSampler ? mesh.sampler : { cells: new Int32Array(3 * n), weights: new Float32Array(3 * n), key: samplerKey };
         const heightKm = new Float32Array(n);
         const parts = wantParts ? surfaceParts(n) : null;
-        const carveIn = wantCarve ? carveInputs(n) : null, recCell = wantRec ? new Int32Array(n) : null;
+        const carveIn = wantCarve ? carveInputs(n) : null, recCell = wantRec ? new Int32Array(n) : null, cues = wantRec ? new Int8Array(3 * n) : null;
         const byId = new Map(mesh.chunks.map(c => [c.id, c]));
         const jobId = this.nextJob++, slim = Object.fromEntries(FRAME_FIELDS.map(k => [k, frame[k]]));      // (to the planner only)
         slim.plates = frame.plates.map(p => p && { quat: p.quat });           // (the plates' rotations: detail is anchored to the crust)
@@ -247,7 +249,7 @@ export class TerrainPool {
                 heightKm.set(msg.heightKm, c.from);
                 if (parts) for (const k of Object.keys(parts)) parts[k].set(msg.parts[k], c.from);
                 if (carveIn) for (const k of Object.keys(carveIn)) carveIn[k].set(msg.carve[k], c.from);
-                if (recCell) recCell.set(msg.rec, c.from);
+                if (recCell) { recCell.set(msg.rec, c.from); cues.set(msg.cue, 3 * c.from); }
                 if (msg.cells) { sampler.cells.set(msg.cells, 3 * c.from); sampler.weights.set(msg.weights, 3 * c.from); }
             });
         });
@@ -258,7 +260,7 @@ export class TerrainPool {
         const t0 = performance.now(), plan = records ? preparePlan(frame, this.sim, cfg, seed, tMesh.edgeKm) : null, planMs = performance.now() - t0;
         await finished;
         mesh.sampler = sampler;
-        return { heightKm, parts, carveIn, recCell, rec: plan?.rec ?? null, sampler, ms: { records: planMs, pooled: performance.now() - started, workers: W },
+        return { heightKm, parts, carveIn, recCell, cues, rec: plan?.rec ?? null, sampler, ms: { records: planMs, pooled: performance.now() - started, workers: W },
             kernels: counts.kernels, volcanoes: counts.volcanoes };
     }
 }

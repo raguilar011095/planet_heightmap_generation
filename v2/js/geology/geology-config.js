@@ -30,6 +30,13 @@ export const GEOLOGY = {
                                 // shows the pattern at a map's scale)…
     foldKm: 70,                 // a fold belt's folds this far apart (the terrain's ridges: 55–95 km; and a set 2.6 × longer)…
     foldDepthKm: 2,             // …an anticline baring beds this much deeper than its syncline keeps: stripes along the belt
+    // ── the structure the terrain drew, followed (terrain/synthesize.js surfaceRange `cue`) ──
+    bandGain: 1.6,              // an old belt's rock banded as its ridges are (terrain-config oldGrainHardness: the ridges hard,
+                                // the troughs soft — the Valley and Ridge): resistant rock's odds × e^(± this) on them —
+                                // sandstone over shale and limestone in the cover, gneiss over slate and schist beneath
+    farFoldDepthKm: 0.6,        // the far field's folds (the platform's broad anticlines and synclines, ~320 km apart, where
+                                // the terrain raises them): a crest bares beds this much deeper, a trough keeps this much
+                                // more (the Cincinnati arch, the Ozark dome)
     bedJitterKm: 0.12,          // the beds' contacts wander by this (noise, 150 and 75 km)
     contactWarpKm: [30, 160],   // the record read displaced by up to ~this (km), in waves from this long down to what the
                                 // mesh draws: contacts that wander and fold, whole
@@ -120,6 +127,8 @@ export const PRIORS = {
     bedKm: [0.1, 1],
     glacialStripKm: [0.1, 1],
     gradeKm: { slate: [[3, 6], [6, 12]], gneiss: [[12, 20], [20, 30]] },
+    bandGain: [0.6, 2],
+    farFoldDepthKm: [0.2, 1.5],
     volcanicLidKm: [[1, 3], [3, 6]],
     collisionGranite: [0.2, 0.4],
     arcGranite: [0.6, 0.8],

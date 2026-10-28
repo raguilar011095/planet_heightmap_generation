@@ -148,20 +148,10 @@ export function landmassShares(Dp, fields) {
     return out;
 }
 
-// ── the atlas's symbols: an element's symbol, or a gem's or a stone's short name ──
-export const SYMBOL = {
-    iron: 'Fe', copper: 'Cu', gold: 'Au', silver: 'Ag', tin: 'Sn', leadZinc: 'Pb', leadSilver: 'Pb', arsenic: 'As', aluminium: 'Al', nickel: 'Ni',
-    platinum: 'Pt', diamonds: '◆', salt: 'Na', coal: 'C', oilGas: 'Oil', peat: 'Pe', bitumen: 'Bt', flint: 'Fl', obsidian: 'Ob', jade: 'Jd', agate: 'Agt',
-    porphyry: 'Cu', epithermal: 'Au', orogenicGold: 'Au', vms: 'Cu', skarn: 'Cu', mvt: 'Pb', sedex: 'Pb', iocg: 'Fe', magmatic: 'Ni', layered: 'Pt',
-    nativeCopper: 'Cu', kimberlite: '◆', greenstoneGold: 'Au', bif: 'Fe', reef: 'Au', oil: 'Oil', gas: 'Gas', bauxite: 'Al', niLaterite: 'Ni',
-    ironLaterite: 'Fe', supergene: 'Cu', gossan: 'Au', placerGold: 'Au', placerTin: 'Sn', placerDiamond: '◆', ironstone: 'Fe', bogIron: 'Fe',
-    pegmatite: 'Aq', emerald: 'Em', corundum: 'Ru', lapis: 'La', basaltGems: 'Sa', amethyst: 'Am', opal: 'Op', turquoise: 'Tq', garnet: 'Gt', gemPlacer: 'Ru',
-    rubySapphire: 'Ru',
-};
-
 // ── the stories: how each kind of deposit came to be where it is, from the history's record at the district ──
 export const BELT_KIND = { [OrogenyType.ANDEAN]: 'an Andean range', [OrogenyType.LARAMIDE]: 'a flat-slab range', [OrogenyType.URAL]: 'a collision belt', [OrogenyType.HIMALAYAN]: 'a great collision belt',
-    [OrogenyType.ARC]: 'a volcanic arc', [OrogenyType.RIFT]: 'rift shoulders', [OrogenyType.TRANSPRESSION]: 'a transform ridge' };
+    [OrogenyType.ARC]: 'a volcanic arc', [OrogenyType.RIFT]: 'rift shoulders', [OrogenyType.TRANSPRESSION]: 'a transform ridge',
+    [OrogenyType.INTRAPLATE]: 'an intraplate range' };
 const ARCS = new Set([OrogenyType.ANDEAN, OrogenyType.ARC, OrogenyType.LARAMIDE]);
 const COLLISIONS = new Set([OrogenyType.URAL, OrogenyType.HIMALAYAN, OrogenyType.TRANSPRESSION]);
 const myr = v => `${Math.round(v).toLocaleString()} Myr`;

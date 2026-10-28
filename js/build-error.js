@@ -1,6 +1,10 @@
 // When a build, import or export fails (out of memory at high Detail, a climate error, a crashed worker), the build
 // overlay becomes a message with a Close button instead of spinning over the page until a reload. Shared by Generate
 // (js/main.js) and Import (js/import-main.js); js/generate.js announces failures as the 'orogen:build-failed' event.
+// While a build runs the overlay sits behind the page's controls, over the planet only; the controls stay in view but
+// are held (inert), since a job started mid-build (a code loaded, a climate slider or tab, the map) would cross it.
+
+const HELD = ['ui', 'layerBar', 'mobileViewSwitch', 'editToggle', 'refreshFab', 'rebuildFab'];
 
 const OUT_OF_MEMORY = /out of memory|allocation failed|invalid array length|array buffer|rangeerror/i;
 
@@ -31,6 +35,11 @@ export function showBuildError(text, detail = '') {
     overlay.classList.add('failed');
     overlay.classList.remove('hidden');
     box.querySelector('.build-error-close').focus();
+}
+
+/** Hold the controls while a build runs (true), release them after (false). */
+export function holdControls(on) {
+    for (const id of HELD) document.getElementById(id)?.toggleAttribute('inert', on);
 }
 
 /** Back to the ordinary progress overlay (a new build starting). */

@@ -6,13 +6,18 @@ import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom, fitCamera } from './scene.js';
 import { state } from './state.js';
+import { initGenerateExport } from './export-generate.js';
 import { importHeightmap, reapplyViaWorker, computeClimateViaWorker } from './generate.js';
-import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, exportMap, exportMapBatch, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight } from './planet-mesh.js';
 import { detailFromSlider } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
-import { needsClimate, climateLayer, climateLegendHTML, satelliteLegendHTML, showClimateArrows, syncSeasonPicker, initSeasonPicker, climateReadoutLines } from './climate-layers.js';
-import { elevationToColor, elevToHeightKm } from './color-map.js';
-import { showBuildError, clearBuildError, describeFailure } from './build-error.js';
+import { needsClimate, climateLayer, climateLegendHTML, satelliteLegendHTML, showClimateArrows, initSeasonPicker, climateReadoutLines } from './climate-layers.js';
+import { initLayerBar } from './layer-bar.js';
+import { initViewStrip, initProjectionPicker } from './view-strip.js';
+import { renderView, setProjection, mapLonLatAt } from './map-projection.js';
+import { elevToHeightKm } from './color-map.js';
+import { terrainCss, initPaletteMenu } from './terrain-palette.js';
+import { showBuildError, clearBuildError, describeFailure, holdControls } from './build-error.js';
 
 // ─── File Upload ──────────────────────────────────────────────────
 
@@ -244,15 +249,11 @@ document.body.appendChild(hiddenGenBtn);
 // a failed import (js/generate.js): the overlay says what happened, and Import can be pressed again
 window.addEventListener('orogen:build-failed', (e) => {
     overlayActive = false;
+    holdControls(false);
     importBtn.disabled = !storedGrayscale;
     importBtn.textContent = 'Import';
     showBuildError(describeFailure(e.detail.message, 'import this heightmap'), e.detail.message);
 });
-const exportFailed = (err) => {
-    console.error('[World Orogen] Export failed:', err);
-    overlayActive = false;
-    showBuildError(describeFailure(err?.message, 'export this map'), err?.message);
-};
 
 hiddenGenBtn.addEventListener('generate-done', () => {
     hideBuildOverlay();
@@ -270,12 +271,10 @@ hiddenGenBtn.addEventListener('generate-done', () => {
         updateMeshColors();
     }
     syncTabsToLayer(state.debugLayer);
-    if (debugLayerEl) debugLayerEl.value = state.debugLayer;
     updateLegend(state.debugLayer);
     // Rebuild arrows if needed
     const v = state.debugLayer;
     showClimateArrows(v, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-    syncSeasonPicker(v);
 });
 
 // ─── Climate layers ───────────────────────────────────────────────
@@ -285,7 +284,6 @@ const CLIMATE_LAYERS = { has: needsClimate };
 
 // ─── Visualization (debug layers, tabs, legend) ───────────────────
 
-const mapTabs = document.getElementById('mapTabs');
 const vizLegend = document.getElementById('vizLegend');
 const debugLayerEl = document.getElementById('debugLayer');
 
@@ -306,49 +304,23 @@ function applyLayer(layer) {
     state.hoveredKoppen = -1;
     updateMeshColors();
     showClimateArrows(layer, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-    syncSeasonPicker(layer);
+    syncTabsToLayer(layer);
     updateLegend(layer);
 }
 
+// The layers over the planet (js/layer-bar.js: the tabs, the Climate row and the season, the phone's list) and the
+// sidebar's Inspect list (the full heightmap, the sculpting's changes)
+const layerBar = initLayerBar(switchVisualization);
+initViewStrip();
+initProjectionPicker(setProjection);
+/** The bar, its season and the Inspect list, for the layer shown. */
 function syncTabsToLayer(layer) {
-    mapTabs.querySelectorAll('.map-tab').forEach(tab => {
-        tab.classList.toggle('active', tab.dataset.layer === layer);
-    });
-    const mvs = document.getElementById('mobileViewSwitch');
-    if (mvs && [...mvs.options].some(o => o.value === layer)) {
-        mvs.value = layer;
-    }
+    layerBar.sync(layer);
+    if (debugLayerEl) debugLayerEl.value = [...debugLayerEl.options].some(o => o.value === layer) ? layer : '';
 }
 
-mapTabs.addEventListener('click', (e) => {
-    const tab = e.target.closest('.map-tab');
-    if (!tab) return;
-    const layer = tab.dataset.layer;
-    mapTabs.querySelectorAll('.map-tab').forEach(t => t.classList.remove('active'));
-    tab.classList.add('active');
-    if (debugLayerEl) debugLayerEl.value = layer;
-    const mvs = document.getElementById('mobileViewSwitch');
-    if (mvs) mvs.value = layer;
-    switchVisualization(layer);
-});
-
-const mobileViewSwitch = document.getElementById('mobileViewSwitch');
-if (mobileViewSwitch) {
-    mobileViewSwitch.addEventListener('change', (e) => {
-        const layer = e.target.value;
-        syncTabsToLayer(layer);
-        if (debugLayerEl) debugLayerEl.value = layer;
-        switchVisualization(layer);
-    });
-}
-
-if (debugLayerEl) {
-    debugLayerEl.addEventListener('change', (e) => {
-        const layer = e.target.value;
-        syncTabsToLayer(layer);
-        switchVisualization(layer);
-    });
-}
+// The Inspect list (None: the terrain)
+if (debugLayerEl) debugLayerEl.addEventListener('change', (e) => switchVisualization(e.target.value));
 
 // Season picker (Year · January · July) for the climate's Inspect layers
 initSeasonPicker(state, () => {
@@ -399,10 +371,7 @@ function updateLegend(layer) {
             { e: -0.50 }, { e: -0.25 }, { e: -0.05 }, { e: 0.00 },
             { e: 0.03 }, { e: 0.15 }, { e: 0.35 }, { e: 0.55 }, { e: 0.80 }
         ];
-        const colors = stops.map(s => {
-            const [r, g, b] = elevationToColor(s.e);
-            return `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
-        });
+        const colors = stops.map(s => terrainCss(s.e));
         const pcts = stops.map((_, i) => Math.round(i / (stops.length - 1) * 100));
         const gradStr = colors.map((c, i) => `${c} ${pcts[i]}%`).join(', ');
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,${gradStr})"></div>` +
@@ -482,11 +451,13 @@ function showBuildOverlay() {
     buildBarFill.style.transition = '';
     overlayActive = true;
     buildOverlay.classList.remove('hidden');
+    holdControls(true);
 }
 
 function hideBuildOverlay() {
     setTimeout(() => {
         overlayActive = false;
+        holdControls(false);
         if (buildOverlay) {
             buildOverlay.classList.add('hidden');
             buildOverlay.classList.remove('initial');
@@ -516,8 +487,10 @@ document.getElementById('gridSpacing').addEventListener('change', (e) => {
     rebuildGrids();
 });
 
+// The Terrain view's colours (the view strip's Colours; js/terrain-palette.js)
+initPaletteMenu(() => { updateMeshColors(); updateLegend(state.debugLayer); });
+
 // Map center longitude
-const mapCenterLonGroup = document.getElementById('mapCenterLonGroup');
 const sMapCenterLon = document.getElementById('sMapCenterLon');
 const vMapCenterLon = document.getElementById('vMapCenterLon');
 
@@ -530,6 +503,7 @@ sMapCenterLon.addEventListener('input', () => {
         const builtLon = state.mapMesh._builtCenterLon || 0;
         const dx = (builtLon - state.mapCenterLon) * (2 / Math.PI);
         state.mapMesh.position.x = dx;
+        for (const c of state.mapMesh.userData.wrap) c.visible = dx !== 0;
         if (state.mapGridMesh) state.mapGridMesh.position.x = dx;
     }
 });
@@ -584,7 +558,6 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         updateMapCameraFrustum();
         mapCtrl.target.set(0, 0, 0);
         mapCtrl.update();
-        mapCenterLonGroup.style.display = '';
     } else {
         if (state.planetMesh) state.planetMesh.visible = true;
         atmosMesh.visible = true;
@@ -610,82 +583,15 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
         scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
         ctrl.enabled = true;
-        mapCenterLonGroup.style.display = 'none';
     }
 });
 
 // ─── Export modal ─────────────────────────────────────────────────
 
-(function initExport() {
-    const overlay   = document.getElementById('exportOverlay');
-    const closeBtn  = document.getElementById('exportClose');
-    const cancelBtn = document.getElementById('exportCancel');
-    const goBtn     = document.getElementById('exportGo');
-    const widthEl   = document.getElementById('exportWidth');
-    const dimsEl    = document.getElementById('exportDims');
-    const typeEl    = document.getElementById('exportType');
-    const openBtn   = document.getElementById('exportBtn');
-
-    function updateDims() {
-        const w = +widthEl.value;
-        dimsEl.textContent = w + ' \u00D7 ' + (w / 2);
-    }
-
-    function openModal() {
-        overlay.classList.remove('hidden');
-        updateDims();
-        for (const opt of typeEl.options) {
-            if (opt.value === 'biome' || opt.value === 'koppen') {
-                opt.disabled = !state.climateComputed;
-                if (opt.disabled && typeEl.value === opt.value) typeEl.value = 'color';
-            }
-        }
-    }
-    function closeModal() { overlay.classList.add('hidden'); }
-
-    openBtn.addEventListener('click', openModal);
-    closeBtn.addEventListener('click', closeModal);
-    cancelBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
-    });
-    widthEl.addEventListener('change', updateDims);
-
-    goBtn.addEventListener('click', async () => {
-        const type = typeEl.value;
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-        onProgress(0, 'Preparing export...');
-        try {
-            await exportMap(type, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-
-    const exportAllBtn = document.getElementById('exportAllGo');
-    const EXPORT_ALL_TYPES = [
-        { type: 'biome',         label: 'Satellite' },
-        { type: 'koppen',        label: 'Climate' },
-        { type: 'landheightmap', label: 'Heightmap' },
-        { type: 'landmask',      label: 'Land Mask' },
-    ];
-
-    exportAllBtn.addEventListener('click', async () => {
-        const w = +widthEl.value;
-        closeModal();
-        showBuildOverlay();
-        try {
-            if (!state.climateComputed) {
-                onProgress(0, 'Computing climate...');
-                await new Promise(resolve => computeClimateViaWorker(onProgress, resolve));
-            }
-            await exportMapBatch(EXPORT_ALL_TYPES, w, onProgress);
-            hideBuildOverlay();
-        } catch (err) { exportFailed(err); }
-    });
-})();
+// The export panel (v2/js/view/export-panel.js; the maps: js/export-generate.js)
+const exportPanel = initGenerateExport({ page: 'import', ensureClimate: (progress) => new Promise(resolve => computeClimateViaWorker(progress, resolve)),
+    code: () => '' });
+document.getElementById('exportBtn').addEventListener('click', exportPanel.open);
 
 // ─── Sidebar toggle + bottom sheet ────────────────────────────────
 
@@ -790,18 +696,6 @@ if (state.isTouchDevice) {
     if (infoEl) infoEl.textContent = 'Import a heightmap to get started';
 }
 
-// Disable export widths > 8192 on touch devices
-if (state.isTouchDevice) {
-    const exportWidth = document.getElementById('exportWidth');
-    if (exportWidth) {
-        for (const opt of exportWidth.options) {
-            if (+opt.value > 8192) {
-                opt.disabled = true;
-                opt.textContent = opt.value + ' (too large for mobile)';
-            }
-        }
-    }
-}
 
 // ─── Orientation change ───────────────────────────────────────────
 
@@ -827,7 +721,7 @@ function animate() {
         if (state.oceanCurrentArrowGroup) state.oceanCurrentArrowGroup.rotation.y = state.planetMesh.rotation.y;
         if (state.globeGridMesh) state.globeGridMesh.rotation.y = state.planetMesh.rotation.y;
     }
-    renderer.render(scene, state.mapMode ? mapCamera : camera);
+    renderView();
 }
 
 // ─── Resize handler ───────────────────────────────────────────────
@@ -895,14 +789,9 @@ window.addEventListener('resize', () => {
         const o = raycaster.ray.origin, d = raycaster.ray.direction;
         if (Math.abs(d.z) < 1e-10) return -1;
         const t = -o.z / d.z;
-        const wx = o.x + t * d.x, wy = o.y + t * d.y;
-        const PI = Math.PI, sx = 2 / PI;
-        let lon = wx / sx + (state.mapCenterLon || 0);
-        const lat = wy / sx;
-        if (lat < -PI / 2 || lat > PI / 2) return -1;
-        if (lon > PI) lon -= 2 * PI;
-        else if (lon < -PI) lon += 2 * PI;
-        const cosLat = Math.cos(lat);
+        const ll = mapLonLatAt(o.x + t * d.x, o.y + t * d.y);       // (through the map's projection: js/map-projection.js)
+        if (!ll) return -1;
+        const [lon, lat] = ll, cosLat = Math.cos(lat);
         return findNearestRegion(cosLat * Math.sin(lon), Math.sin(lat), cosLat * Math.cos(lon));
     }
 
@@ -960,7 +849,7 @@ window.takePreview = function(width = 1200, height = 630) {
     const savedPixelRatio = renderer.getPixelRatio();
 
     const hiddenEls = [];
-    for (const sel of ['#ui', '#topInfo', '#info', '#hoverInfo', '#helpBtn',
+    for (const sel of ['#ui', '#layerBar', '#legendCard', '#info', '#hoverInfo', '#helpBtn',
                         '#editToggle', '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
                         '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#whatsNewOverlay']) {
         const el = document.querySelector(sel);
@@ -984,7 +873,7 @@ window.takePreview = function(width = 1200, height = 630) {
     renderer.setSize(savedW / savedPixelRatio, savedH / savedPixelRatio);
     fitCamera(innerWidth, innerHeight);
     for (const { el, prev } of hiddenEls) el.style.display = prev;
-    renderer.render(scene, state.mapMode ? mapCamera : camera);
+    renderView(true);
     console.log('preview.png downloaded!');
 };
 

@@ -20,6 +20,8 @@ export const OrogenyType = Object.freeze({
     RIFT: 6,        // uplifted shoulders of a rift, and of the failed arm beside it (East African Rift, the Ghats,
                     // the Brazilian highlands): relief made by STRETCHING, not by shortening
     TRANSPRESSION: 7, // a narrow ridge along a transform whose sides are also pressed together (the Southern Alps, the Transverse Ranges)
+    INTRAPLATE: 8,  // an old weak line far inland squeezed up again by a distant front's push (step/far-field.js): the Tian Shan
+                    // behind the Tarim block, the Ancestral Rockies, an inverted aulacogen — never an escalation of a belt
 });
 
 // What a mantle plume left on the crust (Phase 7a, step/hotspots.js). Records only: Phase 8 turns them into relief.
@@ -51,7 +53,8 @@ export const CrustFlag = Object.freeze({
 export const CELL_FIELDS = Object.freeze(['type', 'flags', 'formedAt', 'terrane', 'slabKm', 'wingKm', 'oroType', 'oroWork', 'oroStart',
     'oroLast', 'thickKm', 'beltU', 'beltReach', 'beltAt', 'beltSide', 'beltShear', 'prevType', 'prevLast', 'prevU', 'prevReach', 'prevSide',
     'prevShear', 'rootKm', 'upliftKm', 'baseKm', 'rugged', 'prevRugged', 'volcWornKm', 'riverIncKm', 'volcType', 'volcAt', 'volcKm', 'volcSource', 'fzU',
-    'geoFlags', 'coverKm', 'coverMaxKm', 'coverMaxAt', 'coverCarb', 'coverSalt', 'coverCoal', 'coverOrganic', 'exhumKm', 'unroofKm', 'floodMyr', 'floodLast', 'arcMyr', 'riftAt']);
+    'geoFlags', 'coverKm', 'coverMaxKm', 'coverMaxAt', 'coverCarb', 'coverSalt', 'coverCoal', 'coverOrganic', 'exhumKm', 'unroofKm', 'floodMyr', 'floodLast', 'arcMyr', 'riftAt',
+    'farWork', 'farDist', 'farFold', 'farAt', 'farDx', 'farDy', 'farDz']);
 
 export class CrustRaster {
     constructor(numCells) {
@@ -119,6 +122,18 @@ export class CrustRaster {
         this.floodLast = new Float32Array(numCells);   // …and when last (valid where floodMyr > 0)
         this.arcMyr = new Float32Array(numCells);      // time spent in a live subduction belt — an arc or an Andean margin (Myr)
         this.riftAt = new Float32Array(numCells);      // when a rift opened here — a new margin, a failed arm (ops/rift.js; valid where flagged)
+        // The far field (step/far-field.js; records only): the push distant fronts have sent through this crust — how much
+        // in all (km of shortening-equivalent: the grain it left), how far it came (km of path cost, averaged by what each
+        // push brought: the coordinate the terrain reads the folds and the grain across), how much lately (decaying from
+        // farAt: the folds), and its compression axis: a unit tangent in the plate's frame × 127 (an axis — its sign means
+        // nothing; turned with the crust whenever it changes frame, copyFrom's `rot`)
+        this.farWork = new Float32Array(numCells);
+        this.farDist = new Float32Array(numCells);
+        this.farFold = new Float32Array(numCells);
+        this.farAt = new Float32Array(numCells);
+        this.farDx = new Int8Array(numCells);
+        this.farDy = new Int8Array(numCells);
+        this.farDz = new Int8Array(numCells);
         this.count = 0;                                // number of masked cells
         this.fields = CELL_FIELDS.map(name => this[name]);
     }
@@ -134,11 +149,18 @@ export class CrustRaster {
     }
 
     /** Copy every field of `cell` from another raster's `from` cell. */
-    copyFrom(cell, other, from) {
+    copyFrom(cell, other, from, rot = null) {
         if (!this.mask[cell]) this.count++;
         this.mask[cell] = 1;
         const mine = this.fields, theirs = other.fields;
         for (let i = 0; i < mine.length; i++) mine[i][cell] = theirs[i][from];
+        // (from another plate's frame — `rot`: model/plate.js frameRotation — the far-field axis turns with the crust)
+        if (rot && (this.farDx[cell] || this.farDy[cell] || this.farDz[cell])) {
+            const x = this.farDx[cell], y = this.farDy[cell], z = this.farDz[cell];
+            const u = rot[0] * x + rot[1] * y + rot[2] * z, v = rot[3] * x + rot[4] * y + rot[5] * z, w = rot[6] * x + rot[7] * y + rot[8] * z;
+            const l = Math.hypot(u, v, w) || 1;
+            this.farDx[cell] = Math.round(127 * u / l); this.farDy[cell] = Math.round(127 * v / l); this.farDz[cell] = Math.round(127 * w / l);
+        }
     }
 
     /** Every field of `cell`, to put back later with restore() (e.g. while cells are being shuffled within one raster). */
@@ -174,8 +196,11 @@ export class CrustRaster {
             this.oroStart[cell] = time;
             this.oroWork[cell] = 0;
             this.oroType[cell] = oroType;
-        } else if (oroType > this.oroType[cell] && oroType !== OrogenyType.ARC && oroType !== OrogenyType.TRANSPRESSION) {
-            this.oroType[cell] = oroType;   // escalate (e.g. Andean → Himalayan), never downgrade
+        } else if ((oroType > this.oroType[cell] || this.oroType[cell] === OrogenyType.INTRAPLATE)
+            && oroType !== OrogenyType.ARC && oroType !== OrogenyType.TRANSPRESSION && oroType !== OrogenyType.INTRAPLATE) {
+            // escalate (e.g. Andean → Himalayan), never downgrade — and a front reaching a line the far field squeezed up
+            // takes it over, whatever its number (INTRAPLATE is numbered last, not ranked highest)
+            this.oroType[cell] = oroType;
         }
         this.oroWork[cell] += workKm;
         this.oroLast[cell] = time;

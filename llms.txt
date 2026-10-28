@@ -13,7 +13,7 @@ World Orogen generates realistic procedural planets shaped by tectonic plate sim
 - Creates hotspot volcanism with drift-trail island chains (like Hawaii)
 - Allows interactive editing — select multiple tectonic plates for batch reshaping with visual preview before rebuild
 - Import your own equirectangular B&W heightmaps (Earth, Mars, hand-drawn) onto a 3D globe with automatic climate simulation
-- Evolution: simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding) as a timeline to scrub; any moment can be sculpted in detail with rivers, lakes, glaciers, its own climate, a satellite view and a geology view (a rock-type map built from the simulated history — sedimentary basins, volcanic arcs, flood basalts, granite, metamorphic belts, ancient shields — plus its past mountain belts and shallow seas, and ore, fuel and mineral deposits — copper, gold, tin, lead-zinc, iron, nickel, diamonds, oil and gas, coal, bauxite, salt — placed by the history, the climate and the rivers, graded poor, moderate or rich — and one map per technological age (Stone, Copper, Bronze, Iron, Industrial, Fuel) of what a people could reach, with bronze and ironworking potential, plus gems and building stone; the richest deposit districts named with how each formed, and each landmass's resources), then exported — maps, greyscale resource masks, the districts as GeoJSON or CSV, and a resource atlas
+- Evolution: simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding) as a timeline to scrub; any moment can be sculpted in detail with rivers, lakes, glaciers, its own climate, a satellite view and a geology view (a rock-type map built from the simulated history — sedimentary basins, volcanic arcs, flood basalts, granite, metamorphic belts, ancient shields — plus its past mountain belts and shallow seas, and ore, fuel and mineral deposits — copper, gold, tin, lead-zinc, iron, nickel, diamonds, oil and gas, coal, bauxite, salt — placed by the history, the climate and the rivers, graded poor, moderate or rich — and one map per technological age (Stone, Copper, Bronze, Iron, Industrial, Fuel) of what a people could reach, with bronze and ironworking potential, plus gems and building stone; the deposit districts named with how each formed, and each landmass's resources) — zoomed in, it shows detail finer than its mesh (ridges and valleys on the mountains, dunes, coves; the geology's rocks with organic contacts) at the screen's resolution — then exported — the geology too: its maps, the rock types and a richness mask per resource as data, the districts as GeoJSON or CSV, and a resource atlas; a planet (its whole history and its detailed moment) saves as one file, to open again later without waiting — the same planet in any browser
 
 ## Who it's for
 
@@ -26,19 +26,27 @@ World Orogen generates realistic procedural planets shaped by tectonic plate sim
 
 ## Key capabilities
 
-- Multiple views: terrain, satellite biome, Köppen climate, heightmap
+- Multiple views: terrain, satellite biome, Köppen climate, heightmap — on a 3D globe or a flat map in any of ten projections
 - Detailed inspection layers for geology, plate physics and climate — the climate ones in real units for the year, January or July: pressure and wind, ocean currents and upwelling, sea ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality
-- Export high-resolution equirectangular maps up to 65,536px wide
+- Export maps up to 65,536px wide, every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
 - Shareable planet codes — copy a compact code to reproduce any planet exactly
 - Works on desktop and mobile browsers
 - No build step, no dependencies to install — pure ES modules
 
 ## URL
 
-https://orogen.studio/ — Generate
+https://orogen.studio/ — Studio: the three tools explained, plus curated worldbuilding resources
+https://orogen.studio/generate — Generate (a planet's link: orogen.studio/generate#CODE; older orogen.studio/#CODE links still open it)
 https://orogen.studio/import — Import Heightmap
 https://orogen.studio/evolution — Evolution
-https://orogen.studio/studio — Studio: the three tools explained, plus curated worldbuilding resources
+
+## Follow and support
+
+- Source code: https://github.com/raguilar011095/planet_heightmap_generation
+- Bluesky: https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t
+- X: https://x.com/worldorogen
+- Threads: https://www.threads.com/@orogen.studio
+- Ko-fi (optional; the tools stay free): https://ko-fi.com/orogenstudio
 
 ## Technical details
 

@@ -16,6 +16,10 @@
 // The history's record is read where the terrain read it (each cell's record cell, handed over by the surface:
 // terrain/synthesize.js recCell), so belts and basins sit on the terrain's own; read smoothly over a sim cell or so and
 // through a fractal warp, so contacts wander and fold at every scale the mesh draws but never show the sim's cells.
+// And the structure the surface drew is followed (its `cue`): an old belt's rock banded with its ridges, as its carving
+// wears them (resistant on the ridges, soft in the troughs — the Valley and Ridge); the far field's folds across the
+// platform (their crests baring older beds, their troughs keeping younger); a shield's greenstone keels on its grain's
+// ridges, between its granite-gneiss domes.
 
 import { CrustType, CrustFlag, OrogenyType, VolcanicType } from '../tectonics/model/crust.js';
 import { GeoFlag, decodeCoverKm, decodeExhumKm, decodeUnroofKm, decodeFacies, decodeArcMyr } from '../tectonics/model/geology.js';
@@ -138,7 +142,9 @@ export function simRocks(frame, simMesh, seed, G = GEOLOGY) {
             continue;
         }
         // older continental crust with no belt of its own: the start world's mobile belts about the cratons (gneiss and
-        // schist with granite) — or crust a newer history made
+        // schist with granite) — or crust a newer history made; and an intraplate range (an old suture or failed rift far
+        // inland squeezed up again by a distant front's push — step/far-field.js; the Tian Shan): that old line's rocks,
+        // raised and folded again
         meta(1, G.beltGranite);
     }
     return S;
@@ -207,7 +213,9 @@ function readRecord(mesh, simMesh, S, seed, cfg) {
  *                     finish's LatLonGrid and each cell's latitude and longitude, °), local: the finish's own fields, any of
  *                     them null — cut (how deep its rivers cut, × cutStepKm), alluv (the sediment they laid, × alluvStepKm),
  *                     erg (sand seas, 0…1), loess (km, × loessShare), till (moraines and outwash, 0…255), glaciated (under
- *                     the last ice age's ice, 0/1), lava (a flood basalt's cap, 0…255) }
+ *                     the last ice age's ice, 0/1), lava (a flood basalt's cap, 0…255), cues (3 a cell, × 127: the structure
+ *                     the surface drew — an old belt's band, the far field's folds, a shield's grain: synthesize.js
+ *                     surfaceRange `cue`) }
  * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array}} rec: each cell's record cell;
  *          shares: each kind's share of the land (by cell);
  *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice
@@ -216,7 +224,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     const n = mesh.numCells, { xyz } = mesh, rock = new Uint8Array(n), shares = new Float64Array(ROCK_COUNT);
     const S = simRocks(frame, simMesh, seed, G), rec = recCell ?? readRecord(mesh, simMesh, S, seed, cfg);
     const { grid, lat, lon } = on;
-    const { cut, cutStepKm = 0, alluv, alluvStepKm = 0, erg, loess, loessShare = 1, till, glaciated, lava, q = null } = local;
+    const { cut, cutStepKm = 0, alluv, alluvStepKm = 0, erg, loess, loessShare = 1, till, glaciated, lava, q = null, cues = null } = local;
     const nz = new FastNoise(((seed | 0) * 0x2c1b + 0x4d) >>> 0), patchF = R / G.patchKm, domeF = R / G.domeKm, beltF = 2 * Math.PI * R / G.beltSpacingKm;
     const score = new Float64Array(ROCK_COUNT);
     // ── the record, smooth: its cover, the cover's make-up, its folding — each cell's record cell's, averaged over a sim
@@ -261,6 +269,23 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     // (a fold belt's folds: waves across it, parallel to its front — a long set, and G.foldKm's where this mesh can draw it)
     const foldWaves = [[G.foldKm * 2.6, 0.6], [G.foldKm, smooth(1.5, 3, G.foldKm / mesh.edgeKm)]].filter(([, a]) => a > 0.01);
     const fbm = (O, x, y, zz, off) => { let s = 0; for (let o = 0; o < O.length; o++) { const [f, a] = O[o]; s += a * nz.noise3D(x * f + off + 1.3 * o, y * f + 2 * off + 2.9 * o, zz * f + 3 * off + 0.7 * o); } return s; };
+    // (a shield's grain as the surface drew it: its keels where the grain stands highest — each craton's greenstone share
+    // of its ground, by where the grain's values fall among all the shields'. Read over a cell's ring: the keels are thin
+    // ridges, a cell or less across on a coarse mesh, which the majority filter would take — a little wider there, as
+    // they are on a finer one)
+    let keelAt = null, keelV = null;
+    if (cues) {
+        const { adjOffset, adjList } = mesh, sample = [];
+        keelV = new Float32Array(n);
+        for (let c = 0; c < n; c++) {
+            if (ocean[c] || !(cues[3 * c + 2] > 0)) continue;
+            let s = cues[3 * c + 2], k = 1;
+            for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) { const d = adjList[j]; if (cues[3 * d + 2] > 0) { s += 0.5 * cues[3 * d + 2]; k += 0.5; } }
+            keelV[c] = s / k;
+            if (c % 3 === 0 && S.base[NB * rec[c] + B_SHIELD] > 0) sample.push(keelV[c]);
+        }
+        if (sample.length >= 50) { sample.sort((a, b) => a - b); keelAt = p => sample[Math.max(0, Math.min(sample.length - 1, Math.round(p * (sample.length - 1))))]; }
+    }
     let land = 0;
     const youngBy = new Float64Array(4), ci = new Int32Array(4), cw = new Float64Array(4), ti = new Int32Array(4), tw = new Float64Array(4);
     // the river plains: along the big rivers (floodplains); and deltas and basin floors — the land where the rivers laid
@@ -297,6 +322,8 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         // (land the record has as sea — a delta built out, a strait filled — is young sediment)
         if (!S.land[w]) { rock[c] = Rock.ALLUVIUM; shares[Rock.ALLUVIUM]++; youngBy[0]++; continue; }
         const x = xyz[3 * c], y = xyz[3 * c + 1], zz = xyz[3 * c + 2];
+        // (the structure the surface drew here: an old belt's band, + on its hard ridges; the far field's fold, + on a crest)
+        const band = cues ? cues[3 * c] / 127 : 0, farFold = cues ? cues[3 * c + 1] / 127 : 0, hard = band ? Math.exp(G.bandGain * band) : 1, soft = band ? 1 / hard : 1;
         // (the record read a little displaced — a fractal warp: its contacts wander and fold at every scale this mesh
         // draws, but stay whole lines — no islands of noise)
         let wx = x + warpA * fbm(warpO, x, y, zz, 31.7), wy = y + warpA * fbm(warpO, x, y, zz, 43.1), wz = zz + warpA * fbm(warpO, x, y, zz, 57.9);
@@ -319,7 +346,9 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             for (const [lam, a] of foldWaves) { sum += a * Math.cos(2 * Math.PI * d / lam + wander); amp += a; }
             syn = fold * sum / amp;
         }
-        const s = top - G.foldDepthKm * (fold - syn) * 0.5 + G.reliefGain * (1 - 0.7 * fold) * Math.min(0, r) + (T > 0 ? G.bedJitterKm * smooth(0, 0.5, T) * fbm(contactO, x, y, zz, 3.1) : 0);
+        let s = top - G.foldDepthKm * (fold - syn) * 0.5 + G.reliefGain * (1 - 0.7 * fold) * Math.min(0, r) + (T > 0 ? G.bedJitterKm * smooth(0, 0.5, T) * fbm(contactO, x, y, zz, 3.1) : 0);
+        // (the far field's folds: a crest bares older beds, a trough keeps younger)
+        if (farFold) s -= G.farFoldDepthKm * farFold;
         score.fill(0);
         if (s > G.coverShowKm) {
             // the bed here, and its kind: by the cover's make-up (lime where it was laid as carbonate, salt seldom, else
@@ -328,10 +357,12 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             const i = bedOf(s + 0.5 * G.bedJitterKm * fbm(bedO, x, y, zz, 7.7));
             const carb = at(F.carb), salt = G.saltShare * at(F.salt), organic = at(F.organic), marine = at(F.marine);
             const clastic = Math.max(0, 1 - carb - salt), shaleShare = Math.min(0.9, G.shaleLand + (G.shaleMarine - G.shaleLand) * marine + 0.6 * organic);
-            let sand = clastic * (1 - shaleShare) + (i === 0 ? G.basalSand : 0), shale = clastic * shaleShare;
-            const sum = carb + salt + sand + shale || 1;
+            // (an old belt's band: sandstone holds up its ridges, shale and limestone floor its troughs)
+            const lime = carb * soft, salts = salt * soft;
+            let sand = (clastic * (1 - shaleShare) + (i === 0 ? G.basalSand : 0)) * hard, shale = clastic * shaleShare * soft;
+            const sum = lime + salts + sand + shale || 1;
             const u = smooth(-0.5, 0.5, nz.noise3D(x * facF + 7.3 * i, y * facF + 1.9 * i + 3, zz * facF + 4.1 * i) + 0.35 * nz.noise3D(x * facF * 3.1 + 2.2 * i, y * facF * 3.1 + 5.5, zz * facF * 3.1 + 1.1 * i)) * sum;
-            const kind = u < carb ? Rock.LIMESTONE : u < carb + salt ? Rock.SALT : u < carb + salt + shale ? Rock.SHALE : Rock.SANDSTONE;
+            const kind = u < lime ? Rock.LIMESTONE : u < lime + salts ? Rock.SALT : u < lime + salts + shale ? Rock.SHALE : Rock.SANDSTONE;
             score[kind] = 1;
         } else {
             // ── the basement, by the record cell's setting: granite plutons as blobs, standing high (an arc's instead
@@ -344,7 +375,8 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             const others = bz(B_SLATE) + bz(B_GNEISS) + volc;
             score[Rock.GRANITE] = granite > 0.02 ? blob * Math.max(granite, 0.5 * (granite + others)) : 0;
             const rest = 1 - (granite > 0.02 ? blob : 0) * 0.85;
-            score[Rock.SLATE] = bz(B_SLATE) * rest * Math.exp(0.6 * nA + 0.1 * hi + 0.8 * syn); score[Rock.GNEISS] = bz(B_GNEISS) * rest * Math.exp(-0.6 * nA - 0.1 * hi - 0.8 * syn);
+            // (an old belt's band: gneiss on its hard ridges, slate and schist in its soft troughs)
+            score[Rock.SLATE] = bz(B_SLATE) * rest * Math.exp(0.6 * nA + 0.1 * hi + 0.8 * syn) * soft; score[Rock.GNEISS] = bz(B_GNEISS) * rest * Math.exp(-0.6 * nA - 0.1 * hi - 0.8 * syn) * hard;
             score[Rock.VOLCANIC] = volc * rest * Math.exp(0.6 * nB + 0.2 * hi); score[Rock.BASALT] = bz(B_BASALT) * Math.exp(0.4 * nA);
             score[Rock.OPHIOLITE] = bz(B_OPHIO) * Math.exp(0.4 * nB);
             const suture = at(F.suture);
@@ -354,9 +386,15 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
             }
             const shield = bz(B_SHIELD);
             if (shield > 0.02 && S.base[NB * w + B_SHIELD] > 0) {
-                const ax = S.axis[3 * w], ay = S.axis[3 * w + 1], az = S.axis[3 * w + 2];
+                const ax = S.axis[3 * w], ay = S.axis[3 * w + 1], az = S.axis[3 * w + 2], gs = S.green[w];
                 let keel;
-                if (S.style[w] > 0.5) {
+                if (keelAt && keelV[c] > 0) {
+                    // the grain the surface drew (synthesize.js: drawn out along the craton's length, as the Superior's belts
+                    // run): greenstone on its ridges — the keels' width set by where this craton's share falls among them
+                    const at = keelAt(1 - gs), v = keelV[c] + 6 * nA;
+                    const g = smooth(at - 4, at + 4, v);
+                    score[Rock.GREENSTONE] = shield * g; score[Rock.SHIELD] = shield * (1 - g);
+                } else if (S.style[w] > 0.5) {
                     // the Superior's long belts: stripes along the craton's trend, wandering
                     const al = (x * ax + y * ay + zz * az) / (Math.hypot(ax, ay, az) || 1);
                     keel = 0.5 + 0.5 * Math.cos(beltF * al + 2.5 * nz.noise3D(x * domeF * 0.5 + 2.7, y * domeF * 0.5, zz * domeF * 0.5 + 6.1));
@@ -365,8 +403,10 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
                     keel = 1 - Math.abs(nz.noise3D(x * domeF, y * domeF + 4.4, zz * domeF + 8.2) + 0.5 * nz.noise3D(x * domeF * 2.1 + 1.1, y * domeF * 2.1, zz * domeF * 2.1 + 3.7));
                 }
                 // (the keels' width set so greenstone holds about its share; a little wider in the valleys — greenstone wears)
-                const gs = S.green[w], g = smooth(1 - gs - 0.06, 1 - gs + 0.06, keel - 0.04 * hi + 0.1 * nA);
-                score[Rock.GREENSTONE] = shield * g; score[Rock.SHIELD] = shield * (1 - g);
+                if (keel !== undefined) {
+                    const g = smooth(1 - gs - 0.06, 1 - gs + 0.06, keel - 0.04 * hi + 0.1 * nA);
+                    score[Rock.GREENSTONE] = shield * g; score[Rock.SHIELD] = shield * (1 - g);
+                }
             }
         }
         // ── over both: young sediment (a river's plain, a delta, dunes, loess, moraines and outwash) and flood basalt ──

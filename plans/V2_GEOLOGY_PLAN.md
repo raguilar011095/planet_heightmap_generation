@@ -443,6 +443,75 @@ Developer: "ok lets do g6 and g7 now".
 - `check-geology.mjs`: 51 checks (G6: districts on land, few for the scarce metals, stories that read the history,
   landmass summaries that add up, the files well formed, quick; G7: gems scarce, the rarest rarest, rubies in collision
   belts, amethyst on flood basalts, opal in dry country; the Earth check's opal and turquoise).
+- **Then (2026-10-22, developer: "i dont really like the labels"; "a lot of the deposits are hard to see with the shading
+  and colors underneath … the contrast broadly needs to be higher guarenteed across the board")**: the symbols and the
+  Districts button are gone (the districts live on in the readout and the exports). The Deposits and Ages washes are drawn
+  on plain pale paper — no rock colours under them, the light's swing small (0.84…1) — and each colour is inked at a set
+  contrast with its ground, more the richer (poor 50, rich 90 of 255 — lightness, with a third of the difference in hue —
+  at least half of it in lightness): a pale colour darkened on the paper, a dark one lightened at sea, its hue kept
+  (geology-view.js ink). Salt is pink, as in the Sediment view (its near-white went grey). check-geology.mjs holds the
+  contrast for every colour, grade and light, on land, at sea and on a lake, and halfway between any two that can meet.
+
+## Merged with main's fast follows (2026-10-25)
+
+The developer merged the fast follows into main (one view layout on every page, ten projections and zoom on every map,
+Hillshade, the shared export panel, planet files, the Studio as home page) and asked that the geology "not just fit from
+merge conflicts, but fit the aesthetics and goals of that update". Merged into this branch (not yet committed):
+- **The layer bar:** Geology a tab in main's bar; its views and pickers (Deposits' metal, the Ages' age and resource)
+  its row under it, as Climate's, in the shared `.layer-subbar` style; on a phone the views in the layer list and the
+  pickers under it (44 px). The geology views follow **Hillshade** (off: flat paper, flat rocks), the map's ten
+  **projections** and its zoom, and the readout works through them.
+- **The export:** Export All and its geology types are gone with main's dialog; the geology is a **Geology** group in the
+  shared panel (geology-export.js `GEOLOGY_GROUP`): Rocks (data: the rock type index, the README listing the types),
+  Deposits as shown (data: a richness mask per metal, mineral and fuel), each age's map (data: a mask per resource and
+  its potential), the four record views, and two that are not maps — Districts (GeoJSON, CSV) and the Resource atlas
+  (Markdown) — saved as they come, unprojected (export-panel.js: kind 'file'). Every map comes in the panel's widths,
+  projections and centre, shaded or flat; the rocks at other widths by their weighted majority (export-raster.js
+  `classIndexMap`, now the Köppen zones' too — their export unchanged, hashed before and after).
+- **Planet files:** the moment's geology saves with it (the generic codec; no version bump). A file saved before the
+  geology (main's, v2.1.0) lacks the record: `openPlanet` now says which fields a file lacks (`lacking`), and the page
+  keeps the Geology tab off for it with a note — Build This World builds the history again with its record. **Extend
+  history** on such a file skips what it lacks when comparing the replay (main's way it failed at the first frame) and
+  takes the record from the replay, so the history then has its geology (add detail again to see it); saved again, a
+  file still lacking it says so (`savePlanet` `omit`). Checked: main's kept planet replays the same in Node bar the new
+  fields; a Chrome-made file with its geology stripped opens, extends, and details again with deposits.
+- **Words:** the card and the tutorial name Geology among what detail brings; the SEO lines moved with main's pages
+  (generate.html, the Studio's Evolution card, evolution.html's own meta and feature list); README, v2/README, llms.txt.
+- `check-save.mjs` details its moment with the geology and draws every geology map and file from it (89); kept planets
+  from before the geology open without it. `check-geology.mjs`: 54 pass.
+
+## Merged with main again (2026-10-27)
+
+Developer: "look at main, pull it in and update this code/approach with it". Main had gained the start world (an
+assembled supercontinent of rifted cratons, old ranges along its seams), the far field (a front's push felt far inland:
+old sutures and failed rifts squeezed up as **intraplate ranges**, the Tian Shan; folds and grain across the platform),
+re-imagined flood basalts, rivers to the sea, the polar climate and the **fine detail zoom** (tiles finer than the mesh
+where the view is zoomed in, and exports wider than the picture drawn over that detail). Folded into the same pending
+merge (one merge commit, its second parent main's latest). The branch `farming` (built on G1–G2) had merged the same
+main and fitted its rocks to it the same day; those changes are taken as they are, so the two branches carry the same
+code:
+
+- **Records:** the far field's frame fields beside the geological record's (crust.js, snapshot.js), both records only —
+  a history is still the same with the record or without. An intraplate range lays a foreland at its feet (the Tarim,
+  the Junggar), keeps its old line's rocks (raised and folded again), and is named in the readout and the district
+  stories ("an intraplate range").
+- **The start world's past** (`seedGeology`): its platform sediment in its lowlands between the swells along its seams
+  (`platformLowGain`), its old ranges worn by their age (`startBeltExhumKm` over `startBeltExhumMyr`).
+- **Rocks follow the structure the terrain draws** (synthesize.js `cue`, the heights byte-identical with it or without):
+  an old belt's hard and soft bands (`bandGain`), the far field's folds (`farFoldDepthKm`), a shield's greenstone on its
+  grain's ridges.
+- **The fine detail zoom:** every Geology view is drawn in its tiles (their colours the views', the relief and coasts the
+  detail's); the Deposits and Ages washes read their grid smoothly at any width already, the Rocks and record views
+  through `rockPixel` (bilinear-weighted majority, a small warp, the finer coast's land its nearest rock — no squares,
+  no yellow rim). The readout reads the rock so too.
+- **Exports wider than the picture** go through main's detail (export.js `pictureAt`/`paintAt`, handed to
+  `produceGeology`): the maps over its relief and coasts, the masks' sea its coast; the rock index wider as the view
+  draws it, narrower by its commonest (`classIndexMap`, as before).
+- **Checks:** `check-geology.mjs` pools its belt checks over three histories (seeds 12345, 777, 2024; mountain belts only
+  for the unroofing — the rebuilt start world's quiet belts are mostly rift shoulders), the foreland check counts the
+  cover laid in the history, and six new: the start world's cover in its lowlands, its ranges worn by age, bands, folds
+  and keels followed, the heights untouched. `check-save.mjs` draws the rocks at twice their picture over the finer
+  detail: no land read as sea.
 
 ## Decided (developer, 2026-10-19)
 

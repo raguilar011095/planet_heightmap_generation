@@ -26,6 +26,10 @@ export const PARAMS_DEFAULTS = Object.freeze({
     TEMP_INVERSION_C: 10,       // °C         how much colder the air near snowy ground gets than the air above it
                                 //            when the sun is weak and the air calm (winter inversions over snow and ice)
     TEMP_INVERSION_WIND: 4.69,  // m/s        wind speed at which that inversion is half mixed away
+    TEMP_POLAR_SUMMER_DAMP: 0.5,// –          near the poles, the share of the rise above the yearly mean that melting snow and
+                                //            ice take from the summer (winters untouched; issue #74) …
+    TEMP_POLAR_FROM_DEG: 65,    // °          … none equatorward of this latitude …
+    TEMP_POLAR_FULL_DEG: 85,    // °          … fully poleward of this one
     TEMP_PLATEAU_LAPSE: 4.84,   // °C/km     how much colder a large region is per km of its mean height (sunlit
                                 //            plateaus heat the air above them, so less than the free air's 6.5;
                                 //            the terrain cells below the grid still use the standard rate) …
@@ -71,7 +75,8 @@ export const PARAMS_DEFAULTS = Object.freeze({
     // Tuned 2026-09-28 (tuning/climate/circulation-check.mjs --tune: open loop, continents and ocean basins weighted
     // equally, none worse than with the literature values). Ferrel width, sea friction angle and Hadley scale ended
     // at or near the edge of their ranges — a hint of the simple structure's limits.
-    CIRC_HADLEY_SCALE: 1.5,   // –          Hadley-cell width relative to Held & Hou's estimate
+    CIRC_HADLEY_SCALE: 1.44,  // –          Hadley-cell width relative to Held & Hou's estimate (1.5, the range's
+                                //            edge, until 2026-10-25: polar air too warm then narrowed the contrast)
     CIRC_HADLEY_SEASONAL: 0.5, // –          share of each month's own equator-to-pole contrast in the Hadley cells' width
     CIRC_FERREL_DEG: 35,        // °          from the subtropical high to the subpolar low (the Ferrel cell)
     CIRC_TROPICAL_HPA: 10.13,    // hPa        how much lower the tropical rain belt is than the subtropical highs
@@ -103,7 +108,9 @@ export const PARAMS_DEFAULTS = Object.freeze({
     OCEAN_CHANNEL_DRAG: 7.3e-7, // 1/s        friction balancing the wind in a circumpolar channel (its current's strength)
     OCEAN_GUST_MS: 4.26,        // m/s        wind variability (storms) that monthly-mean winds leave out, for the wind stress
     OCEAN_HEAT_SHARE: 0.073,    // –          share of the gyres' transport whose temperature reaches the sea surface
-    OCEAN_OVERTURN_PW: 0.925,       // PW         the overturning's poleward heat, per hemisphere open to the polar sea
+    OCEAN_OVERTURN_PW: 0.6,     // PW         the overturning's poleward heat, per hemisphere open to the polar sea, given
+                                //            up beyond 40° (the Atlantic carries ≈ 0.6 PW across 45°N, Trenberth & Caron
+                                //            2001; 0.925 while a fifth of it leaked through the Bering Strait, issue #74)
     OCEAN_MERID_SHARE: 0.03,   // –          … and of their north–south transport across the latitudes' temperature gradient
     OCEAN_UPWELL_DT: 6,         // °C         how much colder upwelled water is than the surface where the thermocline is shallowest …
     OCEAN_THERMO_EAST_M: 50,    // m          … the thermocline's depth at a basin's eastern shore (where it is shallowest) …
@@ -215,6 +222,7 @@ export const PARAM_PRIORS = Object.freeze({
     TEMP_SEA_ICE_MELT:  { value: 0.003, min: 0.002, max: 0.006, source: 'summer surface melt ≈ 0.5–1.5 m over a season of a few hundred positive degree-days (Perovich et al. 2003)' },
     TEMP_SEA_ICE_H0:    { value: 0.5, min: 0.3, max: 1, source: 'ice ≈ 0.3–1 m thick closes the sea (consolidated pack vs new ice and leads)' },
     TEMP_SEA_ICE_SPREAD_KM: { value: 700, min: 300, max: 1200, source: 'sea-ice drift ≈ 5–10 km/day — a few hundred to a thousand km over a season (IABP buoys)' },
+    TEMP_POLAR_SUMMER_DAMP: { value: 0.5, min: 0.2, max: 0.7, source: 'Arctic summers: the surface stays near 0 °C while snow and sea ice melt, and the July 10 °C isotherm (the tree line) lies near 65–72°N on every continent; land poleward of 75° is tundra or ice everywhere on Earth (Beck et al. 2023). No direct value — set so the model\'s 66–80°N summers match, winters untouched' },
     TEMP_ICE_START_C:   { value: -30, min: -40, max: -20, source: 'ice-sheet hysteresis: once grown, polar ice sheets persist under climates that would not grow them (e.g. DeConto & Pollard 2003; Abe-Ouchi et al. 2013)' },
 
     CIRC_HADLEY_SCALE:  { value: 1.2, min: 0.9, max: 1.5, source: 'Held & Hou 1980 underestimates the observed Hadley edge by ~20 % (e.g. Frierson et al. 2007)' },

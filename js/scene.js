@@ -101,28 +101,29 @@ const atmosMat = new THREE.ShaderMaterial({
 export const atmosMesh = new THREE.Mesh(new THREE.SphereGeometry(1.12,64,64), atmosMat);
 scene.add(atmosMesh);
 
-// Water sphere
+// Water sphere — the sun's glint on it broad and soft, a sheen the sea still shows through (a tight, bright one hid it)
 const waterMat = new THREE.MeshPhongMaterial({
     color:0x0c3a6e, transparent:true, opacity:0.55,
-    shininess:120, specular:0x4488bb, depthWrite:false
+    shininess:50, specular:new THREE.Color(0x4488bb).multiplyScalar(0.5), depthWrite:false
 });
 export const waterMesh = new THREE.Mesh(new THREE.SphereGeometry(1.0,80,80), waterMat);
 scene.add(waterMesh);
 
-// Equirectangular map camera & controls
+// Map camera & controls: the map is 2 high and mapAspect × 2 wide (2 : 1 equirectangular; another projection its own
+// shape, js/map-projection.js)
 export const mapCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
 mapCamera.position.set(0, 0, 5);
 mapCamera.lookAt(0, 0, 0);
+let mapAspect = 2;
 
 export function updateMapCameraFrustum() {
     const aspect = innerWidth / innerHeight;
-    const mapAspect = 2;
     let halfW, halfH;
     if (aspect > mapAspect) {
         halfH = 1.15;
         halfW = halfH * aspect;
     } else {
-        halfW = 2.3;
+        halfW = 1.15 * mapAspect;
         halfH = halfW / aspect;
     }
     mapCamera.left = -halfW; mapCamera.right = halfW;
@@ -178,6 +179,21 @@ canvas.addEventListener('touchmove', (e) => {
 }, { passive: true });
 
 canvas.addEventListener('touchend', () => { _mapPinchDist = 0; }, { passive: true });
+
+/** The map's width ÷ height (its projection's shape). */
+export function setMapAspect(a) {
+    mapAspect = a;
+    updateMapCameraFrustum();
+}
+
+/** The whole map in view again: unzoomed, centred. */
+export function resetMapView() {
+    mapCamera.position.set(0, 0, 5);
+    mapCtrl.target.set(0, 0, 0);
+    mapCamera.zoom = _mapZoomTarget = 1;
+    mapCamera.updateProjectionMatrix();
+    mapCtrl.update();
+}
 
 export function tickMapZoom() {
     const cur = mapCamera.zoom;

@@ -15,6 +15,7 @@
 // In m³/s, km, mm: the same rivers at every terrain detail, more of their bends on the finer.
 
 import { MinHeap } from '../core/min-heap.js';
+import { flatKey } from '../terrain/carve.js';
 
 const SEC_PER_YEAR = 3.156e7, R = 6371;
 /** The distance (km) between two neighbouring cells (the chord: the same to well under a metre at a cell's size). */
@@ -138,6 +139,12 @@ export function hydrology(ctx, F) {
     const fill = new Float32Array(n), rank = new Int32Array(n).fill(-1), parent = new Int32Array(n).fill(-1), order = new Int32Array(n);
     const heap = new MinHeap(1 << 16);
     let count = 0;
+    // (across a flat the flood follows the ground under the water, then the nearer first: carve.js flatKey — the ways
+    // across a hollow run down its low line to its outlet, and the gorges cut along them do not wander all over; and
+    // where that ground is flat too, it bends a little as the carving's rivers do — the ground read riverWanderKm lower
+    // where ctx.wander, the meander, is low — not a ruler's line: developer, 2026-10-27, "slightly too straight now")
+    const flatKm = new Float32Array(n), W = ctx.wander && F.riverWanderKm > 0 ? F.riverWanderKm : 0;
+    const under = (x, from) => W && z[x] <= from ? z[x] - W * (1 - Math.max(-1, Math.min(1, ctx.wander(x)))) : z[x];   // (from: the level it is reached from)
     for (let c = 0; c < n; c++) {
         if (!ocean[c]) continue;
         rank[c] = -2;
@@ -150,8 +157,8 @@ export function hydrology(ctx, F) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
             const nb = adjList[k];
             if (rank[nb] !== -1 || ocean[nb]) continue;
-            const level = Math.max(fill[c], z[nb]);
-            if (parent[nb] === -1 || level < fill[nb]) { parent[nb] = c; fill[nb] = level; heap.push(level, nb); }
+            const level = Math.max(fill[c], z[nb]), fk = z[nb] <= fill[c] ? flatKm[c] + edgeKmOf(xyz, c, nb) : 0;
+            if (parent[nb] === -1 || level < fill[nb] || (level === fill[nb] && fk < flatKm[nb])) { parent[nb] = c; fill[nb] = level; flatKm[nb] = fk; heap.push(flatKey(level, under(nb, fill[c]), fk), nb); }
         }
     }
     // ── receivers: the steepest way down the filled surface to a cell reached before (or the sea); on a flat, the flood's way ──
@@ -348,7 +355,10 @@ export function hydrology(ctx, F) {
             let crossed = Infinity;
             if (!h.sea) for (const x of h.cells) if (cutAt[x] < crossed) crossed = cutAt[x];
             const drained = crossed < h.level - 0.01;
-            const keepKm2 = F.lakeKeepKm2 * Math.sqrt(Math.max(1, h.inflow) / 1000) * (young ? F.glacialKeepShare : 1);
+            // (and a major river only a huge one — developer, 2026-10-27: major rivers ending in a lake "< 1% unless the lake
+            // is huge": from lakeHugeQ[0] m³/s, by lakeHugeQ[1], a lake of lakeHugeKm2)
+            const huge = F.lakeHugeKm2 > 0 ? F.lakeHugeKm2 * smooth(Math.log(F.lakeHugeQ[0]), Math.log(F.lakeHugeQ[1]), Math.log(Math.max(1, h.inflow))) : 0;
+            const keepKm2 = Math.max(F.lakeKeepKm2 * Math.sqrt(Math.max(1, h.inflow) / 1000), huge) * (young ? F.glacialKeepShare : 1);
             let outflow = h.inflow, level = h.level, kind = Water.FRESH, from = c;
             // A remnant of the sea (developer, 2026-10-15: inland seas "COMPLETELY dried out … leaving holes in the ground")
             // is its hole — the basin's cells below sea level — and its water stays in it (developer: the lakes over trapped
@@ -408,6 +418,26 @@ export function hydrology(ctx, F) {
             // counts is the water left, not the basin's)
             // (a remnant of the sea keeps its water whatever its size: no gorge could drain it)
             if (!h.sea && water.length && water.length * cellKm2 < keepKm2) { cut(h.deepCell, h.floor); level = h.floor; water.length = 0; }
+            // (a remnant of the sea full to its brim keeps the water of each part of its hole — often pits scattered over a
+            // lowland that spills just above sea level, and the basin's rivers run to the nearest (below). Each part is a
+            // lake of its own, kept only where it is big for the basin's river, as any lake (a great river's only a huge
+            // one); a smaller one its delta has filled — ground just above sea level, below — and the rivers cross it to
+            // the water kept or the outlet (developer, 2026-10-27: major rivers ending in lakes "< 1% unless the lake is huge")
+            else if (h.sea && kind === Water.FRESH && water.length) {
+                const inWater = new Set(water), part = new Set(), kept = [];
+                for (const s0 of water) {
+                    if (part.has(s0)) continue;
+                    const piece = [s0];
+                    part.add(s0);
+                    for (let i = 0; i < piece.length; i++) for (let k = adjOffset[piece[i]]; k < adjOffset[piece[i] + 1]; k++) {
+                        const nb = adjList[k];
+                        if (inWater.has(nb) && !part.has(nb)) { part.add(nb); piece.push(nb); }
+                    }
+                    if (piece.length * cellKm2 >= Math.max(F.lakeMinKm2, keepKm2)) for (const x of piece) kept.push(x);
+                }
+                water.length = 0;
+                for (const x of kept) water.push(x);
+            }
             if (kind === Water.SALT && !water.length) { kind = Water.PAN; h.pan = true; }
             for (const x of water) { lakeKind[x] = kind; lakeLevel[x] = level; }
             if (h.sea ? kind === Water.FRESH : !water.length) cutPockets(h, id, c);
@@ -464,7 +494,7 @@ export function hydrology(ctx, F) {
         for (const s of seeds) {
             lr[s] = -2;
             const w = lakeKind[s] ? lakeLevel[s] : z[s];
-            for (let k = adjOffset[s]; k < adjOffset[s + 1]; k++) { const nb = adjList[k]; if (dry(nb) && lp[nb] === -1) { lp[nb] = s; lfill[nb] = Math.max(w, z[nb]); hp.push(lfill[nb], nb); } }
+            for (let k = adjOffset[s]; k < adjOffset[s + 1]; k++) { const nb = adjList[k]; if (dry(nb) && lp[nb] === -1) { lp[nb] = s; lfill[nb] = Math.max(w, z[nb]); flatKm[nb] = 0; hp.push(lfill[nb], nb); } }
         }
         while (hp.size) {
             const c = hp.pop();
@@ -473,8 +503,9 @@ export function hydrology(ctx, F) {
             for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
                 const nb = adjList[k];
                 if (lr[nb] !== -1 || !dry(nb)) continue;
-                const level = Math.max(lfill[c], z[nb]);
-                if (lp[nb] === -1 || level < lfill[nb]) { lp[nb] = c; lfill[nb] = level; hp.push(level, nb); }
+                // (across a flat — a filled pit's ground — its low line, then the nearer first: carve.js flatKey, as the flood from the sea)
+                const level = Math.max(lfill[c], z[nb]), fk = z[nb] <= lfill[c] ? flatKm[c] + edgeKmOf(xyz, c, nb) : 0;
+                if (lp[nb] === -1 || level < lfill[nb] || (level === lfill[nb] && fk < flatKm[nb])) { lp[nb] = c; lfill[nb] = level; flatKm[nb] = fk; hp.push(flatKey(level, under(nb, lfill[c]), fk), nb); }
             }
         }
         // (each dry cell drains the steepest way down to a cell reached before — or the water, or the outlet; on a flat, the

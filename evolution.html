@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>World Orogen — Evolution</title>
     <meta name="description" content="Watch a planet evolve: a supercontinent breaks up, oceans open and close, continents collide and gather again — a tectonic history simulated in your browser, with every moment of it on a timeline to explore and export.">
-    <meta name="keywords" content="plate tectonics simulator, tectonic history, supercontinent cycle, continental drift simulation, procedural planet generator, worldbuilding tool, heightmap generator, Köppen climate, fantasy map maker">
+    <meta name="keywords" content="plate tectonics simulator, tectonic history, supercontinent cycle, continental drift simulation, procedural planet generator, worldbuilding tool, heightmap generator, Köppen climate, fantasy map maker, rock type map, ore deposit map">
     <meta name="author" content="World Orogen">
     <meta name="theme-color" content="#0a0e17">
     <link rel="canonical" href="https://orogen.studio/evolution">
@@ -14,7 +14,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://orogen.studio/evolution">
     <meta property="og:title" content="World Orogen — Evolution">
-    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate and a satellite view. Free, in your browser.">
+    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view and the rocks and ores its history left. Free, in your browser.">
     <meta property="og:image" content="https://orogen.studio/assets/studio/evolution.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="750">
@@ -22,6 +22,7 @@
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@worldorogen">
     <meta name="twitter:title" content="World Orogen — Evolution">
     <meta name="twitter:description" content="Watch a planet evolve over a billion years of plate tectonics, then sculpt any moment in detail. Free, in your browser.">
     <meta name="twitter:image" content="https://orogen.studio/assets/studio/evolution.jpg">
@@ -43,9 +44,12 @@
             "Timeline of the whole history to scrub and replay",
             "Detailed moments with rivers, lakes, glaciers and a seasonal climate",
             "Satellite and Köppen climate views of a detailed moment",
-            "Export of a detailed moment: colour map, satellite view (year, January, July), Köppen climate zones, 16-bit heightmaps, land mask and a transparent rivers-and-lakes layer, singly or all in one ZIP, up to 16384 px wide"
+            "Geology of a detailed moment, read off its history: a rock-type map, ore, fuel, mineral and gem deposits graded poor to rich, what each technological age could reach, and each deposit district with the story of how it formed — exported as maps, richness masks, GeoJSON and CSV, and a resource atlas",
+            "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July), Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
+            "Planet files: the whole history and its detailed moment saved as one file and opened again later, without building either again — the same planet in any browser"
         ],
         "screenshot": "https://orogen.studio/assets/studio/evolution.jpg",
+        "sameAs": ["https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t", "https://x.com/worldorogen", "https://www.threads.com/@orogen.studio", "https://www.instagram.com/orogen.studio/", "https://github.com/raguilar011095/planet_heightmap_generation"],
         "isPartOf": { "@type": "WebSite", "name": "World Orogen", "url": "https://orogen.studio/" }
     }
     </script>
@@ -58,10 +62,19 @@
 </head>
 <body>
     <nav id="topNav">
-        <a href="/studio" class="nav-tab">Studio</a>
-        <a href="/" class="nav-tab">Generate</a>
+        <a href="/" class="nav-tab">Studio</a>
+        <a href="/generate" class="nav-tab">Generate</a>
         <a href="/import" class="nav-tab">Import<span class="nav-long">&nbsp;Heightmap</span></a>
         <a href="/evolution" class="nav-tab active">Evolution</a>
+        <div class="nav-follow">
+            <a class="nav-icon" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub" aria-label="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg></a>
+            <span class="nav-follow-label">Follow</span>
+            <a class="nav-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>
+            <a class="nav-icon" href="https://x.com/worldorogen" target="_blank" rel="noopener" title="Follow on X for new releases and sneak peeks" aria-label="World Orogen on X"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#x"/></svg></a>
+            <a class="nav-icon" href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener" title="Follow on Threads for new releases and sneak peeks" aria-label="World Orogen on Threads"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#threads"/></svg></a>
+            <span class="nav-follow-label">Support</span>
+            <a class="nav-icon" href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener" title="Support World Orogen on Ko-fi" aria-label="Support World Orogen on Ko-fi"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#kofi"/></svg></a>
+        </div>
     </nav>
     <canvas id="canvas"></canvas>
     <canvas id="mapCanvas" hidden></canvas>
@@ -77,14 +90,15 @@
             <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
+        <div id="viewStripSlot"></div>
         <button id="generate" title="Build a new world from a new random seed">New World</button>
         <div id="buildStatus" class="evo-status" hidden></div>
         <details class="section" id="worldSection">
             <summary>World <span id="worldSummary" class="evo-world-sum"></span></summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Seed <span class="tip" data-tip="The number a world is built from: the same seed and settings build the same history">?</span></label>
-                    <div id="seedRow"><input type="text" id="seedCode" placeholder="Seed" inputmode="numeric" aria-label="World seed"></div>
+                    <label>Seed <span class="tip" data-tip="What a world is built from: a number up to 2,147,483,645 (New World picks one at random), or any word or phrase. The same seed and settings build the same history">?</span></label>
+                    <div id="seedRow"><input type="text" id="seedCode" placeholder="A number or a word" aria-label="World seed" autocomplete="off" spellcheck="false"></div>
                 </div>
                 <div class="cg">
                     <label>Starting Continent Size <span class="tip" data-tip="How much of the planet the first supercontinent covers, shelves included">?</span> <span class="v" id="vCont">30%</span></label>
@@ -140,6 +154,9 @@
                 </div>
                 <div id="worldPending" class="evo-card-note" hidden>The new plate resolution applies when you build this world</div>
                 <button id="rebuildBtn" class="evo-climate-btn" title="Build the world of this seed with these settings">Build This World</button>
+                <button id="loadBtn" class="evo-climate-btn evo-load-btn" title="Open a planet file (.orogen) saved from the Export panel: its history and detailed moment, as they were saved — no waiting for either">Load Planet…</button>
+                <input type="file" id="loadFile" accept=".orogen" hidden>
+                <div id="loadNote" class="evo-card-note" hidden></div>
             </div>
         </details>
         <div id="momentCard" class="evo-card">
@@ -154,20 +171,6 @@
                     <option value="10000000">10M cells · 8 km (~1 min)</option>
                 </select>
             </div>
-            <div id="waterGroup">
-                <div class="tg">
-                    <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; Lakes</label>
-                    <label class="toggle-label" id="regimeRow"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>Colour by Regime <span class="tip" data-tip="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months">?</span></label>
-                </div>
-                <div class="cg" id="riverDensityGroup">
-                    <label>River Density <span class="tip" data-tip="Which rivers are drawn, by how much water they carry: Few — 150 m³/s and more; Normal — 40 m³/s; Many — 8 m³/s. The bigger a river, the stronger its line; seasonal rivers are dashed, and those dry most of the year dotted">?</span></label>
-                    <select id="riverDensity">
-                        <option value="150">Few</option>
-                        <option value="40" selected>Normal</option>
-                        <option value="8">Many</option>
-                    </select>
-                </div>
-            </div>
             <div id="cardDetailed" class="evo-card-note evo-card-replace" hidden></div>
             <button id="cardAction" class="evo-card-btn" disabled>Add detail</button>
             <div id="cardBar" class="evo-finish-bar" hidden><i></i></div>
@@ -175,75 +178,17 @@
             <div id="cardNote" class="evo-card-note" hidden></div>
             <button id="extendBtn" class="evo-card-ghost" hidden>Extend history</button>
         </div>
-        <details class="section" id="viewSection">
-            <summary>View</summary>
-            <div class="section-body">
-                <div class="cg" id="paletteGroup">
-                    <label>Terrain Colours <span class="tip" data-tip="How heights are coloured on the Terrain view — all shaded by the relief">?</span></label>
-                    <select id="palette">
-                        <optgroup label="Maps">
-                            <option value="relief" selected>Relief</option>
-                            <option value="topographic">Topographic</option>
-                            <option value="natural">Natural</option>
-                            <option value="swiss">Swiss</option>
-                            <option value="school">School Atlas</option>
-                            <option value="etopo">ETOPO</option>
-                            <option value="dem">DEM</option>
-                            <option value="scientific">Scientific</option>
-                            <option value="satellite">Blue Marble (by height)</option>
-                            <option value="grey">Grey</option>
-                            <option value="antique">Antique</option>
-                        </optgroup>
-                        <optgroup label="Other worlds">
-                            <option value="arid">Arid</option>
-                            <option value="frozen">Frozen</option>
-                            <option value="lush">Lush</option>
-                            <option value="alien">Alien</option>
-                            <option value="volcanic">Volcanic</option>
-                        </optgroup>
-                    </select>
-                </div>
-                <div class="cg">
-                    <label>View</label>
-                    <select id="viewMode">
-                        <option value="globe">Globe</option>
-                        <option value="map">Map</option>
-                    </select>
-                </div>
-                <div class="cg" id="mapCenterLonGroup" hidden>
-                    <label>Center Longitude <span class="v" id="vMapCenterLon">0°</span></label>
-                    <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5">
-                </div>
-                <div class="tg">
-                    <label class="toggle-label"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
-                    <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
-                </div>
-                <div class="cg" id="gridSpacingGroup">
-                    <label>Grid Spacing</label>
-                    <select id="gridSpacing">
-                        <option value="30">30&deg;</option>
-                        <option value="15" selected>15&deg;</option>
-                        <option value="10">10&deg;</option>
-                        <option value="5">5&deg;</option>
-                        <option value="2.5">2.5&deg;</option>
-                    </select>
-                </div>
-                <div class="cg">
-                    <label>Playback Speed</label>
-                    <select id="rate">
-                        <option value="5">5 Myr a second</option>
-                        <option value="10">10 Myr a second</option>
-                        <option value="25" selected>25 Myr a second</option>
-                        <option value="50">50 Myr a second</option>
-                    </select>
-                </div>
-                <details id="statsDetails" class="stats-toggle">
-                    <summary>Stats</summary>
-                    <div id="stats"></div>
-                </details>
-            </div>
+        <details id="statsDetails" class="stats-toggle">
+            <summary>Stats</summary>
+            <div id="stats"></div>
         </details>
-        <a id="repoLink" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener">GitHub</a>
+        <div id="repoLink">
+            <a class="rl-github" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg>GitHub</a>
+            <a class="rl-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>
+            <a class="rl-icon" href="https://x.com/worldorogen" target="_blank" rel="noopener" title="Follow on X for new releases and sneak peeks" aria-label="World Orogen on X"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#x"/></svg></a>
+            <a class="rl-icon" href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener" title="Follow on Threads for new releases and sneak peeks" aria-label="World Orogen on Threads"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#threads"/></svg></a>
+            <a class="rl-kofi" href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener" title="Support World Orogen on Ko-fi" aria-label="Support World Orogen on Ko-fi"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#kofi"/></svg>Support</a>
+        </div>
         </div>
     </div>
     <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer">
@@ -278,16 +223,69 @@
             <option value="rainSeason">Rain Seasonality</option>
         </optgroup>
     </select>
-    <div id="layerBar" class="evo-layerbar">
-        <div class="map-tabs" id="mapTabs">
-            <button class="map-tab active" data-layer="terrain">Terrain</button>
-            <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
-            <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
-            <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach; its mountain belts, active, worn and long gone; where shallow seas lay over the continents; the sediment on them; how deep erosion has cut. Comes with Add detail">Geology</button>
-            <button class="map-tab" data-layer="heightmap">Heightmap</button>
-            <button class="map-tab" data-layer="plates">Plates</button>
+    <div id="layerBar" class="layer-bar">
+        <div id="viewStrip" class="view-strip" role="toolbar" aria-label="View">
+            <div class="vs-seg" role="group" aria-label="Globe or map"><button type="button" data-mode="globe">Globe</button><button type="button" data-mode="map">Map</button></div>
+            <select id="viewMode" hidden aria-hidden="true" tabindex="-1">
+                <option value="globe">Globe</option>
+                <option value="map">Map</option>
+            </select>
+            <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
+            <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
+            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+            <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
+                <option value="30">30&deg;</option>
+                <option value="15" selected>15&deg;</option>
+                <option value="10">10&deg;</option>
+                <option value="5">5&deg;</option>
+                <option value="2.5">2.5&deg;</option>
+            </select></span>
+            <span class="vs-item" id="paletteGroup" title="How heights are coloured on the Terrain view"><label for="palette">Colours</label> <select id="palette">
+            <optgroup label="Maps">
+            <option value="relief" selected>Relief</option>
+            <option value="topographic">Topographic</option>
+            <option value="natural">Natural</option>
+            <option value="swiss">Swiss</option>
+            <option value="school">School Atlas</option>
+            <option value="etopo">ETOPO</option>
+            <option value="dem">DEM</option>
+            <option value="scientific">Scientific</option>
+            <option value="satellite">Blue Marble (by height)</option>
+            <option value="grey">Grey</option>
+            <option value="antique">Antique</option>
+            </optgroup>
+            <optgroup label="Other worlds">
+            <option value="arid">Arid</option>
+            <option value="frozen">Frozen</option>
+            <option value="lush">Lush</option>
+            <option value="alien">Alien</option>
+            <option value="volcanic">Volcanic</option>
+            </optgroup>
+            </select></span>
+            <label class="toggle-label" title="Shade the planet by its relief, lit from the north-west. Off, every view is flat colour, the mountains shown by their colours alone and no sun glinting on the sea (a texture to light in a 3D program; the export has its own Hillshade switch)"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade</label>
+            <span class="vs-item" id="waterGroup">
+                <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; Lakes</label>
+                <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By Regime</label>
+                <span class="vs-item" id="riverDensityGroup" title="Which rivers are drawn, by how much water they carry: Few — 150 m³/s and more; Normal — 40 m³/s; Many — 8 m³/s. The bigger a river, the stronger its line; seasonal rivers are dashed, and those dry most of the year dotted"><select id="riverDensity">
+                <option value="150">Few</option>
+                <option value="40" selected>Normal</option>
+                <option value="8">Many</option>
+                </select></span>
+            </span>
         </div>
-        <div id="subBar" class="evo-subbar" hidden>
+        <div class="layer-row">
+            <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, grid lines, colours, hillshade, rivers"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="map-tabs" id="mapTabs">
+                <button class="map-tab active" data-layer="terrain">Terrain</button>
+                <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
+                <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
+                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach; its mountain belts, active, worn and long gone; where shallow seas lay over the continents; the sediment on them; how deep erosion has cut. Comes with Add detail">Geology</button>
+                <button class="map-tab" data-layer="heightmap">Heightmap</button>
+                <button class="map-tab" data-layer="plates">Plates</button>
+            </div>
+        </div>
+        <div id="subBar" class="layer-subbar" hidden>
             <div class="map-tabs" id="climateTabs">
                 <button class="map-tab" data-layer="koppen">Köppen</button>
                 <button class="map-tab" data-layer="temperature">Temperature</button>
@@ -419,22 +417,27 @@
                 <option value="building">Building stone</option>
             </select>
             <select id="ageRes" aria-label="Which resource" title="All of the age's resources (each place its richest), one alone, or where its metal could be made" hidden></select>
-            <button id="districtToggle" class="map-tab active" aria-pressed="true" title="Mark the richest districts with an atlas's symbols (Cu, Au, Sn…) — readable when zoomed in; hover one for its story" hidden>Districts</button>
             <select id="season" aria-label="Season">
                 <option value="year" selected>Year</option>
                 <option value="jan">January</option>
                 <option value="jul">July</option>
             </select>
         </div>
+        <div id="climateChip" class="evo-chip" hidden><span id="climateChipText"></span><button id="climateChipBtn">Calculate</button></div>
     </div>
     <button id="helpBtn" title="How it works">?</button>
-    <div id="legendCard" class="evo-legend-card" hidden>
+    <div id="legendCard" class="legend-card" hidden>
         <div id="climateLegend" class="viz-legend"></div>
         <div id="regimeLegend" class="evo-koppen evo-regime-legend" hidden></div>
     </div>
-    <div id="climateChip" class="evo-chip" hidden><span id="climateChipText"></span><button id="climateChipBtn">Calculate</button></div>
     <div id="timeline" class="evo-timeline" hidden>
         <button id="playBtn" class="evo-play" aria-label="Play / pause">&#x25B6;</button>
+        <select id="rate" class="evo-rate" aria-label="Playback speed" title="Playback speed">
+        <option value="5">5 Myr/s</option>
+        <option value="10">10 Myr/s</option>
+        <option value="25" selected>25 Myr/s</option>
+        <option value="50">50 Myr/s</option>
+        </select>
         <div class="evo-track">
             <div class="evo-rail"><i id="railBuilt" class="built"></i><i id="railShown" class="shown"></i></div>
             <input id="timeSlider" type="range" min="0" max="1200" step="10" value="0" aria-label="Time">
@@ -446,24 +449,11 @@
         <div id="finishBar" class="evo-finish-bar evo-timeline-progress" hidden><i></i></div>
     </div>
     <div id="hoverInfo"></div>
+    <div id="dropOverlay" class="evo-drop" hidden><div>Drop to open this planet file</div></div>
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
             <button id="exportClose" aria-label="Close">&times;</button>
-            <h3>Export Map <span id="exportMoment" class="evo-export-moment"></span></h3>
-            <div class="cg">
-                <label>Type <span class="tip" data-tip="Colour Map — the Terrain view as shown, in your Terrain Colours, with rivers and lakes if Rivers &amp; Lakes is on. Satellite — the Satellite view for the year, January or July. Climate Zones — the Köppen zones in their own colours, unshaded. Heightmap with Sea Floor — 16-bit greyscale, the same scale on every planet: black −11 km, white +9 km (sea level at 55 %). Land Heightmap — 16-bit, the sea black and land from 0 to +9 km (re-imports on the Import Heightmap page, which reads white as 6 km). Land Mask — land white, the sea black. Rivers &amp; Lakes — the rivers and lakes alone on a transparent ground, to lay over another map. Export All saves one of each (Satellite for the year) in a ZIP">?</span></label>
-                <select id="exportType"></select>
-            </div>
-            <div class="cg">
-                <label>Width <span class="v" id="exportDims"></span> <span class="tip" data-tip="Up to the width the moment was detailed at, the map is drawn from its own detail (narrower ones averaged down). Wider ones are enlarged from it for use downstream: heights smoothly interpolated, coasts, lakes and climate zones following the nearest pixels, then drawn at the full width — the shading and the rivers sharp, but no new detail. Very wide maps take a while and a lot of memory">?</span></label>
-                <select id="exportWidth"></select>
-            </div>
-            <div id="exportProgress" class="evo-export-progress" hidden><div class="evo-finish-bar"><i></i></div><span></span></div>
-            <div class="export-actions">
-                <button id="exportCancel" class="btn-ghost">Cancel</button>
-                <button id="exportGo" class="btn-primary">Export</button>
-                <button id="exportAllGo" class="btn-primary" title="Every kind of map (Satellite for the year) — the geology's too: rocks, deposits, each age, the masks, the districts and the atlas — at this width, in one ZIP">Export All</button>
-            </div>
+            <h3>Export</h3>
         </div>
     </div>
     <div id="tutorialOverlay" class="hidden">
@@ -487,12 +477,18 @@
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> — hover for how each came to be there — its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit), its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone — tap a legend entry to see it alone; the richest <strong>Districts</strong> are marked Cu, Au, Sn… — zoom in to read them, hover one for how it formed), its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut.</p>
-                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own — and the geology's: its rocks, its deposits and each age's map, a greyscale mask per resource, the districts as GeoJSON or CSV, and a resource atlas in words. <strong>Export All</strong> saves one of each in a ZIP, at any width up to 16384 px.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (scroll to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
+                <p>Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> &mdash; hover for how each came to be there &mdash; its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit), its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone &mdash; tap a legend entry to see it alone; hover a deposit for its district, its rank on the world and how it formed), its mountain belts, active, worn and long gone, where shallow seas lay over the continents, the sediment laid on them, and how deep erosion has cut.</p>
+                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate layer can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; and the geology's: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words. Several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
             <div class="tutorial-step" data-step="4">
+                <h3>Keep a Planet</h3>
+                <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load Planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
+                <p>The file holds the history itself, so it opens exactly as it was saved, in any browser. <strong>Extend history</strong> on an opened planet first runs the history again here from its seed (as long as it took to build), and then goes on from where the file ends &mdash; if it comes out the same in this browser.<span data-touch=" On a phone, a detailed moment saved on a desktop is too big to show: the history opens, ready for you to add detail at the phone's size."></span></p>
+            </div>
+            <div class="tutorial-step" data-step="5">
                 <h3>Steer It</h3>
-                <p><strong>New World</strong> starts a fresh history from a random seed. Open <strong>World</strong> to set the seed, the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
+                <p><strong>New World</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
                 <p>At the end of a history, <strong>Extend history</strong> runs it on for as long as you like. The link in your address bar rebuilds the same history, so you can share it.</p>
             </div>
             <div class="tutorial-dots">
@@ -501,6 +497,7 @@
                 <span class="dot" data-dot="2"></span>
                 <span class="dot" data-dot="3"></span>
                 <span class="dot" data-dot="4"></span>
+                <span class="dot" data-dot="5"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>

@@ -52,7 +52,7 @@ function startServer() {
   return new Promise((resolve) => {
     const server = http.createServer((req, res) => {
       let urlPath = decodeURIComponent(new URL(req.url, 'http://localhost').pathname);
-      if (urlPath === '/' || urlPath === '') urlPath = '/index.html';
+      if (urlPath === '/' || urlPath === '') urlPath = '/generate.html';   // (Generate)
 
       const filePath = path.join(PROJECT_ROOT, urlPath);
 

@@ -18,7 +18,8 @@ const elaTemp = P => (-296 + Math.sqrt(Math.max(0, 296 * 296 - 36 * (645 - P))))
 /**
  * @param {Object} ctx  { mesh, z (km, changed in place), lat, lon (degrees), warmSl (warmest month at sea level, °C),
  *                        rain (mm/year; NaN at sea), grid (LatLonGrid), cellKm2, seed }
- * @returns {{ice: Uint8Array, margin: Uint8Array, iceKm2: number, sheets: number}}
+ * @returns {{ice: Uint8Array, margin: Uint8Array, iceKm2: number, sheets: number, H: Float32Array|null, S: Float32Array|null}}
+ *          (H, S: the ice's thickness and its surface, km — for the detail's lake districts and the ice's flow: finish-drivers.js)
  */
 export function lastIceAge(ctx, F) {
     const { mesh, z, lat, warmSl, grid, cellKm2 } = ctx, n = mesh.numCells, { adjOffset, adjList, edgeKm, xyz } = mesh;
@@ -55,7 +56,7 @@ export function lastIceAge(ctx, F) {
     }
     let iceCells = 0;
     for (let c = 0; c < n; c++) iceCells += ice[c];
-    if (!iceCells) return { ice, margin: new Uint8Array(n), till: null, iceKm2: 0, sheets: 0 };
+    if (!iceCells) return { ice, margin: new Uint8Array(n), till: null, iceKm2: 0, sheets: 0, H: null, S: null };
     // ── thickness from the distance to the margin; the surface over the bed smoothed ──
     const toEdge = new Float32Array(n).fill(Infinity);
     for (let c = 0; c < n; c++) if (ice[c]) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) if (!ice[adjList[k]]) { toEdge[c] = 0.5 * edgeKm; break; }
@@ -135,5 +136,5 @@ export function lastIceAge(ctx, F) {
     for (let c = 0; c < n; c++) { const L = grid.at(loadG, lat[c], ctx.lon[c]); if (L > 0) z[c] -= F.reboundLeft * L; }
     let sheets = 0;
     for (const a of sizes) if (a >= F.iceSheetKm2[1] * 0.3) sheets++;
-    return { ice, margin, till, iceKm2: iceCells * cellKm2, sheets };
+    return { ice, margin, till, iceKm2: iceCells * cellKm2, sheets, H, S };
 }

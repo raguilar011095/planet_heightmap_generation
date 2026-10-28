@@ -146,6 +146,10 @@ node tuning/climate/hash-climate.mjs            # fingerprint of every stage's o
 node tuning/climate/evolution-check.mjs         # Phase 7: the climate on Evolution worlds (V2 history → terrain, z north)
 node tuning/climate/diag-med.mjs                # Phase 8: inside the rain stage in the five Mediterranean-climate regions
 node tuning/climate/diag-belts.mjs              # the circulation's belts through the year vs the real subtropical highs
+node tuning/climate/diag-polar.mjs [--planets …|none] [--climate <snapshot>]  # issue #74: polar lowlands, tundra (ET) or
+                                                #   continental (D)? Earth's poleward of 50° vs Beck by latitude and distance
+                                                #   from the sea, exact and near match, Arctic stations, the polar seas' summer
+                                                #   and sea ice vs OISST, and the generated planets' polar lowlands
 node tuning/climate/diag-detail.mjs             # Phase 9: how much detail the Köppen map has (class edges vs Beck), Tibet,
                                                 #   named regions; CORE='{"texture":null}' to try core options
 node tuning/climate/diag-v1-detail.mjs          # the same detail measure for V1's climate

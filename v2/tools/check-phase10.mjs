@@ -179,7 +179,9 @@ section('scraps of craton');
         for (const F of frames.filter(f => times.includes(f.time))) { const g = gapsOf(F, tm160); gaps.push(...g); k += g.length; }
         found.push(`${k} in the ${id} scene`);
     }
-    check('scraps of craton read as the ground around them — no flat holes in a range', gaps.length >= 3 && median(gaps) <= 0.1 && Math.max(...gaps) <= 0.5,
+    // (since the start world's cratons are compact fragments — plans/V2_START_WORLD_PLAN.md S1 — a history leaves few scraps:
+    // 1 in 30 frames where the lobed cores left 9–38; the median needs 3 to mean anything, the worst is judged on any)
+    check('scraps of craton read as the ground around them — no flat holes in a range', gaps.length >= 1 && (gaps.length < 3 || median(gaps) <= 0.1) && Math.max(...gaps) <= 0.5,
         `craton scraps of 1–3 cells on their own plate's raster, over ${found.join(' and ')}: the ground around them stands ${median(gaps).toFixed(2)} km above them — below, where negative (median; the most ${Math.max(...gaps).toFixed(2)} km; before Phase 10 0.02 km, the worst 1.27 km)`);
 }
 

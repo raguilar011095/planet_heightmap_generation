@@ -204,6 +204,7 @@ const BELT_WORDS = {
     [OrogenyType.ARC]: 'Volcanic arc',
     [OrogenyType.RIFT]: 'Rift shoulder',
     [OrogenyType.TRANSPRESSION]: 'Transform ridge',
+    [OrogenyType.INTRAPLATE]: 'Intraplate range',
 };
 const ACTIVE_MYR = 15;           // a belt last built on within this long is active (a snapshot is 10 Myr)
 

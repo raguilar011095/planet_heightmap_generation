@@ -2,6 +2,10 @@
 Project: World Orogen
 Site: https://orogen.studio
 Contact: https://github.com/raguilar011095/planet_heightmap_generation
+Bluesky: https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t
+X: https://x.com/worldorogen
+Threads: https://www.threads.com/@orogen.studio
+Ko-fi: https://ko-fi.com/orogenstudio
 
 /* THANKS */
 Red Blob Games — Fibonacci sphere meshing and planet generation inspiration

@@ -12,7 +12,7 @@ import { DEPOSITS, DEPOSIT_INDEX, METALS } from './deposits.js';
 
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
-const SALT = { id: 'salt', name: 'Salt', rgb: [244, 238, 250], from: [['salt', 1]] };
+const SALT = { id: 'salt', name: 'Salt', rgb: [236, 160, 206], from: [['salt', 1]] };
 const BITUMEN = { id: 'bitumen', name: 'Bitumen', rgb: [110, 86, 64], from: [['bitumen', 1], ['oil', 0.5, 0.5]] };
 
 /** The ages. Each resource: [the kind of deposit (or 'm:' and a metal: all its sources), its weight, its cut-off]. */

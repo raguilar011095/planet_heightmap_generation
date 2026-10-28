@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>World Orogen — Procedural Planet Generator</title>
+    <meta name="description" content="Generate realistic procedural planets with tectonic plates, erosion, a seasonal climate and volcanic islands, or watch one evolve through a billion years of plate tectonics, with the rocks and ore deposits it leaves — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta name="keywords" content="procedural planet generator, world generator, heightmap generator, tectonic simulation, worldbuilding tool, fantasy map maker, terrain generator, planet builder, procedural generation, Three.js, tabletop RPG map, D&D world map, game dev heightmap, plate tectonics simulator, tectonic history, Köppen climate map, ore deposit map, worldbuilding resources map">
+    <meta name="author" content="World Orogen">
+    <meta name="theme-color" content="#0a0e17">
+    <link rel="canonical" href="https://orogen.studio/generate">
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://orogen.studio/generate">
+    <meta property="og:title" content="World Orogen — Procedural Planet Generator">
+    <meta property="og:description" content="Generate realistic procedural planets with tectonic plates, erosion, a seasonal climate and volcanic islands, or watch one evolve through a billion years of plate tectonics, with the rocks and ore deposits it leaves — free, in your browser. Export heightmaps for worldbuilding, games, and tabletop RPGs.">
+    <meta property="og:image" content="https://orogen.studio/preview.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="World Orogen">
+
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@worldorogen">
+    <meta name="twitter:title" content="World Orogen — Procedural Planet Generator">
+    <meta name="twitter:description" content="Generate realistic procedural planets with tectonic plates, erosion and a seasonal climate, or watch one evolve through plate tectonics — free, in your browser.">
+    <meta name="twitter:image" content="https://orogen.studio/preview.png">
+
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "World Orogen",
+        "url": "https://orogen.studio/generate",
+        "description": "A browser-based procedural planet generator that creates realistic terrestrial planets with tectonic plate simulation, erosion, climate modeling, and interactive editing. Export heightmaps, satellite views, and climate maps for worldbuilding, game development, and tabletop RPGs.",
+        "applicationCategory": "DesignApplication",
+        "operatingSystem": "Any (browser-based)",
+        "browserRequirements": "Requires a modern browser with WebGL support",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "featureList": [
+            "Tectonic plate simulation with collision detection",
+            "Glacial, hydraulic, and thermal erosion",
+            "Seasonal climate simulation (year, January, July): pressure and winds, ocean currents and upwelling, sea ice and snow, rain and Köppen classification",
+            "Temperature and precipitation controls worked through the climate physics",
+            "Hotspot volcanism with island chains",
+            "Interactive plate editing",
+            "Equirectangular heightmap import with automatic climate simulation",
+            "Tectonic history simulation: watch continents break up and collide, then sculpt any moment in detail, and save the planet as a file to open again later",
+            "Geology from the tectonic history: rock-type maps, ore, fuel, mineral and gem deposits with how each formed, and resources by technological age — exported as maps, richness masks, GeoJSON and a resource atlas",
+            "Map export up to 65536px: every map as colour or 16-bit data, in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README",
+            "Multiple visualization modes (terrain, satellite with summer and winter, climate, heightmap), on a 3D globe or a map in ten projections",
+            "Shareable planet codes"
+        ],
+        "screenshot": "https://orogen.studio/preview.png",
+        "sameAs": ["https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t", "https://x.com/worldorogen", "https://www.threads.com/@orogen.studio", "https://www.instagram.com/orogen.studio/", "https://github.com/raguilar011095/planet_heightmap_generation"],
+        "softwareVersion": "3.0",
+        "creator": {
+            "@type": "Organization",
+            "name": "World Orogen"
+        }
+    }
+    </script>
+
+    <!-- FAQ Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "mainEntity": [
+            {
+                "@type": "Question",
+                "name": "What is World Orogen?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "World Orogen is a free, browser-based procedural planet generator. It creates realistic terrestrial planets with tectonic plate simulation, multiple erosion types, climate modeling, and volcanic features. No download or account required — it runs entirely in your browser."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "Can I use the exported maps in my own projects?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Yes. World Orogen exports maps up to 65,536px wide in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten): every map as colour — terrain, satellite, Köppen climate zones, each climate layer — or as 16-bit data on fixed, documented scales — heightmaps, a hillshade, temperature, rain, pressure, winds, currents, ice, the Köppen class index — one file as a PNG or several as a ZIP with a README. Everything is free to use in your own projects."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "What browsers does World Orogen support?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "World Orogen works in any modern browser with WebGL support, including Chrome, Firefox, Safari, and Edge. It works on both desktop and mobile devices."
+                }
+            },
+            {
+                "@type": "Question",
+                "name": "How do I share a planet with someone?",
+                "acceptedAnswer": {
+                    "@type": "Answer",
+                    "text": "Every generated planet has a unique planet code shown below the Build button. Copy the code or share the URL directly — anyone can paste the code or open the link to recreate your exact planet, including any plates you've edited."
+                }
+            }
+        ]
+    }
+    </script>
+
+    <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+    <link rel="manifest" href="site.webmanifest">
+    <link rel="author" href="humans.txt">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
+    <link rel="stylesheet" href="styles.css">
+    <script src="js/support-check.js"></script>
+</head>
+<body>
+    <nav id="topNav">
+        <a href="/" class="nav-tab">Studio</a>
+        <a href="/generate" class="nav-tab active">Generate</a>
+        <a href="/import" class="nav-tab">Import<span class="nav-long">&nbsp;Heightmap</span></a>
+        <a href="/evolution" class="nav-tab">Evolution</a>
+        <div class="nav-follow">
+            <a class="nav-icon" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub" aria-label="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg></a>
+            <span class="nav-follow-label">Follow</span>
+            <a class="nav-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>
+            <a class="nav-icon" href="https://x.com/worldorogen" target="_blank" rel="noopener" title="Follow on X for new releases and sneak peeks" aria-label="World Orogen on X"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#x"/></svg></a>
+            <a class="nav-icon" href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener" title="Follow on Threads for new releases and sneak peeks" aria-label="World Orogen on Threads"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#threads"/></svg></a>
+            <span class="nav-follow-label">Support</span>
+            <a class="nav-icon" href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener" title="Support World Orogen on Ko-fi" aria-label="Support World Orogen on Ko-fi"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#kofi"/></svg></a>
+        </div>
+    </nav>
+    <!-- Semantic content for search engines and AI crawlers (visually hidden) -->
+    <main aria-hidden="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap">
+        <h1>World Orogen — Procedural Planet Generator</h1>
+        <p>World Orogen is a free, browser-based procedural planet generator. Build realistic terrestrial planets shaped by tectonic plates, erosion, and volcanism — no download or account required. Three tools share one climate: Generate builds a planet from sliders, Import Heightmap runs the climate on your own map, and Evolution simulates a planet's whole tectonic history.</p>
+        <h2>How It Works</h2>
+        <p>Start by adjusting sliders for detail level, number of tectonic plates, continents, and terrain roughness. Click "Build New World" to generate a unique planet with realistic continental shapes, mountain ranges, ocean trenches, volcanic island chains, and hotspot volcanism. Every planet is procedurally generated and completely unique.</p>
+        <h2>Key Features</h2>
+        <ul>
+            <li>Tectonic plate simulation with convergent, divergent, and transform boundaries</li>
+            <li>Multiple erosion types: glacial (fjords, U-shaped valleys), hydraulic (river valleys), and thermal (talus slopes)</li>
+            <li>Climate simulation with seasonal wind patterns, ocean currents, precipitation, and K&ouml;ppen climate classification</li>
+            <li>Hotspot volcanism with drift-trail island chains (like Hawaii)</li>
+            <li>Interactive plate editing — select multiple plates for batch land/ocean toggling with visual preview before rebuild</li>
+            <li>Heightmap import — bring your own equirectangular B&amp;W heightmap (Earth, Mars, hand-drawn) and run full climate simulation on it</li>
+            <li>Evolution — watch a planet's continents rift, drift and collide over a billion years, then sculpt any moment in detail with rivers, glaciers, its own climate, a satellite view and a geology view: a rock-type map, ore, fuel, mineral and gem deposits built from that history — each district with the story of how it formed — what each technological age could mine, and exports of them all (maps, richness masks, GeoJSON, a resource atlas); and save the planet as a file to open again later</li>
+            <li>Temperature and precipitation controls that work through the climate: cool a planet and its ice spreads, warm it and it grows wetter</li>
+            <li>Multiple visualization modes: terrain, a satellite view in summer and winter, climate, and heightmap</li>
+            <li>Detailed inspection layers for geology and climate — pressure and wind, ocean currents, upwelling, sea ice, temperature, precipitation, aridity, growing season and more, for the year, January or July</li>
+            <li>Map export up to 65,536px wide: every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, winds, currents, ice, Köppen classes), in ten map projections, one PNG or a ZIP with a README</li>
+            <li>Shareable planet codes — copy a code to share your exact planet with others</li>
+        </ul>
+        <h2>Use Cases</h2>
+        <p>World Orogen is used by worldbuilders, game developers, tabletop RPG players, fantasy authors, and anyone who needs realistic terrain. Export heightmaps for use in game engines like Unity or Unreal, or download satellite-style maps for your D&amp;D campaign setting. The climate simulation produces realistic biome distributions for believable fantasy worlds.</p>
+        <h2>Share Your World</h2>
+        <p>Every planet has a unique planet code. Share the URL (e.g. orogen.studio/generate#CODE) to let anyone recreate your exact world — including any tectonic plates you've edited by hand.</p>
+    </main>
+    <div id="buildOverlay" class="build-overlay initial">
+        <div class="build-overlay-inner">
+            <div class="build-overlay-spinner"></div>
+            <div class="build-overlay-title">World Orogen</div>
+            <div class="progress-bar-container">
+                <div class="progress-bar-fill" id="buildBarFill"></div>
+            </div>
+            <div class="progress-label" id="buildBarLabel"></div>
+        </div>
+    </div>
+    <canvas id="canvas"></canvas>
+    <div id="ui">
+        <div id="sheetHandle" class="sheet-handle"><span></span></div>
+        <div id="sidebarHeader">
+            <div>
+                <h2>World Orogen</h2>
+                <div class="sub">Build worlds shaped by tectonic forces</div>
+            </div>
+            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+        </div>
+        <div id="sidebarContent">
+        <div id="viewStripSlot"></div>
+        <details class="section" open>
+            <summary>Shape Your World</summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">204,000</span></label>
+                    <input type="range" id="sN" min="0" max="1000" step="1" value="600">
+                    <div class="slider-hint"><span>Coarse</span><span>Fine</span></div>
+                    <div class="detail-warn" id="detailWarn"></div>
+                </div>
+                <div class="cg">
+                    <label>Irregularity <span class="tip" data-tip="How randomly the cell points are scattered — 0 gives a uniform grid, 1 gives fully organic, irregular shapes">?</span> <span class="v" id="vJ">0.75</span></label>
+                    <input type="range" id="sJ" min="0" max="1" value="0.75" step="0.05">
+                    <div class="slider-hint"><span>Uniform</span><span>Scattered</span></div>
+                </div>
+                <div class="cg">
+                    <label>Plates <span class="tip" data-tip="Number of tectonic plates — more plates means more boundaries where mountains, trenches, and coastlines form">?</span> <span class="v" id="vP">80</span></label>
+                    <input type="range" id="sP" min="4" max="120" value="80" step="1">
+                    <div class="slider-hint"><span>Few</span><span>Many</span></div>
+                </div>
+                <div class="cg">
+                    <label>Continents <span class="tip" data-tip="Target number of landmasses — 1 creates a supercontinent, higher values scatter land into multiple continents and archipelagos">?</span> <span class="v" id="vCn">4</span></label>
+                    <input type="range" id="sCn" min="1" max="10" value="4" step="1">
+                    <div class="slider-hint"><span>Supercontinent</span><span>Archipelago</span></div>
+                </div>
+                <div class="cg">
+                    <label>Roughness <span class="tip" data-tip="Terrain roughness — higher values add more fractal detail to mountains and coastlines">?</span> <span class="v" id="vNs">0.40</span></label>
+                    <input type="range" id="sNs" min="0" max="0.5" value="0.40" step="0.01">
+                    <div class="slider-hint"><span>Smooth</span><span>Rugged</span></div>
+                </div>
+                <div class="cg">
+                    <label>Continent Size Variety <span class="tip" data-tip="How much continent sizes vary — at 0 all continents are similar in size, at 1 you get a mix of large and small landmasses">?</span> <span class="v" id="vCsv">0.35</span></label>
+                    <input type="range" id="sCsv" min="0" max="1" value="0.35" step="0.05">
+                    <div class="slider-hint"><span>Equal</span><span>Varied</span></div>
+                </div>
+                <div class="cg">
+                    <label>Land Coverage <span class="tip" data-tip="Percentage of the planet covered by land — low values create ocean worlds, high values create large continents, whose interiors are far from the sea and drier">?</span> <span class="v" id="vLc">30%</span></label>
+                    <input type="range" id="sLc" min="0" max="1" value="0.3" step="0.01">
+                    <div class="slider-hint"><span>Ocean World</span><span>Desert World</span></div>
+                </div>
+            </div>
+        </details>
+        <button id="generate">Build New World</button>
+        <div id="seedRow">
+            <input type="text" id="seedCode" placeholder="Planet code">
+            <button id="copyBtn" title="Copy code">&#x2398;</button>
+            <button id="loadBtn" title="Load planet from code">Load</button>
+        </div>
+        <div id="seedError">Invalid planet code</div>
+        <details class="section">
+            <summary>Terrain Sculpting <span class="tip" data-tip="Erosion and smoothing passes that refine the raw terrain. Adjust sliders and click Reapply — no full rebuild needed.">?</span></summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field on the sphere using noise, producing more organic, squiggly coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.75</span></label>
+                    <input type="range" id="sTw" min="0" max="1" value="0.75" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Smoothing <span class="tip" data-tip="Blends harsh terrain boundaries from tectonic generation — smooths banded ridges and abrupt transitions">?</span> <span class="v" id="vS">0.10</span></label>
+                    <input type="range" id="sS" min="0" max="1" value="0.10" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Glacial Erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.50</span></label>
+                    <input type="range" id="sGl" min="0" max="1" value="0.50" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Ice Age</span></div>
+                </div>
+                <div class="cg">
+                    <label>Hydraulic Erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.50</span></label>
+                    <input type="range" id="sHEr" min="0" max="1" value="0.50" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Deep</span></div>
+                </div>
+                <div class="cg">
+                    <label>Thermal Erosion <span class="tip" data-tip="Slope-driven material transport — softens ridges and creates natural talus slopes">?</span> <span class="v" id="vTEr">0.10</span></label>
+                    <input type="range" id="sTEr" min="0" max="1" value="0.10" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Heavy</span></div>
+                </div>
+                <div class="cg">
+                    <label>Ridge Sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain">?</span> <span class="v" id="vRs">0.50</span></label>
+                    <input type="range" id="sRs" min="0" max="1" value="0.50" step="0.05">
+                    <div class="slider-hint"><span>None</span><span>Jagged</span></div>
+                </div>
+                <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
+            </div>
+        </details>
+        <details class="section">
+            <summary>Climate <span class="tip" data-tip="The planet's temperature and water cycle, worked through the climate itself — changes apply on slider release, recomputing the climate (a few seconds)">?</span></summary>
+            <div class="section-body">
+                <div class="climate-hint">Changes apply on release — the climate is recomputed.</div>
+                <div class="cg">
+                    <label>Temperature <span class="tip" data-tip="Warms or cools the whole planet. The value is the change in the heat its air holds in, in W/m²: on an Earth-like planet −10 cools it about 8 °C and +10 warms it about 6 °C. Snow, sea ice and ice sheets amplify a cooling far more than a warming — past −20 the ice starts to run away, and by about −28 the whole planet freezes over. The winds, currents and rain follow: a warm world is wetter, a cold one drier">?</span> <span class="v" id="vTmp">±0 W/m²</span></label>
+                    <input type="range" id="sTmp" min="-30" max="30" value="0" step="2">
+                    <div class="slider-hint"><span>Icehouse</span><span>Hothouse</span></div>
+                </div>
+                <div class="cg">
+                    <label>Precipitation <span class="tip" data-tip="Speed up or slow down the planet's water cycle — more or less evaporation from its seas and land, so about this much more or less rain overall. Where it falls still follows the winds and mountains">?</span> <span class="v" id="vPrc">±0%</span></label>
+                    <input type="range" id="sPrc" min="-1" max="1" value="0" step="0.1">
+                    <div class="slider-hint"><span>Drier</span><span>Wetter</span></div>
+                </div>
+            </div>
+        </details>
+        <details class="section" id="inspectSection">
+            <summary>Inspect (advanced) <span class="tip" data-tip="The terrain's inner workings, stage by stage &mdash; what each geology and plate-physics pass built &mdash; to see why a planet looks as it does. The maps you'll want most are the tabs over the planet">?</span></summary>
+            <div class="section-body">
+                <div class="cg">
+                    <label>Layer</label>
+                    <select id="debugLayer">
+                        <option value="">None &mdash; the tab shown</option>
+                        <optgroup label="Geology">
+                            <option value="base">Base</option>
+                            <option value="skeleton">Skeleton (pre-noise)</option>
+                            <option value="tectonic">Tectonic</option>
+                            <option value="noise">Noise</option>
+                            <option value="noiseAmp">Noise Amplitude</option>
+                            <option value="foldBeltWeight">Fold Belt Weight</option>
+                            <option value="cratonWeight">Craton Weight</option>
+                            <option value="basinWeight">Basin Weight</option>
+                            <option value="interior">Interior</option>
+                            <option value="coastal">Coastal</option>
+                            <option value="ocean">Ocean Floor</option>
+                            <option value="hotspot">Hotspot</option>
+                            <option value="tecActivity">Tectonic Activity</option>
+                            <option value="margins">Margins</option>
+                            <option value="backArc">Back-Arc</option>
+                            <option value="phasorRidge">Phasor Ridges</option>
+                            <option value="orogenicPower">Orogenic Power</option>
+                            <option value="lip">Flood Basalt (LIP)</option>
+                            <option value="uniformNoise">Uniform Land Noise</option>
+                            <option value="dynamicTopo">Dynamic Topography</option>
+                            <option value="erosionDelta">Erosion Delta</option>
+                        </optgroup>
+                        <optgroup label="Plate Physics">
+                            <option value="continentalDrag">Continental Drag</option>
+                            <option value="sizeVelocity">Size-Velocity</option>
+                            <option value="plateSpeed">Plate Speed</option>
+                            <option value="velChange">Velocity Change</option>
+                            <option value="mantleFlow">Mantle Flow</option>
+                        </optgroup>
+                        <optgroup label="Elevation">
+                            <option value="heightmap">Full Heightmap</option>
+                        </optgroup>
+                    </select>
+                </div>
+                <div class="tg">
+                    <label class="toggle-label"><input type="checkbox" id="chkWire"><span class="toggle-track"><span class="toggle-thumb"></span></span>Wireframe</label>
+                </div>
+            </div>
+        </details>
+        <details id="statsDetails" class="stats-toggle">
+            <summary>Stats</summary>
+            <div id="stats"></div>
+        </details>
+        <button id="exportBtn" class="export-btn">Export Map</button>
+        <div id="repoLink">
+            <a class="rl-github" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg>GitHub</a>
+            <a class="rl-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>
+            <a class="rl-icon" href="https://x.com/worldorogen" target="_blank" rel="noopener" title="Follow on X for new releases and sneak peeks" aria-label="World Orogen on X"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#x"/></svg></a>
+            <a class="rl-icon" href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener" title="Follow on Threads for new releases and sneak peeks" aria-label="World Orogen on Threads"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#threads"/></svg></a>
+            <a class="rl-kofi" href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener" title="Support World Orogen on Ko-fi" aria-label="Support World Orogen on Ko-fi"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#kofi"/></svg>Support</a>
+        </div>
+        </div>
+    </div>
+    <div id="layerBar" class="layer-bar">
+        <div id="viewStrip" class="view-strip" role="toolbar" aria-label="View">
+            <div class="vs-seg" role="group" aria-label="Globe or map"><button type="button" data-mode="globe">Globe</button><button type="button" data-mode="map">Map</button></div>
+            <select id="viewMode" hidden aria-hidden="true" tabindex="-1">
+                <option value="globe">Globe</option>
+                <option value="map">Map</option>
+            </select>
+            <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
+            <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
+            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+            <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
+                <option value="30">30&deg;</option>
+                <option value="15" selected>15&deg;</option>
+                <option value="10">10&deg;</option>
+                <option value="5">5&deg;</option>
+                <option value="2.5">2.5&deg;</option>
+            </select></span>
+            <span class="vs-item" id="paletteGroup" title="How heights are coloured on the Terrain view: Classic, this page's own, or one of Evolution's map styles and other-world looks"><label for="palette">Colours</label> <select id="palette">
+            <option value="classic" selected>Classic</option>
+            <optgroup label="Maps">
+            <option value="relief">Relief</option>
+            <option value="topographic">Topographic</option>
+            <option value="natural">Natural</option>
+            <option value="swiss">Swiss</option>
+            <option value="school">School Atlas</option>
+            <option value="etopo">ETOPO</option>
+            <option value="dem">DEM</option>
+            <option value="scientific">Scientific</option>
+            <option value="satellite">Blue Marble (by height)</option>
+            <option value="grey">Grey</option>
+            <option value="antique">Antique</option>
+            </optgroup>
+            <optgroup label="Other worlds">
+            <option value="arid">Arid</option>
+            <option value="frozen">Frozen</option>
+            <option value="lush">Lush</option>
+            <option value="alien">Alien</option>
+            <option value="volcanic">Volcanic</option>
+            </optgroup>
+            </select></span>
+        </div>
+        <div class="layer-row">
+            <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, auto-rotate, grid lines, colours"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            <div class="map-tabs" id="mapTabs">
+                <button class="map-tab active" data-layer="">Terrain</button>
+                <button class="map-tab" data-layer="biome" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, for the year, January or July">Satellite</button>
+                <button class="map-tab" data-layer="climate" title="The climate: K&ouml;ppen zones, temperature, rain, winds and currents &mdash; and under More, pressure, upwelling, ice, aridity and more">Climate</button>
+                <button class="map-tab" data-layer="landheightmap" title="Land heights in grey, the sea black">Heightmap</button>
+                <button class="map-tab" data-layer="plates" title="The plates in their colours &mdash; Ctrl-click (&#8984;-click on a Mac) a plate to raise or sink it, in any view">Plates</button>
+            </div>
+        </div>
+        <div id="subBar" class="layer-subbar" hidden>
+            <div class="map-tabs" id="climateTabs">
+                <button class="map-tab" data-layer="koppen">K&ouml;ppen</button>
+                <button class="map-tab" data-layer="temperature">Temperature</button>
+                <button class="map-tab" data-layer="precip">Rain</button>
+                <button class="map-tab" data-layer="wind">Wind</button>
+                <button class="map-tab" data-layer="currents">Currents</button>
+            </div>
+            <select id="climateMore" aria-label="More climate layers" title="More climate layers: pressure, the sea, and what the land's twelve months say">
+                <option value="">More&hellip;</option>
+                <optgroup label="Atmosphere">
+                    <option value="pressure">Pressure</option>
+                </optgroup>
+                <optgroup label="Ocean">
+                    <option value="upwelling">Upwelling</option>
+                    <option value="ice">Ice</option>
+                </optgroup>
+                <optgroup label="Land">
+                    <option value="tempRange">Temperature Range</option>
+                    <option value="rainShadow">Rain Shadow</option>
+                    <option value="aridity">Aridity</option>
+                    <option value="growing">Growing Season</option>
+                    <option value="rainSeason">Rain Seasonality</option>
+                </optgroup>
+            </select>
+            <select id="climateSeason" aria-label="Season" title="The year's average, January or July">
+                <option value="year">Year</option>
+                <option value="jan">January</option>
+                <option value="jul">July</option>
+            </select>
+        </div>
+    </div>
+    <div id="legendCard" class="legend-card"><div id="vizLegend" class="viz-legend"></div></div>
+    <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer">
+        <option value="">Terrain</option>
+        <option value="biome">Satellite</option>
+        <optgroup label="Climate">
+            <option value="koppen">K&ouml;ppen</option>
+            <option value="temperature">Temperature</option>
+            <option value="precip">Rain</option>
+            <option value="wind">Wind</option>
+            <option value="currents">Currents</option>
+            <option value="pressure">Pressure</option>
+            <option value="upwelling">Upwelling</option>
+            <option value="ice">Ice</option>
+            <option value="tempRange">Temperature Range</option>
+            <option value="rainShadow">Rain Shadow</option>
+            <option value="aridity">Aridity</option>
+            <option value="growing">Growing Season</option>
+            <option value="rainSeason">Rain Seasonality</option>
+        </optgroup>
+        <option value="landheightmap">Heightmap</option>
+        <option value="plates">Plates</option>
+        <option value="inspect" disabled hidden>Inspect layer</option>
+    </select>
+    <button id="helpBtn" title="Tutorial">?</button>
+
+    <div id="tutorialOverlay" class="hidden">
+        <div id="tutorialCard">
+            <button id="tutorialClose">&times;</button>
+            <div class="tutorial-step" data-step="0">
+                <h3>Welcome to World Orogen</h3>
+                <p>Procedural planets inspired by real tectonics, erosion, and climate.</p>
+                <p>Every world is one of a kind — with believable continents, mountains, ocean trenches, and volcanic islands. Build one in seconds, tweak it until it's yours.</p>
+            </div>
+            <div class="tutorial-step" data-step="1">
+                <h3>Shape Your World</h3>
+                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+            </div>
+            <div class="tutorial-step" data-step="2">
+                <h3>Explore &amp; Edit</h3>
+                <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates (&#8984;-click on a Mac) to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any region to see elevation, coordinates, temperature, precipitation, and climate classification.</p>
+            </div>
+            <div class="tutorial-step" data-step="3">
+                <h3>Visualize Your World</h3>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, and <strong>Heightmap</strong> views, and <strong>Plates</strong>, with the tabs over the planet. <strong>Climate</strong> opens its own row of maps &mdash; K&ouml;ppen, temperature, rain, wind, currents, and under <strong>More&hellip;</strong> pressure, sea ice, aridity, growing season and more &mdash; each for the year, January or July (the Satellite view too). The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong>, its centre, the grid and the terrain's <strong>Colours</strong> &mdash; Classic or one of Evolution's map styles and other-world looks; the terrain's inner layers are in <strong>Inspect (advanced)</strong> in the sidebar.</p>
+                <p>The climate takes a few seconds at any detail. On phones, at the very highest detail it is computed when you first switch to a climate view.</p>
+            </div>
+            <div class="tutorial-step" data-step="4">
+                <h3>Save &amp; Share</h3>
+                <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
+                <p>Use <strong>Export Map</strong> to save any map the page draws &mdash; the terrain, satellite, climate zones, every climate layer, heightmaps, a hillshade, plates &mdash; as <strong>Colour</strong> (as shown) or as <strong>Data</strong> (16-bit greyscales on fixed scales, for other tools), for the year, January or July, in ten map projections, centred where you like. One map saves as a PNG; several as a ZIP with a README that explains every file.</p>
+            </div>
+            <div class="tutorial-dots">
+                <span class="dot active" data-dot="0"></span>
+                <span class="dot" data-dot="1"></span>
+                <span class="dot" data-dot="2"></span>
+                <span class="dot" data-dot="3"></span>
+                <span class="dot" data-dot="4"></span>
+            </div>
+            <div class="tutorial-nav">
+                <button id="tutorialBack" class="btn-ghost" disabled>Back</button>
+                <button id="tutorialNext" class="btn-primary">Next</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportOverlay" class="hidden">
+        <div id="exportCard">
+            <button id="exportClose">&times;</button>
+            <h3>Export</h3>
+        </div>
+    </div>
+
+    <div id="surveyOverlay" class="hidden">
+        <div id="surveyCard">
+            <button id="surveyClose">&times;</button>
+            <h3>Thanks for exploring!</h3>
+            <p>You've spent some real time with World Orogen &mdash; that means a lot. If you have a minute, I'd love to hear what you think.</p>
+            <div class="survey-actions">
+                <button id="surveyDismiss" class="btn-ghost">Maybe later</button>
+                <a id="surveyLink" href="https://docs.google.com/forms/d/e/1FAIpQLScFSryT8Uom4jMkpb-YQnyjHMSWqZmDDT3bSOSabHovsjKL7A/viewform?usp=dialog" target="_blank" rel="noopener" class="btn-primary">Take the survey</a>
+            </div>
+        </div>
+    </div>
+
+    <div id="whatsNewOverlay" class="hidden">
+        <div id="whatsNewCard">
+            <button id="whatsNewClose">&times;</button>
+            <div class="whatsnew-step" data-step="0">
+                <h3>What's New in World Orogen</h3>
+                <p>The biggest update yet: <strong>Evolution</strong>, a new tool that grows a planet through its whole tectonic history &mdash; and keeps it, in a file you can open again; <strong>every map exportable</strong>, as colour or data, in ten map projections; a new climate with seasons behind every page; a new look from space; and <strong>Studio</strong>, a home for the tools.</p>
+                <p class="whatsnew-warn"><strong>Heads up:</strong> Saved planet codes still load with the same terrain, but the climate is all new, so deserts, forests and ice will sit differently. Codes saved with a very cold Temperature (&minus;10 or below) now give icy or fully frozen worlds.</p>
+            </div>
+            <div class="whatsnew-step" data-step="1">
+                <h3>Evolution: Watch a Planet Form <span class="whatsnew-beta">Beta</span></h3>
+                <p>In the new <strong>Evolution</strong> tab, plates drift, rift and collide over up to one and a half billion years while the continents grow. Mountains rise where they meet and wear down once they stop.</p>
+                <ul class="whatsnew-list">
+                    <li><strong>The supercontinent cycle</strong> &mdash; Continents break apart and gather again. Choose how the story ends: a Pangaea, a supercontinent breaking up, or continents spread out as on Earth today.</li>
+                    <li><strong>Scrub it like a film</strong> &mdash; Play or drag through the history; <strong>Extend history</strong> runs it on for as long as you like.</li>
+                    <li><strong>Share it</strong> &mdash; The link rebuilds the same history, on desktop or phone. Seeds run to over two billion, and any word can be one.</li>
+                    <li><strong>Keep it</strong> &mdash; <strong>Save planet</strong> puts the whole history and its detailed moment in one file; <strong>Load Planet&hellip;</strong> opens it again later with no waiting &mdash; the same planet in any browser.</li>
+                </ul>
+                <p class="whatsnew-beta-note">Evolution is in <strong>beta</strong> and works best on a desktop computer for now.</p>
+            </div>
+            <div class="whatsnew-step" data-step="2">
+                <h3>Add Detail to Any Moment</h3>
+                <p>Pause on a moment you like and press <strong>Add detail</strong>: it is sculpted again, finely, with a climate of its own.</p>
+                <ul class="whatsnew-list">
+                    <li><strong>Rivers through the seasons</strong> &mdash; Fed by the moment's own rain: permanent, flooding each year or dry for months, with lakes, inland seas and salt lakes.</li>
+                    <li><strong>Landscapes with a past</strong> &mdash; Glaciers and fjords, sand seas, wide shelves and coastal plains along old coasts, and mountains cut by erosion.</li>
+                    <li><strong>Its own climate</strong> &mdash; Every climate layer and the Satellite view, for the year, January or July.</li>
+                    <li><strong>Export it</strong> &mdash; Every map of it, up to 16,384 px wide, rivers and lakes on their own too.</li>
+                </ul>
+            </div>
+            <div class="whatsnew-step" data-step="3">
+                <h3>Export Anything, in Ten Projections</h3>
+                <p>One panel for every map the page can draw, on Generate, Import and Evolution.</p>
+                <ul class="whatsnew-list">
+                    <li><strong>Colour or Data</strong> &mdash; Each map as shown, in its legend's colours, and / or as the numbers themselves: 16-bit greyscales on fixed scales &mdash; temperature, rain, pressure, winds, currents, ice, heightmaps, a hillshade, the K&ouml;ppen class index, plate numbers.</li>
+                    <li><strong>Seasons</strong> &mdash; The year, January, July, or all three; one file, or a ZIP with a README.txt that says what every file is, its units and its scale.</li>
+                    <li><strong>Ten map projections</strong> &mdash; Equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map and Van der Grinten&rsquo;s world in a circle &mdash; each with its own options, centred on any longitude. The map view on every page shows them live, too.</li>
+                    <li><strong>Flat or shaded</strong> &mdash; Turn the hillshade off to export colour maps flat, and to see Evolution's views flat, ready to shade your own way.</li>
+                </ul>
+            </div>
+            <div class="whatsnew-step" data-step="4">
+                <h3>A New Climate, Everywhere</h3>
+                <ul class="whatsnew-list">
+                    <li><strong>Seasons</strong> &mdash; Every climate layer shows the Year, January or July, in real units: &deg;C, mm of rain, hPa, m/s.</li>
+                    <li><strong>More to inspect</strong> &mdash; Pressure and winds, ocean currents and upwelling, sea ice and snow, rain shadows, growing season and more.</li>
+                    <li><strong>Temperature &amp; Precipitation work through the physics</strong> &mdash; Cool the planet and the ice spreads; warm it and the world gets wetter.</li>
+                </ul>
+            </div>
+            <div class="whatsnew-step" data-step="5">
+                <h3>A New Look from Space</h3>
+                <ul class="whatsnew-list">
+                    <li><strong>Satellite view</strong> &mdash; On every page, each climate's colours climb with the land to bare rock and snow, with summer and winter versions and sharp, ragged sea ice.</li>
+                    <li><strong>Colours</strong> &mdash; The Terrain view on Generate and Import can take Evolution's palettes: map styles from Relief and Swiss to Antique, or the look of arid, frozen, lush, alien and volcanic worlds.</li>
+                    <li><strong>Studio</strong> &mdash; The new home page: it explains the three tools, where to start, and the worldbuilding resources behind them. Generate is a click away in the top bar, and old planet links still open their planets.</li>
+                </ul>
+                <p class="whatsnew-follow">World Orogen is now on <a href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener">Bluesky</a>, <a href="https://x.com/worldorogen" target="_blank" rel="noopener">X</a> and <a href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener">Threads</a>: new releases, work in progress and sneak peeks of what's coming. If it's been useful to you, you can also support it on <a href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener">Ko-fi</a>. It stays free either way.</p>
+            </div>
+            <div class="tutorial-dots">
+                <span class="dot active" data-dot="0"></span>
+                <span class="dot" data-dot="1"></span>
+                <span class="dot" data-dot="2"></span>
+                <span class="dot" data-dot="3"></span>
+                <span class="dot" data-dot="4"></span>
+                <span class="dot" data-dot="5"></span>
+            </div>
+            <div class="tutorial-nav">
+                <button id="whatsNewBack" class="btn-ghost" disabled>Back</button>
+                <button id="whatsNewNext" class="btn-primary">Next</button>
+            </div>
+        </div>
+    </div>
+    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
+        </svg>
+    </button>
+    <button id="refreshFab" class="refresh-fab" title="Generate new planet">
+        <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M17 10a7 7 0 1 1-2-5"/>
+            <polyline points="15 2 17 5 14 6"/>
+        </svg>
+    </button>
+    <div id="hoverInfo"></div>
+    <button id="rebuildFab" class="rebuild-fab" style="display:none">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="2 8 6 12 14 4"/>
+        </svg>
+        <span>Rebuild (0)</span>
+    </button>
+    <div id="info">Drag to rotate &middot; Scroll to zoom &middot; Ctrl-click (&#8984;-click on a Mac) to reshape continents</div>
+
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "delaunator": "https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm"
+        }
+    }
+    </script>
+
+    <script type="module" src="js/main.js" onerror="orogenCantRun()"></script>
+</body>
+</html>

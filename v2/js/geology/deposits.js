@@ -64,7 +64,7 @@ export const DEPOSITS = [
     { id: 'placerGold', name: 'Placer gold', yields: 'gold', group: 'mineral', rgb: [250, 220, 90], words: 'gold carried down rivers from its source — richest where the ice never came' },
     { id: 'placerTin', name: 'Placer tin', yields: 'tin', group: 'mineral', rgb: [110, 210, 220], words: 'tin stone washed down from tin granites' },
     { id: 'placerDiamond', name: 'Placer diamonds', yields: 'diamonds', group: 'mineral', rgb: [232, 240, 250], words: 'diamonds carried far down a river from the pipes' },
-    { id: 'salt', name: 'Salt', yields: 'salt, potash, gypsum', group: 'mineral', rgb: [244, 236, 250], words: 'salt lakes, pans and flats of the dry country, and old salt beds bared' },
+    { id: 'salt', name: 'Salt', yields: 'salt, potash, gypsum', group: 'mineral', rgb: [236, 160, 206], words: 'salt lakes, pans and flats of the dry country, and old salt beds bared' },
     { id: 'ironstone', name: 'Ironstone', yields: 'iron', group: 'mineral', rgb: [150, 100, 70], words: 'iron oolites of an old warm shallow sea' },
     { id: 'bogIron', name: 'Bog iron', yields: 'iron', group: 'mineral', rgb: [130, 96, 56], words: 'iron settled in wet, sandy lowlands — the first iron' },
     // ── fuel ──
@@ -122,7 +122,7 @@ export const METALS = [
         sources: [['layered', 1], ['magmatic', 0.6]] },
     { id: 'diamonds', name: 'Diamonds', group: 'metal', rgb: [228, 236, 248], words: 'pipes on some ancient cratons, and far down their rivers',
         sources: [['kimberlite', 1], ['placerDiamond', 1]] },
-    { id: 'salt', name: 'Salt', group: 'metal', rgb: [244, 238, 250], words: 'salt lakes, pans and flats of dry country, and old salt beds',
+    { id: 'salt', name: 'Salt', group: 'metal', rgb: [236, 160, 206], words: 'salt lakes, pans and flats of dry country, and old salt beds',
         sources: [['salt', 1]] },
     { id: 'coal', name: 'Coal', group: 'fuel', rgb: [52, 48, 48], words: 'old swamps of basins that lay in a wet belt', sources: [['coal', 1]] },
     { id: 'oilGas', name: 'Oil and gas', group: 'fuel', rgb: [90, 120, 170], words: 'buried, trapped and sealed in sedimentary basins — on land and offshore; seeps and tar where lifted',

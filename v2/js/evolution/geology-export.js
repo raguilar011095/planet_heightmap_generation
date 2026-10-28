@@ -1,63 +1,138 @@
-// The geology's exports (plans/V2_GEOLOGY_PLAN.md G6; finished moments only, as every export): the Rocks map, the Deposits
-// map as shown and each age's map — over the hillshade as on screen, with the districts' symbols — a greyscale mask per
-// resource (richness 0…255, the sea black: to paint with downstream), the districts themselves as GeoJSON and CSV with
-// their stories, and a resource atlas: each landmass's resources and its richest districts, in words.
+// The geology's exports (plans/V2_GEOLOGY_PLAN.md G6; finished moments only, as every export): a group of rows in the
+// export panel (export.js CATALOGUE, view/export-panel.js), so they come in its widths and projections, centred as the
+// map is, over the hillshade or flat. Each view's map in its own colours — the Rocks, the Deposits as shown, each age's,
+// the record's — and as data its numbers: the rock types' index, a greyscale richness mask per resource (0 none … 255 the
+// richest, the sea black: to paint with downstream). And two that are not maps: the districts as GeoJSON and CSV with
+// their stories, and a resource atlas — each landmass's resources and its richest districts, in words.
 
 import { paintFinished, rasterAt } from './finish-view.js';
-import { finishedGeologyColor, subjectsOf, districtsOf, districtTale, districtSymbols, drawDistrictSymbols, gradeOf, rankWords } from './geology-view.js';
+import { finishedGeologyColor, rocksColor, rockPixel, subjectsOf, districtsOf, districtTale, gradeOf, rankWords } from './geology-view.js';
 import { METALS } from '../geology/deposits.js';
 import { AGES, resourceField, potentialField } from '../geology/ages.js';
 import { landmasses, landmassName, landmassShares, fmtKm2 } from '../geology/districts.js';
-import { ROCK_INFO } from '../geology/rocks.js';
-import { encodeGrayPng, encodeRgbPng, canvasOf, canvasPng } from '../view/png.js';
+import { Rock, ROCK_INFO, ROCK_COUNT } from '../geology/rocks.js';
+import { KOPPEN_CLASSES, KOPPEN_ID } from '../climate/koppen.js';
+import { classIndexMap } from '../view/export-raster.js';
 
-const tick = () => new Promise(res => setTimeout(res, 0));
+// ── the panel's rows ──
+const MASK = { unit: 'richness (0 none … 1 the richest)', lo: 0, hi: 1 };
+const ROCK_INDEX = { unit: 'rock type index (0 = sea; the README lists the types)', lo: 0, hi: 255 };
+const kebab = id => id.replace(/[A-Z]/g, c => `-${c.toLowerCase()}`);
+const mask = (key, suffix, label) => ({ key, suffix, label, scale: MASK, bits: 8 });
+const textFile = (key, ext, label) => ({ key, suffix: '', ext, label });
+/** The ages a people's technology makes (the rest — fuel, gems, building stone — are what lies there). */
+const TECH = new Set(['stone', 'copper', 'bronze', 'iron', 'industrial']);
+const OFF = 'Needs the moment\'s geology: add detail again (a moment detailed before the geology was, or saved before it, has none)';
+const row = (id, label, needs, geology, more) => ({ id, label, needs, geology, offTip: OFF, ...more });
+/** The Geology group of the export panel: each row's `geology` the view it draws (or the file it writes). */
+export const GEOLOGY_GROUP = { id: 'geology', label: 'Geology', rows: [
+    row('rocks', 'Rocks', 'geology', 'geoRocks', { colour: true, data: [{ key: 'rockIndex', suffix: 'index', label: 'Rock type index', scale: ROCK_INDEX, bits: 8 }],
+        tip: 'The Rocks view: what the land is made of at the surface, in a geologic map\'s colours; as data, each pixel\'s rock type as a number (the README lists them)' }),
+    row('deposits', 'Deposits', 'deposits', 'geoDeposits', { colour: true, data: METALS.map(m => mask(`m.${m.id}`, kebab(m.id), `${m.name} richness`)),
+        tip: 'The Deposits view as shown: the metals and minerals together, or the metal, fuel or kind of deposit chosen there; as data, a richness mask for every metal, mineral and fuel (0 none … 255 the richest)' }),
+    ...AGES.map(a => row(`age-${a.id}`, a.name, 'deposits', 'geoAges', { age: a.id, colour: true,
+        data: [...a.resources.map(r => mask(`${a.id}.${r.id}`, kebab(r.id), TECH.has(a.id) ? `${r.name}, as the ${a.name} could reach it` : `${r.name} richness`)),
+            ...(a.potential ? [mask(`${a.id}.potential`, 'potential', `${a.potential.name} potential: ${a.potential.words}`)] : [])],
+        tip: `${a.name}: ${a.words}. Its map, all of it; as data, a richness mask for each${a.potential ? `, and where ${a.potential.name.toLowerCase()} could be made` : ''}` })),
+    row('belts', 'Mountain belts', 'geology', 'geoBelts', { colour: true, tip: 'Mountain belts by when each was last active: red while active, orange while its range stands, tan as it wears, violet once worn flat' }),
+    row('seas', 'Past seas', 'geology', 'geoSeas', { colour: true, tip: 'Where shallow seas lay over the continents, and when' }),
+    row('sediment', 'Sediment', 'geology', 'geoCover', { colour: true, tip: 'The sediment laid on the continents — sand and mud, limestone, salt, coal, black shale — by its top, deeper the thicker' }),
+    row('erosion', 'Erosion depth', 'geology', 'geoWear', { colour: true, tip: 'How deep erosion has cut into the basement: the rock now at the surface once lay this deep' }),
+    row('districts', 'Districts', 'deposits', 'districts', { data: [textFile('districtsGeojson', 'geojson', 'Districts'), textFile('districtsCsv', 'csv', 'Districts')],
+        tip: 'Every district of every metal, fuel and gem — its kind of deposit, grade, area, landmass, rank on the world and the story of how it formed — as GeoJSON points (longitude, latitude) and a CSV table. Not maps: the projection and centre leave them as they are' }),
+    row('atlas', 'Resource atlas', 'deposits', 'atlas', { data: [textFile('atlas', 'md', 'Resource atlas')],
+        tip: 'Each landmass\'s rocks, metals, fuels and gems, bronze and ironworking, and its richest districts with their stories — in words (Markdown)' }),
+] };
+/** The README's list of the rock types (the rock type index file's numbers), when the export has one. */
+export const rockTypesList = files => (files.some(f => f.file?.key === 'rockIndex') ? [{ title: 'Rock types (the number in the rock type index file)', items: ROCK_INFO.map(r => r.name) }] : []);
 
-/** A geology view's map at width W, as shown: its colours over the hillshade, the lakes, and (Deposits, Ages) the symbols. */
-export async function geologyMap(fin, W, layer, look, { pick = 'all', age = 'bronze', agePick = 'all' } = {}) {
-    const H = W >> 1, image = new ImageData(W, H);
-    paintFinished(fin.raster, { width: W, image }, look.lut, { exaggeration: look.exaggeration, lakes: true, colorAt: finishedGeologyColor(layer, null, null, W, fin, pick, age, agePick) });
-    if (layer === 'geoRocks' || look.districts === false) return encodeRgbPng(W, H, image.data);
-    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
-    ctx.putImageData(image, 0, 0);
-    drawDistrictSymbols(ctx, W, districtSymbols(fin, layer, pick, age, agePick));
-    return canvasPng(canvas);
-}
+/** The picture at width W, and painted at it — the moment's own, averaged or enlarged (export.js passes its own: with the
+ *  detail finer than the mesh where an export wider than the picture drew it). */
+const PLAIN = { pictureAt: (fin, W) => rasterAt(fin.raster, W), paintAt: (fin, W, image, lut, opts) => paintFinished(fin.raster, { width: W, image }, lut, opts) };
 
-/** The resources a mask is made for: every metal and fuel, and the gems. */
-function maskItems(fin) {
-    const Dp = fin.raster.geology.deposits, K = Dp.cells.length, SYS = Dp.rows - METALS.length, gems = AGES.find(a => a.id === 'gems');
-    return [...METALS.map((m, i) => ({ id: m.id, name: m.name, offshore: m.id === 'oilGas', at: j => Dp.data[(SYS + i) * K + j] / 255 })),
-        ...gems.resources.map(r => { const f = resourceField(Dp, r); return { id: r.id === 'diamonds' ? 'gem-diamonds' : r.id, name: r.name, at: j => f[j] }; })];
-}
 /**
- * A greyscale mask per resource (8-bit PNGs in a ZIP): its richness, 0 none … 255 the richest, smooth between the grid's
- * cells (as the map's washes); the sea black (but oil and gas on the shelf).
+ * One file of a geology row, W wide, as the panel asks for it (`job`: {row, variant, file}), unturned (export.js centres it):
+ * a map ({kind, W, H, data}) or a file that is not one ({kind: 'file', blob, about}). `lk`: the look ({lut, exaggeration,
+ * shaded, deposit (the Deposits view's pick), frame (the moment's), simMesh, seed}); `pic`: the picture at W, and painted
+ * ({pictureAt, paintAt}: export.js's, the detail finer than the mesh where drawn).
  */
-export async function resourceMasks(fin, W, onProgress = () => {}) {
-    const Dp = fin.raster.geology.deposits, H = W >> 1, { sea } = rasterAt(fin.raster, W), items = maskItems(fin), files = [], full = new Float32Array(Dp.w * Dp.h);
-    // (each picture column and row's place on the grid, once)
+export function produceGeology(fin, W, lk, job, pic = PLAIN) {
+    const r = job.row, H = W >> 1;
+    if (job.variant === 'colour') return geologyMap(fin, W, r.geology, lk, { pick: lk.deposit ?? 'all', age: r.age ?? 'bronze' }, pic);
+    const key = job.file.key;
+    if (key === 'rockIndex') return { kind: 'gray8', W, H, data: rockIndexMap(fin, W, pic) };
+    if (key === 'districtsGeojson') return { kind: 'file', blob: textBlob(districtsGeoJson(districtRows(fin, lk.frame)), 'application/geo+json'), about: 'GeoJSON: a point per district (longitude, latitude in degrees) with its resource, kind of deposit, grade, area, landmass, rank and story' };
+    if (key === 'districtsCsv') return { kind: 'file', blob: textBlob(districtsCsv(districtRows(fin, lk.frame)), 'text/csv'), about: 'CSV: a row per district — resource, kind of deposit, grade, richness, area, landmass, rank, latitude, longitude, story' };
+    if (key === 'atlas') return { kind: 'file', blob: textBlob(resourceAtlas(fin, lk.frame, { seed: lk.seed }), 'text/markdown'), about: 'Markdown text: each landmass\'s resources and its richest districts' };
+    return { kind: 'gray8', W, H, data: maskMap(fin, W, maskField(fin, key), pic) };
+}
+
+/**
+ * A geology view's map at width W, as on screen: its colours, shaded by the relief (unless `lk.shaded` is false), the
+ * lakes as water — wider than the picture, over the detail finer than the mesh where the export drew it (`pic`). The
+ * rocks, a picture as wide as the climate's, are drawn narrower from their commonest there (export-raster.js
+ * classIndexMap; the ice caps' veil from the Köppen zones', likewise), wider as the view draws them zoomed in
+ * (geology-view.js rockPixel: contacts running smoothly between its pixels, the finer coast's land its nearest rock).
+ */
+export function geologyMap(fin, W, layer, lk, { pick = 'all', age = 'bronze', agePick = 'all' } = {}, pic = PLAIN) {
+    const H = W >> 1, image = { data: new Uint8ClampedArray(4 * W * H) }, G = fin.raster.geology;      // (no canvas: DOM-free)
+    let colorAt;
+    if (layer === 'geoRocks' && W < G.w) {
+        const { sea } = pic.pictureAt(fin, W), K = fin.climate?.raster, ef = KOPPEN_ID.EF;
+        const kop = K?.koppen ? classIndexMap(K, K.koppen, KOPPEN_CLASSES.length, W, sea) : null;
+        colorAt = rocksColor(fin, W, { rock: classIndexMap(G, G.rock, ROCK_COUNT, W, sea), ice: kop && kop.map(z => (z === ef ? 1 : 0)) });
+    } else colorAt = finishedGeologyColor(layer, lk.frame, lk.simMesh, W, fin, pick, age, agePick);
+    pic.paintAt(fin, W, image, lk.lut, { exaggeration: lk.exaggeration, lakes: true, shaded: lk.shaded !== false, colorAt });
+    return { kind: 'rgba', W, H, data: image.data };
+}
+
+/** Each pixel's rock type (ROCK_INFO's index; 0 the sea), at width W: as the Rocks map draws it — narrower than the rocks'
+ *  picture its commonest there, wider the view's (rockPixel; land the picture has as sea its nearest land's rock). */
+export function rockIndexMap(fin, W, pic = PLAIN) {
+    const G = fin.raster.geology, { sea } = pic.pictureAt(fin, W);
+    if (W <= G.w) return classIndexMap(G, G.rock, ROCK_COUNT, W, sea);
+    const H = W >> 1, px = rockPixel(G, W), out = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const p = y * W + x;
+        if (sea[p]) continue;
+        const i = px(x, y);
+        out[p] = (i >= 0 && G.rock[i]) || Rock.ALLUVIUM;
+    }
+    return out;
+}
+
+/** A mask's richness per kept grid cell (0…1), by its key: 'm.' and a metal, fuel or mineral; an age's id, '.', and one
+ *  of its resources or 'potential'. And whether it counts at sea (oil and gas, on the shelf). */
+function maskField(fin, key) {
+    const Dp = fin.raster.geology.deposits, K = Dp.cells.length;
+    if (key.startsWith('m.')) {
+        const i = METALS.findIndex(m => m.id === key.slice(2)), SYS = Dp.rows - METALS.length;
+        return { field: Float32Array.from(Dp.data.subarray((SYS + i) * K, (SYS + i + 1) * K), x => x / 255), offshore: METALS[i].id === 'oilGas' };
+    }
+    const [ageId, resId] = key.split('.'), age = AGES.find(a => a.id === ageId);
+    if (resId === 'potential') return { field: potentialField(Dp, age), offshore: false };
+    const res = age.resources.find(x => x.id === resId);
+    return { field: resourceField(Dp, res), offshore: !!res.offshore };
+}
+/** A richness mask at width W: 0 none … 255 the richest, smooth between the grid's cells (as the map's washes); the sea
+ *  black (but oil and gas on the shelf). */
+function maskMap(fin, W, { field, offshore }, pic = PLAIN) {
+    const Dp = fin.raster.geology.deposits, H = W >> 1, { sea } = offshore ? { sea: null } : pic.pictureAt(fin, W), full = new Float32Array(Dp.w * Dp.h);
+    for (let j = 0; j < Dp.cells.length; j++) full[Dp.cells[j]] = field[j];
+    // (each picture column's place on the grid, once)
     const gx0 = new Int32Array(W), gx1 = new Int32Array(W), fx = new Float32Array(W);
     for (let x = 0; x < W; x++) { const g = ((x + 0.5) / W * 360) / Dp.step - 0.5, x0 = Math.floor(g); fx[x] = g - x0; gx0[x] = (x0 + Dp.w) % Dp.w; gx1[x] = (x0 + 1 + Dp.w) % Dp.w; }
-    for (let n = 0; n < items.length; n++) {
-        const it = items[n];
-        onProgress(n / items.length, `Mask: ${it.name} (${n + 1} of ${items.length})…`);
-        await tick();
-        full.fill(0);
-        for (let j = 0; j < Dp.cells.length; j++) full[Dp.cells[j]] = it.at(j);
-        const data = new Uint8Array(W * H);
-        for (let y = 0; y < H; y++) {
-            const g = Math.max(0, Math.min(Dp.h - 1, ((y + 0.5) / H * 180) / Dp.step - 0.5)), y0 = Math.floor(g), fy = g - y0, r0 = y0 * Dp.w, r1 = Math.min(Dp.h - 1, y0 + 1) * Dp.w;
-            for (let x = 0; x < W; x++) {
-                const p = y * W + x;
-                if (sea[p] && !it.offshore) continue;
-                const a = full[r0 + gx0[x]] + (full[r0 + gx1[x]] - full[r0 + gx0[x]]) * fx[x], b = full[r1 + gx0[x]] + (full[r1 + gx1[x]] - full[r1 + gx0[x]]) * fx[x];
-                data[p] = Math.round(255 * Math.min(1, Math.max(0, a + (b - a) * fy)));
-            }
+    const data = new Uint8Array(W * H);
+    for (let y = 0; y < H; y++) {
+        const g = Math.max(0, Math.min(Dp.h - 1, ((y + 0.5) / H * 180) / Dp.step - 0.5)), y0 = Math.floor(g), fy = g - y0, r0 = y0 * Dp.w, r1 = Math.min(Dp.h - 1, y0 + 1) * Dp.w;
+        for (let x = 0; x < W; x++) {
+            const p = y * W + x;
+            if (sea?.[p]) continue;
+            const a = full[r0 + gx0[x]] + (full[r0 + gx1[x]] - full[r0 + gx0[x]]) * fx[x], b = full[r1 + gx0[x]] + (full[r1 + gx1[x]] - full[r1 + gx0[x]]) * fx[x];
+            data[p] = Math.round(255 * Math.min(1, Math.max(0, a + (b - a) * fy)));
         }
-        files.push({ name: `mask-${it.id}.png`, blob: await encodeGrayPng(W, H, data, 8) });
     }
-    return files;
+    return data;
 }
 
 /** Every district of every metal, fuel and gem: one row each, with its story. */

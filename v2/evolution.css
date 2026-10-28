@@ -101,7 +101,7 @@
 #ui.collapsed { width: auto; }
 #ui #generate { margin-bottom: 8px; background: rgba(40,60,120,0.6); border: 1px solid rgba(100,160,255,0.35); color: #cde; }
 #worldSection #seedRow { margin-bottom: 0; }
-#worldSection summary, #viewSection summary { min-height: 30px; }
+#worldSection summary { min-height: 30px; }
 .evo-world-sum {
     margin-left: auto; min-width: 0; contain: inline-size; flex: 1 1 auto; text-align: right;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -167,37 +167,12 @@
 .evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
 .evo-age-chips [data-age-res]:hover { background: rgba(255,255,255,0.06); }
 .evo-age-chips [data-age-res].on { background: rgba(100,160,255,0.18); box-shadow: inset 0 0 0 1px rgba(100,160,255,0.45); }
-/* the layers, over the planet: Terrain · Satellite · Climate (its own row: the five maps) · Heightmap · Plates; the season */
-.evo-layerbar {
-    position: fixed; top: 52px; left: 50%; transform: translateX(-50%); z-index: 20;
-    display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
-}
-.evo-layerbar > * { pointer-events: auto; }
-.evo-layerbar .map-tabs {
-    margin: 0; background: rgba(8,8,28,0.86); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 10px; padding: 3px;
-}
-.evo-layerbar .map-tab { flex: none; padding: 7px 16px; font-size: 13px; }
-.evo-subbar { display: flex; align-items: center; gap: 8px; }
-.evo-subbar[hidden], #climateTabs[hidden], #geologyTabs[hidden], #climateMore[hidden], #season[hidden], #depositPick[hidden], #agePick[hidden], #ageRes[hidden], #districtToggle[hidden] { display: none; }
-.evo-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
-.evo-subbar select {
-    background: rgba(8,8,28,0.86); color: #cde; border: 1px solid rgba(255,255,255,0.12); border-radius: 8px;
-    padding: 6px 8px; font-size: 12px; font-family: inherit; width: auto;
-}
-/* (More…: lit as a tab is, while one of its layers is shown) */
-.evo-subbar select.active { background: rgba(40,70,150,0.75); color: #8bf; border-color: rgba(100,160,255,0.45); }
-/* the chip: what a layer needs (Satellite: a finish), beneath the layers */
-.evo-chip { top: 138px; }
-/* the legend, beside the planet */
-.evo-legend-card {
-    position: fixed; right: 16px; bottom: 110px; width: 270px; z-index: 20; max-height: calc(100vh - 240px); overflow: auto;
-    background: rgba(8,8,28,0.86); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.08); border-radius: 10px;
-    padding: 10px 12px; font-size: 12px; color: #aab;
-}
-.evo-legend-card[hidden] { display: none; }
-.evo-legend-card .viz-legend { margin: 0; }
-.evo-legend-card .evo-regime-legend { margin: 6px 0 0; }
+/* the view strip, the layers and the legend (styles.css .layer-bar, .view-strip, .legend-card): here the legend clears
+   the timeline, and the chip (what a layer needs) ends the bar's column */
+@media (min-width: 769px) { #legendCard { bottom: 110px; } }
+#layerBar .evo-chip { position: static; transform: none; }
+/* Playback Speed, on the timeline beside Play */
+.evo-rate { flex: none; width: auto; padding: 4px 22px 4px 8px; font-size: 12px; background-position: right 8px center; }
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {
@@ -225,6 +200,7 @@
 .evo-tooltip[hidden] { display: none; }
 /* the export dialog (V1's #exportOverlay / #exportCard, styles.css): the moment, and the progress */
 .evo-export-moment { font-size: 13px; font-weight: 400; color: #9ab; margin-left: 6px; }
+.evo-export-note { font-size: 12px; color: #9ab; margin: 6px 0 0; }
 .evo-export-progress { margin-top: 12px; font-size: 12px; color: #9ab; }
 .evo-export-progress[hidden] { display: none; }
 .evo-export-progress .evo-finish-bar { margin: 0 0 4px; }
@@ -237,6 +213,14 @@
 .evo-status .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); margin-top: 4px; overflow: hidden; }
 .evo-status .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #36c, #6af); width: 0; transition: width 0.3s; }
 #seedRow #seedCode { color: #cde; }
+/* Load Planet… (beneath Build This World, quieter), and a planet file dragged over the page */
+.evo-load-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); color: #9ab; }
+.evo-drop {
+    position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; pointer-events: none;
+    background: rgba(8,14,30,0.55); border: 3px dashed rgba(120,170,255,0.6); border-radius: 12px; margin: 10px;
+}
+.evo-drop[hidden] { display: none; }
+.evo-drop div { padding: 14px 22px; border-radius: 10px; background: rgba(20,32,64,0.9); color: #cde; font-size: 16px; }
 #reseedBtn { font-size: 15px; }
 
 @media (max-width: 768px) {
@@ -246,13 +230,18 @@
         bottom: 68px; gap: 6px; row-gap: 0; padding: 4px 8px 6px; flex-wrap: wrap;
     }
     .evo-track { order: -1; flex: 1 1 100%; }
+    /* (the time slider a 44 px touch target, centred on the rail as its 20 px one is) */
+    .evo-track input[type=range] { top: -8px; height: 44px; }
+    .evo-track input[type=range]::-webkit-slider-runnable-track { height: 44px; }
+    .evo-track input[type=range]::-moz-range-track { height: 44px; }
+    .evo-track input[type=range]::-webkit-slider-thumb { margin-top: 14px; }
     .evo-play { width: 44px; height: 44px; }
     .evo-time { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; font-size: 12px; }
     .evo-timeline select { min-height: 44px; }
     #finishCells, #riverDensity, #rate, #quality, #simCells, #terrainCells, #ending { min-height: 44px; }
     .evo-card-btn, .evo-card-ghost { min-height: 48px; }
     .evo-card-link { min-height: 44px; padding: 0; }
-    #worldSection summary, #viewSection summary { min-height: 44px; }
+    #worldSection summary { min-height: 44px; }
     #ui { width: auto; max-height: 70vh; }
     /* the collapsed sheet shows the moment and what is going on; open, the header instead */
     .evo-sheet-line {
@@ -262,18 +251,15 @@
     #ui:not(.collapsed) .evo-sheet-line { display: none; }
     #exportCard select, #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
     .evo-act { min-height: 44px; }
-    /* the layers: the switch at the top (V1's), the season beneath it; the legend under that */
-    .evo-layerbar { top: 92px; }
-    .evo-layerbar #mapTabs, #climateTabs, #geologyTabs, #climateMore { display: none !important; }
-    .evo-subbar select { min-height: 44px; }
-    .evo-age-chips [data-age-res] { min-height: 32px; display: inline-flex; align-items: center; }
-    .evo-legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
     #mapCanvas { top: 36px; height: calc(100vh - 36px); }
     #info { display: none; }
     #hoverInfo { bottom: 176px; }
-    .evo-chip { top: 144px; font-size: 12px; }
+    /* (the Geology row's views are in the layer list there, as the Climate row's are; its pickers stay, under the list) */
+    .layer-bar #geologyTabs { display: none !important; }
+    .evo-age-chips [data-age-res] { min-height: 32px; display: inline-flex; align-items: center; }
+    .evo-chip { font-size: 12px; }
     .evo-chip button { min-height: 44px; padding: 0 16px; }
     .evo-climate-btn { min-height: 44px; }
 }

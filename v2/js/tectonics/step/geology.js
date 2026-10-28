@@ -24,7 +24,8 @@ import { heightsOf } from './heights.js';
 import { landHeightParts } from './rivers.js';
 
 const R = 6371, DEG = 180 / Math.PI;
-const FORELAND_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.LARAMIDE, OrogenyType.URAL, OrogenyType.HIMALAYAN]);
+// (an intraplate range too: the Tarim and Junggar basins at the Tian Shan's feet)
+const FORELAND_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.LARAMIDE, OrogenyType.URAL, OrogenyType.HIMALAYAN, OrogenyType.INTRAPLATE]);
 const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
 // ── the zonal palaeoclimate: what a basin or a sea at this latitude (degrees, absolute) lays down ──
@@ -89,16 +90,19 @@ export function thickenCover(crust, c, thickenedKm, time, G) {
 }
 
 /**
- * The start world's past (once, when the history starts, like heights.js seedBaseRelief): its ancient crust already worn
- * deep — a shield more than the mobile belts about it, each craton by its own amount — and over half of it under platform
- * sediment laid in old sags (the make-up by the latitude it starts at). From a noise field and a hash of its own: no
- * random stream is touched.
+ * The start world's past (once, when the history starts, just after heights.js seedBaseRelief): its ancient crust already
+ * worn deep — a shield more than the mobile belts about it, each craton by its own amount, the old ranges of its assembly
+ * by their age — and over half of it under platform sediment laid in old sags: its lowlands, between the swells along its
+ * seams (the make-up by the latitude it starts at). From a noise field and a hash of its own: no random stream is touched.
  */
 export function seedGeology(world) {
     const G = world.config.geology;
     if (!G?.records) return;
     const { xyz } = world.mesh, noise = new FastNoise((world.seed ^ 0x6e01) >>> 0), F = R / G.platformNoiseKm;
     const ancientAt = -world.config.initialLandAgeMyr / 4;
+    // (the start world's swells, seeded just before — heights.js seedBaseRelief: its uplands along the seams of its
+    // assembly, its lowlands between — the platform's sediment lies in those lowlands, its uplands bare)
+    const H = heightsOf(world.config), baseRef = H.baseReliefKm > 0 ? H.baseReliefKm : 0;
     for (const plate of world.plates) {
         if (!plate.alive) continue;
         const k = plate.crust, m = plate.mat;
@@ -106,11 +110,21 @@ export function seedGeology(world) {
             if (!k.mask[c] || (k.type[c] !== CrustType.CONTINENT && k.type[c] !== CrustType.CRATON)) continue;
             const x = xyz[3 * c], y = xyz[3 * c + 1], z = xyz[3 * c + 2];
             const wx = m[0] * x + m[1] * y + m[2] * z, wy = m[3] * x + m[4] * y + m[5] * z, wz = m[6] * x + m[7] * y + m[8] * z;
-            const range = k.type[c] === CrustType.CRATON ? G.cratonExhumKm : G.beltExhumKm;
+            const craton = k.type[c] === CrustType.CRATON, range = craton ? G.cratonExhumKm : G.beltExhumKm;
             const h = hash01(world.seed, k.terrane[c]), wobble = 1 + 0.25 * noise.noise3D(wx * F * 3 + 5.1, wy * F * 3 + 1.7, wz * F * 3 + 9.3);
-            k.exhumKm[c] = (range[0] + (range[1] - range[0]) * h) * wobble;
+            let ex = (range[0] + (range[1] - range[0]) * h) * wobble;
+            // (an old range of its assembly — start-world.js oldRanges, on its seams, aged: worn deeper the longer ago it
+            // rose — the inner seams', ~1100 Myr, to gneiss; the major seams', 300 Myr and still standing, to schist; a
+            // craton under one bared at least as deep as the range)
+            if (G.startBeltExhumKm && k.oroType[c] !== OrogenyType.NONE && k.oroLast[c] < 0) {
+                const [lo, hi] = G.startBeltExhumKm, aged = (lo + (hi - lo) * (1 - Math.exp(k.oroLast[c] / G.startBeltExhumMyr))) * wobble;
+                ex = craton ? Math.max(ex, aged) : aged;
+            }
+            k.exhumKm[c] = ex;
             k.unroofKm[c] = k.exhumKm[c];                 // (its old belts' deposits were bared by all of it)
-            const sag = smooth(-0.1, 0.5, 1.6 * noise.fbm(wx * F + 3.7, wy * F + 0.4, wz * F + 6.2, 3, 0.5));
+            const n = 1.6 * noise.fbm(wx * F + 3.7, wy * F + 0.4, wz * F + 6.2, 3, 0.5);
+            const low = baseRef > 0 ? 1 - Math.min(1, k.baseKm[c] / (baseRef * (craton ? H.baseReliefCraton : 1))) : NaN;
+            const sag = smooth(-0.1, 0.5, low === low ? n + G.platformLowGain * (low - G.platformLowMid) : n);
             if (sag <= 0) continue;
             const lat = Math.abs(Math.asin(Math.max(-1, Math.min(1, wz)))) * DEG;
             deposit(k, c, G.platformCoverKm * sag, 0.7 * warmShare(lat, G), 0.15 * aridShare(lat, G), 0.03 * wetShare(lat, G), 0.03, ancientAt, G);

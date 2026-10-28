@@ -20,6 +20,7 @@ const CHECKLISTS = {
     ],
     cratons: ['A trunk river gathers in the lowland along the front of India’s range (Drainage layer), fed from the range and from the shield; the shields themselves are cut slowly (hard rock), their rivers shallow.'],
     rift: ['The escarpment facing the young ocean is cut by short steep rivers; behind its crest the rivers flow inland, away from the new coast — the great escarpment is a divide.'],
+    farfield: ['The range raised far inland is cut by short valleys to both sides; the broad swells and basins across the continent steer the big rivers, which run along the basins, parallel to the front, before breaking through to the sea.'],
     history: [
         'Valleys branch like trees; ranges stand as the divides between river basins; big rivers are graded to broad lowlands near the sea, and uplands are dissected from their edges inward.',
         'Active ranges keep steep, high rivers (they are still rising); old ranges are cut down further.',

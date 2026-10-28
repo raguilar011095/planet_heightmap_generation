@@ -128,3 +128,13 @@ export class Plate {
         this.capCos = minDot;
     }
 }
+
+/**
+ * The rotation that carries a vector in `from`'s frame into `to`'s (row-major 3×3: to.matᵀ · from.mat) — for records that
+ * hold a direction (the far-field axis, CrustRaster.copyFrom) when crust moves from one plate to another.
+ */
+export function frameRotation(from, to) {
+    const a = from.mat, b = to.mat, r = new Float64Array(9);
+    for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) r[3 * i + j] = b[i] * a[j] + b[3 + i] * a[3 + j] + b[6 + i] * a[6 + j];
+    return r;
+}

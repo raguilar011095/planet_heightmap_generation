@@ -33,7 +33,7 @@ right column is how the engine honours it.
 
 | WBP rule | Engine rule |
 |---|---|
-| Start from a supercontinent of ~8–12 cratons + accreted crust, ≈25 % of the surface (≤40 %); ring it with subduction zones; ignore initial ocean plates — they get overwritten | `init/supercontinent.js`: noise-shaped cratons clustered into one landmass on its own plate, rim trenches on its margin, and one passive pre-history ocean plate around it (no driving ocean plates) |
+| Start from a supercontinent of ~8–12 cratons + accreted crust, ≈25 % of the surface (≤40 %); ring it with subduction zones; ignore initial ocean plates — they get overwritten | `init/`: cratons drawn as rifted fragments in a few clusters (proto-continents), wrapped into one landmass on its own plate, rim trenches on its margin, and one passive pre-history ocean plate around it (no driving ocean plates) |
 | Run 500–1000 Myr (one full supercontinent cycle + the breakup you want to end in). Cycle ≈ 400–750 Myr | `historyMyr` parameter (default ≈ 600), `endPhase` hint (breakup / assembly / tenure) |
 | **Subduction is active; ridges and rifts are passive.** Subduction zones dictate plate motion | `step/forces.js`: slab pull ≫ slab suction > ridge push; mantle drag larger under continents; torque balance → Euler pole. No random velocity vectors |
 | Speeds (cm/yr): subducting ocean 10–20 · recent subduction/collision 5–10 · active-margin continent 2–5 · passive-margin continent < 1. 1 cm/yr ≈ 0.09°/Myr | Force coefficients calibrated so emergent speeds land in these bands; hard clamps as a safety net |
@@ -1298,6 +1298,60 @@ they found was fixed, and each fix has a check that would catch its return.
   leaves orphans two raster cells apart), and have `captureFrame` show a hidden track cell on a world cell next
   to it whose own raster cell carries nothing — every track cell seen, none shown twice. Sutures, rift margins
   and failed arms are thin records too and alias the same way; they have not needed it yet.
+- **Start world rethought (developer, 2026-10-25; plans/V2_START_WORLD_PLAN.md).** "The starting position
+  supercontinent looks very bad, unrealistic, and clearly generated with noise … the cratons face the same problem."
+  The start world is the one frame the engine does not shape, and its coast and cratons outlive the whole history.
+  Developer chose the plan's option A (an assembly story, noise only below ~150 km) combined with C (smarter noise
+  where noise remains), accepted that every Evolution world changes (no versioning), and left a Tethys-like gulf to
+  chance. **S1 (cratons as fragments, in clusters):** a craton is an elongated body (aspect ≤ `cratonMaxAspect`, its
+  grain) with low lobes, clipped by 1–3 near-straight rift edges with transform steps (`cratonRift*`), corners rounded;
+  redrawn shallower while it comes out a sliver (`cratonMinCompact`); `cratonSiblingChance` of them come as a parent
+  split across its long axis, the halves drifted apart with their matching edges facing. Blocks are drawn in their own
+  azimuthal frame and packed by their outlines, as before. They cluster into 2–6 proto-continents
+  (`clusterBlocks`): close inside one (`clusterGapVariety`), `clusterApart` × the reserve between clusters. The edge
+  noise follows the grain (`cratonGrainNoiseKm`) and a rift edge wanders less (`cratonRiftNoise`); the terrain's own
+  craton-edge noise 70 → 45 km so the fragment's edges survive. Measured from the crust (check-phase3): least
+  compact craton 0.25–0.44 → 0.43–0.60; gap between clusters 1.9–2.6 × the gap between cluster-mates. Lesson: an
+  evenly spaced packing reads as spots whatever the sizes — only unequal GAPS (clusters) read as an assembly.
+  **S2–S4 (same day, developer: "lets do s2-4 first", before far-field deformation):**
+  - **Assembly (S2, `init/landmass.js`).** Each cluster is a proto-continent grown outward. The core is its cratons
+    softly joined over half their gap; rings lie beyond, wider on a random side. Clusters meet along a few long major
+    seams. Old ranges by seam kind with a strength per pair of proto-continents (the last to meet highest), applied to
+    the relief KEPT.
+  - **Margin (S3).** The passive stretch is chosen first; arcs with cusps on the active rim, transform steps on the
+    passive; coast noise ±1200 → ±350 km.
+  - **Swells and grain (S4).** Starting swells are placed by distance to the seams (`world.startSeamKm`, `seedBaseRelief`).
+    Craton grain is stretched along each patch's long axis, read from its shape on the raster.
+  - **Lessons:**
+    1. A belt's height saturates with convergence: to vary a range's height, scale what is kept, not the work.
+    2. Rings drawn round every cluster read as contour lines; draw only the rings beyond the core, on the side that
+       grew.
+    3. A count of connected raised pieces cannot tell a honeycomb from long belts (joined honeycomb segments count as
+       one long belt); the share of land within 500 km of a range can (35–40 % → 19–30 %).
+
+  0 Myr hypsometry (seeds 1, 3, 7 at 160K, carved), before → after:
+
+  | | before | after |
+  |---|---|---|
+  | land below 400 m | 65–67 % | 71–72 % |
+  | 90th percentile | 0.82–0.87 km | 0.77–0.82 km |
+  | highest peak | 2.5–2.6 km | 2.7–3.2 km |
+- **The far field (developer, 2026-10-25: "any long range effects of collisions and orogeny … across cratons or even
+  across continents?"; plans/V2_FAR_FIELD_PLAN.md).** Records only (the events are the same with it on and off).
+  - **The push.** Collisions and strongly coupled subduction coasts (owner's choice) push through their plates every
+    4 Myr (step/far-field.js). Cratons pass it on, weak lines take it up, and the start world's major seams push as
+    prehistoric collisions.
+  - **Reactivation (F2).** Where a strong push meets a quiet old suture or failed rift square-on, far from the front, an
+    INTRAPLATE belt rises (the Tian Shan behind the Tarim block; an inverted aulacogen). It is uplift and crests only, at
+    a strain-rate threshold. Monitored over whole 1200 Myr histories at the owner's request: within ~2 points of land
+    above 1 km of a history without it.
+  - **Terrain (F3–F4).** The lithosphere's folds (subtle) and the grain a push leaves: noise read across the push's phase
+    — how far the push came (farDist, averaged over the pushes, so it holds still on the crust), the grain faded in as
+    the push grows rather than stretched more.
+  - **Lessons.** A tangent axis cannot stretch noise (p·a ≈ 0 where a is tangent at p). A belt's root stacks on old
+    thick crust (13 km peaks). Reactivation needs a rate threshold, not a total. A phase that keeps growing (the log of
+    a running total) or a stretch that grows with the push slides the noise frame to frame: the plains swam (8a 0.88).
+  - check-far-field: 18 checks.
 
 **Known limitations (accepted for now)**
 - A plate under little net force can still *spin* noticeably (drag against rotation about a small
@@ -1322,5 +1376,5 @@ they found was fixed, and each fix has a check that would catch its return.
   background never receives crust).
 - The visible edge of a rotated raster jitters by about a cell, so trench bands are 2–3 cells wide
   and a few single-cell age specks survive in ocean stripes.
-- Start-world coastlines and suture networks are still somewhat regular; to be revisited once
-  terrain exists (Phase 8).
+- Start-world coastlines and suture networks are still somewhat regular — being redone, plans/V2_START_WORLD_PLAN.md
+  (S1, the cratons, built 2026-10-25; S2–S4 the belts, the coast and the opening heights).

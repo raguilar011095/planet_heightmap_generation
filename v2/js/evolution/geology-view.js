@@ -10,12 +10,13 @@
 import { CrustType, OrogenyType, VolcanicType } from '../tectonics/model/crust.js';
 import { GeoFlag, decodeCoverKm, decodeExhumKm, decodeFloodMyr, decodeFloodAge, decodeArcMyr, decodeFacies } from '../tectonics/model/geology.js';
 import { locate } from '../core/mesh-locate.js';
+import { FastNoise } from '../core/fast-noise.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../geology/rocks.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { GEOLOGY } from '../geology/geology-config.js';
 import { DEPOSITS, METALS } from '../geology/deposits.js';
 import { AGES, resourceField, landShares, potentialField } from '../geology/ages.js';
-import { findDistricts, landmasses, landmassName, landmassShares, districtStory, districtSource, keptIndex, cellLatLon, fmtKm2, SYMBOL, BELT_KIND } from '../geology/districts.js';
+import { findDistricts, landmasses, landmassName, landmassShares, districtStory, districtSource, keptIndex, cellLatLon, fmtKm2, BELT_KIND } from '../geology/districts.js';
 
 export const GEOLOGY_LAYERS = new Set(['geoRocks', 'geoDeposits', 'geoAges', 'geoBelts', 'geoSeas', 'geoCover', 'geoWear']);
 export const GEOLOGY_NAMES = { geoRocks: 'Rocks', geoDeposits: 'Deposits', geoAges: 'Ages', geoBelts: 'Mountain belts', geoSeas: 'Past seas', geoCover: 'Sediment', geoWear: 'Erosion depth' };
@@ -124,16 +125,70 @@ function pictureOf(layer, frame, simMesh) {
 }
 
 // ── Rocks (G2): each pixel's kind of rock, from the finish (geology/rocks.js) — the sea floor a shelf's sediment or the deep
-// sea's, the ice caps a pale veil over the rock beneath ──
+// sea's, the ice caps a pale veil over the rock beneath. `at` (an export's, narrower than the rocks' picture): each
+// pixel's rock and ice (1) given, W × W/2 ──
 const SHELF = [52, 78, 112], DEEP = [22, 32, 60], ICE = [236, 240, 246];
-function rocksColor(fin, W) {
-    const G = fin.raster.geology, s = G.w / W, K = fin.climate?.raster, kef = KOPPEN_ID.EF;
+// ── the rocks' picture (on the climate's: finish.js finishRaster) read at any width ──
+const contactNoise = new FastNoise(0x7e0c);
+/** The rock picture's pixel under a place (gx, gy: in its pixels): of its four nearest land pixels, one of the kind
+ *  their bilinear weights favour — so a contact runs smoothly between its pixels' centres instead of stepping round their
+ *  squares (as a category map is enlarged) — read through a small fractal warp (waves ~1.6 and ~0.6 of its pixels, by up
+ *  to ~0.45 of one, wrapping east–west), so it wanders as a contact does; land only, so the finer coast's land takes its
+ *  nearest land's rock, not a rim of young sediment (none of the four: the nearest land round it) — or −1, none. */
+const vote = new Float64Array(ROCK_COUNT), quad = new Int32Array(4), quadW = new Float64Array(4);
+function rockPixelAt(G, gx, gy) {
+    const th = 2 * Math.PI * gx / G.w, r1 = 0.6 * G.w / (2 * Math.PI), r2 = 1.7 * G.w / (2 * Math.PI), ct = Math.cos(th), st = Math.sin(th), n = contactNoise;
+    const u = gx + 0.35 * n.noise3D(r1 * ct, r1 * st, 0.6 * gy + 3.7) + 0.12 * n.noise3D(r2 * ct + 9.1, r2 * st, 1.7 * gy);
+    const v = gy + 0.35 * n.noise3D(r1 * ct + 5.2, r1 * st, 0.6 * gy + 1.3) + 0.12 * n.noise3D(r2 * ct, r2 * st + 6.4, 1.7 * gy + 2.9);
+    const fx = u - 0.5, fy = Math.min(G.h - 1, Math.max(0, v - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), ax = fx - x0, ay = fy - y0;
+    for (let k = 0; k < 4; k++) {
+        const j = Math.min(G.h - 1, y0 + (k >> 1)) * G.w + (((x0 + (k & 1)) % G.w) + G.w) % G.w;
+        quad[k] = j; quadW[k] = ((k & 1) ? ax : 1 - ax) * ((k >> 1) ? ay : 1 - ay);
+        vote[G.rock[j]] += quadW[k];
+    }
+    let kind = 0, top = -1;
+    for (let k = 0; k < 4; k++) { const r = G.rock[quad[k]]; if (r && vote[r] > top) { top = vote[r]; kind = r; } }
+    for (let k = 0; k < 4; k++) vote[G.rock[quad[k]]] = 0;
+    if (kind) {
+        // (the pixel shown: the heaviest of the winning kind's — its record cell for the record views, its ice)
+        let won = -1, wonW = -1;
+        for (let k = 0; k < 4; k++) if (G.rock[quad[k]] === kind && quadW[k] > wonW) { wonW = quadW[k]; won = quad[k]; }
+        return won;
+    }
+    const cx = Math.floor(u), cy = Math.min(G.h - 1, Math.max(0, Math.floor(v)));
+    let best = -1, bd = Infinity;
+    for (let dy = -1; dy <= 1; dy++) {
+        const yy = cy + dy;
+        if (yy < 0 || yy >= G.h) continue;
+        for (let dx = -1; dx <= 1; dx++) {
+            const j = yy * G.w + (((cx + dx) % G.w) + G.w) % G.w;
+            if (!G.rock[j]) continue;
+            const du = cx + dx + 0.5 - u, dv = yy + 0.5 - v, d = du * du + dv * dv;
+            if (d < bd) { bd = d; best = j; }
+        }
+    }
+    return best;
+}
+/**
+ * The rock picture's pixel shown at pixel (x, y) of a picture W wide: at its own width or narrower, the pixel under it
+ * (as ever: 0 where it has sea); wider — zoomed in past it (the fine detail's tiles), or an export enlarged —
+ * rockPixelAt's: contacts wandering below its pixels, the finer coast's land its nearest land's rock (−1: none near).
+ */
+export function rockPixel(G, W) {
+    const s = G.w / W;
+    if (s >= 1) return (x, y) => Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
+    return (x, y) => rockPixelAt(G, (x + 0.5) * s, (y + 0.5) * s);
+}
+export function rocksColor(fin, W, at = null) {
+    const G = fin.raster.geology, K = fin.climate?.raster, kef = KOPPEN_ID.EF, pixel = at ? null : rockPixel(G, W);
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet) { const c = v > -0.25 ? SHELF : DEEP; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; return; }
         if (lake === 1 || lake === 2) { out[o] = LAKE[0] * k; out[o + 1] = LAKE[1] * k; out[o + 2] = LAKE[2] * k; out[o + 3] = 255; return; }
-        const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
-        const rgb = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb, ice = K && K.koppen[i] === kef ? 0.72 : 0;
+        let rock, ice;
+        if (at) { const p = y * W + x; rock = at.rock[p]; ice = at.ice?.[p] ? 0.72 : 0; }
+        else { const i = pixel(x, y); rock = i >= 0 ? G.rock[i] : 0; ice = i >= 0 && K && K.koppen[i] === kef ? 0.72 : 0; }
+        const rgb = ROCK_INFO[rock || Rock.ALLUVIUM].rgb;
         for (let ch = 0; ch < 3; ch++) out[o + ch] = Math.min(255, (rgb[ch] + (ICE[ch] - rgb[ch]) * ice) * k);
         out[o + 3] = 255;
     };
@@ -160,19 +215,70 @@ function colourSet(layer, frame) {
     return set;
 }
 function recordColor(layer, frame, fin, W) {
-    const G = fin.raster.geology, s = G.w / W, { cover, bare } = colourSet(layer, frame);
+    const G = fin.raster.geology, { cover, bare } = colourSet(layer, frame), pixel = rockPixel(G, W);
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; return; }
-        const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s));
+        const i = pixel(x, y);
+        if (i < 0) { out[o] = LAND[0] * k; out[o + 1] = LAND[1] * k; out[o + 2] = LAND[2] * k; out[o + 3] = 255; return; }
         const rgb = BASEMENT.has(G.rock[i]) ? bare : cover, j = 3 * G.rec[i];
         out[o] = Math.min(255, rgb[j] * k); out[o + 1] = Math.min(255, rgb[j + 1] * k); out[o + 2] = Math.min(255, rgb[j + 2] * k); out[o + 3] = 255;
     };
 }
 
+// ── the washes' ground (Deposits, Ages): plain pale paper with a gentle relief — no rock colours under it, the light's
+// swing kept small — and the sea dark. A wash's colour is inked on it at a set contrast, more the richer the ground: held
+// at least t from the ground, mostly in lightness (a strong hue counts for some), a pale colour darkened on the paper and
+// a dark one lightened at sea, its hue kept (developer, 2026-10-22: "the contrast broadly needs to be higher guaranteed
+// across the board") ──
+const PAPER = [222, 217, 204], INK_KAPPA = 0.3, INK_FLOOR = 0.5;
+const paperK = kk => 0.84 + 0.16 * (kk - 0.35) / 0.65;
+/** A wash's strength at richness v: how far toward its colour (a), and its least contrast with the ground (t, of 255). */
+export function inkOf(v, out = {}) {
+    const s = smooth(GEOLOGY.deposits.grades[0], 0.75, v);
+    out.a = 0.6 + 0.4 * s; out.t = 50 + 40 * s;
+    return out;
+}
+/** The contrast of a colour with a ground (a, b: RGB, 0…255) as ink() holds it: the lightness difference, with κ of the
+ *  difference in hue. */
+export function inkContrast(a, b) {
+    const d0 = a[0] - b[0], d1 = a[1] - b[1], d2 = a[2] - b[2], dY = 0.299 * d0 + 0.587 * d1 + 0.114 * d2, o1 = d0 - d1, o2 = 0.5 * (d0 + d1) - d2;
+    return { dY, all: Math.sqrt(dY * dY + INK_KAPPA * INK_KAPPA * (o1 * o1 + o2 * o2)) };
+}
+/** Ink colour c (shaded by s) over the ground at out[o…o+2]: a of the way to it, then moved in lightness — away from the
+ *  ground — until it is at least t from it (and its lightness at least half that). */
+export function ink(out, o, c, s, a, t) {
+    const b0 = out[o], b1 = out[o + 1], b2 = out[o + 2], lim = 0.299 * b0 + 0.587 * b1 + 0.114 * b2 >= 110 ? 0 : 255;
+    let r = b0 + a * (c[0] * s - b0), g = b1 + a * (c[1] * s - b1), b = b2 + a * (c[2] * s - b2);
+    // (a channel run into black or white stops there, and the others take its share: up to twice more)
+    for (let pass = 0; pass < 3; pass++) {
+        const d0 = r - b0, d1 = g - b1, d2 = b - b2, dY = 0.299 * d0 + 0.587 * d1 + 0.114 * d2, o1 = d0 - d1, o2 = 0.5 * (d0 + d1) - d2;
+        const need = Math.max(INK_FLOOR * t, Math.sqrt(Math.max(0, t * t - INK_KAPPA * INK_KAPPA * (o1 * o1 + o2 * o2))));
+        if (Math.abs(dY) >= need) break;
+        const free = (r !== lim ? 0.299 : 0) + (g !== lim ? 0.587 : 0) + (b !== lim ? 0.114 : 0);
+        if (!free) break;
+        const u = ((lim ? need : -need) - dY) / free;
+        if (r !== lim) r = Math.max(0, Math.min(255, r + u));
+        if (g !== lim) g = Math.max(0, Math.min(255, g + u));
+        if (b !== lim) b = Math.max(0, Math.min(255, b + u));
+    }
+    out[o] = r; out[o + 1] = g; out[o + 2] = b;
+}
+/** A colour as the washes ink it on flat paper at richness v (the legends' swatches). */
+const inkRgb = (c, v) => { const o = [...PAPER], k = inkOf(v); ink(o, 0, c, 1, k.a, k.t); return o; };
+/** Ink a wash of colour c at richness v over its ground at out[o…o+2] — the paper, shaded as it is by the light kk, or the
+ *  sea (`wet`). `w`: scratch for inkOf. */
+export function inkWash(out, o, c, v, wet, kk, w = {}) { inkOf(v, w); ink(out, o, c, wet ? 1 : paperK(kk), w.a, w.t); }
+/** The washes' ground at a pixel: the paper, gently shaded — or the sea, a lake. */
+export function washGround(out, o, wet, kk, lake) {
+    if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE, k = shadeK(kk); out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; }
+    else { const k = paperK(kk); out[o] = PAPER[0] * k; out[o + 1] = PAPER[1] * k; out[o + 2] = PAPER[2] * k; }
+    out[o + 3] = 255;
+}
+
 // ── Deposits (G3, G4): on the finish's grid (geology/deposits.js) — by metal (each metal all its sources together: what
-// the land yields), or by the kind of deposit (how it formed) — as a wash over the rocks muted: faint where poor, solid
-// where moderate, full where rich (grade by intensity, never by hue); "All": each place its richest metal (a tie to the
+// the land yields), or by the kind of deposit (how it formed) — as a wash on the paper: faint where poor, solid where
+// moderate, full where rich (grade by intensity, never by hue); "All": each place its richest metal (a tie to the
 // scarcer), the fuels left out ──
 const GRADE_WORDS = ['Poor', 'Moderate', 'Rich'];
 const DEP_ALL = 'all', SYS = DEPOSITS.length, METAL_PICK = 'm.';
@@ -233,22 +339,14 @@ function depositAt(grid, la, lo, out) {
     return out;
 }
 function depositsColor(fin, W, pick) {
-    const G = fin.raster.geology, s = G.w / W, H = W >> 1, grid = depositGrid(fin, pick), at = { v: 0, k: -1, rgb: [0, 0, 0] }, [p0] = GEOLOGY.deposits.grades;
+    const H = W >> 1, grid = depositGrid(fin, pick), at = { v: 0, k: -1, rgb: [0, 0, 0] }, [p0] = GEOLOGY.deposits.grades, wash = {};
     const offshore = ['oil', 'gas', METAL_PICK + 'oilGas'].includes(pick);
     return (out, o, x, y, wet, kk, k3, v, lake) => {
-        const k = shadeK(kk);
-        if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; }
-        else {
-            // (the rocks, muted: their lightness only, pale)
-            const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s)), rr = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb;
-            const grey = 110 + 0.35 * (0.3 * rr[0] + 0.55 * rr[1] + 0.15 * rr[2]);
-            out[o] = grey * k; out[o + 1] = grey * k; out[o + 2] = grey * k; out[o + 3] = 255;
-        }
+        washGround(out, o, wet, kk, lake);
         if (wet && !offshore) return;                                 // (at sea, oil and gas only: the shelf's)
         depositAt(grid, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, at);
         if (at.v < p0 || at.k < 0) return;
-        const c = at.rgb, a = 0.3 + 0.65 * smooth(p0, 0.75, at.v), kk2 = wet ? 1 : 0.55 + 0.45 * k;
-        out[o] = Math.min(255, out[o] + (c[0] * kk2 - out[o]) * a); out[o + 1] = Math.min(255, out[o + 1] + (c[1] * kk2 - out[o + 1]) * a); out[o + 2] = Math.min(255, out[o + 2] + (c[2] * kk2 - out[o + 2]) * a);
+        inkWash(out, o, at.rgb, at.v, wet, kk, wash);
     };
 }
 /** The metals under a place [u, v] of a finished moment, richest first, each with the kinds of deposit it comes from
@@ -280,15 +378,16 @@ function depositsLegendHTML(fin, pick, sw, head) {
     const pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
     if (pick === DEP_ALL) {
         const rows = ALL_METALS.map(i => [i, Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]).filter(([, x]) => x >= 0.0005).sort((a, b) => b[1] - a[1]);
-        return head('Deposits — metals and minerals, each place its richest') + `<div class="evo-koppen">${rows.map(([i, x]) => sw(METALS[i].rgb, METALS[i].name, pct(x))).join('')}</div>` +
+        return head('Deposits — metals and minerals, each place its richest') + `<div class="evo-koppen">${rows.map(([i, x]) => sw(inkRgb(METALS[i].rgb, 1), METALS[i].name, pct(x))).join('')}</div>` +
             '<div class="evo-legend-note">% of the land moderate or rich. Faint where poor, solid where moderate, full where rich; a tie goes to the scarcer. Pick one metal above to see it alone — or a fuel, or a kind of deposit</div>';
     }
     const p = pickOf(pick);
     if (!p) return '';
     const d = p.item, sh = p.metal >= 0 ? Dp.metalShares : Dp.shares, at3 = p.metal >= 0 ? 3 * p.metal : 3 * p.row;
-    const c = d.rgb, base = [150, 150, 150], tint = a => c.map((x, i) => base[i] + (x - base[i]) * a);
+    // (each grade's swatch at the middle of its range, as the wash inks it)
+    const [p0, p1, p2] = GEOLOGY.deposits.grades, mids = [(p0 + p1) / 2, (p1 + p2) / 2, (p2 + 1) / 2];
     const from = p.metal >= 0 ? ` From: ${d.sources.map(([id]) => DEPOSITS.find(s => s.id === id).name.toLowerCase()).join(', ')}.` : '';
-    return head(p.metal >= 0 ? d.name : `${d.name} — ${d.yields}`) + `<div class="evo-koppen">${[0.4, 0.75, 0.95].map((a, g) => sw(tint(a), GRADE_WORDS[g], pct(sh[at3 + g]))).join('')}</div>` +
+    return head(p.metal >= 0 ? d.name : `${d.name} — ${d.yields}`) + `<div class="evo-koppen">${mids.map((v, g) => sw(inkRgb(d.rgb, v), GRADE_WORDS[g], pct(sh[at3 + g]))).join('')}</div>` +
         `<div class="evo-legend-note">${d.words[0].toUpperCase()}${d.words.slice(1)}.${from} % of the land</div>`;
 }
 
@@ -369,22 +468,16 @@ function ageAt(g, res, la, lo, out) {
     return out;
 }
 function agesColor(fin, W, ageId, pick) {
-    const G = fin.raster.geology, s = G.w / W, H = W >> 1, g = ageGrid(fin, ageId, pick), res = ageOf(ageId).resources;
+    const H = W >> 1, g = ageGrid(fin, ageId, pick), res = ageOf(ageId).resources, wash = {};
     const at = { v: 0, k: -1, rgb: [0, 0, 0], v2: 0, k2: -1, rgb2: [0, 0, 0] }, [p0, p1] = GEOLOGY.deposits.grades;
     return (out, o, x, y, wet, kk, k3, v, lake) => {
-        const k = shadeK(kk);
-        if (wet || lake === 1 || lake === 2) { const c = wet ? SEA : LAKE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; }
-        else {
-            const i = Math.min(G.h - 1, Math.floor((y + 0.5) * s)) * G.w + Math.min(G.w - 1, Math.floor((x + 0.5) * s)), rr = ROCK_INFO[G.rock[i] || Rock.ALLUVIUM].rgb;
-            const grey = 110 + 0.35 * (0.3 * rr[0] + 0.55 * rr[1] + 0.15 * rr[2]);
-            out[o] = grey * k; out[o + 1] = grey * k; out[o + 2] = grey * k; out[o + 3] = 255;
-        }
+        washGround(out, o, wet, kk, lake);
         if (wet && !g.offshore) return;
         ageAt(g, res, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, at);
         if (at.v < p0 || at.k < 0) return;
         // (a second resource at moderate or better: thin diagonal stripes of its colour across the first)
-        const stripe = at.v2 >= p1 && ((x + y) & 7) < 2, c = stripe ? at.rgb2 : at.rgb, a = stripe ? 0.85 : 0.3 + 0.65 * smooth(p0, 0.75, at.v), kk2 = wet ? 1 : 0.55 + 0.45 * k;
-        out[o] = Math.min(255, out[o] + (c[0] * kk2 - out[o]) * a); out[o + 1] = Math.min(255, out[o + 1] + (c[1] * kk2 - out[o + 1]) * a); out[o + 2] = Math.min(255, out[o + 2] + (c[2] * kk2 - out[o + 2]) * a);
+        const stripe = at.v2 >= p1 && ((x + y) & 7) < 2;
+        inkWash(out, o, stripe ? at.rgb2 : at.rgb, stripe ? at.v2 : at.v, wet, kk, wash);
     };
 }
 const COMPASS = ['north', 'north-east', 'east', 'south-east', 'south', 'south-west', 'west', 'north-west'];
@@ -433,7 +526,7 @@ function agesLegendHTML(fin, ageId, pick) {
     const Dp = fin?.raster?.geology?.deposits;
     if (!Dp?.land) return '<div class="evo-legend-head">Ages — add detail again to see them (this moment was detailed before the ages were added)</div>';
     const A = ageData(fin, ageId), pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
-    const chip = (id, rgb, label, share, on) => `<span data-age-res="${id}" class="${on ? 'on' : ''}" role="button" tabindex="0"><i style="background:${css(rgb)}"></i>${label} <em>${pct(share)}%</em></span>`;
+    const chip = (id, rgb, label, share, on) => `<span data-age-res="${id}" class="${on ? 'on' : ''}" role="button" tabindex="0"><i style="background:${css(inkRgb(rgb, 1))}"></i>${label} <em>${pct(share)}%</em></span>`;
     const rows = A.age.resources.map((r, i) => chip(r.id, r.rgb, r.name, A.shares[i][1] + A.shares[i][2], pick === r.id));
     if (A.potential) rows.push(chip('potential', A.age.potential.rgb, `${A.age.potential.name} potential`, A.potentialShares[1] + A.potentialShares[2], pick === 'potential'));
     const what = pick === DEP_ALL ? 'each place its richest; stripes: a second at moderate or better' : pick === 'potential' ? A.age.potential.words : 'faint where poor, solid where moderate, full where rich';
@@ -442,13 +535,14 @@ function agesLegendHTML(fin, ageId, pick) {
 }
 
 // ── Districts (G6): each wash's places — a district a patch of moderate or better ground (split around its peaks where
-// large: geology/districts.js) — with where it came from, and each landmass's share of every resource. The map marks the
-// richest with an atlas's symbols (Cu, Au, Sn…); the readout names the district under the pointer and its story ──
+// large: geology/districts.js) — with where it came from, and each landmass's share of every resource: the readout names
+// the district under the pointer and its story (no marks on the map — developer, 2026-10-22: "i dont really like the
+// labels") ──
 // (the ever-present kinds have no districts: wood, building stone)
 const NO_DISTRICTS = new Set(['wood', 'clay', 'stoneLimestone', 'stoneSandstone', 'stoneGranite', 'stoneMarble', 'stoneSlate']);
 const subjectCache = new WeakMap();
 /**
- * What a view shows, as subjects that have districts: each its id, name, colour, symbol, field (per kept grid cell, 0…1
+ * What a view shows, as subjects that have districts: each its id, name, colour, field (per kept grid cell, 0…1
  * — or the deposits' bytes) and sources. Deposits: the metals (All), a metal, or a kind of deposit; Ages: the age's
  * resources (All) or one of them.
  */
@@ -464,14 +558,14 @@ export function subjectsOf(fin, layer, pick = DEP_ALL, age = 'bronze', agePick =
     if (layer === 'geoAges') {
         const A = ageData(fin, age);
         if (A.age.id !== 'building') {
-            out = A.age.resources.map((r, i) => ({ id: r.id, name: r.name, rgb: r.rgb, sym: SYMBOL[r.id] ?? r.name.slice(0, 2), field: A.fields[i], bytes: false, from: r.from }))
+            out = A.age.resources.map((r, i) => ({ id: r.id, name: r.name, rgb: r.rgb, field: A.fields[i], bytes: false, from: r.from }))
                 .filter(s => agePick === DEP_ALL ? s.id !== 'wood' : s.id === agePick);
         }
     } else if (pick === DEP_ALL) {
-        out = ALL_METALS.map(i => { const m = METALS[i]; return { id: m.id, name: m.name, rgb: m.rgb, sym: SYMBOL[m.id], field: row(SYS + i), bytes: true, from: m.sources }; });
+        out = ALL_METALS.map(i => { const m = METALS[i]; return { id: m.id, name: m.name, rgb: m.rgb, field: row(SYS + i), bytes: true, from: m.sources }; });
     } else {
         const p = pickOf(pick);
-        if (p && !NO_DISTRICTS.has(p.item.id)) out = [{ id: p.item.id, name: p.item.name, rgb: p.item.rgb, sym: SYMBOL[p.item.id] ?? p.item.name.slice(0, 2), field: row(p.row), bytes: true, from: p.metal >= 0 ? p.item.sources : [[p.item.id, 1]] }];
+        if (p && !NO_DISTRICTS.has(p.item.id)) out = [{ id: p.item.id, name: p.item.name, rgb: p.item.rgb, field: row(p.row), bytes: true, from: p.metal >= 0 ? p.item.sources : [[p.item.id, 1]] }];
     }
     byKey.set(key, out);
     return out;
@@ -511,53 +605,6 @@ const DOTS = { rich: '●●●', moderate: '●●○', poor: '●○○' };
 /** A district's rank in words: the first ten by name, the rest one of many. */
 export const rankWords = (n, of) => (n > 10 ? `one of ${of.toLocaleString()}` : `${n === 1 ? 'the richest' : `the ${n}${n === 2 ? 'nd' : n === 3 ? 'rd' : 'th'} richest`} of ${of}`);
 export const gradeOf = v => grade(v);
-
-/** The symbols a view puts on the map: its subjects' richest districts (moderate or better — a scarce one's poor ones
- *  where it has nothing better), the fewer the more subjects, none crowding a richer one. */
-export function districtSymbols(fin, layer, pick = DEP_ALL, age = 'bronze', agePick = DEP_ALL) {
-    const subs = subjectsOf(fin, layer, pick, age, agePick), many = subs.length > 1, [, p1] = GEOLOGY.deposits.grades, all = [];
-    for (const s of subs) {
-        const { list } = districtsOf(fin, s), best = list.filter(d => d.v >= p1);
-        for (const d of (best.length ? best : list).slice(0, many ? 8 : 80)) all.push({ lat: d.lat, lon: d.lon, v: d.v, score: d.score, rgb: s.rgb, sym: s.sym, id: s.id });
-    }
-    all.sort((a, b) => b.v - a.v || b.score - a.score);
-    // (in All, a metal's own symbols further apart than two metals': one mark for a cluster of its districts)
-    const placed = [], minKm = many ? 260 : 140, sameKm = many ? 600 : 140, R = 6371, rad = Math.PI / 180;
-    for (const a of all) {
-        if (placed.some(b => R * Math.acos(Math.min(1, Math.sin(a.lat * rad) * Math.sin(b.lat * rad) + Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.cos((a.lon - b.lon) * rad))) < (b.id === a.id ? sameKm : minKm))) continue;
-        placed.push(a);
-    }
-    return placed;
-}
-/**
- * Draw a view's symbols on a picture (ctx: an equirectangular canvas `width` wide): a disc of the subject's colour, larger
- * the richer, its element's symbol in it where the picture is wide enough to read — widened toward the poles so it is
- * round on the globe.
- */
-export function drawDistrictSymbols(ctx, width, symbols) {
-    const k = width / 2048, labels = width >= 3000, rad = Math.PI / 180, [, p1] = GEOLOGY.deposits.grades;
-    ctx.save();
-    for (const s of symbols) {
-        const r = k * (s.v >= p1 ? 2.6 + 2.2 * smooth(p1, 0.95, s.v) : 2), sx = 1 / Math.max(0.2, Math.cos(s.lat * rad));
-        const x = (s.lon + 180) / 360 * width, y = (90 - s.lat) / 180 * (width / 2), lum = 0.3 * s.rgb[0] + 0.55 * s.rgb[1] + 0.15 * s.rgb[2];
-        // (a symbol on the map's edge drawn on both edges: the picture wraps)
-        const xs = [x];
-        if (x < 2 * r * sx) xs.push(x + width);
-        if (x > width - 2 * r * sx) xs.push(x - width);
-        for (const xx of xs) {
-            ctx.setTransform(sx, 0, 0, 1, xx, y);
-            ctx.beginPath(); ctx.arc(0, 0, r, 0, 2 * Math.PI);
-            ctx.fillStyle = css(s.rgb); ctx.fill();
-            ctx.lineWidth = Math.max(0.6, 0.55 * k); ctx.strokeStyle = 'rgba(16,16,20,0.85)'; ctx.stroke();
-            if (labels && s.sym) {
-                ctx.font = `600 ${(r * (s.sym.length > 2 ? 0.95 : 1.15)).toFixed(1)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-                ctx.fillStyle = lum > 150 ? 'rgba(20,20,24,0.95)' : 'rgba(250,250,250,0.95)';
-                ctx.fillText(s.sym, 0, r * 0.06);
-            }
-        }
-    }
-    ctx.restore();
-}
 
 /** The district under a place [u, v] of a view, and the landmass's summary: the readout's lines. */
 export function districtLines(fin, frame, layer, pick, age, agePick, u, v) {
@@ -710,18 +757,22 @@ function rocksLegendHTML(fin, sw, head) {
 // ── the readout: the record under the pointer ──
 const FLAG_WORDS = [[GeoFlag.WAS_ARC, 'born in an island arc'], [GeoFlag.OPHIOLITE, 'old sea floor thrust up'], [GeoFlag.FORELAND, 'a foreland basin'], [GeoFlag.RIFT_BASIN, 'a rift basin'],
     [GeoFlag.SLAB_CHANGE, 'its slab once turned']];
-/** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it), or −1 if unknown. */
+/** The history's cell whose record a place [u, v] of a finished moment shows (as its terrain read it, and as the views
+ *  draw it: rockPixelAt), or −1 if unknown. */
 export function recAt(fin, u, v) {
     const G = fin?.raster?.geology;
     if (!G?.rec) return -1;
-    return G.rec[Math.min(G.h - 1, Math.floor(v * G.h)) * G.w + Math.min(G.w - 1, Math.floor(u * G.w))];
+    const i = rockPixelAt(G, u * G.w, v * G.h);
+    return i >= 0 ? G.rec[i] : -1;
 }
 
-/** The kind of rock at a place [u (west → east), v (north → south)] of a finished moment (0 the sea), or −1 without rocks. */
+/** The kind of rock at a place [u (west → east), v (north → south)] of a finished moment (0 the sea), or −1 without rocks
+ *  — as the Rocks view draws it (rockPixelAt). */
 export function rockAt(fin, u, v) {
     const G = fin?.raster?.geology;
     if (!G) return -1;
-    return G.rock[Math.min(G.h - 1, Math.floor(v * G.h)) * G.w + Math.min(G.w - 1, Math.floor(u * G.w))];
+    const i = rockPixelAt(G, u * G.w, v * G.h);
+    return i >= 0 ? G.rock[i] : 0;
 }
 
 /** A rock's line for the readout: its kind and where it came from, read off the history's record (frame cell w). */
