@@ -94,8 +94,11 @@ export function carveByRock(carveIn, rocks, F) {
  */
 export function coverStairs(z, before, C, rocks, rain, lip, F, seed) {
     const { bedded, cover, rock } = rocks, step = F.coverStepKm, riser = F.coverRiser, was = z.slice();
+    // (the beds' tops, from the cover's foot to past its thickest — the record's cover reaches 16 km in an old world's basins)
+    let roof = 12;
+    for (let c = 0; c < cover.length; c++) if (cover[c] > roof) roof = cover[c];
     const levels = [0];
-    for (let k = 0; levels[k] < 12; k++) {
+    for (let k = 0; levels[k] <= roof; k++) {
         let h = Math.imul(k + 1, 0x9e3779b1) ^ (seed | 0); h ^= h >>> 16; h = Math.imul(h, 0x85ebca6b); h ^= h >>> 13;
         levels.push(levels[k] + step * (0.6 + 0.8 * ((h >>> 0) / 4294967296)));
     }
@@ -108,7 +111,7 @@ export function coverStairs(z, before, C, rocks, rain, lip, F, seed) {
         if (!(w > 0)) continue;
         let k = 0;
         while (k < levels.length - 2 && levels[k + 1] <= rel) k++;
-        const lo = levels[k], s = levels[k + 1] - lo, t = Math.max(0, ((rel - lo) / s - (1 - riser)) / riser);
+        const lo = levels[k], s = levels[k + 1] - lo, t = Math.min(1, Math.max(0, ((rel - lo) / s - (1 - riser)) / riser));
         z[c] = foot + rel + w * (lo + s * t ** 1.5 - rel);
     }
     for (let i = 0; i < C.order.length; i++) { const c = C.order[i], r = C.recv[c]; if (r >= 0 && z[c] < z[r] && z[c] < was[c]) z[c] = Math.min(was[c], z[r]); }

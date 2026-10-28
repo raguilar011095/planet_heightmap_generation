@@ -92,7 +92,10 @@ rock bands stay the mesh's (synthesize.js, the old-belt bands).
 4. *The carve and hillslopes agree*: the carve's k × e^(κ(½ − hard)), its critical slope × (0.75 + 0.5 hard); creep and
    dissection weaker on hard rock.
 5. *Cover stairs*: where the carve has cut into bedded cover, its walls stepped (`terraceBasalt` generalised: steps of
-   ~0.25 km through the cover, by how deep the cut is), crisp where dry.
+   ~0.25 km through the cover, by how deep the cut is), crisp where dry. *Fixed (2026-10-28):* the beds' ladder stopped
+   at 12 km, and the record's cover reaches its 16 km cap on old worlds' basins (a quarter of the land at 2180 Myr), so
+   past the ladder's top the riser ran on: thousands of 5–22 km spikes at 10M, a few at 2.5M. The ladder now reaches the
+   thickest cover and a riser never passes its step (cells under 12 km unchanged).
 6. The final rocks are classified as before, the relief read without the differential (so a hard ridge raised by it keeps
    its hard rock) — the ridges sit on the hard rock by construction.
 
