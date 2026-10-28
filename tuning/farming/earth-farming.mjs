@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import { execSync } from 'node:child_process';
 import { growingSeason, climateSoil, newSeason, seasonYield, cropYields, cropWork, pastureOf, farmPlace, farmClass, Staple, STAPLE_WORDS, CROPS } from '../../v2/js/farming/farming.js';
 import { landCover, newCover } from '../../v2/js/finish/finish-cover.js';
+import { peopleAt } from '../../v2/js/farming/people.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** The reference data: this checkout's, or (in a git worktree, which has none of the downloaded data) the main checkout's. */
@@ -65,6 +66,19 @@ export const FARMLAND_PLACES = [
     ['Sahara', 24, 10, '', [BARREN]], ['North Siberia', 70, 100, '', [BARREN, POOR]],
 ];
 const CLASS_WORDS = ['barren', 'poor', 'fair', 'good', 'excellent'];
+// (C3) how many people a km² the land could feed, pre-industrial (every technique on, on its ground as above) — the river
+// plains watered or renewed densest (Roman Egypt's valley ~150–200; Bengal, Jiangnan and Java before modern fertiliser
+// 150–300); the breadbaskets' one good harvest a year next (France ~1700 ~35 a km² overall, its good farmland ~50–60);
+// the rainforests on leached ground thin — shifting cultivation, a field cropped two or three years in ten to twenty
+// (Ruthenberg's cultivation intensity ~10–25 %; Allan's critical densities): pre-Columbian Amazonia ~1–2 a km² overall,
+// the Congo basin and Borneo's interior a few to ~10; the dry margins and the steppe thinner still (the Sahel's millet
+// farmers and herders ~1–10 before the 20th century). Bengal here by rain alone — its floods not counted
+export const PEOPLE_PLACES = [
+    ['Nile, Egypt', 26.5, 31.5, 'w', [100, 400]], ['Bengal', 24, 89, 'r', [60, 400]], ['Yangtze plain', 30.5, 115, 'r', [80, 400]], ['Java', -7.3, 110.5, 'v', [80, 400]],
+    ['Paris Basin', 48.5, 2.5, '', [25, 90]], ['England', 52, -1, '', [20, 90]], ['Ukraine', 49, 32, '', [20, 90]], ['Iowa', 42, -93.5, '', [20, 90]],
+    ['Amazon', -3, -60, '', [1, 15]], ['Congo', 0, 22, '', [1, 15]], ['Borneo', 1, 114, '', [1, 15]], ['Guinea coast', 6, -9, '', [1, 20]],
+    ['New Guinea highlands', -6, 145, '', [5, 100]], ['Sahel (Niger)', 13, 2, 's', [1, 25]], ['Mongolia', 47, 103, '', [0.3, 5]],
+];
 
 /** Each place's climate part (the mean of the land cells within a degree of it), or null without the data. */
 export function earthFarming() {
@@ -111,11 +125,12 @@ export function earthFarming() {
         const silt = ground === 'w' || ground === 'r', parent = silt ? 1 : ground === 'v' ? 0.9 : ground === 's' ? 0.4 : 0.7, renew = silt ? 0.85 : ground === 'v' ? 0.8 : 0;
         const soil = Math.min(1, parent * (1 - 0.6 * v.leach * (1 - renew)) * (1 + 0.3 * v.black) * (1 - 0.4 * v.podzol));
         const p = { soil, rain: v.rain, warm: v.warm, flood: ground === 'w' ? 1 : 0, canal: ground === 'w' ? 1 : 0, slope: 0, wetland: 0 };
-        return { ...farmPlace(p, Array.from({ length: 2 * CROPS.length }, (_, k) => v[`y${k}`]), v.pasture, ALL), v };
+        return { ...farmPlace(p, Array.from({ length: 2 * CROPS.length }, (_, k) => v[`y${k}`]), v.pasture, ALL), v, p };
     };
     const staple = Object.fromEntries(Object.entries(STAPLE_PLACES).map(([k, list]) => [k, list.map(([n, la, lo, g, alt]) => [n, stapleAt(la, lo, g), alt ?? []])]));
     const farmland = FARMLAND_PLACES.map(([n, la, lo, g, ok]) => [n, stapleAt(la, lo, g), ok]);
-    return { places: Object.fromEntries(Object.entries(PLACES).map(([k, { at: list }]) => [k, list.map(([n, la, lo]) => [n, at(la, lo)])])), staple, farmland, seasonShare: crop / land };
+    const people = PEOPLE_PLACES.map(([n, la, lo, g, range]) => { const r = stapleAt(la, lo, g); return [n, r && peopleAt(r, r.p, ALL), range, r]; });
+    return { places: Object.fromEntries(Object.entries(PLACES).map(([k, { at: list }]) => [k, list.map(([n, la, lo]) => [n, at(la, lo)])])), staple, farmland, people, seasonShare: crop / land };
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
@@ -147,6 +162,13 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
         const cls = r ? farmClass(r.tech) : -1, good = ok.includes(cls);
         if (!good) bad++;
         console.log(`  ${good ? 'ok  ' : 'OFF '} ${n.padEnd(24)} ${r ? `${CLASS_WORDS[cls]} (${r.tech.toFixed(2)}; by rain ${CLASS_WORDS[farmClass(r.rain)]}) · ${r.harvests.toFixed(1)} harvests of ${STAPLE_WORDS[r.staple === Staple.HERDING ? r.second : r.staple].toLowerCase()} · seasonality ${r.v.seasonality?.toFixed?.(2) ?? '–'}` : 'no land'} · want ${ok.map(c => CLASS_WORDS[c]).join(' or ')}`);
+    }
+    console.log('── people a km² the land could feed, pre-industrial ──');
+    for (const [n, ppl, [lo, hi], r] of res.people) {
+        all++;
+        const good = ppl >= lo && ppl <= hi;
+        if (!good) bad++;
+        console.log(`  ${good ? 'ok  ' : 'OFF '} ${n.padEnd(24)} ${r ? `${ppl.toFixed(1)} a km² · ${STAPLE_WORDS[r.staple]}, ${r.harvests.toFixed(1)} harvests · soil ${r.p.soil.toFixed(2)} · leach ${r.v.leach.toFixed(2)}` : 'no land'} · want ${lo}–${hi}`);
     }
     console.log(`\nThe land's rain-fed season, as a crop's yield: ${(100 * res.seasonShare).toFixed(0)} % of the land's (Earth's suitable land ~30–40 %)`);
     console.log(`${all - bad} of ${all} places as they should be`);

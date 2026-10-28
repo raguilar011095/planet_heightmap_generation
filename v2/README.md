@@ -488,7 +488,11 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    only as the soil can feed them) × soil × ground (rice level fields) × how many it feeds — the best is the staple (or
    herding) and the Farmland (good: one sure harvest; excellent: more). **People** (C3, `farming/people.js`): from the
    farming picture, people a km² (pre-industrial potential: ~60 for each good harvest a year's worth of food, a few on
-   herders' pasture), and the whole land's. **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
+   herders' pasture) on the share of the land cropped at once — poor ground rested in long fallows (Ruthenberg's
+   cultivation intensity: every year from soil 0.65, down to 15 % on the poorest where it is warm the year round — a
+   rainforest's shifting cultivation; half that need where a winter is; a big river's flood renews it), so the leached
+   rainforests feed a few a km² — and the whole land's (`tuning/farming/earth-farming.mjs` holds it at Earth's places:
+   the Nile, Java, the breadbaskets, the Amazon, the Congo). **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
    hearths where a region (~400 km) grows the most rain-fed food at one harvest a year, more so with several staples
    (their effective number), each ≥ 2000 km from the others and ≥ 5000 apart by the way crops travel (Dijkstra over a
    cost a km: 1 on flat land a crop grows on, + up to 4 for hills to mountains, + 4 for desert, + 2 where it does not

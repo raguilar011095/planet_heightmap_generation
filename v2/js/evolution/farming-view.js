@@ -18,7 +18,7 @@
 // What the land could grow — not who would live there.
 
 import { farmPlace, farmClass, decHarvests, Staple, STAPLE_WORDS, CROPS, TECHNIQUES, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
-import { landPeople, peopleAt } from '../farming/people.js';
+import { landPeople, peopleAt, croppedShare } from '../farming/people.js';
 import { spreadGround, spreadHearths, spreadStrains, spreadPlace, strainAt, hearthWords } from '../farming/spread.js';
 import { VARIETALS, HOME, cropsFor, likeOf } from '../farming/varietals.js';
 import { landPixel } from './climate-view.js';
@@ -212,7 +212,7 @@ export function finishedFarmingColor(layer, fin, W) {
             // (Staples: one alone — how well it grows everywhere — or each place's and how well it grows; Farmland: green
             // by rain, toward aqua as more of it comes from water brought)
             if (layer === 'farmStaple') { if (opt.only) stapleColour(opt.only, r.scores[opt.only], c); else stapleColour(r.staple, r.score, c); }
-            else if (layer === 'farmPeople') ramp(PEOPLE_LOG, Math.log10(1 + peopleAt(r)), c);
+            else if (layer === 'farmPeople') ramp(PEOPLE_LOG, Math.log10(1 + peopleAt(r, p, opt)), c);
             else if (layer === 'farmSpread' && spread) {
                 const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180;
                 if (opt.spreadOnly) {
@@ -250,7 +250,7 @@ export function finishedFarmingValue(key, fin, W) {
         if (key === 'soil') return partsAt(F, i, p).soil;
         if (key === 'seasonRain' || key === 'seasonWatered') { partsAt(F, i, p); return key === 'seasonRain' ? p.rain : p.warm; }
         placeAt(F, i, p, e, farmOptions, r);
-        return key === 'farmTech' ? r.tech : key === 'farmRain' ? r.rain : key === 'people' ? peopleAt(r) : key === 'staple' ? r.staple : NaN;
+        return key === 'farmTech' ? r.tech : key === 'farmRain' ? r.rain : key === 'people' ? peopleAt(r, p, farmOptions) : key === 'staple' ? r.staple : NaN;
     };
 }
 
@@ -402,7 +402,7 @@ export function farmingLegendHTML(layer, fin) {
         return head('People — how many the land could feed, pre-industrial, with these techniques') + `<div class="evo-farm-chips">${chips}</div>` +
             bar(PEOPLE_LOG, '1 · 5 · 20 · 60 · 150+ a km²') +
             note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average; its richest river plains well over 100. ` +
-                'What it could support, not how many would live there');
+                'Poor ground is farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km². What it could support, not how many would live there');
     }
     // Farmland
     const any = farmOptions.flood || farmOptions.canal;
@@ -466,8 +466,9 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     const hw = h => (h < 0.15 ? 'no sure harvest' : h < 0.75 ? 'a poor harvest' : h < 1.35 ? 'one harvest a year' : h < 1.75 ? 'one and a half harvests a year' : `about ${Math.round(h)} harvests a year`);
     lines.push(L('Farmland', `<b>${CLASS_WORDS[cls]}</b> · ${hw(r.harvests)}${cls !== clsRain ? ` · by rain alone ${CLASS_WORDS[clsRain].toLowerCase()}` : ''}`));
     lines.push(L('Staple', r.staple ? `<b>${STAPLE_WORDS[r.staple]}</b>${r.second ? ` · then ${STAPLE_WORDS[r.second].toLowerCase()}` : ''}` : 'nothing grown'));
-    const ppl = peopleAt(r);
-    lines.push(L('People', ppl < 0.5 ? 'too few to count' : `could feed ~${ppl < 10 ? ppl.toFixed(1) : Math.round(ppl)} a km²`));
+    // (and on poor ground, how long its fields rest: a year cropped in so many — shifting cultivation's)
+    const ppl = peopleAt(r, p, opt), every = Math.round(1 / croppedShare(p, opt)), rested = r.staple && r.staple !== Staple.HERDING && every >= 2 ? ` · a field cropped ~1 year in ${every}` : '';
+    lines.push(L('People', ppl < 0.5 ? 'too few to count' : `could feed ~${ppl < 10 ? ppl.toFixed(1) : Math.round(ppl)} a km²${rested}`));
     if (layer === 'farmSpread') {
         const map = spreadOf(fin);
         if (map) {

@@ -233,6 +233,16 @@ them over per pixel; the page combines them with the techniques chosen, at once.
   how it is today and would rather redo it in the future"): the Cradles view, `farming/cradles.js`, its checks and the
   Experimental Views toggle (which held only it) are gone; People keeps its count (`farming/people.js`: the same people a
   km² and the same whole land's number as before). C3 above is how it was built — to be done again later.
+- **Fallow** (developer, 2026-10-27: "rainforests are getting very high population, that feels unrealistic … based
+  on the real world"): People counted every field cropped every year, so a leached rainforest fed ~40 a km² — a
+  breadbasket's. Now on the share of the land cropped at once (`farming/people.js` croppedShare; Ruthenberg's
+  cultivation intensity R, Allan's critical densities): every year on soil ≥ 0.65, down to 15 % on the poorest where it
+  is warm the year round (no winter slows the soil's exhaustion), half that need where a winter is; a big river's flood
+  renews it (a canal's clear water does not). People only — the Farmland view stays a field's harvest. Earth
+  (earth-farming.mjs, new: people at 15 places): the Amazon, the Congo, Borneo, the Guinea coast 3.5–6.4 a km² (was
+  ~35–40); the breadbaskets 46–52 and the Nile, Java, the Yangtze ~100 unchanged. On seed 12345's world the rainforests'
+  leached bedrock now feeds 10–14 a km² (was 17–26); its river silt (a quarter of them: rice, ~2 harvests a year by
+  rain) still ~150 — open.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 
