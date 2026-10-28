@@ -150,7 +150,7 @@ Chrome, a 2.5M finish of seed 432175 at 300 Myr: 39 s, the `bedrock` stage ~1.8 
 ## Seeing each change
 
 `v2/tools/render-litho.mjs` renders the same moments after each phase into `v2/out/litho/<phase>/`: the whole planet
-(Terrain view), and the same places zoomed in (L7 and L8; Terrain, Rocks and Satellite views) — a shield, granite, a
+(Terrain view), and the same places zoomed in (L7, L8 and L9 — each phase drawn by its own commit; Terrain, Rocks and Satellite views) — a shield, granite, a
 bedded basin in dry country, wet limestone, an old fold belt, a glaciated shield, a coast — picked once from the first
 render by their rocks. `v2/out/litho/index.html` (served by the dev server) puts any two phases side by side, or blinks
 between them.
