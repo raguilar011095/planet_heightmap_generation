@@ -93,8 +93,8 @@ export const GEOLOGY = {
         dissect: [0.5, 0.5, 0.3, 0.9, 0.25, 0.5, 0.35, 0.7, 0.3, 0.75, 0.4, 0.35, 0.45, 0.6],
         // layered and flat enough to stand in steps (benches, mesas, stepped canyon walls, cuestas), 0…1
         bedded: [0, 0, 0.9, 0.4, 0.8, 0, 0.7, 0.3, 0, 0, 0, 0, 0, 0],
-        // rises as domes and inselbergs (granite's bornhardts and sugarloaves; a shield's), 0…1
-        dome: [0, 0, 0.15, 0, 0, 0, 0, 0, 1, 0, 0.5, 0.8, 0, 0],
+        // crystalline: scoured by ice (or worn in the cold) into knobs and hollows (the Canadian Shield's), 0…1
+        knobby: [0, 0, 0, 0, 0, 0, 0, 0, 1, 0.3, 0.9, 1, 0.7, 0.4],
         // dissolves — karst (limestone; salt and gypsum some), 0…1
         soluble: [0, 0, 0, 0, 1, 0.6, 0, 0, 0, 0, 0, 0, 0, 0],
     },

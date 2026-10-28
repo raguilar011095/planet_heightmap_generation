@@ -106,6 +106,13 @@ as the ridges (no seams):
   ones ~0.5–1 km apart would be two pixels at the closest zoom);
 - *salt domes* where salt lies in dry country (the Zagros).
 
+*Built (2026-10-28):* the knobs (streamlined along the ice's flow, the drivers' `iceDir`) and the karst — its valleys
+fewer, closed hollows (packed closer and deeper in the wet tropics: cockpit karst, rather than towers). *Tried and
+dropped:* inselbergs and domes, tower karst and salt domes (smooth bumps standing alone on flat ground read as bubbles —
+even made lumpy, elongated and clustered), and scarps at hard rock's contacts (sharpened from the rock picture's ~10 km
+pixels, they traced its squares as staircases; the mesh's broad step, L3, stays the contact's). The table's `dome` row
+became `knobby` (crystalline rock), its salt row went. Tiles ~4–5 ms slower at L7–L8 on average.
+
 **L5 — coasts by rock (fine detail).** The coast's headlands and coves follow the rock: hard rock juts out as headlands,
 soft retreats into bays (discordant coasts: Dorset; the noise keeps a share).
 
