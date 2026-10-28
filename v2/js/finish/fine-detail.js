@@ -9,7 +9,7 @@
 //     (plans/V2_LITHOLOGY_RELIEF_PLAN.md: the finish's rock picture, geology/rocks.js) — shale, slate and tuff cut densely
 //     and finely, sandstone, limestone and granite sparsely;
 //   · dunes in the sand seas, across the year's wind (or along it where the seasons' winds cross);
-//   · the coast's headlands and coves.
+//   · the coast's headlands and coves — hard rock jutting out as headlands, soft rock worn back into bays.
 // Plains and plateau tops get none. The rivers are the moment's own lines (drawn by the page and the exports). A window
 // reads only its own pixels and a margin of a few km around them, so windows drawn apart (tiles, bands) meet.
 
@@ -68,6 +68,8 @@ export const FINE = {
     duneKm: 3.2, duneAmpKm: 0.05,
     // coasts: the coastline wandering by up to this (more on rocky coasts), on a slope of at least this
     coastWiggleKm: 2.2, coastMinSlope: 0.004,
+    coastRock: 0.6,             // …and by the rock: hard rock out as headlands, soft back into bays (Dorset's coast) — its
+                                // hardness from ½ counting this much beside the wander's noise
 };
 
 /** What a finished moment's detail is drawn from: { r (the picture), d (its drivers, or null), g (its rock picture, or
@@ -351,8 +353,8 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // (the rocks, where any of their features is drawn at this zoom: the ridges' octaves, steps on the gentlest slopes
     // they are drawn on, the rock's own landforms)
     const bedOn = fade(0.75 * FINE.bedStepKm / FINE.bedSlope[0]) > 0;
-    const knF = fade(FINE.knobKm), hoF = fade(0.6 * FINE.hollowKm), formsOn = knF > 0.05 || hoF > 0;
-    const lith = src.g?.rock && (drawn || bedOn || formsOn) ? rockProps(src, W, X0, Y0, ew, eh, latR) : null;
+    const knF = fade(FINE.knobKm), hoF = fade(0.6 * FINE.hollowKm), formsOn = knF > 0.05 || hoF > 0, coastOn = fade(0.7 * FINE.coastWiggleKm) > 0;
+    const lith = src.g?.rock && (drawn || bedOn || formsOn || coastOn) ? rockProps(src, W, X0, Y0, ew, eh, latR) : null;
     // (how much of each pixel's rock dissolves: karst — its valleys fewer)
     const karst = lith ? new Float32Array(N) : null;
     if (lith) for (let p = 0; p < N; p++) if (lith.soluble[p] > 0) karst[p] = lith.soluble[p] * wetSolution(lith.T[p], lith.P[p]);
@@ -505,7 +507,8 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
 
     lap('dunes');
     // ── the coast's headlands and coves: the coastline wandering by up to coastWiggleKm (more on rocky coasts, less on
-    // active ones) ──
+    // active ones) — and by the rock: hard rock out as headlands, soft back into bays (its hardness read from the land
+    // beside the coast, fading to none out at sea) ──
     const reach = 3 * FINE.coastWiggleKm;
     for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
         const p = j * ew + i, dist = coastKm[p];
@@ -514,7 +517,8 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
         const L = FINE.coastWiggleKm * (0.35 + 0.65 * smooth(0.08, 0.6, 2 * val(d.rugged))) * (1 - 0.5 * val(d.active)), fL = fade(2 * L);
         if (!(fL > 0) || Math.abs(dist) >= 3 * L) continue;
         place(j, i);
-        const sc = 1 / (3 * L), n = smoothNoise(P[0] * sc, P[1] * sc, P[2] * sc, seed * 5 + 13) + 0.5 * smoothNoise(P[0] * sc * 2.1, P[1] * sc * 2.1, P[2] * sc * 2.1, seed * 5 + 14);
+        const sc = 1 / (3 * L), rock = lith ? 2 * FINE.coastRock * (lith.hard[p] - 0.5) * smooth(0, 0.5, lith.land[p]) : 0;
+        const n = smoothNoise(P[0] * sc, P[1] * sc, P[2] * sc, seed * 5 + 13) + 0.5 * smoothNoise(P[0] * sc * 2.1, P[1] * sc * 2.1, P[2] * sc * 2.1, seed * 5 + 14) + rock;
         D[p] += fL * Math.max(FINE.coastMinSlope, Math.hypot(gE[p], gN[p])) * L * n * (1 - smooth(0, 3 * L, Math.abs(dist)));
     }
 
