@@ -384,11 +384,11 @@ export const TERRAIN = {
     oldComb: 0.8,               // the share of the massif and of the hills drawn out along the strike, once old
     oldHillsStretch: 4,
     oldRidgeGain: 1,            // the parallel ridges this much stronger, once old…
-    oldEven: -0.25,             // …and this much more even along the strike: their segments' fading, their crests' rise and fall
+    oldEven: -0.1,              // …and this much more even along the strike: their segments' fading, their crests' rise and fall
                                 // and the crests' roughening × 1 − this. Negative: a little LESS even than a young belt's — 0.7
                                 // (the Appalachians' even crests, troughs running on to catch the rivers) until 2026-10-28,
                                 // when the old belts read as combed rows (developer: "old belts should not be more even,
-                                // maybe it should even be slightly less")
+                                // maybe it should even be slightly less"); −0.25 for a day, then toned down
     oldGrainHardness: 0.6,      // erodibility × 1 ∓ this on the ridges and in the troughs (×0.4 … ×1.6, the same on the whole), once old
 
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
@@ -428,8 +428,8 @@ export const TERRAIN = {
     // saddles along each ridge, one ridge higher than the next, groups of them higher, uneven flanks
     ridgeVaryScales: [2, 1, 0.5, 0.25],
     ridgeVaryWeights: [1, 1, 0.8, 0.6],
-    ridgeVaryBend: 0.035,
-    ridgeVaryHeight: 0.5,
+    ridgeVaryBend: 0.025,       // (0.035 and 0.5 for a day: toned down — developer, 2026-10-28)
+    ridgeVaryHeight: 0.35,
     // En-echelon ridges: where plates met obliquely, fold axes turn by half the obliquity. Along a transform that is
     // the whole story (the Transverse Ranges); at an oblique trench or collision most of the sideways motion goes onto
     // a separate fault along the margin (strain partitioning — the Great Sumatran Fault), so folds stay nearly parallel.
@@ -438,10 +438,10 @@ export const TERRAIN = {
     // Ridge noise along each range (developer, 8b round 5: "simplex noise that is aggressively stretched along the
     // direction of the ridges — can increase or decrease things"): read at the distance across the belt (fast) and the
     // position along it (slow), so its highs and lows are drawn out along the strike, over the whole belt
-    ridgeNoiseShare: 0.35,      // ± this share of the belt’s relief… (0.25 until 2026-10-28 — developer: "slightly more of the
+    ridgeNoiseShare: 0.3,       // ± this share of the belt’s relief… (0.25 until 2026-10-28 — developer: "slightly more of the
                                 // ridge noise layered on top to both increase height and decrease height a bit which can help
                                 // give purchase to carving later")
-    ridgeNoiseBaseKm: 0.11,     // …plus ± this much (× the belt's intensity; 0.08 until then)
+    ridgeNoiseBaseKm: 0.095,    // …plus ± this much (× the belt's intensity; 0.08 until then; 0.35 and 0.11, then toned down)
     ridgeNoiseAcross: 0.8,      // its features are this share of the belt kind's ridge wavelength (stripeKm) across the strike…
     ridgeNoiseStretch: 8,       // …and this many times as long along it
     ridgeNoiseOctaves: 3,       // (then halves and quarters of that, where the mesh can show them)
@@ -449,7 +449,7 @@ export const TERRAIN = {
     // larger and smaller, the orogeny should be the main driver") — each this many times its size, this strong; their sum
     // kept to one scale's spread (the much smaller where the mesh can show it: from ~10M; finer, the fine detail's)
     ridgeNoiseScales: [4, 1, 0.25],
-    ridgeNoiseWeights: [0.6, 1, 0.5],
+    ridgeNoiseWeights: [0.45, 1, 0.35],   // (0.6, 1, 0.5 for a day: toned down)
     // Broken ridgelines (developer, 2026-10-27: "the perfectly intact ridgelines we have may be unrealistic and they should
     // be broken a little (less so in the front …)" — the main range by the plate edge the most whole, though it can break;
     // the Andes least broken, "very close to what we have today", then Laramide, Ural, Himalayan). In patches of a noise

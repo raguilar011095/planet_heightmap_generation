@@ -701,7 +701,7 @@ behind it — `profiles.js mainRangeBackKm`). `ridgeBreak: {}` draws the ridges 
 **Old ranges keep their grain (2026-10-27).** An old range wears down, but its hard layers stand out and its soft ones
 wear into valleys between (the Appalachians' Valley and Ridge). As a belt falls quiet (`oldGrainMyr`), its massif and
 the hills on it are drawn out along its strike (`oldComb`, `oldHillsStretch`), its parallel ridges grow stronger
-(`oldRidgeGain`) and a little less even than a young belt’s (`oldEven` −0.25: until 2026-10-28 0.7, which combed them
+(`oldRidgeGain`) and a little less even than a young belt’s (`oldEven` −0.1: until 2026-10-28 0.7, which combed them
 into even rows), and its rock is banded with
 them — harder on the ridges, softer in the troughs, the same on the whole (`oldGrainHardness`) — so its rivers settle
 into the valleys along the strike and cross the ridges in gaps. `oldGrainMyr: 0` draws old belts as before.
