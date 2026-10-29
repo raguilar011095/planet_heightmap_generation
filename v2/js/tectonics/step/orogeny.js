@@ -10,6 +10,7 @@
 import { CrustType, CrustFlag, OrogenyType, BeltSide } from '../model/crust.js';
 import { cellDistanceKm } from '../../core/sphere-geom.js';
 import { buildHeights } from './heights.js';
+import { thickenCover } from './geology.js';
 
 /**
  * How far inland a belt of this kind reaches, given the convergence it has absorbed so far (km, i.e.
@@ -143,6 +144,8 @@ export function spreadBelt(plate, mesh, sources, belt, config, allow = null) {
         // heights (records only): the root thickens with the crust; uplift and crests rise toward the belt's shape — the
         // whole belt at the pace of its front's convergence
         buildHeights(crust, c, belt.type, belt.side ?? BeltSide.NONE, u[c], widthOf(src[c]), workKm, thickened, config, rimCell ? config.cratonRimShare : 1);
+        // (the geological record: the sediment on it thickens with the crust — step/geology.js; records only)
+        if (thickened > 0 && config.geology?.records) thickenCover(crust, c, thickened, belt.time, config.geology);
     }
     for (const c of reached) { u[c] = Infinity; src[c] = -1; seaKm[c] = 0; rimKm[c] = 0; }
 }

@@ -54,7 +54,7 @@ function ready(jobId) {
     try { runJob(job, planFromData(got.plan, state.sim, job.seed)); } catch (err) { post({ type: 'error', jobId, message: err.stack ?? String(err) }); }
 }
 
-function runJob({ jobId, cfg, seed, edgeKm, parts: wantParts, carve: wantCarve, samplerKey, chunkIds }, plan) {
+function runJob({ jobId, cfg, seed, edgeKm, parts: wantParts, carve: wantCarve, recCells: wantRec, samplerKey, chunkIds }, plan) {
     for (const id of chunkIds) {
         const chunk = state.chunks.get(id), k = chunk.xyz.length / 3;
         // the sampler (warp + point location) depends on the mesh, the seed and the warp settings only: kept between frames
@@ -66,10 +66,10 @@ function runJob({ jobId, cfg, seed, edgeKm, parts: wantParts, carve: wantCarve, 
         }
         const heightKm = new Float32Array(k);
         const parts = wantParts ? surfaceParts(k) : null;
-        const carve = wantCarve ? carveInputs(k) : null;
-        surfaceRange(plan, cfg, seed, edgeKm, chunk.xyz, chunk.cells, chunk.weights, 0, k, heightKm, parts, carve);
-        const out = { type: 'chunk', jobId, id, heightKm, parts, carve, cells: fresh ? chunk.cells.slice() : null, weights: fresh ? chunk.weights.slice() : null };
-        const transfer = [heightKm.buffer, ...(parts ? Object.values(parts).map(a => a.buffer) : []), ...(carve ? Object.values(carve).map(a => a.buffer) : []), ...(fresh ? [out.cells.buffer, out.weights.buffer] : [])];
+        const carve = wantCarve ? carveInputs(k) : null, rec = wantRec ? new Int32Array(k) : null, cue = wantRec ? new Int8Array(3 * k) : null;
+        surfaceRange(plan, cfg, seed, edgeKm, chunk.xyz, chunk.cells, chunk.weights, 0, k, heightKm, parts, carve, rec, cue);
+        const out = { type: 'chunk', jobId, id, heightKm, parts, carve, rec, cue, cells: fresh ? chunk.cells.slice() : null, weights: fresh ? chunk.weights.slice() : null };
+        const transfer = [heightKm.buffer, ...(parts ? Object.values(parts).map(a => a.buffer) : []), ...(carve ? Object.values(carve).map(a => a.buffer) : []), ...(rec ? [rec.buffer, cue.buffer] : []), ...(fresh ? [out.cells.buffer, out.weights.buffer] : [])];
         post(out, transfer);
     }
     post({ type: 'done', jobId, kernels: plan.Ks[0].count + plan.Ks[1].count, volcanoes: plan.V.count });

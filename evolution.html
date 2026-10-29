@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>World Orogen — Evolution</title>
     <meta name="description" content="Watch a planet evolve: a supercontinent breaks up, oceans open and close, continents collide and gather again — a tectonic history simulated in your browser, with every moment of it on a timeline to explore and export.">
-    <meta name="keywords" content="plate tectonics simulator, tectonic history, supercontinent cycle, continental drift simulation, procedural planet generator, worldbuilding tool, heightmap generator, Köppen climate, fantasy map maker">
+    <meta name="keywords" content="plate tectonics simulator, tectonic history, supercontinent cycle, continental drift simulation, procedural planet generator, worldbuilding tool, heightmap generator, Köppen climate, fantasy map maker, rock type map, ore deposit map">
     <meta name="author" content="World Orogen">
     <meta name="theme-color" content="#0a0e17">
     <link rel="canonical" href="https://orogen.studio/evolution">
@@ -14,7 +14,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://orogen.studio/evolution">
     <meta property="og:title" content="World Orogen — Evolution">
-    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate and a satellite view. Free, in your browser.">
+    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view and the rocks and ores its history left. Free, in your browser.">
     <meta property="og:image" content="https://orogen.studio/assets/studio/evolution.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="750">
@@ -44,6 +44,7 @@
             "Timeline of the whole history to scrub and replay",
             "Detailed moments with rivers, lakes, glaciers and a seasonal climate",
             "Satellite and Köppen climate views of a detailed moment",
+            "Geology of a detailed moment, read off its history: a rock-type map, ore, fuel, mineral and gem deposits graded poor to rich, what each technological age could reach, and each deposit district with the story of how it formed — exported as maps, richness masks, GeoJSON and CSV, and a resource atlas",
             "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July), Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
             "Planet files: the whole history and its detailed moment saved as one file and opened again later, without building either again — the same planet in any browser"
         ],
@@ -202,6 +203,11 @@
             <option value="wind">Wind</option>
             <option value="currents">Currents</option>
         </optgroup>
+        <optgroup id="mobileGeology" label="Geology">
+            <option value="geoRocks">Rocks</option>
+            <option value="geoDeposits">Deposits</option>
+            <option value="geoAges">Ages</option>
+        </optgroup>
         <optgroup label="Climate: more">
             <option value="pressure">Pressure</option>
             <option value="upwelling">Upwelling</option>
@@ -270,6 +276,7 @@
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
                 <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
+                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. Comes with Add detail">Geology</button>
                 <button class="map-tab" data-layer="heightmap">Heightmap</button>
                 <button class="map-tab" data-layer="plates">Plates</button>
             </div>
@@ -299,6 +306,109 @@
                     <option value="rainSeason">Rain Seasonality</option>
                 </optgroup>
             </select>
+            <div class="map-tabs" id="geologyTabs" hidden>
+                <button class="map-tab" data-layer="geoRocks" title="What the land is made of at the surface: sediment and sedimentary rock, volcanic rock, granite, metamorphic rock and the ancient shields — from the history's rock record">Rocks</button>
+                <button class="map-tab" data-layer="geoDeposits" title="Where the ores, fuels and minerals lie — each system from the history's arcs, belts, basins, plumes and cratons, and from the climate and the rivers: poor, moderate or rich">Deposits</button>
+                <button class="map-tab" data-layer="geoAges" title="What a people of each technological age could reach — Stone, Copper, Bronze, Iron, Industrial — and fuel, gems and building stone: each one's resources, poor to rich, and where bronze or iron could be made">Ages</button>
+            </div>
+            <select id="depositPick" aria-label="Which deposits" title="Which deposits: all the metals and minerals together (each place its richest), one metal or fuel alone — or a kind of deposit, by how it formed" hidden>
+                <option value="all" selected>All metals and minerals</option>
+                <optgroup label="Metals and minerals">
+                    <option value="m.iron">Iron</option>
+                    <option value="m.copper">Copper</option>
+                    <option value="m.gold">Gold</option>
+                    <option value="m.silver">Silver</option>
+                    <option value="m.tin">Tin</option>
+                    <option value="m.leadZinc">Lead and zinc</option>
+                    <option value="m.aluminium">Aluminium</option>
+                    <option value="m.nickel">Nickel</option>
+                    <option value="m.platinum">Platinum and chromium</option>
+                    <option value="m.diamonds">Diamonds</option>
+                    <option value="m.salt">Salt</option>
+                </optgroup>
+                <optgroup label="Fuel">
+                    <option value="m.coal">Coal</option>
+                    <option value="m.oilGas">Oil and gas</option>
+                    <option value="m.peat">Peat</option>
+                    <option value="m.wood">Wood</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: from the history">
+                    <option value="porphyry">Porphyry copper</option>
+                    <option value="epithermal">Epithermal gold-silver</option>
+                    <option value="orogenicGold">Orogenic gold</option>
+                    <option value="vms">Massive sulfide</option>
+                    <option value="skarn">Skarn</option>
+                    <option value="mvt">Lead-zinc in limestone</option>
+                    <option value="sedex">Lead-zinc-silver in shale</option>
+                    <option value="tin">Tin-tungsten</option>
+                    <option value="iocg">Iron oxide copper-gold</option>
+                    <option value="magmatic">Nickel-copper-platinum</option>
+                    <option value="layered">Layered intrusion</option>
+                    <option value="nativeCopper">Native copper</option>
+                    <option value="kimberlite">Kimberlite diamonds</option>
+                    <option value="greenstoneGold">Greenstone gold</option>
+                    <option value="bif">Banded iron</option>
+                    <option value="reef">Ancient gold reef</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: climate and rivers">
+                    <option value="bauxite">Bauxite</option>
+                    <option value="niLaterite">Nickel laterite</option>
+                    <option value="ironLaterite">Iron laterite</option>
+                    <option value="supergene">Enriched copper</option>
+                    <option value="gossan">Gossan</option>
+                    <option value="placerGold">Placer gold</option>
+                    <option value="placerTin">Placer tin</option>
+                    <option value="placerDiamond">Placer diamonds</option>
+                    <option value="salt">Salt</option>
+                    <option value="ironstone">Ironstone</option>
+                    <option value="bogIron">Bog iron</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: fuel">
+                    <option value="oil">Oil</option>
+                    <option value="gas">Gas</option>
+                    <option value="bitumen">Bitumen, tar and oil shale</option>
+                    <option value="coal">Coal</option>
+                    <option value="peat">Peat</option>
+                    <option value="wood">Wood</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: stone">
+                    <option value="flint">Flint and chert</option>
+                    <option value="obsidian">Obsidian</option>
+                    <option value="jade">Jade</option>
+                    <option value="agate">Agate and jasper</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: gems">
+                    <option value="pegmatite">Pegmatite gems</option>
+                    <option value="emerald">Emerald</option>
+                    <option value="corundum">Ruby and sapphire</option>
+                    <option value="lapis">Lapis lazuli</option>
+                    <option value="basaltGems">Sapphire and peridot in basalt</option>
+                    <option value="amethyst">Amethyst geodes</option>
+                    <option value="opal">Opal</option>
+                    <option value="turquoise">Turquoise</option>
+                    <option value="garnet">Garnet</option>
+                    <option value="gemPlacer">Gem gravels</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: building stone">
+                    <option value="stoneLimestone">Limestone</option>
+                    <option value="stoneSandstone">Sandstone</option>
+                    <option value="stoneGranite">Granite</option>
+                    <option value="stoneMarble">Marble</option>
+                    <option value="stoneSlate">Slate</option>
+                    <option value="clay">Clay</option>
+                </optgroup>
+            </select>
+            <select id="agePick" aria-label="Age" title="The technological age: what its people could reach — deeper and poorer ore as technology grows" hidden>
+                <option value="stone">Stone Age</option>
+                <option value="copper">Copper Age</option>
+                <option value="bronze" selected>Bronze Age</option>
+                <option value="iron">Iron Age</option>
+                <option value="industrial">Industrial Age</option>
+                <option value="fuel">Fuel</option>
+                <option value="gems">Gems</option>
+                <option value="building">Building stone</option>
+            </select>
+            <select id="ageRes" aria-label="Which resource" title="All of the age's resources (each place its richest), one alone, or where its metal could be made" hidden></select>
             <select id="season" aria-label="Season">
                 <option value="year" selected>Year</option>
                 <option value="jan">January</option>
@@ -354,13 +464,14 @@
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Add Detail</h3>
-                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong> view. It takes from a few seconds to about a minute.</p>
+                <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong> and <strong>Geology</strong> views. It takes from a few seconds to about a minute.</p>
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (scroll to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
-                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate layer can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (scroll to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
+                <p>Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> &mdash; hover for how each came to be there &mdash; its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit) and its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone &mdash; tap a legend entry to see it alone; hover a deposit for its district, its rank on the world and how it formed).</p>
+                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate layer can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; and the geology's: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words. Several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
             <div class="tutorial-step" data-step="4">
                 <h3>Keep a Planet</h3>

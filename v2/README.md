@@ -86,12 +86,22 @@ The finish's own carving (plans/V2_FINE_DETAIL_PLAN.md, 2026-10-26; measured aga
 detail): a rising belt's rivers are held back less on its wet, steep front (`activeHold`, `frontSlope`: the rain-fed front
 cuts ~10 % deeper, a plateau keeps its top — its high flat land no less than before), soil creep only lowers where a river
 drains (`creepChannelKm2`: the valleys keep their floors) and a valley wider than its cell lowers the cells beside it
-(`valleySides`). **Detail finer than the mesh**: the mesh's cells are 7–15 km apart and the page shows a detailed moment
+(`valleySides`). **The rocks shape the land** (plans/V2_LITHOLOGY_RELIEF_PLAN.md; `finish/finish-lithology.js`, the
+finish's `bedrock` stage, on a moment with the history's geological record): the rocks of the uncarved surface
+(`geology/rocks.js` on it), and what each does (`geology-config.js` `lithology`: hardness, how densely valleys cut it,
+bedding, ice-scoured knobs, solubility; limestone hard where dry, soft where wet — `geology/lithology.js`): hard rock left
+standing and soft worn down by how much harder each place's rock is than its region's (~80 km), as far as the history
+stripped it and the ground stands above its base level (none on a rising belt, on lava, or on a lowland plain at the
+rivers' grade; the region's mean kept: ~25 m on the whole, ±100–200 m in uplands where hard and soft meet); the carve's
+k (× e^(2.3 (½ − hardness))) and critical slope by the rock, the dissection and soil creep stronger on soft rock; and
+where the rivers cut into bedded cover its walls stepped (carve.js terraceBasalt's stair for sediment). The final rocks
+read the relief without what the rock added, so a hard ridge it raised keeps its hard rock. **Detail finer than the mesh**: the mesh's cells are 7–15 km apart and the page shows a detailed moment
 at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed in past its picture's own pixels, it is
 drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
 the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
 `detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
-costs nothing). They are painted as the planet is, in every layer but those with arrows, the planet's own rivers drawn
+costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology views too: their colours the
+picture's, the relief and coasts the detail's), the planet's own rivers drawn
 over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
 the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
 before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
@@ -102,8 +112,13 @@ picture of drivers saved with the moment (`finish/finish-drivers.js`: the relief
 seas and the wind, the margin, …): faint ridges and valleys on steep ground (stripes along the slope summed as phasors
 over a jittered lattice, each octave turned by the slope the coarser left, so they branch — Rune Skovbo Johansen's
 erosion filter's idea — bent a little by noise, strongest on wet, rugged, young ranges and coming and going from place to
-place); dunes in the sand seas, across the wind (along it where the seasons' winds cross); the coast's headlands and
-coves. Plains and plateau tops get none, and the rivers are not cut into it. A tile depends only on its own pixels and a
+place) — and by the rock (the moment's rock picture and climate, already in it and its file: shale, slate and tuff cut
+densely and finely, badlands where dry; sandstone, limestone and granite sparsely); layered rock stepped where the ground
+slopes through it (benches, the rims of mesas, stepped walls: each bed its own thickness and hardness, crisp where dry —
+from L9, a hint at L8); crystalline rock under the last ice age's ice knobbly, streamlined along its flow (the drivers'
+`iceDir`); karst where limestone dissolves — few valleys and closed hollows, packed close in the wet tropics; dunes in the
+sand seas, across the wind (along it where the seasons' winds cross); the coast's headlands and coves, hard rock out as
+headlands and soft back into bays. Plains and plateau tops get none, and the rivers are not cut into it. A tile depends only on its own pixels and a
 few km around them, so tiles meet exactly. An export wider than the picture is drawn the same way, band by band — its
 heightmaps included. A moment saved before has no drivers and is shown as before. A finished moment brings **its own
 climate, at its detail**: the grid's climate from the finish's climate stage, each cell's own (its height, its relief)
@@ -120,7 +135,9 @@ and roughened by noise); the rain the cover reads a little smoothed, warped and 
 a few natural colours (red, pale, dark or grey ground; lusher, olive or khaki grass; deeper, olive or bluer forest), with
 a fine brightness mottling; the terrain (S2): tree and snow lines
 by each place's full height, rock and scree on rugged or steep ground (most where dry or cold), in dry country greener
-pole-facing slopes and valleys, the wind's sand seas, loess and the flood basalt that still caps the ground, and a flow
+pole-facing slopes and valleys, the wind's sand seas, loess and the flood basalt that still caps the ground, the bare
+ground's bedrock (red sandstone, pale limestone, white salt, dark slate and ophiolite, pink-grey granite: `COVER.rockTint`;
+the rocks are classified before the cover — plans/V2_LITHOLOGY_RELIEF_PLAN.md L6), and a flow
 texture — an earthy tint by the area each place drains, so every valley network shows faintly; the sea dark by depth with lighter shelves and warm turquoise shallows, sea ice in its season, lakes
 frozen in a cold month; the readout names the ground's biome. On the page the land is drawn in its climates' colours by height
 (`evolution/sat-style.js`): each family of climates (rainforest, savanna, desert, steppe, Mediterranean, temperate,
@@ -169,7 +186,15 @@ samplers, finishedClimateColor and finishedClimateValue) as colour and as a 16-b
 (export-raster.js DATA_SCALES); a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the
 same shade the same height on every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the
 Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
-ground (the Terrain view's density and colouring). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
+ground (the Terrain view's density and colouring). And the geology's, a Geology group (`js/evolution/geology-export.js`): the
+Rocks map (as data, each pixel's rock type, 8-bit, the README listing them), the Deposits map as shown (as data, a richness
+mask per metal, mineral and fuel: 8-bit, 0 none … 255 the richest, the sea black but for oil and gas on the shelf), each
+age's map (as data, a mask for each of its resources and its potential), and two that are not maps, left unprojected: the districts as GeoJSON points and CSV rows
+(resource, kind of deposit, grade, area, landmass, rank, story) and a resource atlas in Markdown (each landmass's rocks,
+metals, fuels and gems, bronze and ironworking, and its richest districts with their stories). Its maps wider than the
+picture are drawn over the detail finer than the mesh, as the others are (its relief and coasts). The rocks, a picture
+as wide as the climate's, are drawn narrower by their commonest (`js/view/export-raster.js` classIndexMap, as the Köppen
+zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
 1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
 detail, narrower ones averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped
 bicubic, coasts, lakes and climate zones by the weighted majority of the nearest pixels, satellite colours blended — then
@@ -206,6 +231,8 @@ node v2/tools/check-invariants.mjs     # invariants through whole histories: lan
 node v2/tools/check-far-field.mjs      # the far field: records only, through cratons onto weak lines, intraplate ranges, mountain
                                        # building held in check over a whole history, the folds and the grain in the terrain
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
+node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md): the record changes no history; seas, cover, wear; rocks; deposits (+ an Earth check); ages; districts and exports; gems; the washes' contrast
+node tuning/geology/earth-deposits.mjs   # the deposits' climate tests on observed Earth beside where bauxite, peat, salt, enriched copper, opal and turquoise are
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
 node v2/tools/trace-coasts.mjs 40000 12345 --stages --drawn 60,300,800 [--png] [--off mechanism,…] [--set key=value,…]
@@ -214,6 +241,9 @@ node v2/tools/trace-coasts.mjs 40000 12345 --stages --drawn 60,300,800 [--png] [
 node v2/tools/render-frames.mjs tug plates            # PNG frames of a scene → v2/out/
 node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 30 --time 290 [--cells 2500000] [--crop lon0,lon1,lat0,lat1] [--probe lat,lon;…] [--lakes] [--rivers [q0]] [--set key=value,…] [--debug]
                                        # a detailed moment (Add detail) headlessly, painted as the page paints it → v2/out/moments/; its lakes and any empty basins
+node --max-old-space-size=16000 v2/tools/render-litho.mjs --phase NAME [--base NAME] [--reuse-finish] [--note "…"] [--moments 432175:300,2024:900]
+                                       # the same moments and places (picked by their rocks) rendered after each change — the planet and its places
+                                       # zoomed in (Terrain, Rocks, Satellite, the height change) → v2/out/litho/, and index.html: any two side by side
 node v2/tools/shoot-lab.mjs 4 56 http://localhost:8123 scene=india   # screenshots + page smoke test (needs the server)
 node v2/tools/probe-play.mjs 8b history 40     # presses Play headlessly: frames painted, the page's long tasks (EXTRA=cells=2500000)
 node v2/tools/bench-lab.mjs 2500000           # the lab's terrain pipeline piece by piece: timings + output hashes (is a speed-up exact?)
@@ -225,7 +255,9 @@ node v2/tools/check-seeds.mjs                 # the seeds: each of 0 … 2,147,4
 
 After a change to what a frame or a detailed moment holds, or to `js/save/`, run `check-save.mjs`: planets saved by an
 earlier World Orogen must keep opening. **Adding** data needs nothing (a new per-cell frame field belongs in
-`snapshot.js`'s `frameArrays`; an older file reads it as zeros — that feature off). **Changing the meaning** of saved data
+`snapshot.js`'s `frameArrays`; an older file reads it as zeros — that feature off: `openPlanet` names the fields a file
+lacks, so the page can turn it off, as it does the geology for a history saved before its record was kept, and Extend
+history leaves them out when it compares its replay, then takes them from it). **Changing the meaning** of saved data
 (an enum's numbering, a byte scale, a layout) needs its version bumped in `js/save/versions.js`, a step from the old
 meaning in `js/save/migrations.js` (for a finish version, none: its old moments are then detailed again), and a new
 fixture (`--fixture`); if `frame-pack.js` packs otherwise, bump `FRAME_CODEC` (the check says so) — the frozen codec 1
@@ -248,7 +280,8 @@ js/core/           geometry with no tectonics in it: rotations, sphere index, si
 js/tectonics/
   config.js        every tunable, in physical units (km, Myr, cm/yr); MECHANISMS = each mechanism's off-switch
   model/           crust.js (CrustRaster: per-plate cells in the plate's own frame; CELL_FIELDS; the type / flag /
-                   orogeny / volcanic enums) · plate.js (Plate) · world.js (TectonicWorld, EventKind, BoundaryKind)
+                   orogeny / volcanic enums) · plate.js (Plate) · world.js (TectonicWorld, EventKind, BoundaryKind) ·
+                   geology.js (GeoFlag; how a frame packs the geological record into bytes, and unpacks it)
   init/            the start world (plans/V2_START_WORLD_PLAN.md): cratons (rifted fragments, some as sibling pairs,
                    in a few clusters) → landmass (each cluster a proto-continent grown outward; major seams where they
                    met; arcs and rifted steps along the margin) → apron + rim trench → world (old ranges along the
@@ -274,6 +307,9 @@ js/tectonics/
                                     their erosion by latitude — records only, the history never reads them
                      rivers:        the history's rivers: drained every few Myr, cutting as they go (gorges
                                     where land rose under them) — records only too
+                     geology:       the geological record (plans/V2_GEOLOGY_PLAN.md): the rock column (sediment
+                                    cover and its make-up, how deep the basement is worn), the sea's stand and the
+                                    shallow seas, forelands and rift basins, time in live arcs — records only too
                      far-field:     a front's push felt far inland (plans/V2_FAR_FIELD_PLAN.md): collisions and
                                     strongly coupled subduction coasts push through their plates every few Myr —
                                     cratons pass it on, weak lines take it up — and where a strong push meets a quiet
@@ -289,6 +325,15 @@ js/tectonics/
   simulate.js      the loop        snapshot.js   Frame (what everything downstream reads)
   ending.js        choose your ending: a history run on until it is in a stage of the supercontinent cycle
   measure.js       measurements on Frames (margins, tallies, force situations), shared by the lab and the checks
+js/geology/        the finish's geology (plans/V2_GEOLOGY_PLAN.md): geology-config (its tunables, in km, with their ranges;
+                   guideRules — where the science overrode Madeline James's guide, each switchable back), rocks (each
+                   finished cell's kind of rock: the frame's rock column read where the terrain read it, with the finish's
+                   cuts and young sediment — G2), deposits (~30 ore, fuel and mineral systems, from the record and the
+                   finished climate and rivers, on a grid — G3, G4; by metal: METALS), ages (each technological age's
+                   resources — its reach and its cut-off over the deposits — and the bronze and ironworking potentials, G5; gems and
+                   building stone, G7), districts (each field's districts, the landmasses and their shares, each
+                   district's kind of deposit and its story from the record — G6), lithology (what each rock does to the
+                   land — limestone's hardness by the climate: plans/V2_LITHOLOGY_RELIEF_PLAN.md)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
   anchor           the fine detail belongs to the crust: plate-frame positions for noise, per-crust-cell random streams
@@ -322,10 +367,11 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
-                   finish-basins (closed basins), finish-sediment (fans, floodplains, deltas; creep by climate),
+                   finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
+                   finish-sediment (fans, floodplains, deltas; creep by climate),
                    finish-ice (the last ice age), finish-wind (sand seas, dunes, pans, loess), finish-hydro (rivers, their
                    regimes, lakes), finish-cover (the land's cover and its colours from space), finish-drivers (what the detail
                    finer than the mesh is drawn from) and fine-detail (that detail: any window of a detailed moment at any
@@ -400,6 +446,72 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    thin-skinned fold-thrust belt over the shield's edge, with no thickening). So orogenies accumulate, and an old belt that drifted through the
    tropics keeps the wear it took there. Constants: terrain-config.js (`upliftBuildKm`, `reliefTauMyr`,
    `thickTauMyr`, `ruggedTauMyr`, `diffusionKm2PerMyr`); a world may carry its own in `world.config.heights`.
+10. **The geological record** (`step/geology.js`, `model/geology.js`; plans/V2_GEOLOGY_PLAN.md G1; records only —
+   `check-geology.mjs` runs a history with `config.geology.records` on and off and finds every frame the same). Each
+   land cell keeps a rock column: sediment cover (`coverKm`, its deepest burial and when, its top's make-up —
+   carbonate, salt, coal, organic-rich mud — by the latitude it was laid at) over the basement, and how deep the
+   basement is worn (`exhumKm`; `unroofKm` since its belt was last active). The heights' wear strips the cover first
+   (heights.js `recordWear`); belts thicken the cover with the crust (orogeny.js `thickenCover`); shelves, inland seas
+   at a high stand, forelands in front of active belts (an intraplate range's too — the far field's: the Tarim beside the
+   Tian Shan) and young rift basins lay it down (every `geology.everyMyr`).
+   The sea's stand comes from the ocean floor's mean depth (GDH1): the lowest land joined to the sea floods, up to
+   `floodShareMax` of it when the oceans are young. Plus the time spent under shallow sea and in a live arc, and the
+   settings the other records forget (`GeoFlag`). The start world's crust is seeded worn deep — its old ranges by their
+   age (`startBeltExhumKm`: the major seams' ~17 km, the inner seams' ~25) — and about half of it under platform cover,
+   in its lowlands between the swells along its seams (`seedGeology`, after heights.js `seedBaseRelief`;
+   `platformLowGain`). Frames carry it a byte or two a cell (~11 % of a packed frame). Constants: config.js
+   `geology`. The finish turns it into rocks (`geology/rocks.js`, its `geology` stage): per cell, the record where the
+   terrain read it (the surface hands over each cell's record cell: synthesize.js `recCell`), read smoothly and through a
+   fractal warp (contacts that wander but stay whole). The basement by its last setting and depth (an arc's volcanics
+   bared to granite, a belt's slate and schist to gneiss, a shield's domes and greenstone keels, ophiolite); the cover as
+   beds cut by the finished surface — older beds crop out where the ground lies below the land around it, so outcrops
+   follow the valleys, and a fold belt's folds bare them in stripes along it; the structure the surface drew followed
+   (it hands over, with the record cell, a cue a cell — synthesize.js `cue`, the heights untouched): an old belt's rock
+   banded as its carving wears it (`oldGrainHardness`: sandstone and gneiss on its ridges, shale, limestone, slate and
+   schist in its troughs — `bandGain`), the far field's folds where the terrain raises them (a crest bares older beds,
+   `farFoldDepthKm`), a shield's greenstone keels on the ridges of its grain (drawn out along the craton's length);
+   young sediment over both (floodplains: the
+   low ground along rivers over `floodplainQ`, wider down bigger ones; deltas and basin floors, `plainsShare` of the
+   land; dunes, loess, moraines) and flood basalt; a majority filter for specks. The land's families come out near
+   Earth's (GLiM); `check-geology.mjs` holds them, and the same at 160K and 640K. The Geology tab's readout reads
+   each pixel's record cell too (its belt, past seas, cover and wear; the record has no view of its own). Drawn wider than the rocks' picture (zoomed in
+   on the fine detail's tiles, or an export enlarged: geology-view.js `rockPixel`), each place takes the kind its four
+   nearest land pixels' bilinear weights favour (as a category map is enlarged: contacts run smoothly between their
+   centres, not round their squares), read through a small fractal warp (so they wander as contacts do); land only, so
+   where the finer coast has land the picture has as sea, the nearest land's rock (no rim of young sediment along every
+   coast); the readout and the rock-index export read them so too. An intraplate range (the far field's) keeps its old
+   line's rocks, raised and folded again, and is named so in the readout and the district stories. Then the deposits (`geology/deposits.js`, the
+   finish's `deposits` stage): ~30 mineral systems, each a source × a way up and a trap × the timing × its exposure
+   (formed so deep, worn so far since: buried → bared → gone), smooth weightings — from the record (porphyry copper and
+   epithermal gold over arcs, zoned across an Andean belt; orogenic gold in mature belts and sutures; VMS on docked arcs
+   and ophiolites; skarns, MVT and SEDEX lead-zinc; tin far inboard; IOCG and Ni-Cu-PGE at craton edges; layered
+   intrusions; native copper in rift basalts; kimberlites, greenstone gold and banded iron on some cratons; one fossil
+   gold reef; oil and gas by source, burial, trap and seal) and from the finished moment (bauxite and laterites,
+   enriched copper, salt and peat by the climate's monthly tests — `tuning/geology/earth-deposits.mjs` runs them on
+   observed Earth; placers carried down the rivers, stripped by the ice; coal; wood by biome). Each fades with the time
+   since it formed (`halfLifeMyr`: shallow ores fast, deep veins slow), and clusters in districts of its own noise — a
+   metal's within provinces (`province`), so a belt is a few endowed stretches; its host is judged per district (the
+   rocks' shares there); richness 0…1 kept per grid
+   cell (0.25° at 2.5M cells, coarser below: never finer than the mesh) and banded poor · moderate · rich.
+   `guideRules`: `coalByWetBelts` (the history's coal: tectonics config `geology.coalByWetBelts`) and
+   `iceStripsPlacers` are wired. The ages (`geology/ages.js`, on the page): each age's resources from the kinds of deposit it
+   can reach, each with a cut-off (only the richness above it counts — an early age wants rich ore at the surface), the
+   Industrial Age the metals whole; bronze potential (copper × tin or arsenic within reach × wood) and ironworking (ore ×
+   fuel within reach). Her gems (G7, deposits.js `group: 'gem'`): pegmatite gems in the granites of collision belts and
+   old mobile belts; emeralds where pegmatites cut old sea floor or in a fold belt's black shale; rubies and sapphires in
+   marble (a carbonate platform caught in a belt and baked 4–24 km down), lapis where granite met it; sapphire and
+   peridot in a hotspot's basalts on land; amethyst in flood basalts; opal and turquoise in dry country (a new climate
+   test, `arid`); garnet in schist and gneiss; gem gravels down the rivers — and her building stone from the rocks.
+   Districts (`geology/districts.js`, G6): a field's moderate-or-better ground in connected patches, a large one split
+   around its peaks (≥ 200 km apart); each district's kind of deposit (its richest source at the peak) and its story,
+   read off the record cells under it (*"formed 1–4 km beneath an Andean range last active 85 Myr ago, bared by ~3 km of
+   erosion since"*); the landmasses (connected land on the grid) and each one's share of every resource. The readout
+   names the district under the pointer, its rank on the world, its story, and its landmass's resources. The Deposits
+   and Ages views draw their washes on plain pale paper with a gentle relief (the sea dark), each colour inked at a set
+   contrast with the ground — more the richer (poor 50, rich 90 of 255, at least half of it in lightness): a pale colour
+   darkened on the paper, a dark one lightened at sea, its hue kept (`geology-view.js ink`; `check-geology.mjs` holds it
+   for every colour, grade and light, and where two colours meet). With Hillshade off the paper is flat; the views follow
+   the map's projections and zoom as every view does.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

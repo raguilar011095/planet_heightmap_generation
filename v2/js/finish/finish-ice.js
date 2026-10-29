@@ -56,7 +56,7 @@ export function lastIceAge(ctx, F) {
     }
     let iceCells = 0;
     for (let c = 0; c < n; c++) iceCells += ice[c];
-    if (!iceCells) return { ice, margin: new Uint8Array(n), iceKm2: 0, sheets: 0, H: null, S: null };
+    if (!iceCells) return { ice, margin: new Uint8Array(n), till: null, iceKm2: 0, sheets: 0, H: null, S: null };
     // ── thickness from the distance to the margin; the surface over the bed smoothed ──
     const toEdge = new Float32Array(n).fill(Infinity);
     for (let c = 0; c < n; c++) if (ice[c]) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) if (!ice[adjList[k]]) { toEdge[c] = 0.5 * edgeKm; break; }
@@ -123,8 +123,11 @@ export function lastIceAge(ctx, F) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) if (ice[adjList[k]]) { margin[c] = 1; past[c] = 0; break; }
     }
     spreadKm(mesh, past, { canEnter: (a, b) => !ice[b] && z[b] > 0, maxKm: 60 });
+    // (and where they are, for the geology's young sediment — till and outwash: 255 at the ice's edge, fading out by 60 km)
+    const till = new Uint8Array(n);
     for (let c = 0; c < n; c++) {
         if (!(past[c] < 60)) continue;
+        till[c] = Math.round(255 * (1 - past[c] / 60));
         const ridge = F.moraineKm * Math.exp(-((past[c] / Math.max(6, edgeKm)) ** 2)), plain = 0.4 * F.moraineKm * (1 - past[c] / 60);
         z[c] += Math.max(ridge, plain);
     }
@@ -133,5 +136,5 @@ export function lastIceAge(ctx, F) {
     for (let c = 0; c < n; c++) { const L = grid.at(loadG, lat[c], ctx.lon[c]); if (L > 0) z[c] -= F.reboundLeft * L; }
     let sheets = 0;
     for (const a of sizes) if (a >= F.iceSheetKm2[1] * 0.3) sheets++;
-    return { ice, margin, iceKm2: iceCells * cellKm2, sheets, H, S };
+    return { ice, margin, till, iceKm2: iceCells * cellKm2, sheets, H, S };
 }

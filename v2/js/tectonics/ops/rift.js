@@ -47,6 +47,10 @@ export function splitPlate(world, plate, path, failedArm, nameFor, across = null
     // The arm that FAILED gets no shoulders (developer): an aulacogen is a trough that sagged and filled with
     // sediment, not a flank that was lifted — it is a weak, low corridor, and later a river’s way to the sea.
     for (const c of failedArm) { const owner = crust.mask[c] ? crust : fresh.crust.mask[c] ? fresh.crust : null; if (owner) owner.flags[c] |= CrustFlag.FAILED_RIFT; }
+    // (the geological record: when each rift basin opened — step/geology.js fills it while it is young; records only)
+    for (const c of path) if (crust.mask[c]) crust.riftAt[c] = time;
+    for (const s of shoulders[1]) fresh.crust.riftAt[s] = time;
+    for (const c of failedArm) { if (crust.mask[c]) crust.riftAt[c] = time; if (fresh.crust.mask[c]) fresh.crust.riftAt[c] = time; }
     // Stretching makes relief too: the flanks a rift opened along are lifted into shoulders (the East African Rift,
     // the Western Ghats, the Brazilian highlands). Recorded here as a belt like any orogeny, so the terrain stage
     // need not work out afterwards where a rift once ran (developer).

@@ -47,12 +47,13 @@ export function planetBytes(frames, fin) {
 /**
  * The planet file of a history and its detailed moment.
  * `settings`: the world's ({seed, cont, len, ending, sim, terrain, greenhouse, rain, more}); `history`: {frames, simMesh,
- * simMyr, steps, stopped, snapshotMyr}; `detail`: {frame (one of the frames), fin (the page's finished moment)};
- * `onProgress(share, text)`.
+ * simMyr, steps, stopped, snapshotMyr, omit (fields not to save: those a history opened from an older file lacked, read
+ * there as zeros — so this file says it lacks them too)}; `detail`: {frame (one of the frames), fin (the page's finished
+ * moment)}; `onProgress(share, text)`.
  * @returns {Promise<{blob: Blob, bytes: number}>} bytes: before compression
  */
 export async function savePlanet({ settings, history, detail, onProgress = () => {} }) {
-    const { frames, simMesh } = history, at = frames.indexOf(detail.frame), moment = momentOf(detail.fin);
+    const { frames, simMesh } = history, at = frames.indexOf(detail.frame), moment = momentOf(detail.fin), omit = new Set(history.omit ?? []);
     if (at < 0) throw new Error('the detailed moment is not one of this history’s');
     // the parts, encoded (their arrays referenced, not copied); the event log once, each frame's own copy as how much of
     // it there was, and any entry it holds otherwise (none, while the log is only ever added to)
@@ -61,7 +62,8 @@ export async function savePlanet({ settings, history, detail, onProgress = () =>
     packed.forEach(({ meta, fields }, i) => {
         const { events = [], ...rest } = meta, differ = [];
         for (let j = 0; j < events.length; j++) if (j >= log.length || JSON.stringify(events[j]) !== logJson[j]) differ.push([j, events[j]]);
-        parts.push([frameName(i), encodeTree({ meta: rest, fields, events: events.length, eventsDiffer: differ })]);
+        const kept = omit.size ? Object.fromEntries(Object.entries(fields).filter(([k]) => !omit.has(k))) : fields;
+        parts.push([frameName(i), encodeTree({ meta: rest, fields: kept, events: events.length, eventsDiffer: differ })]);
     });
     parts.push(['detail/moment', encodeTree(moment)]);
     const total = parts.reduce((a, [, t]) => a + t.byteLength + t.json.length, 0);
@@ -99,7 +101,8 @@ export async function savePlanet({ settings, history, detail, onProgress = () =>
  * compression) — so a page can refuse what it cannot hold before reading any of it. `read({detail, onProgress})` then
  * reads it, an older file's parts as today reads them (migrations.js): {mesh: {numCells, xyz, adjOffset, adjList}, frames:
  * [{meta, fields}] (as frame-pack.js packs them — the page's `new PackedFrame(f)`), detail: {frame (its index), moment}
- * or null (none in the file, `detail: false`, or one too old to read: `detailNote` says so)}. `onProgress(share, text)`.
+ * or null (none in the file, `detail: false`, or one too old to read: `detailNote` says so), lacking: the fields today's
+ * frames carry that the file's lack (read as zeros: migrations.js)}. `onProgress(share, text)`.
  * Throws, saying why, on a file it cannot read.
  */
 export async function openPlanet(blob) {
@@ -133,19 +136,19 @@ export async function openPlanet(blob) {
             return decodeTree(json, arrays);
         };
         onProgress(0, 'Opening the history…');
-        const mesh = await part('history/mesh', 'the history'), log = await part('history/events', 'the history'), frames = [];
+        const mesh = await part('history/mesh', 'the history'), log = await part('history/events', 'the history'), frames = [], lacking = new Set();
         for (let i = 0; i < manifest.history.frames; i++) {
             const f = await part(frameName(i), 'the history');
             const events = log.slice(0, f.events);
             for (const [j, e] of f.eventsDiffer ?? []) events[j] = e;
-            frames.push(migrateFrame({ meta: { ...f.meta, events }, fields: f.fields }, manifest, mesh.numCells));
+            frames.push(migrateFrame({ meta: { ...f.meta, events }, fields: f.fields }, manifest, mesh.numCells, lacking));
         }
         let detail = null, detailNote = hasDetail && !readable ? migrateMoment(null, manifest.finishVersion).note : null;
         if (withDetail) {
             const m = migrateMoment(await part('detail/moment', 'the detailed moment'), manifest.finishVersion);
             if (m.moment) detail = { frame: manifest.detail.frame, moment: m.moment }; else detailNote = m.note;
         }
-        return { mesh, frames, detail, detailNote };
+        return { mesh, frames, detail, detailNote, lacking: [...lacking] };
     }
     return { manifest, historyBytes, detailBytes: readable ? detailBytes : 0, read };
 }

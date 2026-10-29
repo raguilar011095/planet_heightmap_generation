@@ -3,6 +3,8 @@
 // the lab's sliders or a tuning harness can override values per world without touching the defaults.
 // Values marked [WBP] come from Worldbuilding Pasta's Part Va rules of thumb.
 
+import { GEOLOGY } from '../geology/geology-config.js';          // (the guide's rules: the history's coal follows one)
+
 export const CM_PER_YR_TO_KM_PER_MYR = 10;          // 1 cm/yr = 10 km/Myr
 export const CM_PER_YR_TO_RAD_PER_MYR = 10 / 6371; // … = 10/6371 rad/Myr on an Earth-radius sphere
 
@@ -447,6 +449,56 @@ export const TECTONICS = {
     endingQuietMyr: 30,         // "a supercontinent": …with no rift for this long (whole, not yet coming apart)
     endingBreakupMyr: [15, 60], // "breaking up": the first rift since it formed is this old (young seas, the pieces still close)
     endingDispersedShare: 0.45, // "dispersed": broken up, the largest landmass holding no more than this of the continental crust
+
+    // ── The geological record (step/geology.js; plans/V2_GEOLOGY_PLAN.md G1). Records only: the history never reads them ──
+    // (research and sources: plans/V2_GEOLOGY_RESEARCH.md)
+    geology: {
+        records: true,              // keep it (false: none kept — the check that the tectonics never read it runs both ways)
+        everyMyr: 4,                // seas, basins and arcs looked at this often (the wear goes with the heights, every step)
+        // The sea's stand, from the mean depth of the ocean floor (half-space cooling, GDH1): young floor rides high, so a
+        // dispersing world, its oceans young, floods its continents; old floor under a long-lived supercontinent drains them.
+        oceanDepthOldKm: 5.45,      // mean ocean depth at which the sea stands lowest…
+        oceanDepthYoungKm: 4.75,    // …and highest
+        floodShareMin: 0.02,        // share of the land beyond its shelves under shallow sea at the lowest stand (the lowest
+        floodShareMax: 0.3,         // land joined to the sea), and at the highest (Earth's Cretaceous: ~35 % of today's land)
+        shelfKm: { passive: 150, active: 20, other: 60 },   // the continental shelf's width by the coast's kind (a rifted margin's wide)…
+        shelfMaxKm: 0.5,            // …where the land there is no higher than this (a range meeting the sea has none)
+        // Sediment laid on the crust (km per Myr), and what kind by the latitude it lay at then (a zonal palaeoclimate)
+        shelfRateKmPerMyr: 0.03,    // on a shelf (a passive margin's wedge)…
+        epeiricRateKmPerMyr: 0.012, // …under an inland sea…
+        riftRateKmPerMyr: 0.08,     // …in a young rift basin (a failed arm, a new margin), for its first riftBasinMyr
+        riftBasinMyr: 40,
+        forelandRateKmPerMyr: 0.12, // a foreland basin fills this fast at the foot of an active range (the Ganges plain: ~5 km in 20 Myr)…
+        forelandKm: 300,            // …thinning to nothing this far out over the plain (foredeeps 100–300 km wide)…
+        forelandEdgeU: 0.8,         // …from the belt's outer edge (across it, 0 at its front, 1 at its far edge)
+        forelandDepthKm: [0.02, 0.3],   // the history's own sunk basins (heights.js; shallow and few — the terrain draws the
+                                    // foredeeps) fill too: not at all at the first depth below the plain, fully at the second
+        faciesMixKm: 0.5,           // the cover's make-up is that of about its top this many km
+        supplyKm: 350,              // sand and mud reach this far into a sea from high ground (e-folding), so no carbonate there…
+        supplyHighKm: 1.0,          // …ground at least this high
+        restrictedKm: [400, 1200],   // an inland sea this far from the open ocean is restricted: salt in the arid belt, black mud
+        warmLat: [22, 32],          // warm-water carbonate: full equatorward of the first latitude, gone poleward of the second
+        coolCarbonate: 0.25,        // cool-water carbonate's share, poleward of that (low production)
+        aridLat: [12, 18, 32, 38],  // the arid belt: rising over the first two latitudes, falling over the last two
+        wetLat: [8, 14, 34, 40, 58, 66],   // ever-wet tropics (gone over the first two); humid mid-latitudes (between the rest)
+        coalShare: 0.12,            // coal in a wet belt's basin fill, at most
+        coalByWetBelts: GEOLOGY.guideRules.coalByWetBelts,   // coal by the wet belts (science) or within 45° (her guide)
+        saltShare: 0.4,             // salt in a restricted arid sea's or a young arid rift's
+        organicShare: 0.35,         // organic-rich mud in a restricted sea at a high stand, or a young rift's lake
+        crestShare: 0.3,            // of a belt's crests worn away, this share is rock taken off the whole cell
+        crustKm: 35,                // the continental crust's ordinary thickness: shortening that thickens it by x thickens its cover by x / this
+        // The start world's past (seedGeology): ancient crust already worn deep, part of it under platform sediment
+        cratonExhumKm: [12, 28],    // a shield worn down this deep before history began (per craton)…
+        beltExhumKm: [6, 16],       // …the older continental crust about the cratons (its Proterozoic mobile belts)
+        platformCoverKm: 2.5,       // platform sediment over the old crust, at most (in its sags; over half of it)
+        platformNoiseKm: 1500,      // the size of the sags and arches
+        platformLowGain: 1,         // the sags lean to the start world's lowlands (1 − its swells' height, heights.js seedBaseRelief:
+        platformLowMid: 0.9,        // its uplands along the seams bare): the noise + this × (that − this) — about as much under cover
+                                    // as with the noise alone, most of the lowlands and little of the uplands
+        startBeltExhumKm: [8, 26],  // an old range of its assembly (start-world.js oldRanges) worn from the first toward the second the
+        startBeltExhumMyr: 400,     // longer ago it rose (e-folding over this): the major seams' (300 Myr) to ~17 km, the inner seams'
+                                    // (1100 Myr) to ~25 — the Appalachians' schists, the Grenville's gneiss
+    },
 
     // ── The far field (step/far-field.js; plans/V2_FAR_FIELD_PLAN.md). Records only. ──
     // A front's push is felt far inland: cratons pass it on, weak lines take it up (the Tian Shan behind the Tarim block)

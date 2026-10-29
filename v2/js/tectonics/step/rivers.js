@@ -41,16 +41,11 @@ export function evolveRivers(world, dt) {
         const o = owner[w];
         land[w] = 0;
         if (o < 0) continue;
-        const crust = plates[o].crust, c = ownerCell[w], type = crust.type[c];
-        if (type === CrustType.OCEAN) continue;
+        const crust = plates[o].crust, c = ownerCell[w];
+        if (crust.type[c] === CrustType.OCEAN) continue;
         land[w] = 1;
-        let b;
-        if (type === CrustType.CRATON) b = H.cratonKm;
-        else if (type === CrustType.ARC) b = (crust.flags[c] & CrustFlag.MARGIN_ISLE) ? H.foreArcIsleKm
-            : H.arcYoungKm + (H.arcMatureKm - H.arcYoungKm) * Math.min(1, Math.max(0, (time - crust.formedAt[c]) / H.arcMatureMyr)) ** 0.7;
-        else b = H.continentKm;
-        const l = Math.max(0, H.isoMaxKm * (1 - Math.exp(-crust.rootKm[c] * (type === CrustType.ARC ? 0.25 : 1) / H.isoScaleKm)) + crust.upliftKm[c] + crust.baseKm[c]
-            + (crust.volcType[c] === VolcanicType.LIP ? Math.max(0, H.lipLandKm * Math.min(H.lipMaxKm, crust.volcKm[c]) - crust.volcWornKm[c]) : 0));
+        landHeightParts(crust, c, H, time, parts);
+        const b = parts[0], l = parts[1];
         base[w] = b; lift[w] = l; cutNow[w] = Math.min(crust.riverIncKm[c], l + H.riverPlainKm);
         // (a belt still rising keeps pace with its rivers: they cut less there — shaping it, not trenching it)
         hold[w] = 1 - H.riverActiveHold * (crust.oroType[c] ? Math.exp(-Math.max(0, time - crust.oroLast[c]) / H.carveActiveMyr) : 0);
@@ -109,6 +104,26 @@ export function evolveRivers(world, dt) {
         crust.riverIncKm[cc] += cut;
     }
     return 0;
+}
+
+const parts = [0, 0];
+/**
+ * The land's evolved height at raster cell `c` (land crust only), as records.js draws the platform, in two parts:
+ * out[0] what it stands on by its kind of crust, out[1] the relief on that — the root's isostatic lift, the uplift, the
+ * start world's swells, a flood basalt's pile. Their sum is its height above the sea before rivers cut it (step/geology.js
+ * floods the lowest of it at a high stand).
+ */
+export function landHeightParts(crust, c, H, time, out) {
+    const type = crust.type[c];
+    let b;
+    if (type === CrustType.CRATON) b = H.cratonKm;
+    else if (type === CrustType.ARC) b = (crust.flags[c] & CrustFlag.MARGIN_ISLE) ? H.foreArcIsleKm
+        : H.arcYoungKm + (H.arcMatureKm - H.arcYoungKm) * Math.min(1, Math.max(0, (time - crust.formedAt[c]) / H.arcMatureMyr)) ** 0.7;
+    else b = H.continentKm;
+    out[0] = b;
+    out[1] = Math.max(0, H.isoMaxKm * (1 - Math.exp(-crust.rootKm[c] * (type === CrustType.ARC ? 0.25 : 1) / H.isoScaleKm)) + crust.upliftKm[c] + crust.baseKm[c]
+        + (crust.volcType[c] === VolcanicType.LIP ? Math.max(0, H.lipLandKm * Math.min(H.lipMaxKm, crust.volcKm[c]) - crust.volcWornKm[c]) : 0));
+    return out;
 }
 
 // per mesh: the distance (km) along each adjacency entry

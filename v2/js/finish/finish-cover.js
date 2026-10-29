@@ -449,8 +449,10 @@ export function coverRainScale(P, target, out, K = COVER) {
     return out;
 }
 
-/** The bare ground's tint toward the finish's own sand seas, loess and flood basalt at a place (shares 0…1), into vy. */
-export function placeGround(vy, sand, loess, basalt, K = COVER) {
+/** The bare ground's tint toward the finish's own sand seas, loess and flood basalt at a place (shares 0…1), and the rock
+ *  under it (geology/rocks.js Rock, or 0: none), into vy. */
+export function placeGround(vy, sand, loess, basalt, K = COVER, rock = 0) {
+    if (rock > 0) { const t = K.rockTint[rock], s = K.rockTintShare; for (let ch = 0; ch < 3; ch++) vy.soil[ch] *= t[ch] ** s; }
     if (!(sand > 0 || loess > 0 || basalt > 0)) return vy;
     for (let ch = 0; ch < 3; ch++) vy.soil[ch] *= K.sandTint[ch] ** sand * K.loessTint[ch] ** loess * K.basaltTint[ch] ** basalt;
     return vy;

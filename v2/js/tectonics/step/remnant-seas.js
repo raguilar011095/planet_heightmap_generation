@@ -6,6 +6,7 @@
 // about it every time its plate has closed remnantSeaCloseKmPerMyr × dt worth of cell spacing — a suture zone, low.
 
 import { CrustType, CrustFlag } from '../model/crust.js';
+import { GeoFlag } from '../model/geology.js';
 
 /** @returns {number} plates changed (their crust is reshaped: the world view must be rebuilt) */
 export function closeRemnantSeas(world, dt) {
@@ -52,6 +53,7 @@ export function closeRemnantSeas(world, dt) {
             plate.crust.formedAt[c] = time;
             plate.crust.flags[c] = CrustFlag.SUTURE;
             plate.crust.slabKm[c] = 0;
+            if (config.geology?.records) plate.crust.geoFlags[c] |= GeoFlag.OPHIOLITE;   // (the geological record: the sea's floor, thrust up into the land)
         }
         world.budget.remnantClosedCells = (world.budget.remnantClosedCells ?? 0) + shore.length;
         plate.markReshaped();

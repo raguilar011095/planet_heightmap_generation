@@ -2,8 +2,9 @@
 // Evolution — a checklist of every map the page can give, each as its Colour (as shown, in its legend's colours) and / or
 // as Data (the numbers themselves, a greyscale on a fixed scale), for the year, January or July, at a width, centred on
 // a longitude, in a projection (projections.js). One map saves as a PNG; several save as one ZIP with a README.txt that
-// says what every file is. The page supplies the catalogue of its maps and an adapter that draws them (export-raster.js
-// for the shared pieces); this module is the dialog and the run.
+// says what every file is. A row may give files that are not maps (kind 'file': Evolution's districts and resource atlas),
+// saved as they come — not projected or centred. The page supplies the catalogue of its maps and an adapter that draws
+// them (export-raster.js for the shared pieces); this module is the dialog and the run.
 
 import { encodeGrayPng, encodeRgbPng, encodeRgbaPng, downloadBlob } from './png.js';
 import { zipFiles } from './zip.js';
@@ -37,9 +38,11 @@ const tick = () => new Promise(r => setTimeout(r, 0));
 
 /**
  * Build the panel inside `host` (#exportCard — its close button and title stay) and wire it.
- * `catalogue`: [{ id, label, rows: [{ id, label, tip, colour, data: [{ key, suffix, label, scale, bits }], seasonal, needs }] }]
+ * `catalogue`: [{ id, label, rows: [{ id, label, tip, colour, data: [{ key, suffix, label, scale, bits, ext }], seasonal, needs,
+ * offTip }] }] (a data file with an `ext` is not a map: produce gives it as { kind: 'file', blob, about })
  * `adapter`: { page, widths(ctx), available(row, ctx), ensure(rows, progress, ctx), begin(W, opts, ctx), produce(rctx,
- * job, progress), end(rctx), names(ctx), about(ctx, opts), options: { hillshade }, koppenClasses, planetFile? }
+ * job, progress), end(rctx), names(ctx), about(ctx, opts), options: { hillshade }, koppenClasses, readmeLists(files)?,
+ * planetFile? } (readmeLists: more numbered lists for the README, [{ title, items }], given the files it describes)
  * (planetFile, a page that saves its planet whole: { status(ctx) → {ok, note}, save(ctx, progress) → {blob, name} })
  * `onOpen()`: the page's context for this opening (null: nothing to export); `getCenterLon()`: the map view's centre.
  * @returns {{ open(): void, close(): void }}
@@ -91,7 +94,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         g.innerHTML = `<div class="xp-group-title">${group.label}</div>`;
         for (const row of group.rows) {
             const el = document.createElement('div'); el.className = 'xp-row'; el.dataset.id = row.id;
-            const files = row.data && row.data.length > 1 ? `<small>${row.data.map(d => d.suffix).join(' · ')}</small>` : '';
+            const files = row.data && row.data.length > 1 ? `<small>${row.data.map(d => d.suffix || d.ext).join(' · ')}</small>` : '';
             el.innerHTML = `<span class="xp-name">${row.label}${row.seasonal ? ' <span class="xp-sun" title="Changes with the seasons">☼</span>' : ''}${row.tip ? ` <span class="tip" data-tip="${row.tip.replace(/"/g, '&quot;')}">?</span>` : ''}${files}</span>` +
                 `<label class="xp-check">${row.colour ? '<input type="checkbox" data-variant="colour">' : '<i>–</i>'}</label>` +
                 `<label class="xp-check">${row.data ? '<input type="checkbox" data-variant="data">' : '<i>–</i>'}</label>`;
@@ -171,7 +174,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         for (const r of rows) {
             const ok = adapter.available ? adapter.available(r.row, ctx) : true;
             r.el.classList.toggle('xp-off', !ok);
-            r.el.title = ok ? '' : (r.row.needs === 'climate' ? 'Needs the moment\'s climate (Add detail first)' : 'Not available here');
+            r.el.title = ok ? '' : (r.row.offTip ?? (r.row.needs === 'climate' ? 'Needs the moment\'s climate (Add detail first)' : 'Not available here'));
             for (const c of [r.colour, r.data]) if (c) c.disabled = !ok;
         }
         applySelection(saved?.sel || DEFAULT_SELECTION);
@@ -219,12 +222,14 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
                     sub(0, 'drawing'); await tick();
                     let layer = await adapter.produce(rctx, job, sub);
                     if (job.file?.bits === 8 && layer.kind === 'gray16') layer = { ...layer, kind: 'gray8', data: gray16to8(layer.data) };
-                    if (projection !== 'equirect') { sub(0.6, 'projecting'); await tick(); layer = projectLayer(layer, projection, projOpts); }
-                    sub(0.8, 'encoding PNG'); await tick();
-                    const blob = layer.kind === 'rgba' ? (layer.alpha ? await encodeRgbaPng(layer.W, layer.H, layer.data) : await encodeRgbPng(layer.W, layer.H, layer.data))
+                    // (a file that is not a map — the districts, the atlas — as it comes: not projected, not encoded)
+                    const isMap = layer.kind !== 'file';
+                    if (isMap && projection !== 'equirect') { sub(0.6, 'projecting'); await tick(); layer = projectLayer(layer, projection, projOpts); }
+                    if (isMap) { sub(0.8, 'encoding PNG'); await tick(); }
+                    const blob = !isMap ? layer.blob : layer.kind === 'rgba' ? (layer.alpha ? await encodeRgbaPng(layer.W, layer.H, layer.data) : await encodeRgbPng(layer.W, layer.H, layer.data))
                         : await encodeGrayPng(layer.W, layer.H, layer.data, layer.kind === 'gray8' ? 8 : 16);
-                    const name = fileName([...prefix.start, job.row.id === 'color' ? 'colormap' : job.row.id, job.season, job.file?.suffix, job.variant === 'data' && job.row.colour ? 'data' : null, ...prefix.end]);
-                    files.push({ name, blob }); meta.push({ name, label: job.label, season: job.season, file: job.file, kind: layer.kind, W: layer.W, H: layer.H });
+                    const name = fileName([...prefix.start, job.row.id === 'color' ? 'colormap' : job.row.id, job.season, job.file?.suffix, job.variant === 'data' && job.row.colour ? 'data' : null, ...prefix.end], job.file?.ext ?? 'png');
+                    files.push({ name, blob }); meta.push({ name, label: job.label, season: job.season, file: job.file, kind: layer.kind, about: layer.about, W: layer.W, H: layer.H });
                     layer = null; await tick();
                 }
             } finally { if (adapter.end) await adapter.end(rctx); }
@@ -235,7 +240,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
                 if (els.readme.checked) {
                     const { w, h } = projectionSize(projection, W, projOpts), P = PROJECTIONS.find(p => p.id === projection);
                     const about = { ...adapter.about(ctx, opts), width: w, height: h, projection: P.label, projectionNote: P.note, centerLon, hillshade: adapter.options?.hillshade ? opts.hillshade : null };
-                    files.push({ name: 'README.txt', blob: new Blob([readmeText(about, meta, adapter.koppenClasses)], { type: 'text/plain' }) });
+                    files.push({ name: 'README.txt', blob: new Blob([readmeText(about, meta, adapter.koppenClasses, adapter.readmeLists?.(meta) ?? [])], { type: 'text/plain' }) });
                 }
                 out = await zipFiles(files); name = fileName([...prefix.start, 'export', ...prefix.end], 'zip');
             }

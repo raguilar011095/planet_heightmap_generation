@@ -7,14 +7,16 @@
 // width: its own, averaged down, or enlarged for use downstream (developer, 2026-10-17: "allow the different sizes even if
 // it enlarges the pixels … some smart interpolation"): heights by a clamped bicubic, coasts, lakes and climate zones by the
 // weighted majority of the nearest pixels, satellite colours blended — then painted at the full width, so the hillshade,
-// the coasts and the rivers' lines stay sharp.
+// the coasts and the rivers' lines stay sharp. And the geology's (geology-export.js): each of its views' maps, the rock
+// types and a richness mask per resource as data, the districts as GeoJSON and CSV, a resource atlas in words.
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
 import { initExportPanel } from '../view/export-panel.js';
-import { DATA_SCALES as SC, scaled, hillshade8, climateRows } from '../view/export-raster.js';
+import { DATA_SCALES as SC, scaled, hillshade8, climateRows, classIndexMap } from '../view/export-raster.js';
+import { GEOLOGY_GROUP, produceGeology, rockTypesList } from './geology-export.js';
 
 /** The heightmap's scale: black −11 km (below the deepest trench), white +9 km (above the highest peak), linear. */
 export const HEIGHT_RANGE_M = [-11000, 9000];
@@ -39,6 +41,7 @@ export const CATALOGUE = [
         { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief lit from the north-west, on its own — to lay over a flat colour map' },
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
+    GEOLOGY_GROUP,
 ];
 /** The row ids whose colours climate-view.js names otherwise. */
 const CLIMATE_LAYER_OF = { precip: 'rain' };
@@ -146,47 +149,14 @@ export function satelliteMap(fin, W, season, look) {
  * climate picture marks as sea (a coast a pixel apart) takes the nearest zone.
  */
 export function koppenIndexMap(fin, W, centerLon = 0) {
-    const R = fin.climate.raster, H = W >> 1, { sea } = pictureAt(fin, W), out = new Uint8Array(W * H);
-    const s = R.w / W, K = Math.max(1, Math.round(s)), votes = new Float32Array(KOPPEN_RGB.length), bx = [0, 0, 0, 0], by = [0, 0, 0, 0];
-    const bspline = (t, w) => { const t2 = t * t, t3 = t2 * t, u = 1 - t; w[0] = u * u * u / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6; };
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const p = y * W + x;
-        let z = 0;
-        if (!sea[p]) {
-            votes.fill(0);
-            if (s >= 1) {
-                for (let dy = 0; dy < K; dy++) for (let dx = 0; dx < K; dx++) votes[R.koppen[Math.min(R.h - 1, y * K + dy) * R.w + Math.min(R.w - 1, x * K + dx)]]++;
-            } else {
-                const u = (x + 0.5) * s - 0.5, v = (y + 0.5) * s - 0.5, x0 = Math.floor(u), y0 = Math.floor(v);
-                bspline(u - x0, bx); bspline(v - y0, by);
-                for (let j = 0; j < 4; j++) {
-                    const row = Math.min(R.h - 1, Math.max(0, y0 - 1 + j)) * R.w;
-                    for (let i = 0; i < 4; i++) votes[R.koppen[row + ((x0 - 1 + i) % R.w + R.w) % R.w]] += bx[i] * by[j];
-                }
-            }
-            for (let c = 1; c < votes.length; c++) if (votes[c] > votes[z]) z = c;
-            if (!z) z = nearestZone(R, Math.min(R.w - 1, Math.floor((x + 0.5) * s)), Math.min(R.h - 1, Math.floor((y + 0.5) * s)));
-        }
-        out[p] = z;
-    }
-    return rollRows(out, W, H, 1, rollShift(W, centerLon));
+    const R = fin.climate.raster, { sea } = pictureAt(fin, W);
+    return rollRows(classIndexMap(R, R.koppen, KOPPEN_RGB.length, W, sea), W, W >> 1, 1, rollShift(W, centerLon));
 }
 /** The Köppen zones in their colours (the sea in Ocean's colour), from the index map. */
 export function koppenMap(fin, W, centerLon = 0) {
     const idx = koppenIndexMap(fin, W, centerLon), H = W >> 1, rgba = new Uint8ClampedArray(4 * W * H);
     for (let p = 0; p < W * H; p++) { const c = KOPPEN_RGB[idx[p]], o = 4 * p; rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2]; rgba[o + 3] = 255; }
     return { kind: 'rgba', W, H, data: rgba };
-}
-/** The nearest land zone to a climate-picture pixel (a ring at a time, up to 3 pixels out), or 0. */
-function nearestZone(R, cx, cy) {
-    for (let d = 1; d <= 3; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
-        const yy = cy + dy;
-        if (yy < 0 || yy >= R.h) continue;
-        const z = R.koppen[yy * R.w + ((cx + dx) % R.w + R.w) % R.w];
-        if (z) return z;
-    }
-    return 0;
 }
 
 /**
@@ -229,10 +199,15 @@ export function hillshadeMap(fin, W, exaggeration, centerLon = 0) {
 /**
  * One map of a finished moment, W wide, as the panel asks for it: `job` {row (a CATALOGUE row), variant ('colour' or
  * 'data'), file (one of the row's data files), season}; `lk` the look ({lut, exaggeration, water, riverQ, byRegime,
- * shaded, centerLon}). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
+ * shaded, centerLon} — and for the geology's rows the Deposits view's pick, the moment's frame and the seed:
+ * geology-export.js). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
  */
 export function produceMap(fin, W, lk, job) {
     const s = job.season || 'year', id = job.row.id, c = lk.centerLon;
+    if (job.row.geology) {
+        const g = produceGeology(fin, W, lk, job, { pictureAt, paintAt });
+        return g.kind === 'file' ? g : { ...g, data: rollRows(g.data, g.W, g.H, g.kind === 'rgba' ? 4 : 1, rollShift(g.W, c)) };
+    }
     if (job.variant === 'colour') {
         if (id === 'color') return colorMap(fin, W, lk);
         if (id === 'satellite') return satelliteMap(fin, W, s, lk);
@@ -251,8 +226,9 @@ export function produceMap(fin, W, lk, job) {
 
 /**
  * Wire the export panel on the Evolution page. `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null;
- * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }); `centerLon()`: the map view's;
- * `planetFile`: the page's planet file ({ status, save }: export-panel.js), offered beside the maps.
+ * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }, and the geology's: { deposit (the
+ * Deposits view's pick) }); `centerLon()`: the map view's; `planetFile`: the page's planet file ({ status, save }:
+ * export-panel.js), offered beside the maps.
  */
 export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null }) {
     const adapter = {
@@ -260,8 +236,10 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
         options: { hillshade: true },
         planetFile,
         koppenClasses: KOPPEN_CLASSES,
+        readmeLists: rockTypesList,
         widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
-        available: (row, ctx) => (row.needs === 'climate' ? !!ctx.fin.climate?.raster?.koppen : row.needs === 'satellite' ? !!ctx.fin.climate?.raster?.sat : row.needs === 'rivers' ? !!ctx.fin.rivers : true),
+        available: (row, ctx) => (row.needs === 'climate' ? !!ctx.fin.climate?.raster?.koppen : row.needs === 'satellite' ? !!ctx.fin.climate?.raster?.sat : row.needs === 'rivers' ? !!ctx.fin.rivers
+            : row.needs === 'geology' ? !!ctx.fin.raster.geology : row.needs === 'deposits' ? !!ctx.fin.raster.geology?.deposits?.land : true),
         titleNote: (ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`,
         begin: async (W, opts, ctx, progress) => {
             let fin = ctx.fin;
@@ -270,7 +248,7 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
                 const data = await fine(fin, ctx.seed, W, p => progress?.(0, `Adding the detail finer than the mesh… ${Math.round(100 * p)} %`));
                 fin = { ...fin, fine: { W, ...data } };
             }
-            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon }, fin };
+            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon, frame: ctx.frame, seed: ctx.seed }, fin };
         },
         end: async () => {},
         names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },

@@ -294,10 +294,13 @@ function curveOf(mesh, m, field, a, b, c, wa, wb, wc) {
 /**
  * The tectonic surface for terrain cells from…to−1: positions from `xyz`, sim-mesh corners and weights from sCells /
  * sWeights (sampleOnto), heights into heightKm (and the components into `parts`, the carving's inputs into `carve`,
- * if given) — all indexed alike. Every cell depends only on its own position and the plan, so any split of the cells
- * gives the same heights.
+ * the world cell whose record each point shows into `recCell`, and into `cue` — 3 a point, × 127 — the structure the
+ * surface drew there that the rocks follow (geology/rocks.js): an old belt's rock band (+ hard, its ridges; − soft, its
+ * troughs), the far field's folds (+ an anticline, − a syncline) and
+ * a shield's grain (1…127: its greenstone keels high; 0 off a shield), if given) — all indexed alike. Every cell depends
+ * only on its own position and the plan, so any split of the cells gives the same heights.
  */
-export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, from, to, heightKm, parts = null, carve = null) {
+export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, from, to, heightKm, parts = null, carve = null, recCell = null, cue = null) {
     const { rec, Ks, V, A, L, mesh: simMesh } = plan, { cell } = A, p = [0, 0, 0], d = [0, 0, 0], cross = [0, 0];
     const warpN = warpField(seed, cfg, simMesh.edgeKm), loc3 = [0, 0, 0], locw3 = [0, 0, 0], local = [0, 0, 0], warped = [0, 0, 0], r3 = [0, 0, 0], rw3 = [0, 0, 0], q3 = [0, 0, 0], qw3 = [0, 0, 0];
     const anchorOn = cfg.anchorRecords !== false;
@@ -518,6 +521,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             }
         }
         let h, platform = 0, relief = 0, stripes = 0, lipTop = 0, lipKeep = 0, lipAge = 0, ramp = 0, shieldS = 0, rimFade = 1, foldLow = 0, notchMax = 0, combOld = 0, combD = 0, grainNum = 0, grainDen = 0, lipPile = 0, lavaCover = 0, lavaBelow = 0;
+        let foldCue = 0, keelCue = 0;                                   // (for the rocks: the far field's folds, a shield's grain)
 
         if (coast >= 0) {
             // ── land side: the platform over the land corners (interfingering), dropping to the shelf toward the coast ──
@@ -551,7 +555,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 const wander = cfg.farFoldWander * noise.noise3D(x * foldWanderF + 3.3, y * foldWanderF + 17.1, z * foldWanderF + 5.9);
                 // (a trough deepens only ground that stands well above the sea — lowland near the coast hardly sinks: what a
                 // fold lowered there, a basin or a foreland beside it could take under the sea; and never below 40 m)
-                const fold = amp * 1.4 * noise.noise3D(x * f + 13.7, y * f + 4.2, z * f + ph / lam + wander + 8.9);
+                const nv = noise.noise3D(x * f + 13.7, y * f + 4.2, z * f + ph / lam + wander + 8.9), fold = amp * 1.4 * nv;
+                if (cue) foldCue = ff * fade(lam) * Math.max(-1, Math.min(1, 1.4 * nv));        // (for the rocks: the folds' beds)
                 platform += fold > 0 ? fold : fold * smooth(0.04, 0.3, before);
                 if (platform < 0.04 && platform < before) platform = Math.min(before, 0.04);
                 foldLow = Math.min(0, platform - before);                         // (given back below if a basin beside takes it under)
@@ -624,7 +629,10 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                         const ax = CR.acrossW[3 * cT], ay = CR.acrossW[3 * cT + 1], az = CR.acrossW[3 * cT + 2];
                         const f = grainF / grainStretch;
                         const s = (x * ax + y * ay + z * az) * (grainStretch - 1) * f;
-                        platform += k * cfg.cratonGrainKm * grainShow * smooth(0, 150, crN) * (0.7 - 2 * Math.abs(noise.noise3D(x * f + s * ax + 3.3, y * f + s * ay + 8.8, z * f + s * az + 1.1)));
+                        const ridge = 0.7 - 2 * Math.abs(noise.noise3D(x * f + s * ax + 3.3, y * f + s * ay + 8.8, z * f + s * az + 1.1));
+                        platform += k * cfg.cratonGrainKm * grainShow * smooth(0, 150, crN) * ridge;
+                        // (for the rocks: its greenstone keels on these ridges, granite-gneiss in the domes between)
+                        if (cue) keelCue = 1 + Math.round(126 * Math.max(0, Math.min(1, (ridge + 1.3) / 2)));
                     }
                 }
                 if (platform < 0.04 && before >= 0.04) platform = 0.04;            // (a sag or a foredeep is lowland, not sea)
@@ -961,6 +969,20 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
         }
         const cone = coneAt(V, cn, px, py, pz, h);
         heightKm[t] = h + cone;
+        if (recCell) {
+            // the world cell whose record this point shows (for the geology: geology/rocks.js) — the land corner with the
+            // largest noisy share, as the platform interfingers; with no land corner, the heaviest
+            const n0 = land[c0] ? noisy(c0, w0) : 0, n1 = land[c1] ? noisy(c1, w1) : 0, n2 = land[c2] ? noisy(c2, w2) : 0;
+            recCell[t - from] = n0 + n1 + n2 > 0 ? (n0 >= n1 && n0 >= n2 ? c0 : n1 >= n2 ? c1 : c2) : (w0 >= w1 && w0 >= w2 ? c0 : w1 >= w2 ? c1 : c2);
+        }
+        if (cue) {
+            // the structure here the rocks follow: an old belt's band (the carving's hardness below: its ridges hard), the
+            // far field's folds, a shield's grain
+            const j = 3 * (t - from);
+            cue[j] = combOld > 0 && grainDen > 0 ? Math.round(127 * combOld * Math.max(-1, Math.min(1, grainNum / grainDen))) : 0;
+            cue[j + 1] = Math.round(127 * foldCue);
+            cue[j + 2] = keelCue;
+        }
         if (carve) {
             // the carving's inputs here: rock uplift (active belts rise, by their relief, fading once quiet), how easily
             // it erodes (shields and ridge crests are hard), the rain its drainage brings, the hillslope gradient, and the
