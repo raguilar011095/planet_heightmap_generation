@@ -4,31 +4,30 @@
 //              Nile's kind of land); the techniques — flood farming, canals, terraces, raised fields — chips in the
 //              legend, each on or off (not the metal ages: the Andes had terraces and canals and no iron); a soft ramp,
 //              or graded classes;
-//   Staples (C2) — what a place would grow most: rice, wheat and barley, maize and millet, roots and tubers, or herding
-//              — what grows best there with the techniques chosen (not where each was first grown: that is Crop
-//              spread's), stronger the better it grows; a legend chip shows one alone;
-//   Crop spread (C4) — what each place grows of what reached it (farming/spread.js): the hearths where farming began,
-//              numbered pins, and each one's strains spread out from them — a crop's colour, a shade for each strain, a
-//              second crop striped; a legend chip shows one crop's strains alone, another colours by hearth (archetypes,
-//              not species: the real crops are a layer for later, on branch `crops`);
-//   People (C3) — how many the land could feed, pre-industrial, with the techniques chosen (farming/people.js);
+//   Staple food (C2, C6b) — what a place would live on most, as an archetype: paddy grains, cool-season grains,
+//              warm-season grains, roots and tubers, livestock, fish or wild foods (farming/living.js) — stronger the
+//              better it feeds it; striped where a second does nearly as well; a legend chip shows one alone;
+//   Lifestyle (C6b) — how its people would live: farming, herding or gathering (hunting, fishing and gathering —
+//              gatherers keep to their way unless farming or herding would feed ten times as many); striped where a
+//              second does nearly as well; a legend chip shows how many each could feed, alone;
+//   People (C3) — how many the land could feed, pre-industrial, with the techniques chosen, each place by its way of
+//              life (farming/people.js, living.js);
 //   Soil — how fertile the ground is (on flat ground), its kind in the readout: river silt, loess, black earth…;
 //   Growing season — the months crops grow, by rain alone or watered.
-// What the land could grow — not who would live there.
+// In the abstract: what the land would support, not where farming came (the spread of crops, for the next release, is
+// on branch `farming-spread`) nor who lives there.
 
-import { farmPlace, farmClass, harvestsAt, hasHarvests, Staple, STAPLES, STAPLE_WORDS, CROPS, CROP_STAPLE, STAPLE_CROP, TECHNIQUES, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
-import { landPeople, peopleAt, croppedShare } from '../farming/people.js';
-import { spreadGround, spreadHearths, spreadStrains, spreadPlace, strainAt, hearthWords } from '../farming/spread.js';
+import { farmPlace, farmClass, harvestsAt, hasHarvests, Staple, STAPLES, STAPLE_WORDS, CROPS, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
+import { croppedShare } from '../farming/people.js';
+import { LIFESTYLES, LIFESTYLE_WORDS, Lifestyle, GATHER, gatherGround, gatherAt, livingPlace, livingPeople, foodScore, lifestylePeople } from '../farming/living.js';
 import { landPixel } from './climate-view.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 
-export const FARMING_LAYERS = new Set(['farmLand', 'farmStaple', 'farmSpread', 'farmPeople', 'farmSoil', 'farmSeason']);
-export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staples', farmSpread: 'Crop spread', farmPeople: 'People', farmSoil: 'Soil', farmSeason: 'Growing season' };
+export const FARMING_LAYERS = new Set(['farmLand', 'farmStaple', 'farmLife', 'farmPeople', 'farmSoil', 'farmSeason']);
+export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staple food', farmLife: 'Lifestyle', farmPeople: 'People', farmSoil: 'Soil', farmSeason: 'Growing season' };
 /** The techniques chosen and the looks (the legend's chips) — every view's, for as long as the page is open. `only`: the
- *  Staples view's one staple shown alone (a Staple, or 0 for all); `spreadOnly` the Crop spread view's; `byHearth`: Crop
- *  spread coloured by the hearth each place's crops came from; `roll`: which likely history its hearths and crops are
- *  (the legend's Re-roll, a random one, kept in the link: 0 the likeliest). */
-export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, spreadOnly: 0, byHearth: false, roll: 0 };
+ *  Staple food view's one food shown alone (a Staple, or 0 for all); `life` the Lifestyle view's (a Lifestyle). */
+export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, life: 0 };
 /** The options as a key (a picture or a legend made with other options is made again). */
 export const farmOptionsKey = () => Object.entries(farmOptions).map(([k, v]) => `${k}=${+v}`).join(',');
 export const TECHNIQUE_WORDS = { flood: ['Flood farming', 'Sowing the silt a big river’s flood leaves on its plain (Egypt)'], canal: ['Canals', 'Water led off rivers and lakes onto the land beside them — farther from a bigger river (Mesopotamia)'],
@@ -45,19 +44,17 @@ const FARM_RAIN = [[0, [212, 204, 188]], [0.12, [226, 214, 160]], [0.28, [196, 2
 const FARM_WATER = [[0, [212, 204, 188]], [0.12, [204, 230, 212]], [0.28, [150, 220, 194]], [0.45, [74, 198, 168]], [0.65, [26, 166, 146]], [1, [10, 128, 118]]];
 const SOIL = [[0, [226, 210, 178]], [0.25, [216, 190, 140]], [0.5, [182, 136, 88]], [0.75, [124, 84, 54]], [1, [68, 46, 36]]];
 const SEASON = [[0, [214, 206, 192]], [1.5, [232, 214, 150]], [3, [206, 214, 122]], [5, [140, 188, 98]], [8, [64, 148, 86]], [12, [22, 98, 72]]];
-// the staples (by their code, farming.js STAPLES): a hue each, earthy rather than loud (rice jade, wheat straw-gold, maize
-// terracotta, roots plum, herding sage), from a pale ground where it barely grows to most of its hue where it grows well
-const STAPLE_RGB = [[226, 218, 202], [52, 152, 136], [216, 174, 70], [204, 110, 72], [132, 98, 164], [142, 158, 98]];
+// the staple foods (by their code, farming.js STAPLES): a hue each, earthy rather than loud (paddy grains jade, cool-season
+// grains straw-gold, warm-season terracotta, roots plum, livestock sage, fish a slate blue — not the sea's navy — wild
+// foods umber), from a pale ground where it barely feeds a place to most of its hue where it feeds it well
+const STAPLE_RGB = [[226, 218, 202], [52, 152, 136], [216, 174, 70], [204, 110, 72], [132, 98, 164], [142, 158, 98], [74, 118, 186], [126, 92, 56]];
+// the lifestyles (by their code, living.js LIFESTYLES): farming green, herding ochre, gathering violet
+const LIFE_RGB = [[226, 218, 202], [70, 148, 78], [206, 160, 64], [128, 92, 176]];
 const STAPLE_PALE = [226, 218, 202], STAPLE_FULL = 0.9;
 // people a km² (on a log scale): pale where few could live, through straw and amber to a deep crimson where the land
 // could feed the most — the densest river plains
 const PEOPLE = [[0, [216, 210, 198]], [1, [228, 220, 190]], [5, [228, 206, 154]], [20, [216, 170, 108]], [60, [186, 110, 74]], [150, [120, 50, 62]]];
 const PEOPLE_LOG = PEOPLE.map(([v, c]) => [Math.log10(1 + v), c]);
-// the hearths: a colour each — their pins, the Crop spread view by hearth, and one crop's strains alone
-const HEARTH_RGB = [[204, 68, 58], [54, 112, 206], [224, 168, 34], [50, 150, 82], [150, 84, 186], [26, 164, 176], [214, 108, 160], [128, 124, 58]];
-// …and in the Crop spread view's crop colours, each strain of a crop a shade of it (by its hearth's place among the
-// crop's: lighter or darker)
-const STRAIN_SHADE = [0, -0.35, 0.4, -0.55, 0.65, -0.18, 0.2, -0.7], STRAIN_STRENGTH = 0.85;
 const CLASS_WORDS = ['Barren', 'Poor', 'Fair', 'Good', 'Excellent'];
 const CLASS_AT = [0.05, 0.22, 0.38, 0.55, 0.78];                 // (each class's colour: the ramp at its middle)
 function ramp(stops, v, out) {
@@ -85,75 +82,51 @@ function placeAt(F, i, p, e, opt, r) {
     if (!hasHarvests(F)) { r.tech = r.rain = r.harvests = r.harvestsRain = r.water = r.score = 0; r.staple = r.second = Staple.NONE; return r; }
     return farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, opt, r);
 }
-/** The people a finished moment's whole land could feed with the options (farming/people.js), worked out once per moment
- *  and options. */
+/** A finished moment's sea for its gatherers (farming/living.js gatherGround: its fishing grounds), once per moment —
+ *  null without the sea's climate (fish then from fresh water alone). */
+const groundCache = new WeakMap();
+function groundOf(fin) {
+    const R = fin?.raster;
+    if (!R) return null;
+    if (!groundCache.has(R)) groundCache.set(R, gatherGround(R, fin.climate));
+    return groundCache.get(R);
+}
+/** A pixel's way of life (into o: living.js livingPlace's — lifestyle, staple food, people…), from its farming (r: placeAt's,
+ *  which must have run) and what gatherers could live on there (into g), at (lat, lon). */
+function livingAt(F, i, lat, lon, p, r, ground, opt, g, o) {
+    gatherAt(ground, lat, lon, p, F.pasture[i] / 255, g);
+    return livingPlace(r, p, opt, g, o);
+}
+/** The people a finished moment's whole land could feed with the options, each place by its way of life (living.js),
+ *  worked out once per moment and options. */
 const peopleCache = new WeakMap();
 function peopleOf(fin) {
     const F = fin?.raster?.farming, L = fin?.climate?.raster;
     if (!hasHarvests(F) || !L) return null;
     const key = farmOptionsKey(), kept = peopleCache.get(F);
     if (kept?.key === key) return kept.count;
-    const count = landPeople(F, L, farmOptions);
+    const count = livingPeople(F, L, groundOf(fin), farmOptions);
     peopleCache.set(F, { key, count });
     return count;
 }
-/** A finished moment's hearths and the spread of its crops (farming/spread.js) with the techniques chosen, at the roll
- *  (the legend's Re-roll) — the picture read once per moment and techniques, the hearths and their strains' spread again
- *  at each roll (the looks change none). */
-const spreadCache = new WeakMap();
-export function spreadOf(fin) {
-    const F = fin?.raster?.farming, L = fin?.climate?.raster;
-    if (!hasHarvests(F) || !L) return null;
-    const key = TECHNIQUES.map(k => +farmOptions[k]).join(''), roll = farmOptions.roll;
-    let kept = spreadCache.get(F);
-    if (kept?.key !== key) spreadCache.set(F, kept = { key, ground: spreadGround(F, L, farmOptions) });
-    if (kept.base?.roll !== roll) { kept.base = spreadHearths(kept.ground, roll); kept.map = spreadStrains(kept.base); }
-    return kept.map;
-}
-/** Numbered pins on a texture W wide (its 2d context), as thick at any width: `fill`, `ring` and `ink` colours by index. */
-function drawPins(ctx, W, points, fill, ring, ink) {
-    const H = W / 2, r = Math.max(6, W / 340);
-    ctx.save();
-    ctx.font = `bold ${Math.round(1.2 * r)}px system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    points.forEach((s, k) => {
-        const x = (s.lon + 180) / 360 * W, y = (90 - s.lat) / 180 * H;
-        for (const dx of [0, -W, W]) {
-            if (x + dx < -2 * r || x + dx > W + 2 * r) continue;
-            ctx.beginPath(); ctx.arc(x + dx, y, r, 0, 2 * Math.PI);
-            ctx.fillStyle = fill(k); ctx.fill();
-            ctx.lineWidth = Math.max(1.5, r / 4); ctx.strokeStyle = ring(k); ctx.stroke();
-            ctx.fillStyle = ink(k); ctx.fillText(String(k + 1), x + dx, y + r * 0.06);
-        }
-    });
-    ctx.restore();
-}
-/** The hearths drawn on a texture W wide: numbered pins in their colours (the export's; the page draws them over the
- *  planet: farmingPins). */
-export function drawHearths(ctx, W, fin) {
-    const map = spreadOf(fin);
-    if (map) drawPins(ctx, W, map.hearths, k => css(hearthRGB(k)), () => 'rgba(255, 252, 244, 0.95)', () => '#fff');
-}
-const hearthRGB = k => HEARTH_RGB[k % HEARTH_RGB.length];
-/** A strain's colour (into c) in the Crop spread view's crop colours: its staple's, a shade for its hearth's place among
- *  that staple's (the lightness the strain's alone: not paler where it grows less well, as on Staples). */
-function strainColour(map, st, from, c) {
-    stapleColour(st, STRAIN_STRENGTH, c);
-    if (from < 0) return c;
-    let j = 0;
-    for (let h = 0; h < from; h++) if (map.hearths[h].crops.includes(st)) j++;
-    const s = STRAIN_SHADE[j % STRAIN_SHADE.length];
-    for (let i = 0; i < 3; i++) c[i] = s > 0 ? c[i] + (255 - c[i]) * s : c[i] * (1 + s);
-    return c;
-}
-/** A hearth's colour (into c) at a strength: pale where its crop barely grows. */
-function hearthColour(from, score, c) {
-    const t = 0.35 + 0.55 * smooth(0.04, 0.8, score), h = hearthRGB(from);
+/** The stripes of a second food or way of life where it does nearly as well: a band a quarter of each period, ~1.4° of
+ *  the texture's width. */
+const stripe = (x, y, W) => { const P = Math.max(4, Math.round(W / 256)); return (x + y) % P < Math.max(1, P >> 2); };
+/** A way of life's colour (into c), stronger where it feeds more (a km², on a log scale) — pale where few could live. */
+function lifeColour(life, people, c) {
+    const t = life ? 0.5 + 0.4 * smooth(0, 1.5, Math.log10(1 + people)) : 0, h = LIFE_RGB[life];
     for (let i = 0; i < 3; i++) c[i] = STAPLE_PALE[i] + (h[i] - STAPLE_PALE[i]) * t;
     return c;
 }
-/** The Crop spread view's stripes (a second crop; hatched, farmland no crop reached): a band a quarter of each period,
- *  ~1.4° of the texture's width. */
-const stripe = (x, y, W) => { const P = Math.max(4, Math.round(W / 256)); return (x + y) % P < Math.max(1, P >> 2); };
+/** One way of life alone (into c): how many it could feed at a place, on its own scale — a log scale from its own few
+ *  (LIFE_FEW: farming's 1 a km², herding's 0.1, gathering's 0.05) to the most it ever could (farming ~60, herding ~2,
+ *  gathering ~3): pale where few, its hue where the most. */
+const LIFE_MOST = [1, 60, 2, 3], LIFE_FEW = [1, 1, 0.1, 0.05];
+function lifeAloneColour(life, people, c) {
+    const f = LIFE_FEW[life], t = STAPLE_FULL * smooth(0, 1, Math.log10(1 + people / f) / Math.log10(1 + LIFE_MOST[life] / f)), h = LIFE_RGB[life];
+    for (let i = 0; i < 3; i++) c[i] = STAPLE_PALE[i] + (h[i] - STAPLE_PALE[i]) * t;
+    return c;
+}
 /** A staple's colour (into c) at a strength (0…1): pale where it barely grows, its hue where it grows well. */
 function stapleColour(st, score, c) {
     const t = STAPLE_FULL * smooth(0.04, 0.8, score) ** 0.8, h = STAPLE_RGB[st];
@@ -176,7 +149,7 @@ export function finishedFarmingColor(layer, fin, W) {
     const F = fin?.raster?.farming, K = fin?.climate?.raster;
     if (!F || !K) return (out, o, x, y, wet, kk) => { const k = shadeK(kk); const c = wet ? SEA : NONE; out[o] = c[0] * k; out[o + 1] = c[1] * k; out[o + 2] = c[2] * k; out[o + 3] = 255; };
     const p = {}, r = { scores: new Float64Array(STAPLES.length), foods: new Float64Array(STAPLES.length) }, c = [0, 0, 0], tmp = [0, 0, 0], opt = { ...farmOptions }, kef = KOPPEN_ID.EF, e = new Float64Array(2 * CROPS.length);
-    const spread = layer === 'farmSpread' ? spreadOf(fin) : null, sp = {}, H = W >> 1;
+    const living = layer === 'farmStaple' || layer === 'farmLife' || layer === 'farmPeople', ground = living ? groundOf(fin) : null, g = {}, lv = {}, H = W >> 1;
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         const k = shadeK(kk);
         if (wet || lake === 1 || lake === 2) { const s = wet ? SEA : LAKE; out[o] = s[0] * k; out[o + 1] = s[1] * k; out[o + 2] = s[2] * k; out[o + 3] = 255; return; }
@@ -187,27 +160,20 @@ export function finishedFarmingColor(layer, fin, W) {
         else if (layer === 'farmSeason') { partsAt(F, i, p); ramp(SEASON, opt.watered ? p.warm : p.rain, c); }
         else {
             placeAt(F, i, p, e, opt, r);
-            // (Staples: one alone — how well it grows everywhere — or each place's and how well it grows; Farmland: green
-            // by rain, toward aqua as more of it comes from water brought)
-            if (layer === 'farmStaple') { if (opt.only) stapleColour(opt.only, r.scores[opt.only], c); else stapleColour(r.staple, r.score, c); }
-            else if (layer === 'farmPeople') ramp(PEOPLE_LOG, Math.log10(1 + peopleAt(r, p, opt)), c);
-            else if (layer === 'farmSpread' && spread) {
-                const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180;
-                if (opt.spreadOnly) {
-                    // (one crop alone: each hearth's strain in the hearth's colour, paler where it grows less well; hatched
-                    // where it would grow well but never came)
-                    const st = opt.spreadOnly, from = strainAt(spread, st, lat, lon), niche = from >= 0 ? spread.niche(from, st) : null, sc = r.scores[st] * (niche ? niche[K.koppen[i]] : 1);
-                    if (from >= 0 && sc >= 0.04) hearthColour(from, sc, c);
-                    else { for (let ch = 0; ch < 3; ch++) c[ch] = STAPLE_PALE[ch]; if (sc >= 0.25 && stripe(x, y, W)) c.fill(156); }
-                } else {
-                    // (each place's crop — a second one striped — in its crop's colour, a shade for its strain; or its hearth's)
-                    spreadPlace(spread, lat, lon, r.foods, K.koppen[i], sp);
-                    const two = sp.second && stripe(x, y, W), st = two ? sp.second : sp.main, from = two ? sp.secondFrom : sp.mainFrom;
-                    if (!sp.main) { for (let ch = 0; ch < 3; ch++) c[ch] = STAPLE_PALE[ch]; if (sp.missed && stripe(x, y, W)) c.fill(156); }
-                    else if (opt.byHearth && from >= 0) { const niche = spread.niche(from, st); hearthColour(from, r.scores[st] * (niche ? niche[K.koppen[i]] : 1), c); }
-                    else strainColour(spread, st, opt.byHearth ? -1 : from, c);
-                }
-            } else farmColour(r.tech, r.rain, opt.classes, c, tmp);
+            if (living) livingAt(F, i, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, p, r, ground, opt, g, lv);
+            // (Staple food: one alone — how well it would feed each place — or each place's and how well, a second striped;
+            // Lifestyle: one alone — how many it could feed — or each place's, a second striped; Farmland: green by rain,
+            // toward aqua as more of it comes from water brought)
+            if (layer === 'farmStaple') {
+                if (opt.only) stapleColour(opt.only, foodScore(opt.only, r, g), c);
+                else if (lv.second && stripe(x, y, W)) stapleColour(lv.second, foodScore(lv.second, r, g), c);
+                else stapleColour(lv.staple, lv.score, c);
+            } else if (layer === 'farmLife') {
+                if (opt.life) lifeAloneColour(opt.life, lifestylePeople(opt.life, r, p, opt, g), c);
+                else if (lv.secondLife && stripe(x, y, W)) lifeColour(lv.secondLife, lv.people, c);
+                else lifeColour(lv.lifestyle, lv.people, c);
+            } else if (layer === 'farmPeople') ramp(PEOPLE_LOG, Math.log10(1 + lv.people), c);
+            else farmColour(r.tech, r.rain, opt.classes, c, tmp);
         }
         out[o] = Math.min(255, c[0] * k); out[o + 1] = Math.min(255, c[1] * k); out[o + 2] = Math.min(255, c[2] * k); out[o + 3] = 255;
     };
@@ -216,11 +182,13 @@ export function finishedFarmingColor(layer, fin, W) {
 /** A farming quantity as a number at a pixel of a picture `W` wide, for the export's data maps (export.js) — NaN off the
  *  land: `farmTech` and `farmRain` farmland (0…1, the Farmland view's ramp) with the techniques chosen and by rain alone,
  *  `people` a km² (as the People view), `soil` its fertility (0…1), `seasonRain` and `seasonWatered` the growing season
- *  (months), `staple` the staple grown most (a Staple; 0 nothing) — the ice farms nothing. */
+ *  (months), `staple` the staple food (a Staple; 0 nothing), `lifestyle` the way of life (a Lifestyle; 0 uninhabited) —
+ *  the ice farms nothing. */
 export function finishedFarmingValue(key, fin, W) {
     const F = fin?.raster?.farming, K = fin?.climate?.raster, kef = KOPPEN_ID.EF;
     if (!F || !K) return () => NaN;
     const p = {}, r = { scores: new Float64Array(STAPLES.length), foods: new Float64Array(STAPLES.length) }, e = new Float64Array(2 * CROPS.length);
+    const living = key === 'people' || key === 'staple' || key === 'lifestyle', ground = living ? groundOf(fin) : null, g = {}, lv = {}, H = W >> 1;
     return (x, y) => {
         const i = landPixel(K, W, x, y);
         if (i < 0) return NaN;
@@ -228,75 +196,39 @@ export function finishedFarmingValue(key, fin, W) {
         if (key === 'soil') return partsAt(F, i, p).soil;
         if (key === 'seasonRain' || key === 'seasonWatered') { partsAt(F, i, p); return key === 'seasonRain' ? p.rain : p.warm; }
         placeAt(F, i, p, e, farmOptions, r);
-        return key === 'farmTech' ? r.tech : key === 'farmRain' ? r.rain : key === 'people' ? peopleAt(r, p, farmOptions) : key === 'staple' ? r.staple : NaN;
+        if (living) livingAt(F, i, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180, p, r, ground, farmOptions, g, lv);
+        return key === 'farmTech' ? r.tech : key === 'farmRain' ? r.rain : key === 'people' ? lv.people : key === 'staple' ? lv.staple : key === 'lifestyle' ? lv.lifestyle : NaN;
     };
-}
-
-/** The numbered pins a farming view shows (the Crop spread view's hearths), for the page to draw over the planet:
- *  [{lat, lon, label, fill, ring, ink}] — none on the other views. */
-export function farmingPins(layer, fin) {
-    const map = layer === 'farmSpread' ? spreadOf(fin) : null;
-    if (!map) return [];
-    return map.hearths.map((h, k) => ({ lat: h.lat, lon: h.lon, label: String(k + 1), fill: css(hearthRGB(k)), ring: 'rgba(255, 252, 244, 0.95)', ink: '#fff' }));
 }
 
 // ── the legend ──
 /** Each class's share of the land (by area), by rain alone and with the techniques chosen; the soil's and the season's
- *  bands — kept per finished moment and options. */
+ *  bands; each staple food's and each way of life's — kept per finished moment and options. */
 const tallies = new WeakMap();
 function tally(fin) {
     const F = fin.raster.farming, K = fin.climate.raster, key = farmOptionsKey();
     const kept = tallies.get(F);
     if (kept?.key === key) return kept;
-    const rain = new Float64Array(5), tech = new Float64Array(5), soil = new Float64Array(5), season = new Float64Array(5), staple = new Float64Array(STAPLES.length), p = {}, r = {}, kef = KOPPEN_ID.EF;
-    const e = new Float64Array(2 * CROPS.length);
+    const rain = new Float64Array(5), tech = new Float64Array(5), soil = new Float64Array(5), season = new Float64Array(5), staple = new Float64Array(STAPLES.length), life = new Float64Array(LIFESTYLES.length);
+    const p = {}, r = { scores: new Float64Array(STAPLES.length), foods: new Float64Array(STAPLES.length) }, kef = KOPPEN_ID.EF, e = new Float64Array(2 * CROPS.length), ground = groundOf(fin), g = {}, lv = {};
     let land = 0;
     for (let y = 0; y < F.h; y++) {
-        const a = Math.cos(((y + 0.5) / F.h - 0.5) * Math.PI);
+        const lat = 90 - (y + 0.5) / F.h * 180, a = Math.cos(lat * Math.PI / 180);
         for (let x = 0, i = y * F.w; x < F.w; x++, i++) {
-            if (!K.koppen[i] || K.koppen[i] === kef) { if (K.koppen[i]) { land += a; staple[0] += a; } continue; }
+            if (!K.koppen[i] || K.koppen[i] === kef) { if (K.koppen[i]) { land += a; staple[0] += a; life[0] += a; } continue; }
             land += a;
             placeAt(F, i, p, e, farmOptions, r);
             rain[farmClass(r.rain)] += a; tech[farmClass(r.tech)] += a;
             soil[p.soil >= 0.75 ? 4 : p.soil >= 0.5 ? 3 : p.soil >= 0.3 ? 2 : p.soil >= 0.12 ? 1 : 0] += a;
             const s = farmOptions.watered ? p.warm : p.rain;
             season[s >= 8 ? 4 : s >= 5 ? 3 : s >= 3 ? 2 : s >= 1 ? 1 : 0] += a;
-            staple[r.staple] += a;
+            livingAt(F, i, lat, (x + 0.5) / F.w * 360 - 180, p, r, ground, farmOptions, g, lv);
+            staple[lv.staple] += a; life[lv.lifestyle] += a;
         }
     }
-    for (const t of [rain, tech, soil, season, staple]) for (let k = 0; k < t.length; k++) t[k] /= Math.max(1e-9, land);
-    const out = { key, rain, tech, soil, season, staple };
+    for (const t of [rain, tech, soil, season, staple, life]) for (let k = 0; k < t.length; k++) t[k] /= Math.max(1e-9, land);
+    const out = { key, rain, tech, soil, season, staple, life };
     tallies.set(F, out);
-    return out;
-}
-
-/** The Crop spread view's shares of the land (by area, every other pixel): each staple's as the main crop, each hearth's
- *  crops', each hearth's strain of each staple's, the foragers' — kept per finished moment and techniques. */
-const spreadTallies = new WeakMap();
-function spreadTally(fin, map) {
-    const F = fin.raster.farming, K = fin.climate.raster, kept = spreadTallies.get(F);
-    if (kept?.map === map) return kept;
-    const n = map.hearths.length, staple = new Float64Array(STAPLES.length), hearth = new Float64Array(n), strain = Array.from({ length: n }, () => new Float64Array(STAPLES.length));
-    const p = {}, r = { foods: new Float64Array(STAPLES.length) }, e = new Float64Array(2 * CROPS.length), sp = {}, kef = KOPPEN_ID.EF;
-    let land = 0, forage = 0;
-    for (let y = 0; y < F.h; y += 2) {
-        const lat = 90 - (y + 0.5) / F.h * 180, a = Math.cos(lat * Math.PI / 180);
-        for (let x = 0; x < F.w; x += 2) {
-            const i = y * F.w + x;
-            if (!K.koppen[i]) continue;
-            land += a;
-            if (K.koppen[i] === kef) continue;
-            placeAt(F, i, p, e, farmOptions, r);
-            spreadPlace(map, lat, (x + 0.5) / F.w * 360 - 180, r.foods, K.koppen[i], sp);
-            staple[sp.main] += a;
-            if (sp.mainFrom >= 0) { hearth[sp.mainFrom] += a; strain[sp.mainFrom][sp.main] += a; }
-            if (!sp.main && sp.missed) forage += a;
-        }
-    }
-    const k = 1 / Math.max(1e-9, land);
-    for (const t of [staple, hearth, ...strain]) for (let j = 0; j < t.length; j++) t[j] *= k;
-    const out = { map, staple, hearth, strain, forage: forage * k };
-    spreadTallies.set(F, out);
     return out;
 }
 
@@ -317,52 +249,40 @@ export function farmingLegendHTML(layer, fin) {
         note('A month grows crops where it is warm enough (over ~5 °C, fully from 15) and wet enough — its rain, melt and the soil’s water past half what it could evaporate (the FAO’s growing period)');
     const chips = Object.entries(TECHNIQUE_WORDS).map(([k, [label, title]]) => chip(k, label, title, farmOptions[k])).join('');
     if (layer === 'farmStaple') {
-        if (!hasHarvests(fin.raster.farming)) return head('Staples — add detail again to see them (this moment was detailed before the staples were added)');
-        // (each staple a chip with its colour and its share of the land: a click shows it alone, again shows them all)
-        const only = farmOptions.only, staple = k => `<button type="button" class="evo-farm-chip evo-farm-staple${only === k ? ' on' : ''}" data-farm-only="${k}" aria-pressed="${only === k}" ` +
-            `title="${only === k ? 'Show every staple again' : `Show where ${STAPLE_WORDS[k].toLowerCase()} would grow, and how well — alone`}"><i style="background:${css(STAPLE_RGB[k])}"></i>${STAPLE_WORDS[k]} <em>${pct(T.staple[k])}</em></button>`;
-        return head(only ? `Staples — ${STAPLE_WORDS[only].toLowerCase()} alone: where it would grow, and how well` : 'Staples — what each place would grow most') +
-            `<div class="evo-farm-chips">${STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE).map(staple).join('')}</div>` +
-            `<div class="evo-farm-chips">${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it grows less well') +
-            note('What grows best here with these techniques — not where each was first grown, which was culture’s. Rice feeds the most on rich, level, wet ground; ' +
-                'wheat and barley take the cool season; maize, millet and sorghum the warm and the dry; roots the leached tropics and cold highlands; herds the rest');
+        if (!hasHarvests(fin.raster.farming)) return head('Staple food — add detail again to see it (this moment was detailed before the harvests were counted)');
+        // (each food a chip with its colour and its share of the land: a click shows it alone, again shows them all)
+        const only = farmOptions.only, food = k => `<button type="button" class="evo-farm-chip evo-farm-staple${only === k ? ' on' : ''}" data-farm-only="${k}" aria-pressed="${only === k}" ` +
+            `title="${only === k ? 'Show every food again' : `Show where ${STAPLE_WORDS[k].toLowerCase()} would feed people, and how well — alone`}"><i style="background:${css(STAPLE_RGB[k])}"></i>${STAPLE_WORDS[k]} <em>${pct(T.staple[k])}</em></button>`;
+        return head(only ? `Staple food — ${STAPLE_WORDS[only].toLowerCase()} alone: where it would feed people, and how well` : 'Staple food — what each place would live on most') +
+            `<div class="evo-farm-chips">${STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE).map(food).join('')}</div>` +
+            `<div class="evo-farm-chips">${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], `paler where it feeds less well${only ? '' : '; striped where a second does nearly as well'}`) +
+            note('What would feed each place best with these techniques — archetypes, not any one crop. Paddy grains feed the most on rich, level, wet ground; cool-season grains take ' +
+                'the winters and the cool summers; warm-season grains the hot and the dry; roots the leached tropics and cold highlands; livestock the dry grass; ' +
+                'fish the coasts of cold, upwelling seas and the big rivers; wild foods the land no farmer or herder would hold');
     }
-    if (layer === 'farmSpread') {
-        const map = spreadOf(fin);
-        if (!map) return head('Crop spread — add detail again to see it (this moment was detailed before the harvests were counted)');
-        const S2 = spreadTally(fin, map), only = farmOptions.spreadOnly;
-        // (each crop a chip with its colour and its share of the land: a click shows its strains alone, again them all)
-        const crop = k => `<button type="button" class="evo-farm-chip evo-farm-staple${only === k ? ' on' : ''}" data-farm-spread="${k}" aria-pressed="${only === k}" ` +
-            `title="${only === k ? 'Show every crop again' : `Show ${STAPLE_WORDS[k].toLowerCase()} alone: each hearth’s strain of it, and where it would grow but never came`}"><i style="background:${css(STAPLE_RGB[k])}"></i>${STAPLE_WORDS[k]} <em>${pct(S2.staple[k])}</em></button>`;
-        const by = only ? '' : chip('byHearth', 'By hearth', 'Colour each place by the hearth its crops came from, not by the crop', farmOptions.byHearth);
-        // (a re-roll: another likely history — where farming began, what each hearth domesticated)
-        const reroll = '<button type="button" class="evo-farm-chip" data-farm-roll title="Another likely history: where farming began and what each hearth domesticated — ' +
-            'the same rules, the likeliest still likeliest, close runners-up a turn (kept in the page’s link)">Re-roll</button>';
-        const reset = farmOptions.roll ? `<button type="button" class="evo-farm-chip" data-farm-reset title="The likeliest history">Reset</button>` : '';
-        const pin = k => `<b style="background:${css(hearthRGB(k))};border-color:#fff;color:#fff">${k + 1}</b>`;
-        const crops = h => (only ? STAPLE_WORDS[only] : hearthWords(h));
-        const list = map.hearths.map((h, k) => (only && !h.crops.includes(only) ? '' : `<div class="evo-hearth">${pin(k)}<span>${crops(h)} — ` +
-            (only ? `the main crop on ${pct(S2.strain[k][only])} of the land` : `its crops the main ones on ${pct(S2.hearth[k])} of the land`) + '</span></div>')).join('');
-        return head(only ? `Crop spread — ${STAPLE_WORDS[only].toLowerCase()} alone: each hearth’s strain, where it spread` : 'Crop spread — where each place’s crops came from') +
-            `<div class="evo-farm-chips">${CROP_STAPLE.map(crop).join('')}${by}</div><div class="evo-farm-chips">${chips}</div>` +
-            `<div class="evo-farm-chips">${reroll}${reset}</div>` + list +
-            (only ? note('Hatched: where it would grow well but no strain of it ever came — paler where it grows less well')
-                : note((farmOptions.byHearth ? 'Each hearth its colour (its pin’s), paler where its crop grows less well' : 'Each crop its colour, each hearth’s strain a shade of it') +
-                    `; striped where a second crop does nearly as well; herds where no crop that came does as well (${pct(S2.staple[Staple.HERDING])} of the land)` +
-                    (S2.forage >= 0.005 ? `. Hatched: farmland no crop that grows there ever reached — foragers’ (${pct(S2.forage)})` : ''))) +
-            note('Each hearth’s strains are at home in its climates — domesticated there, they grow best in them; one more at home come from near can win a place from the first to reach it, never one from over a long sea') +
-            note('Farming began at a few hearths far apart — a major desert, mountain range or sea between them, or a continent’s breadth — each domesticating the staples that grew best around it. ' +
-                'Over thousands of years each strain spread wherever it grows: fast along rivers, coasts and plains, slowly over hills, deserts, mountains and land it does not suit, ' +
-                'over seas where none grew yet but never an ocean’s breadth; a place grows one strain of each crop — the first to reach it — and the one or two of those that do best there');
+    if (layer === 'farmLife') {
+        if (!hasHarvests(fin.raster.farming)) return head('Lifestyle — add detail again to see it (this moment was detailed before the harvests were counted)');
+        // (each way of life a chip with its colour and its share of the land: a click shows how many it could feed, alone)
+        const one = farmOptions.life, way = k => `<button type="button" class="evo-farm-chip evo-farm-staple${one === k ? ' on' : ''}" data-farm-life="${k}" aria-pressed="${one === k}" ` +
+            `title="${one === k ? 'Show every way of life again' : `Show how many ${LIFESTYLE_WORDS[k].toLowerCase()} could feed — alone`}"><i style="background:${css(LIFE_RGB[k])}"></i>${LIFESTYLE_WORDS[k]} <em>${pct(T.life[k])}</em></button>`;
+        return head(one ? `Lifestyle — ${LIFESTYLE_WORDS[one].toLowerCase()} alone: how many it could feed` : 'Lifestyle — how each place’s people would live') +
+            `<div class="evo-farm-chips">${[Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].map(way).join('')}</div>` +
+            `<div class="evo-farm-chips">${chips}</div>` +
+            bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], one ? 'paler where it feeds fewer' : 'paler where few could live; striped where a second does nearly as well') +
+            note(`Gathering is hunting, fishing and gathering: the coasts of cold, upwelling seas, big rivers and lakes, and the land’s own plants and game. Gatherers keep to their way unless farming or herding would feed ${GATHER.hold} times as many — ` +
+                'so rich coasts can stay theirs, as the Pacific Northwest’s did; farming where crops feed most, herding where only grass grows well') +
+            (T.life[0] >= 0.005 ? note(`Uninhabited: ${pct(T.life[0])} of the land — ice, and land too barren for anyone to live on`) : '');
     }
     if (layer === 'farmPeople') {
         const count = peopleOf(fin);
         if (!count) return head('People — add detail again to see them (this moment was detailed before the harvests were counted)');
-        const millions = v => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} billion` : `${Math.round(v / 1e6).toLocaleString()} million`);
+        const millions = v => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} billion` : v >= 1e6 ? `${Math.round(v / 1e6).toLocaleString()} million` : `${Math.round(v / 1e3).toLocaleString()} thousand`);
+        const by = [Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].filter(k => count.byLife[k] > 0).map(k => `${LIFESTYLE_WORDS[k].toLowerCase()} ${millions(count.byLife[k])}`).join(', ');
         return head('People — how many the land could feed, pre-industrial, with these techniques') + `<div class="evo-farm-chips">${chips}</div>` +
             bar(PEOPLE_LOG, '1 · 5 · 20 · 60 · 150+ a km²') +
-            note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average; its richest river plains well over 100. ` +
-                'Poor ground is farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km². What it could support, not how many would live there');
+            note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average (${by}); its richest river plains well over 100. ` +
+                'Each place by its way of life (the Lifestyle view): poor ground farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km² — ' +
+                'herders a km² or two, gatherers a tenth to a few. What it could support, not how many would live there');
     }
     // Farmland
     const any = farmOptions.flood || farmOptions.canal;
@@ -379,13 +299,10 @@ export function farmingLegendHTML(layer, fin) {
 
 /** A click on a legend chip: its option flipped; true if it was one. */
 export function farmChipClicked(target) {
-    if (target.closest?.('[data-farm-reset]')) { farmOptions.roll = 0; return true; }
-    // (a re-roll: another roll, at random as a seed is)
-    if (target.closest?.('[data-farm-roll]')) { farmOptions.roll = 1 + Math.floor(Math.random() * 999999); return true; }
-    const crop = target.closest?.('[data-farm-spread]');
-    if (crop) { const k = Number(crop.dataset.farmSpread); farmOptions.spreadOnly = farmOptions.spreadOnly === k ? 0 : k; return true; }
     const one = target.closest?.('[data-farm-only]');
     if (one) { const k = Number(one.dataset.farmOnly); farmOptions.only = farmOptions.only === k ? 0 : k; return true; }
+    const life = target.closest?.('[data-farm-life]');
+    if (life) { const k = Number(life.dataset.farmLife); farmOptions.life = farmOptions.life === k ? 0 : k; return true; }
     const b = target.closest?.('[data-farm]');
     if (!b) return false;
     farmOptions[b.dataset.farm] = !farmOptions[b.dataset.farm];
@@ -403,36 +320,22 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     if (i < 0) return [];
     const L = (label, text) => `<span class="hi-label">${label}</span> ${text}`;
     if (K.koppen[i] === KOPPEN_ID.EF) return [L('Farmland', 'none — under ice')];
-    const p = {}, opt = farmOptions, r = placeAt(F, i, p, new Float64Array(2 * CROPS.length), opt, { foods: new Float64Array(STAPLES.length) }), lines = [];
+    const p = {}, opt = farmOptions, r = placeAt(F, i, p, new Float64Array(2 * CROPS.length), opt, { scores: new Float64Array(STAPLES.length), foods: new Float64Array(STAPLES.length) }), lines = [];
     if (!hasHarvests(F)) return [L('Farmland', 'add detail again to see it')];
+    const lv = livingAt(F, i, 90 - v * 180, u * 360 - 180, p, r, groundOf(fin), opt, {}, {});
+    // (its way of life and its staple food — a second where it does nearly as well)
+    lines.push(L('Lifestyle', lv.lifestyle ? `<b>${LIFESTYLE_WORDS[lv.lifestyle]}</b>${lv.secondLife ? ` · and ${LIFESTYLE_WORDS[lv.secondLife].toLowerCase()}` : ''}` : 'uninhabited'));
+    if (lv.staple) lines.push(L('Staple food', `<b>${STAPLE_WORDS[lv.staple]}</b>${lv.second ? ` · then ${STAPLE_WORDS[lv.second].toLowerCase()}` : ''}`));
+    // (how many it could feed; on poor ground, how long its fields rest — a year cropped in so many, shifting
+    // cultivation's; gatherers' land, what farming or herding would have fed instead)
+    const n = v => (v < 10 ? v.toFixed(v < 1 ? 2 : 1) : String(Math.round(v)));
+    const every = Math.round(1 / croppedShare(p, opt)), rested = lv.lifestyle === Lifestyle.FARMING && every >= 2 ? ` · a field cropped ~1 year in ${every}` : '';
+    const instead = lv.lifestyle === Lifestyle.GATHERING && lv.landPeople >= 0.05 ? ` · ${r.staple === Staple.HERDING ? 'herding' : 'farming'} ~${n(lv.landPeople)} — not ${GATHER.hold}× as many` : '';
+    lines.push(L('People', lv.people < 0.005 ? 'too few to count' : `could feed ~${n(lv.people)} a km²${rested}${instead}`));
     const cls = farmClass(r.tech), clsRain = farmClass(r.rain);
     // (the harvests a year: whole ones in words, a part one as "about"; the second crop of a rotation counted in them)
     const hw = h => (h < 0.15 ? 'no sure harvest' : h < 0.75 ? 'a poor harvest' : h < 1.35 ? 'one harvest a year' : h < 1.75 ? 'one and a half harvests a year' : `about ${Math.round(h)} harvests a year`);
     lines.push(L('Farmland', `<b>${CLASS_WORDS[cls]}</b> · ${hw(r.harvests)}${cls !== clsRain ? ` · by rain alone ${CLASS_WORDS[clsRain].toLowerCase()}` : ''}`));
-    lines.push(L('Staple', r.staple ? `<b>${STAPLE_WORDS[r.staple]}</b>${r.second ? ` · then ${STAPLE_WORDS[r.second].toLowerCase()}` : ''}` : 'nothing grown'));
-    // (and on poor ground, how long its fields rest: a year cropped in so many — shifting cultivation's)
-    const ppl = peopleAt(r, p, opt), every = Math.round(1 / croppedShare(p, opt)), rested = r.staple && r.staple !== Staple.HERDING && every >= 2 ? ` · a field cropped ~1 year in ${every}` : '';
-    lines.push(L('People', ppl < 0.5 ? 'too few to count' : `could feed ~${ppl < 10 ? ppl.toFixed(1) : Math.round(ppl)} a km²${rested}`));
-    if (layer === 'farmSpread') {
-        const map = spreadOf(fin);
-        if (map) {
-            const sp = spreadPlace(map, 90 - v * 180, u * 360 - 180, r.foods, K.koppen[i], {});
-            // (each crop's strain: its hearth, and how far it came — along the way it took; two from one hearth said once)
-            const strain = (st, h) => {
-                if (h < 0) return '';
-                const km = map.km[STAPLE_CROP[st]][sp.cell];
-                return ` — hearth ${h + 1}’s${km >= 300 ? `, come ~${(Math.round(km / 100) * 100).toLocaleString()} km` : ''}`;
-            };
-            const second = sp.second ? STAPLE_WORDS[sp.second].toLowerCase() : '', main = `<b>${STAPLE_WORDS[sp.main]}</b>`;
-            const crops = !sp.main ? (sp.missed ? 'none — foragers: no crop that grows here ever reached it' : 'nothing grown')
-                : !sp.second ? `${main}${strain(sp.main, sp.mainFrom)}`
-                : sp.secondFrom === sp.mainFrom ? `${main} and ${second}${strain(sp.main, sp.mainFrom)}`
-                : sp.mainFrom < 0 ? `${main} · and ${second}${strain(sp.second, sp.secondFrom)}`
-                : `${main}${strain(sp.main, sp.mainFrom)} · and ${sp.secondFrom < 0 ? 'herds' : `${second}${strain(sp.second, sp.secondFrom)}`}`;
-            lines.unshift(L('Crops', crops));
-            if (sp.missed) lines.splice(1, 0, L('Never came', `${STAPLE_WORDS[sp.missed]} would feed more here — no strain of it ever reached it`));
-        }
-    }
     if (r.water >= 0.05 && (opt.flood || opt.canal)) {
         const how = opt.flood && p.flood >= p.canal * 0.8 && p.flood >= 0.05 ? 'a big river’s floodplain' : 'canals from a river or lake';
         lines.push(L('Water', `${how}${r.water < 0.5 ? ' (its edge)' : ''}`));

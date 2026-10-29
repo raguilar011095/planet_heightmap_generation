@@ -6,11 +6,10 @@
 // barley in the cool-season climates, maize and millet in the warm summer-rain ones, roots on the leached tropics,
 // herding on the steppes); a watered desert grows wheat and barley, not rice.
 // C3 — people: how many the land could feed, plausible and the same at two details; quick on the page.
-// C4 — hearths and the spread of crops: a few hearths, far apart by the way crops travel; every staple domesticated
-// somewhere, each hearth two or three; its strains spread far — over seas, never the open ocean — leaving little good crop
-// land unreached and little farmland to foragers; the hearths and their staples the same whatever the techniques; each
-// strain grown more at home — in its hearth's climates — than were no strain at home anywhere; the same at two details;
-// quick on the page. (Archetypes, not species: the real crops' checks went with them to branch `crops`.)
+// C6b — staple food and lifestyle (farming/living.js): the same at two details; farming on the good farmland; gatherers
+// where nothing would be farmed or herded, as many a km² as the ethnographic record's foragers, the sea's fish richer on
+// cold coasts than on warm ones; little land uninhabited; herders still on the cold steppes; the land's people plausible;
+// quick on the page. (The spread of crops — C4 — is on branch `farming-spread`; the real crops on branch `crops`.)
 // Usage: node v2/tools/check-farming.mjs
 
 import { check, section, finish, labMesh } from './lib/check-kit.mjs';
@@ -21,9 +20,9 @@ import { GEO_FRAME_FIELDS } from '../js/tectonics/model/geology.js';
 import { TerrainPool, FRAME_FIELDS } from '../js/terrain/terrain-pool.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { landPeople } from '../js/farming/people.js';
-import { spreadMap, spreadBase, spreadGround, spreadHearths, spreadStrains, spreadPlace, hearthWords, SPREAD } from '../js/farming/spread.js';
-import { KOPPEN_ID, KOPPEN_CLASSES } from '../js/climate/koppen.js';
-import { farmPlace, farmClass, harvestsAt, SoilKind, SoilMod, Staple, STAPLES, STAPLE_WORDS, CROPS, CROP_STAPLE } from '../js/farming/farming.js';
+import { gatherGround, gatherAt, livingPlace, livingPeople, partsOf, Lifestyle, LIFESTYLE_WORDS, GATHER } from '../js/farming/living.js';
+import { KOPPEN_ID } from '../js/climate/koppen.js';
+import { farmPlace, farmClass, harvestsAt, SoilKind, SoilMod, Staple, STAPLES, STAPLE_WORDS, CROPS } from '../js/farming/farming.js';
 
 const SEED = 12345, SIM = 20000, UNTIL = 400;
 const mesh = labMesh(SIM), scene = TERRAIN_SCENES.find(s => s.id === 'cycle');
@@ -160,125 +159,52 @@ section('C3 — people');
     check('…worked out quickly on the page (≤ 1.5 s)', ms <= 1500, `${ms.toFixed(0)} ms`);
 }
 
-section('C4 — hearths and the spread of crops');
+section('C6b — staple food and lifestyle');
 {
-    const t0 = performance.now(), fineMap = spreadMap(pf.farming, pf.climate, ALL), ms = performance.now() - t0;
-    const coarseMap = spreadMap(pc.farming, pc.climate, ALL), H = fineMap.hearths, d = Math.PI / 180;
-    const km = (a, b) => 6371 * Math.acos(Math.min(1, Math.sin(a.lat * d) * Math.sin(b.lat * d) + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.cos((a.lon - b.lon) * d)));
-    const words = m => m.hearths.map((h, k) => `${k + 1}. ${h.lat.toFixed(0)}°, ${h.lon.toFixed(0)}° — ${hearthWords(h)} (${h.climate.filter(([, s]) => s >= 0.15).map(([code]) => code).join(' ')})`).join('\n         ');
-    console.log(`      640K: ${H.length} hearths\n         ${words(fineMap)}`);
-    console.log(`      160K: ${coarseMap.hearths.length} hearths\n         ${words(coarseMap)}`);
-    check('a few hearths: 3–8', H.length >= 3 && H.length <= SPREAD.hearthsMax, `${H.length}`);
-    let near = Infinity, cheap = Infinity;
-    H.forEach((a, i) => H.forEach((b, j) => { if (i !== j) { near = Math.min(near, km(a, b)); cheap = Math.min(cheap, fineMap.apart[i][j]); } }));
-    check(`…far apart: ≥ ${SPREAD.apartKm} km, and ≥ ${SPREAD.apartCost} by the way crops travel (a major barrier or a continent’s breadth between)`, near >= SPREAD.apartKm && cheap >= SPREAD.apartCost,
-        `nearest ${Math.round(near)} km, cheapest way ${cheap === Infinity ? 'past the reach' : Math.round(cheap)}`);
-    check('…each domesticating two or three staples', H.every(h => h.crops.length >= SPREAD.domesticMin && h.crops.length <= SPREAD.domesticMax), H.map(h => h.crops.length).join(' '));
-    const from = CROP_STAPLE.map(st => H.filter(h => h.crops.includes(st)).length);
-    check('every staple domesticated somewhere (rice, wheat and barley, maize and millet, roots and tubers)', from.every(n => n >= 1), from.join(' · '));
-    const bare = spreadMap(pf.farming, pf.climate, NONE);
-    const same = bare.hearths.length === H.length && bare.hearths.every((h, k) => h.cell === H[k].cell && h.crops.join() === H[k].crops.join());
-    check('the hearths and their staples the same whatever the techniques (the first farmers had none)', same, same ? '' : bare.hearths.map(h => `${h.lat.toFixed(0)}°, ${h.lon.toFixed(0)}°`).join(' · '));
-    // (each hearth's strains spread far from it — the farthest a continent's breadth; over the sea, its coasts and narrows, not open ocean)
-    const g = fineMap.grid, far = H.map(() => 0), F = pf.farming, landMask = new Float32Array(g.size);
-    // (the open ocean: no land within oceanKm — never crossed; and the good land for each crop — it grows well there — that
-    // no strain of it reached)
-    for (let y = 0; y < F.h; y += 2) for (let x = 0; x < F.w; x += 2) if (pf.climate.koppen[y * F.w + x]) landMask[g.index(90 - (y + 0.5) / F.h * 180, (x + 0.5) / F.w * 360 - 180)] = 1;
-    const nearLand = g.maxWithin(landMask, SPREAD.oceanKm), gb = spreadBase(pf.farming, pf.climate, ALL);
-    // (the window is a box of latitude and longitude: near a pole it misses land across it — there, the great-circle
-    // distance to the nearest land settles it)
-    const lands = [], unit = c => { const la = (90 - (Math.floor(c / g.w) + 0.5) * g.step) * d, lo = ((c % g.w + 0.5) * g.step - 180) * d; return [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)]; };
-    for (let c = 0; c < g.size; c++) if (landMask[c]) lands.push(unit(c));
-    const cosOcean = Math.cos(SPREAD.oceanKm / 6371), across = new Map();
-    const landNear = c => {
-        if (nearLand[c] > 0) return true;
-        if (!across.has(c)) { const [x, y, z] = unit(c); across.set(c, lands.some(p => p[0] * x + p[1] * y + p[2] * z >= cosOcean)); }
-        return across.get(c);
+    // (each pixel of a picture's land: its farming, what gatherers could live on, its way of life — and its Köppen class,
+    // its farmland class, the sea's temperature off its coast)
+    const lives = pic => {
+        const F = pic.farming, L = pic.climate, out = [], t0 = performance.now(), ground = gatherGround(pic, pic === pf ? fine.climate.page : coarse.climate.page), ms = performance.now() - t0;
+        const p = {}, e = new Float64Array(2 * CROPS.length), r = { scores: new Float64Array(STAPLES.length), foods: new Float64Array(STAPLES.length) }, g = {}, o = {};
+        for (let y = 0; y < F.h; y += 2) for (let x = 0; x < F.w; x += 2) {
+            const i = y * F.w + x;
+            if (!L.koppen[i] || L.koppen[i] === KOPPEN_ID.EF) continue;
+            const lat = 90 - (y + 0.5) / F.h * 180, lon = (x + 0.5) / F.w * 360 - 180;
+            partsOf(F, i, p);
+            farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, ALL, r);
+            gatherAt(ground, lat, lon, p, F.pasture[i] / 255, g);
+            livingPlace(r, p, ALL, g, o);
+            out.push({ a: Math.cos(lat * Math.PI / 180), koppen: L.koppen[i], cls: farmClass(r.tech), land: r.staple, life: o.lifestyle, staple: o.staple, people: o.people, gather: g.people, fish: g.fish, water: Math.max(p.flood, p.canal) });
+        }
+        return { list: out, ground, ms };
     };
-    let open = 0, good = 0, unreached = 0;
-    for (let k = 0; k < CROPS.length; k++) for (let c = 0; c < g.size; c++) {
-        const o = fineMap.owner[k][c], a = Math.cos((90 - (Math.floor(c / g.w) + 0.5) * g.step) * d);
-        if (gb.land[c] > 0 && gb.fit[k][c] >= 0.3) { good += a; if (o < 0) unreached += a; }
-        if (o < 0) continue;
-        far[o] = Math.max(far[o], fineMap.km[k][c]);
-        if (!landNear(c)) open += a;
-    }
-    check('…each hearth’s strains spread far (≥ 1500 km from it)', far.every(v => v >= 1500), far.map(v => `${Math.round(v)} km`).join(' · '));
-    check('…over seas but never the open ocean (nothing reached past ~1000 km from land)', open === 0, across.size ? `(${across.size} places near a pole measured across it)` : '');
-    check('…leaving little good crop land unreached (≤ 10 % of where each crop grows well)', unreached <= 0.1 * good, `${(100 * unreached / Math.max(1e-9, good)).toFixed(1)} %`);
-    // (each place's crops: a second where one does nearly as well — a minority; little farmland no crop reached; each strain
-    // at home — its hearth's niche where it is the main crop, against a spread where no strain is at home anywhere)
-    const base = spreadBase(pf.farming, pf.climate, ALL), plain = spreadStrains(base, { ...SPREAD, homeBias: 0 }), op = {};
-    const nicheAt = (st, j, code) => fineMap.niche(j, st)?.[code] ?? 1;
-    let crop = 0, two = 0, forage = 0, inNiche = 0, inNichePlain = 0, named = 0, namedPlain = 0;
-    const p = {}, e = new Float64Array(2 * CROPS.length), r = { foods: new Float64Array(STAPLES.length) }, o = {};
-    for (let y = 0; y < F.h; y += 4) for (let x = 0; x < F.w; x += 4) {
-        const i = y * F.w + x;
-        if (!pf.climate.koppen[i] || pf.climate.koppen[i] === KOPPEN_ID.EF) continue;
-        const lat = 90 - (y + 0.5) / F.h * 180, a = Math.cos(lat * d);
-        Object.assign(p, { soil: F.soil[i] / 255, flood: F.flood[i] / 255, canal: F.canal[i] / 255, slope: 2 * F.slope[i], wetland: F.wetland[i] / 255 });
-        farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, ALL, r);
-        spreadPlace(fineMap, lat, (x + 0.5) / F.w * 360 - 180, r.foods, pf.climate.koppen[i], o);
-        if (o.main) { crop += a; if (o.second) two += a; } else if (o.missed) forage += a;
-        if (o.mainFrom >= 0) { inNiche += a * nicheAt(o.main, o.mainFrom, pf.climate.koppen[i]); named += a; }
-        spreadPlace(plain, lat, (x + 0.5) / F.w * 360 - 180, r.foods, pf.climate.koppen[i], op);
-        if (op.mainFrom >= 0) { inNichePlain += a * nicheAt(op.main, op.mainFrom, pf.climate.koppen[i]); namedPlain += a; }
-    }
-    const niche = inNiche / Math.max(1e-9, named), nichePlain = inNichePlain / Math.max(1e-9, namedPlain);
-    check('each strain grown more at home — in its hearth’s climates: its niche where it is the main crop ≥ 0.8, and above a spread with no strain at home', niche >= 0.8 && niche > nichePlain + 0.01,
-        `${nichePlain.toFixed(3)} → ${niche.toFixed(3)}`);
-    check('one crop a place, two on a minority (≤ 45 %)', two <= 0.45 * crop, `${(100 * two / crop).toFixed(0)} %`);
-    check('little farmland left to foragers (≤ 15 % of the land grown on or not)', forage <= 0.15 * (crop + forage), `${(100 * forage / (crop + forage)).toFixed(1)} %`);
-    const matched = H.slice(0, 3).filter(h => coarseMap.hearths.some(c => km(h, c) < 1000)).length;
-    check('the same at 160K: the 640K\'s first three hearths within 1000 km of a 160K one (≥ 2 of 3)', H.length < 3 || matched >= 2, `${matched} of ${Math.min(3, H.length)}`);
-    check('…worked out quickly on the page (≤ 1.5 s)', ms <= 1500, `${ms.toFixed(0)} ms`);
-}
-
-section('C4d — re-rolls: other likely histories, the same rules');
-{
-    // (the legend's Re-roll: the same scores as odds — each roll's hearths and staples kept to every rule of C4; roll 0 the
-    // likeliest, today's; the likeliest hearths still often there; each roll the same every time, at any detail)
-    const ground = spreadGround(pf.farming, pf.climate, ALL), b0 = spreadHearths(ground, 0), d = Math.PI / 180, ROLLS = 10;
-    const km = (a, b) => 6371 * Math.acos(Math.min(1, Math.sin(a.lat * d) * Math.sin(b.lat * d) + Math.cos(a.lat * d) * Math.cos(b.lat * d) * Math.cos((a.lon - b.lon) * d)));
-    const sig = b => JSON.stringify(b.hearths.map(h => [h.cell, h.crops]));
-    check('roll 0 the likeliest: its hearths and staples those without a roll', sig(b0) === sig(spreadBase(pf.farming, pf.climate, ALL)), '');
-    spreadStrains(b0);
-    const broke = [], seen = [];
-    let differ = 0, kept = 0, ms = 0, homeLeast = Infinity, homeMean = 0, nStrain = 0;
-    const kopIndex = Object.fromEntries(KOPPEN_CLASSES.map((k, j) => [k.code, j]));
-    for (let roll = 1; roll <= ROLLS; roll++) {
-        const t = performance.now(), b = spreadHearths(ground, roll), m = spreadStrains(b);
-        ms = Math.max(ms, performance.now() - t);
-        const H = b.hearths;
-        let near = Infinity, cheap = Infinity;
-        H.forEach((a, i) => H.forEach((c, j) => { if (i !== j) { near = Math.min(near, km(a, c)); cheap = Math.min(cheap, b.apart[i][j]); } }));
-        const from = CROP_STAPLE.map(st => H.filter(h => h.crops.includes(st)).length);
-        const rules = { 'a few': H.length >= 3 && H.length <= SPREAD.hearthsMax, apart: near >= SPREAD.apartKm && cheap >= SPREAD.apartCost,
-            'two or three': H.every(h => h.crops.length >= SPREAD.domesticMin && h.crops.length <= SPREAD.domesticMax), 'every staple': from.every(n => n >= 1) };
-        for (const [k, ok] of Object.entries(rules)) if (!ok) broke.push(`roll ${roll}: ${k}`);
-        if (sig(b) !== sig(b0)) differ++;
-        if (H.some(h => km(h, b0.hearths[0]) < SPREAD.apartKm)) kept++;
-        seen.push(sig(b));
-        // (each strain at home around its hearth: its niche over the hearth's own land)
-        H.forEach((h, j) => h.crops.forEach(st => {
-            const ni = m.niche(j, st);
-            let at = 0;
-            for (const [code, share] of h.climate) at += share * ni[kopIndex[code]];
-            homeLeast = Math.min(homeLeast, at); homeMean += at; nStrain++;
-        }));
-    }
-    check(`each of ${ROLLS} rolls keeps every rule: 3–8 hearths far apart, each two or three staples, every staple domesticated`,
-        !broke.length, broke.slice(0, 4).join(' · '));
-    check('…each another history: every roll differs from roll 0, and from each other', differ === ROLLS && new Set(seen).size === ROLLS, `${differ} of ${ROLLS}`);
-    check('…each strain at home around its hearth: its niche over the hearth’s land ≥ 0.85, ≥ 0.95 on average', homeLeast >= 0.85 && homeMean / nStrain >= 0.95,
-        `least ${homeLeast.toFixed(2)} · mean ${(homeMean / nStrain).toFixed(2)}`);
-    // (near: within apartKm — closer, two hearths could not both be; over a broad rich plain a hearth's place is a toss-up)
-    check(`…the likeliest still likeliest: roll 0’s first hearth (the richest region) near one of most rolls’ (within ${SPREAD.apartKm} km, ≥ 70 %)`, kept >= 0.7 * ROLLS, `${kept} of ${ROLLS}`);
-    check('…each roll the same every time', sig(spreadHearths(ground, 3)) === seen[2] && sig(spreadBase(pf.farming, pf.climate, ALL, 3)) === seen[2], '');
-    const fine3 = spreadHearths(ground, 3).hearths, coarse3 = spreadBase(pc.farming, pc.climate, ALL, 3).hearths;
-    const matched = fine3.slice(0, 3).filter(h => coarse3.some(c => km(h, c) < 1000)).length;
-    check('…the same at 160K: roll 3’s first three hearths within 1000 km of a 160K one (≥ 2 of 3)', matched >= 2, `${matched} of ${Math.min(3, fine3.length)}`);
-    check('…a re-roll quick on the page (≤ 1 s: its hearths, and the strains it moved spread again)', ms <= 1000, `${ms.toFixed(0)} ms at most`);
+    const lf = lives(pf), lc = lives(pc), area = (list, f) => list.reduce((s, x) => s + (f(x) ? x.a : 0), 0), share = (list, f, of = () => true) => area(list, x => of(x) && f(x)) / Math.max(1e-9, area(list, of));
+    const lifeShares = list => [Lifestyle.NONE, Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].map(k => share(list, x => x.life === k));
+    const sf = lifeShares(lf.list), sc = lifeShares(lc.list), worst = Math.max(...sf.map((v, k) => Math.abs(v - sc[k])));
+    console.log(`      640K: ${LIFESTYLE_WORDS.map((w, k) => `${w} ${(100 * sf[k]).toFixed(1)} %`).join(' · ')}`);
+    check('each way of life\'s share of the land the same at 160K and 640K (within 5 points)', worst <= 0.05, LIFESTYLE_WORDS.map((w, k) => `${w} ${(100 * sc[k]).toFixed(0)}/${(100 * sf[k]).toFixed(0)} %`).join(' · '));
+    const foodF = [...STAPLES.keys()].map(k => share(lf.list, x => x.staple === k)), foodC = [...STAPLES.keys()].map(k => share(lc.list, x => x.staple === k));
+    check('…and each staple food\'s (within 5 points)', Math.max(...foodF.map((v, k) => Math.abs(v - foodC[k]))) <= 0.05, STAPLE_WORDS.map((w, k) => `${w} ${(100 * foodC[k]).toFixed(0)}/${(100 * foodF[k]).toFixed(0)} %`).join(' · '));
+    const good = share(lf.list, x => x.life === Lifestyle.FARMING, x => x.cls >= 3);
+    check('the good and excellent farmland farmed (≥ 95 %)', good >= 0.95, `${(100 * good).toFixed(1)} %`);
+    const bare = share(lf.list, x => x.life === Lifestyle.GATHERING, x => !x.land && x.gather >= GATHER.minPeople);
+    check('where nothing would be farmed or herded but something lives: gatherers (all of it)', bare >= 0.999, `${(100 * bare).toFixed(1)} %`);
+    const gath = lf.list.filter(x => x.life === Lifestyle.GATHERING).map(x => x.people).sort((a, b) => a - b), q = f => gath.length ? gath[Math.floor(f * (gath.length - 1))] : NaN;
+    check('gatherers as many a km² as the record\'s foragers: the median 0.02–0.5, the most ≤ 3', gath.length >= 50 && q(0.5) >= 0.02 && q(0.5) <= 0.5 && gath[gath.length - 1] <= 3,
+        `median ${q(0.5).toFixed(2)} · 90 % ${q(0.9).toFixed(2)} · most ${gath.at(-1)?.toFixed(2)} (${gath.length} px)`);
+    // (the sea's fish off cold coasts against warm ones: the coast's land within ~60 km of a shelf, by its climate class — the
+    // polar and boreal coasts, Cfb/Cfc/Csb's cool ones, against the tropical rainforest's and savanna's)
+    const coastFish = cs => { const c = lf.list.filter(x => cs.includes(x.koppen) && x.fish > 0.05); return { n: c.length, m: mean(c.map(x => x.fish)) }; };
+    const cold = coastFish([KOPPEN_ID.Cfb, KOPPEN_ID.Cfc, KOPPEN_ID.Csb, KOPPEN_ID.Dfb, KOPPEN_ID.Dfc]), warm = coastFish([KOPPEN_ID.Af, KOPPEN_ID.Am, KOPPEN_ID.Aw]);
+    check('the sea feeds more off cool coasts than off tropical ones (their coasts\' fish ≥ 1.3×)', cold.n < 30 || warm.n < 30 || cold.m >= 1.3 * warm.m,
+        `cool ${cold.m.toFixed(2)} a km² (${cold.n} px) · tropical ${warm.m.toFixed(2)} (${warm.n} px)`);
+    const none = share(lf.list, x => x.life === Lifestyle.NONE);
+    check('little ice-free land uninhabited (≤ 5 %)', none <= 0.05, `${(100 * none).toFixed(1)} %`);
+    const steppe = share(lf.list, x => x.life === Lifestyle.HERDING, x => x.koppen === KOPPEN_ID.BSk && x.water < 0.05 && x.land === Staple.HERDING);
+    check('herders still on most of the cold steppes they would graze (BSk, away from rivers: ≥ 50 %)', steppe >= 0.5, `${(100 * steppe).toFixed(0)} %`);
+    const t0 = performance.now(), count = livingPeople(pf.farming, pf.climate, lf.ground, ALL), ms = performance.now() - t0, ppl = count.people / count.land;
+    check('the land could feed 10–40 people a km² on average, gatherers counted', ppl >= 10 && ppl <= 40, `${ppl.toFixed(1)} a km² · by way of life ${count.byLife.map(v => `${(v / 1e6).toFixed(1)} M`).join(' / ')}`);
+    check('…its sea read quickly on the page (≤ 300 ms), the land\'s people likewise (≤ 1.5 s)', lf.ms <= 300 && ms <= 1500, `${lf.ms.toFixed(0)} ms · ${ms.toFixed(0)} ms`);
 }
 
 section('C1 — quick');

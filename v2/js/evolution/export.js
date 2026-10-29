@@ -13,8 +13,9 @@
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { finishedFarmingColor, finishedFarmingValue, drawHearths, farmOptions } from './farming-view.js';
+import { finishedFarmingColor, finishedFarmingValue, farmOptions } from './farming-view.js';
 import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
+import { LIFESTYLE_WORDS, GATHER } from '../farming/living.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
 import { initExportPanel } from '../view/export-panel.js';
@@ -28,17 +29,19 @@ export const LAND_TOP_M = 9000;
 /** The widest export: 16384 px (a picture of 134 million pixels); on a phone 4096. */
 export const EXPORT_MAX = 16384, EXPORT_MAX_TOUCH = 4096;
 const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v)));
-/** The Farming data maps' scales (linear, as export-raster.js's; the staples' index listed in the README). */
+/** The Farming data maps' scales (linear, as export-raster.js's; the staple foods' and the lifestyles' indices listed in the README). */
 const FARM_SCALES = {
     farmland:  { unit: 'farmland (0 barren … 1 the richest: the Farmland view\'s ramp)', lo: 0, hi: 1 },
     people:    { unit: 'people a km² (pre-industrial)', lo: 0, hi: 1000 },
     soil:      { unit: 'soil fertility (0 barren … 1 the richest)', lo: 0, hi: 1 },
     season:    { unit: 'months crops grow', lo: 0, hi: 12 },
-    staple:    { unit: 'staple index (0 = nothing grown or sea; the README lists them)', lo: 0, hi: 255 },
+    staple:    { unit: 'staple food index (0 = nothing or sea; the README lists them)', lo: 0, hi: 255 },
+    lifestyle: { unit: 'lifestyle index (0 = uninhabited or sea; the README lists them)', lo: 0, hi: 255 },
 };
 const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
-/** The README's list of the staples (the staple index file's numbers), when the export has one. */
-const staplesList = files => (files.some(f => f.file?.key === 'staple') ? [{ title: 'Staples (the number in the staple index file)', items: STAPLE_WORDS }] : []);
+/** The README's lists of the staple foods and the lifestyles (the index files' numbers), when the export has them. */
+const staplesList = files => [...(files.some(f => f.file?.key === 'staple') ? [{ title: 'Staple foods (the number in the staple food index file)', items: STAPLE_WORDS }] : []),
+    ...(files.some(f => f.file?.key === 'lifestyle') ? [{ title: 'Lifestyles (the number in the lifestyle index file)', items: LIFESTYLE_WORDS }] : [])];
 
 /** The catalogue of a moment's maps (the panel's rows): as Colour, as Data, or both. */
 export const CATALOGUE = [
@@ -56,12 +59,11 @@ export const CATALOGUE = [
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
     GEOLOGY_GROUP,
-    // (the Farming views as shown — with the techniques, crops and re-roll chosen in its legend; their data maps the
-    // numbers themselves)
+    // (the Farming views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
     { id: 'farming', label: 'Farming', rows: [
         { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
-        { id: 'farmStaple', label: 'Staples', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple index', 'staple', 8)], tip: 'What each place would grow most; as data, each staple\'s index (the README lists them)' },
-        { id: 'farmSpread', label: 'Crop spread', colour: true, needs: 'farming', tip: 'Where each place\'s crops came from, with the numbered hearths — the crops and the re-roll chosen in its legend' },
+        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
+        { id: 'farmLife', label: 'Lifestyle', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index', 'lifestyle', 8)], tip: 'How each place’s people would live — farming, herding or gathering; as data, each lifestyle’s index (the README lists them)' },
         { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [farmData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
         { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [farmData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },
         { id: 'farmSeason', label: 'Growing season', colour: true, needs: 'farming', data: [farmData('seasonRain', 'rain', 'Growing season by rain alone', 'season'), farmData('seasonWatered', 'watered', 'Growing season, watered', 'season')], tip: 'The months crops grow, as its legend shows; as data, by rain alone and watered' },
@@ -217,19 +219,13 @@ export function climateMap(fin, W, layer, season, look) {
         colorAt: finishedClimateColor(layer, season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
-/** A Farming view as shown (farming-view.js), shaded or flat, lakes as water — the Crop spread view with its numbered hearths. */
+/** A Farming view as shown (farming-view.js), shaded or flat, lakes as water. */
 export function farmingMap(fin, W, layer, look) {
-    const H = W >> 1, image = new ImageData(W, H), shift = rollShift(W, look.centerLon);
+    const H = W >> 1, image = new ImageData(W, H);
     paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt: finishedFarmingColor(layer, fin, W) });
-    const rgba = rollRows(image.data, W, H, 4, shift);
-    if (layer !== 'farmSpread') return { kind: 'rgba', W, H, data: rgba };
-    // (the hearths' pins, drawn for the map's own width: as large, relative to it, at any width — turned as the map is)
-    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
-    ctx.putImageData(new ImageData(rgba, W, H), 0, 0);
-    ctx.save(); ctx.translate(-shift, 0); drawHearths(ctx, W, fin); ctx.restore();
-    return { kind: 'rgba', W, H, data: ctx.getImageData(0, 0, W, H).data };
+    return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
-/** A Farming quantity as numbers (8-bit for the staples' index, else 16-bit), on its scale. */
+/** A Farming quantity as numbers (8-bit for the staple food's and the lifestyle's indices, else 16-bit), on its scale. */
 export function farmingValueMap(fin, W, file, centerLon = 0) {
     const H = W >> 1, { sea } = pictureAt(fin, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
     const at = finishedFarmingValue(file.key, fin, W);
@@ -278,11 +274,11 @@ export function produceMap(fin, W, lk, job) {
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
-/** The Farming views' choices, for the README: the techniques on, the re-roll. */
+/** The Farming views' choices, for the README: the techniques on, how firmly gatherers hold on. */
 function farmingNote() {
     const on = TECHNIQUES.filter(k => farmOptions[k]);
     return `Farming maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
-        `${farmOptions.roll ? `its history re-rolled (farm=${farmOptions.roll} in the link)` : 'the likeliest history of its hearths'}`;
+        `gatherers holding on unless farming or herding feeds ${GATHER.hold}× as many`;
 }
 
 /**

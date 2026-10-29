@@ -7,15 +7,6 @@
     background: transparent;
 }
 #mapCanvas[hidden] { display: none; }
-/* the numbered pins over the planet (the Crop spread view's hearths): as the legend's, round and sharp on the globe and on
-   the map at any projection and zoom; the pointer passes through them to the readout */
-.evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
-.evo-pin {
-    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
-    display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; box-sizing: border-box;
-    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
-}
-.evo-pin[hidden] { display: none; }
 #ui [hidden], #layerBar [hidden], #legendCard [hidden], #timeline [hidden] { display: none !important; }
 /* the readout above the timeline (V1's sits where the timeline is) */
 #hoverInfo { bottom: 112px; }
@@ -199,12 +190,6 @@
 .evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
 .evo-farm-bar span { min-width: 0; }
 .evo-farm-bar + .evo-koppen, .evo-farm-chips + .evo-koppen { margin-top: 2px; }
-/* the Crop spread view's hearths: a numbered pin (as on the map) and its crops */
-.evo-hearth { display: flex; gap: 7px; align-items: baseline; margin: 3px 0; color: #bbc; line-height: 1.35; }
-.evo-hearth b {
-    flex: none; width: 17px; height: 17px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
-    background: #fff8ec; color: #78201a; border: 2px solid #96281a; font-size: 10px;
-}
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {

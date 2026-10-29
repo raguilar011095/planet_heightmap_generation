@@ -79,18 +79,22 @@ export function growingSeason(T, P, out = newSeason(), K = FARMING, F = FINISH, 
 
 // ── the staples and their harvests (C2) ──
 /**
- * What a place lives on most — its staple: four crop groups, or herding — what grows best there (not where each was
- * first grown). Each staple's code is its place in this list, and never changes (the exports' staple index, the
- * page's per-staple arrays): a new one is appended, never put between. `crop`: its crop group's key in FARMING.crops
- * (its harvests kept per place under it: farming.crops[key]); herding lives on the pasture.
+ * What a place lives on most — its staple food, as an archetype (not any one species): four crop groups, livestock,
+ * fish or wild foods — what would feed it best (not where each was first grown). Each staple's code is its place in this
+ * list, and never changes (the exports' staple index, the page's per-staple arrays): a new one is appended, never put
+ * between. `crop`: its crop group's key in FARMING.crops (its harvests kept per place under it: farming.crops[key]);
+ * `way`: the way of life it is (farming/living.js LIFESTYLES) — livestock lives on the pasture, fish and wild foods are
+ * gathered (living.js). (The keys are the code's; the words the page's.)
  */
 export const STAPLES = Object.freeze([
-    { key: 'none', word: 'Nothing grown' },
-    { key: 'rice', word: 'Rice', crop: 'rice' },
-    { key: 'wheat', word: 'Wheat & barley', crop: 'wheat' },
-    { key: 'maize', word: 'Maize & millet', crop: 'maize' },
-    { key: 'roots', word: 'Roots & tubers', crop: 'roots' },
-    { key: 'herding', word: 'Herding' },
+    { key: 'none', word: 'Nothing' },
+    { key: 'rice', word: 'Paddy grains', crop: 'rice', way: 'farming' },
+    { key: 'wheat', word: 'Cool-season grains', crop: 'wheat', way: 'farming' },
+    { key: 'maize', word: 'Warm-season grains', crop: 'maize', way: 'farming' },
+    { key: 'roots', word: 'Roots & tubers', crop: 'roots', way: 'farming' },
+    { key: 'herding', word: 'Livestock', way: 'herding' },
+    { key: 'fish', word: 'Fish', way: 'gathering' },
+    { key: 'wild', word: 'Wild foods', way: 'gathering' },
 ]);
 export const Staple = Object.freeze(Object.fromEntries(STAPLES.map((s, code) => [s.key.toUpperCase(), code])));
 export const STAPLE_WORDS = STAPLES.map(s => s.word);

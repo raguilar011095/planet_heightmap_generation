@@ -447,34 +447,6 @@ void main() {
         return [((ll[0] / (2 * Math.PI) + 0.5 + this.map.centerLon / 360) % 1 + 1) % 1, 0.5 - ll[1] / Math.PI];
     }
 
-    /**
-     * A place (degrees) as drawn now, in client space — on the globe's near side, or on the map in its projection, zoomed
-     * and panned — or null where it is not shown (the globe's far side; off the map, or outside its frame). For marks drawn
-     * over the planet rather than on its texture, as round and sharp at any projection and zoom (the farming's pins).
-     */
-    screenAt(latDeg, lonDeg) {
-        const lat = latDeg * Math.PI / 180, lon = lonDeg * Math.PI / 180;
-        if (this.map) {
-            const m = this.map, v = this.mapView, b = m.bounds, box = this.mapBox(), f = m.frame.getBoundingClientRect();
-            const l = ((lon - m.centerLon * Math.PI / 180) % (2 * Math.PI) + 3 * Math.PI) % (2 * Math.PI) - Math.PI;
-            const xy = PROJ[m.projection].fwd(l, lat, m.projOpts);
-            if (!xy) return null;
-            let mx = (xy[0] - b[0]) / (b[1] - b[0]);
-            const my = (b[3] - xy[1]) / (b[3] - b[2]);
-            if (m.projection === 'equirect') mx -= Math.floor(mx - v.panX);       // (the one turn shown: from the pan on — renderMap's wrap)
-            const x = box.left + box.width / 2 + (mx - 0.5 - v.panX) * box.width * v.zoom, y = box.top + box.height / 2 + (my - 0.5 - v.panY) * box.height * v.zoom;
-            return x >= f.left && x <= f.right && y >= f.top && y <= f.bottom ? { x, y } : null;
-        }
-        // (SphereGeometry + equirectangular texture, as lookAt: lon 0 faces +x, lon 90°E faces −z, north +y; seen from the
-        // camera where the point faces it — on the unit sphere, its dot with the camera's place above 1)
-        const p = this._screenP ??= new THREE.Vector3();
-        p.set(Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon));
-        if (p.dot(this.camera.position) <= 1) return null;
-        p.project(this.camera);
-        const r = this.canvas.getBoundingClientRect();
-        return { x: r.left + (p.x + 1) / 2 * r.width, y: r.top + (1 - p.y) / 2 * r.height };
-    }
-
     renderMap() {
         const r = this.renderer, b = this.mapBox(), f = this.map.frame.getBoundingClientRect(), c = this.canvas.getBoundingClientRect(), u = this.mapQuad.material.uniforms, v = this.mapView;
         u.map.value = this.texture; u.turn.value = this.map.centerLon / 360;

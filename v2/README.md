@@ -350,9 +350,8 @@ js/farming/        the finish's farming (plans/V2_FARMING_PLAN.md; Madeline Jame
                    (its tunables, in °C / mm / km / m³/s, with their ranges), farming (the growing season from a place's
                    months; the soil from its rock and climate; slope, waterlogging and the water rivers and lakes could
                    bring; each crop's harvests a year; farmland and the staple put together with the techniques chosen),
-                   spread (the hearths where farming began and how each one's strains spread: a travel cost a km over
-                   a 0.5° grid — rivers, coasts and plains cheap; hills, deserts, mountains and open ocean dear — the first
-                   strain of each crop to reach a place keeping it, each strain at home in its hearth's climates), people
+                   living (the ways of life in the abstract: gatherers' fish and wild foods, the staple food and the
+                   lifestyle — farming, herding or gathering — and the people each place's feeds), people
                    (how many the land could feed: people a km², and the whole land's)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
@@ -558,47 +557,35 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    cultivation intensity: every year from soil 0.65, down to 15 % on the poorest where it is warm the year round — a
    rainforest's shifting cultivation; half that need where a winter is; a big river's flood renews it), so the leached
    rainforests feed a few a km² — and the whole land's (`tuning/farming/earth-farming.mjs` holds it at Earth's places:
-   the Nile, Java, the breadbaskets, the Amazon, the Congo). **Hearths and the spread of crops** (C4, `farming/spread.js`): on a 0.5° grid from the farming picture —
-   hearths where a region (~400 km) grows the most rain-fed food at one harvest a year, more so with several staples
-   (their effective number), each ≥ 2000 km from the others and ≥ 5000 apart by the way crops travel (Dijkstra over a
-   cost a km: 1 on flat land a crop grows on, + up to 4 for hills to mountains, + 4 for desert, + 2 where it does not
-   grow; × 0.5 along a river, × 0.7 on a coast; the sea 1 near land to 40 past ~450 km from it); each domesticates the
-   staples that grow best (rain-fed) on ≥ 15 % of its farmland, two or three (the next best there if need be), every staple from at least one hearth
-   (two where it can be, three at most — never taking a hearth's leading one, an extra swapped for a staple fewer hearths have that grows there too; a hearth's second, if none other qualifies, likewise the rarest that grows there). Each crop's strains spread from their
-   hearths by one multi-source Dijkstra (the first to reach a cell keeps it); the page gives each pixel the strain its
-   four grid cells vote for, and its crops: the best of those that reached it (or herds), a second where it feeds ≥ 80 %
-   as much. The hearths are chosen by rain alone (their spacing too), so the same whatever the techniques. **At home**
-   (C6a — archetypes, not species: the real crops of C4b–C4e, `farming/varietals.js`, went to branch `crops`, to come
-   back as a layer over this): spreadBase (the picture read, the hearths — cached per techniques) and spreadStrains:
-   each strain spreads by its own Dijkstra, its fit the group's × its hearth's niche — at home in the hearth's climates
-   (each Köppen class 1 − homeBias (0.4) × (1 − how like one of them it is: the same class 1, the same first two letters
-   0.6, the same first letter 0.3, each fully as it covers 5–25 % of the hearth's land), averaged over each grid cell's
-   land); a cell's strain the first to reach it unless a later one is worth more there — niche × e^(−lateness ÷ 3000) —
-   so a strain at home from near wins out, one from over a long sea never; and each place's crops weighed by their
-   strains' niches (spreadPlace takes the pixel's Köppen class). The sea is crossed freely where no strain is yet (1 a
-   km within 200 km of land, rising to 40 at 700 km; never past 1000 km from land — the open ocean, not searched; reach
-   50 000), but counts 10× in a strain's lateness against one already there; between hearths it stays as dear as
-   before. Each strain's spread is kept (by its hearth's place and staple), so a re-roll re-spreads only the strains it
-   moved. **Re-roll** (C4d): spreadBase is spreadGround (the picture read, the ways — cached per techniques) and
-   spreadHearths(ground, roll): at roll 0 the likeliest; at another the same scores as odds — the order the regions are
-   tried in by their richness × e^(0.25 × a random field smooth over ~1000 km), a hearth's other staples by their
-   shares × e^(0.4 × a normal number) (its leading one kept) — every rule kept as before; each a hash of the roll, its
-   stream and the place (the same every time, at any detail; stream 3, the real crops' names, kept for them). The
-   legend's Re-roll chip picks a roll at random, 1–999999 as a seed is, kept in the link as `farm=` (`crops=` left for
-   the crops layer) and in a planet file's settings as `farm` (none: roll 0; New World back to 0); Reset back to roll
-   0; the hearths' numbered pins drawn over the planet, not on its texture (`#mapPins`, placed again each time the
-   planet is drawn: GlobeView.screenAt — the globe's near side, or the map's projection forward at its zoom and pan),
-   round and sharp in every projection and zoom; a re-roll ~0.5 s. **The staples one list** (C6a, farming.js
-   `STAPLES`): each staple's code its place in it, never renumbered (the exports' staple index; a new one appended);
-   `CROPS`, `CROP_STAPLE` and `STAPLE_CROP` map crop groups and staples both ways — no code counts on "group + 1". Each
-   crop group's harvests are kept under its own name (`farming.crops.rice` …: two bytes a place, by rain and watered —
-   in the finish per cell and in the picture per pixel; `harvestsAt` reads them, a group a moment lacks growing
-   nothing; `hasHarvests` false for a moment detailed before them, or one that kept them all in one array).
-   `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it, the
-   land's people plausible, the hearths far apart with every staple domesticated, the hearths and their staples the
-   same whatever the techniques, their strains spread far over seas but never the open ocean, little good crop land
-   unreached, little farmland left to foragers, each strain grown more at home than were none at home, each re-roll
-   another history keeping every rule (the richest hearth still near in most), each strain at home around its hearth;
+   the Nile, Java, the breadbaskets, the Amazon, the Congo). **Staple food and lifestyle** (C6b,
+   `farming/living.js`; in the abstract — what the land would support, not where farming came: the spread of crops, C4,
+   is on branch `farming-spread` for the next release, the real crops on branch `crops`): gatherers' food — the sea's fish
+   (once per moment on a 0.25° grid: the shelf's share of each cell, sea shallower than 200 m in the picture, × the
+   sea's richness from the moment's 1° climate — 0.3 on a warm clear shelf rising to 1 as the sea's year runs from 24 to
+   12 °C or its upwelling from 0.1 to 1 m/day, × (1 − 0.9 × its sea ice) — spread over 40 km, a day's paddle; a pixel's
+   fishing up to 2.5 a km² as that runs from 0.02 to 0.25, as the land has a summer (1–4 months warm enough), + fresh
+   water's up to 0.5 along big rivers' plains, rivers and lake shores) and the land's wild foods (up to 0.3 a km² as its
+   growing season runs from half a month to 9, + 0.08 × its pasture: grassland game) — the ethnographic record's
+   foragers, ~0.01–0.5 on land, 1–3 on the richest coasts. A place's lifestyle: gathering where `hold` (10) × its
+   gatherers' people beat what farming or herding would feed there (people.js peopleAt on farmPlace's staple), else
+   farmPlace's — farming or herding; uninhabited under 0.005 a km². Its staple food that way of life's: the crop or the
+   herds farmPlace chose, or fish or wild foods (whichever feeds more). A second way of life, or food, where it does 90 %
+   as well (the land's runner-up by its food, as farmPlace weighs them; gathering against the land by people) — the
+   views stripe it (at 80 % the land's runner-up came that close on ~40 % of it). People counts each place by its way of
+   life (livingPeople). Nothing more is saved: a moment detailed before reads it too. The views: **Staple food** (each
+   food a hue, paler where it feeds less well, a chip each to show it alone) and **Lifestyle** (farming green, herding
+   ochre, gathering violet, paler where few could live; a chip each to show how many it alone could feed); their data
+   maps an index each (`STAPLES`' and `LIFESTYLES`' codes, listed in the README). **The staples one list** (C6a,
+   farming.js `STAPLES`: paddy grains, cool-season grains, warm-season grains, roots and tubers, livestock, fish, wild
+   foods — archetypes, not species): each staple's code its place in it, never renumbered (the exports' staple index; a
+   new one appended); `CROPS`, `CROP_STAPLE` and `STAPLE_CROP` map crop groups and staples both ways — no code counts on
+   "group + 1". Each crop group's harvests are kept under its own name (`farming.crops.rice` …: two bytes a place, by
+   rain and watered — in the finish per cell and in the picture per pixel; `harvestsAt` reads them, a group a moment
+   lacks growing nothing; `hasHarvests` false for a moment detailed before them, or one that kept them all in one
+   array). `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it,
+   the land's people plausible, each way of life's and staple food's share the same at both details, the good farmland
+   farmed, gatherers wherever nothing would be farmed or herded and as many a km² as the record's foragers, the sea
+   feeding more off cool coasts than tropical ones, little land uninhabited, herders still on the cold steppes;
    `tuning/farming/earth-farming.mjs` checks the climate's part, the staples and the classes at 95 places on Earth.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)

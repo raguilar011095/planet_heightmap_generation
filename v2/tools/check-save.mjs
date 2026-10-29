@@ -249,14 +249,13 @@ if (!FIXTURE) {
     console.log(`geology's ${n} maps and files drawn, and the rocks at twice their picture (${secs()})`);
 }
 
-// ── (a) the farming's maps, as the Export panel draws them, from the moment read back (the Crop spread colour map's pins
-// need a canvas: its spread is drawn as data's neighbours are instead) ──
+// ── (a) the farming's maps, as the Export panel draws them, from the moment read back ──
 {
     const look0 = { lut: heightLutOf('relief'), exaggeration: 20, water: false, riverQ: 40, byRegime: false, shaded: true, centerLon: 0 };
     let drawn = 0;
     for (const row of CATALOGUE.find(g => g.id === 'farming').rows) {
         if (!check(rowAvailable(row, back.detail.moment), `the read-back moment offers ${row.id}`)) continue;
-        for (const job of [...(row.colour && row.id !== 'farmSpread' ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))]) {
+        for (const job of [...(row.colour ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))]) {
             let r = null, e = null;
             try { r = produceMap(back.detail.moment, 256, look0, { ...job, row, season: 'year' }); } catch (x) { e = x.message; }
             const data = r?.data, varied = data && data.some(v => v !== data[0]);
@@ -298,7 +297,7 @@ for (const name of kept) {
         // (a planet kept before the farming has none: the panel does not offer its maps)
         if (row.needs === 'farming' && !m.raster.farming) continue;
         if (!check(rowAvailable(row, m), `${name}: ${row.id}'s data is there`)) continue;
-        const jobs = [...(row.colour && row.id !== 'rivers' && row.id !== 'farmSpread' ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))];
+        const jobs = [...(row.colour && row.id !== 'rivers' ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))];
         for (const job of jobs) for (const season of seasons) {
             let r = null, e = null;
             try { r = produceMap(m, 256, { ...look, frame: f, seed: p.manifest.settings.seed, deposit: 'all' }, { ...job, row, season }); } catch (x) { e = x.message; }

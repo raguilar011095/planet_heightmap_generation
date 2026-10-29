@@ -271,10 +271,26 @@ them over per pixel; the page combines them with the techniques chosen, at once.
     `farm=`, the saved settings' `crops` `farm`, so `crops=` is free for the crops layer's own; the view stays "Crop
     spread" until C6b names it. Checks: the farming's fingerprints (cell and picture parts, staples, farmland, people)
     unchanged before and after (but the spread); check-farming, check-save.
-  - **C6b — staple food source and primary lifestyle** (to plan with the developer): the staples as archetypes
-    (paddy grain, cool-season grain, warm-season grain, roots and tubers, livestock, and new: fish, wild foods), the
-    lifestyles Farming · Herding · Gathering (hunting, fishing and gathering — the Pacific Northwest's dense gatherers),
-    each a map that blends where two are close; People counting each lifestyle's own density.
+  C6a committed 21c4623 and kept as branch `farming-spread`. Then (developer: "im not sure we need the crop spread
+  here, this is just to understand in abstract what would be supported in general. The spread can/should come later
+  in the next pr") the Crop spread — `farming/spread.js`, its view, the hearths' pins over the planet (GlobeView
+  screenAt, `#mapPins`), the Re-roll and `farm=` — taken out of this release, with C6b in one commit: the next PR
+  brings it back from branch `farming-spread` (spread.js as it is there; its view, pins and link re-wired onto C6b's
+  views — the Lifestyle view could then take farming only where it came).
+  - **C6b — staple food and lifestyle** (built 2026-10-29; developer: "Finish this pr, add all the map modes so i can
+    see everything. We can swap the food names to be better with what we want. Lets start with 10x but we can tweak if
+    its too tough. im not sure blending makes sense, i like showing the top unless its close then stripes, but having
+    the options to select each type"). `farming/living.js`: the staples as archetypes — Paddy grains, Cool-season
+    grains, Warm-season grains, Roots & tubers, Livestock, and new Fish (6) and Wild foods (7) — and the lifestyles
+    Farming · Herding · Gathering. Gatherers' food: the sea's shelf off cold or upwelling coasts within a day's paddle
+    (the moment's 1° sea temperature, upwelling and ice; the picture's depths), big rivers and lakes, the land's plants
+    by its growing season and its grassland game — ~0.01–0.5 a km² on land, up to ~3 on the richest coasts. Gatherers
+    keep to their way unless farming or herding would feed `GATHER.hold` = 10× as many. Views: **Staple food** (was
+    Staples) and **Lifestyle** (new), each its leading one, striped where a second does 90 % as well (80 % striped ~40 %
+    of the land), a legend chip each to show one alone; People counts each place by its way of life. Computed on the
+    page from what a moment keeps (no save change: older moments read it). Exports: Staple food and Lifestyle rows, an
+    index each, listed in the README. On seed 12345's 400 Myr world: farming 63 %, herding 31 % (98 % of the cold
+    steppe it would graze), gathering 5 %, uninhabited 1 %; gatherers' median 0.14 a km². check-farming 39/39.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

@@ -28,7 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -71,10 +71,6 @@ if (url.get('len')) ui.len.value = url.get('len');
 // (Greenhouse, W/m²; an older link's temp= was the same slider in °C steps of 1)
 if (url.get('greenhouse')) ui.tmp.value = url.get('greenhouse'); else if (url.get('temp')) ui.tmp.value = 2 * Number(url.get('temp'));
 if (url.get('rain')) ui.prc.value = url.get('rain');
-// (the Farming legend's Re-roll: which likely history of its hearths and crops — 0, not in the link, the likeliest;
-// `farm=`, leaving `crops=` for the real crops' layer one day)
-const linkedFarm = Number(url.get('farm'));
-if (Number.isInteger(linkedFarm) && linkedFarm > 0) farmOptions.roll = linkedFarm;
 // The planet's Temperature and Precipitation (as Generate's): the climate's options, for the preview climate and for Add
 // detail — they change the climate only, not the history (plans/V1_NEW_CLIMATE_PLAN.md, phase 7)
 const climateOptions = () => ({ greenhouseWm2: Number(ui.tmp.value), precipScale: Math.max(0, 1 + 0.5 * Number(ui.prc.value)) });
@@ -144,7 +140,7 @@ document.addEventListener('click', e => {
     else if (tipFor) hideTip();
 }, true);
 $('sidebarContent').addEventListener('scroll', hideTip, { passive: true });
-ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); farmOptions.roll = 0; build(); });   // (New World: a new seed, its likeliest crops)
+ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); build(); });   // (New World: a new seed)
 $('rebuildBtn').addEventListener('click', () => build());                                                         // (Settings: this seed, these settings)
 // Load Planet…: a planet file saved from the Export panel (a phone's picker may not know .orogen: there it shows every file)
 if (IS_TOUCH) $('loadFile').removeAttribute('accept');
@@ -169,7 +165,7 @@ $('loadFile').addEventListener('change', e => { const f = e.target.files[0]; e.t
 ui.terrain.addEventListener('change', () => setTerrainDetail());
 // (more: how far the history was kept going — a link rebuilds the same history, run on as far)
 const saveUrl = () => history.replaceState(null, '', `?seed=${encodeURIComponent(seedShown())}&cont=${ui.cont.value}&len=${ui.len.value}&end=${ui.ending.value}&sim=${ui.sim.value}&terrain=${ui.terrain.value}` +
-    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : '') + (farmOptions.roll ? `&farm=${farmOptions.roll}` : ''));
+    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : ''));
 let linkedMore = Number(url.get('more')) || 0;          // (the first build only: a new world starts at its length)
 // Keep going: the history runs on in pieces this long, until stopped (a multiple of the step grid and of the snapshot
 // interval — pieces of the one history, the same as a single run: tectonics/simulate.js, resume)
@@ -517,7 +513,6 @@ async function loadPlanet(file) {
     // its settings, and the link to them (the same history again, built here)
     ui.seed.value = s.seedText ?? String(s.seed); ui.cont.value = s.cont; ui.len.value = s.len; setIf(ui.ending, s.ending); setIf(ui.sim, String(s.sim));
     setIf(ui.terrain, String(terrainCells)); ui.tmp.value = s.greenhouse; ui.prc.value = s.rain;
-    farmOptions.roll = Number.isInteger(s.farm) && s.farm > 0 ? s.farm : 0;            // (its farming as re-rolled when saved; else the likeliest)
     ui.quality.value = Object.keys(QUALITY).find(k => QUALITY[k].sim === ui.sim.value && QUALITY[k].terrain === ui.terrain.value) ?? 'custom';
     $('customGroup').hidden = ui.quality.value !== 'custom';
     clearView(m.history.toMyr, { play: false, label: 'Opening…' });
@@ -760,7 +755,6 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
     // are ground, not lines — the Satellite view draws none)
     if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
-    // (the Crop spread view's hearths: numbered pins over the planet — placePins)
     drawLines(t, C);
     show(t);
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
@@ -1036,8 +1030,7 @@ const planetFile = {
         if (b.finishes.get(frame) !== fin) throw new Error('this moment is no longer the detailed one');
         const [greenhouse, rain] = fin.climateKey.split('|').map(Number);
         const { blob } = await savePlanet({
-            settings: { seed: b.seed, ...(b.seedText ? { seedText: b.seedText } : {}), cont: b.contPct, len: b.lengthMyr, ending: b.ending, sim: b.simCells, terrain: b.terrainCells, greenhouse, rain, more: b.moreTo || 0,
-                ...(farmOptions.roll ? { farm: farmOptions.roll } : {}) },              // (the Farming legend's re-roll, as the link has it)
+            settings: { seed: b.seed, ...(b.seedText ? { seedText: b.seedText } : {}), cont: b.contPct, len: b.lengthMyr, ending: b.ending, sim: b.simCells, terrain: b.terrainCells, greenhouse, rain, more: b.moreTo || 0 },
             history: { frames: b.frames, simMesh: b.simMesh, simMyr: b.simMyr, steps: b.steps, stopped: b.stopped ?? null, snapshotMyr: SNAPSHOT_MYR, omit: [...(b.lacking ?? [])] },
             detail: { frame, fin }, onProgress: progress });
         return { blob, name: fileName(['orogen', b.seedText ?? b.seed, `${Math.round(frame.time)}Myr`], 'orogen') };
@@ -1164,29 +1157,9 @@ function tick(now) {
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
     updatePatch(now);
     globe.resize();
-    if (globe.renderIfNeeded()) placePins();                // (the globe, or the map: the same renderer draws both)
+    globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
 }
 requestAnimationFrame(tick);
-
-// ── the numbered pins (the Crop spread view's hearths): drawn over the planet, not on its
-// texture, so that they stay round and sharp on the globe and on the map at any projection and zoom — placed again each
-// time the planet is drawn again ──
-const pinBox = $('mapPins');
-let pinsKey = '', pinsShown = [];
-function placePins() {
-    const fin = painted && B ? finishedShown(painted) : null;
-    const list = fin && view.layer === 'farmSpread' ? farmingPins(view.layer, fin) : [];
-    const key = list.map(p => `${p.label}:${p.lat}:${p.lon}:${p.fill}`).join('|');
-    if (key !== pinsKey) {
-        pinsKey = key; pinsShown = list;
-        pinBox.innerHTML = list.map(p => `<b class="evo-pin" style="background:${p.fill};border-color:${p.ring};color:${p.ink}">${p.label}</b>`).join('');
-    }
-    pinsShown.forEach((p, k) => {
-        const at = globe.screenAt(p.lat, p.lon), el = pinBox.children[k];
-        el.hidden = !at;
-        if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
-    });
-}
 
 // ── the timeline ──
 function setPlaying(on) {
