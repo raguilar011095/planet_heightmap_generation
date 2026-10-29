@@ -8,6 +8,7 @@
 //
 //   node --max-old-space-size=16000 v2/tools/render-litho.mjs --phase L1 [--base L0] [--note "what changed"]
 //        [--moments 432175:300,2024:900] [--cells 2500000] [--sim 40000] [--cont 30] [--levels 7,8] [--size 512x384]
+//        [--out v2/out/litho] [--title "Rocks shape the land"]   (another set of phases: its own folder and page)
 
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,7 +38,7 @@ if (!PHASE) throw new Error('--phase NAME needed');
 const MOMENTS = arg('--moments', '432175:300,2024:900').split(',').map(s => s.split(':').map(Number));
 const CELLS = Number(arg('--cells', 2500000)), SIM = Number(arg('--sim', 40000)), CONT = Number(arg('--cont', 30));
 const LEVELS = arg('--levels', '7,8').split(',').map(Number), [WW, WH] = arg('--size', '512x384').split('x').map(Number);
-const MESH_SEED = 12345, OUT = path.join(ROOT, 'v2', 'out', 'litho'), t0 = performance.now(), secs = () => `${((performance.now() - t0) / 1000).toFixed(0)} s`;
+const MESH_SEED = 12345, OUT = path.resolve(ROOT, arg('--out', 'v2/out/litho')), TITLE = arg('--title', 'Rocks shape the land'), t0 = performance.now(), secs = () => `${((performance.now() - t0) / 1000).toFixed(0)} s`;
 const RASTER_W = 4096, GLOBAL_W = 2048, R = 6371;
 const lut = heightLutOf('relief');
 
@@ -230,14 +231,14 @@ phases.sort((a, b) => a.at.localeCompare(b.at));
 const allSites = Object.fromEntries(MOMENTS.map(([s, t]) => { const f = path.join(OUT, `sites-${s}-${t}.json`); return [`${s}-${t}`, fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : []]; }));
 const manifest = { phases: phases.map(p => ({ phase: p.phase, base: p.base, note: p.note, at: p.at, moments: p.moments })), sites: allSites, levels: LEVELS };
 fs.writeFileSync(path.join(OUT, 'index.html'), page(manifest));
-console.log(`→ v2/out/litho/${PHASE}/ and v2/out/litho/index.html (${secs()})`);
+console.log(`→ ${path.relative(ROOT, OUT)}/${PHASE}/ and ${path.relative(ROOT, OUT)}/index.html (${secs()})`);
 
 /** The comparison page: pick a moment, a place (or the whole planet), a zoom and a view, and two phases — side by side, or
  *  blinking between them; "Height change" shows what moved since the phase each was rendered against (blue lower, red
  *  higher). */
 function page(manifest) {
     return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Lithology phases</title>
+<title>${TITLE.replace(/</g, '&lt;')}</title>
 <style>
 :root{--bg:#14161a;--panel:#1d2026;--text:#e6e3dc;--muted:#9a978f;--accent:#e2a24a}
 body{margin:0;background:var(--bg);color:var(--text);font:14px/1.45 system-ui,sans-serif}
@@ -259,7 +260,7 @@ td,th{padding:3px 10px;border-bottom:1px solid #2c3038;text-align:right}
 th:first-child,td:first-child{text-align:left}
 @media (max-width:760px){.pair{grid-template-columns:1fr}}
 </style></head><body>
-<header><h1>Rocks shape the land — phases</h1>
+<header><h1>${TITLE.replace(/</g, '&lt;')} — phases</h1>
 <label>Moment <select id="m"></select></label>
 <label>Place <select id="s"></select></label>
 <label>Zoom <select id="z"></select></label>
