@@ -847,8 +847,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 if (noiseAmp > 0.002) {
                     crossAt(Ks[li], cn, wx, wy, wz, cross);
                     if (cross[1] > 0) {
-                        let v = ridgeNoise(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offA, noiseWear);
-                        if (fadeB > 0) v = fadeA * v + fadeB * ridgeNoise(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offB, noiseWear);
+                        let v = ridgeNoiseBands(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offA, noiseWear);
+                        if (fadeB > 0) v = fadeA * v + fadeB * ridgeNoiseBands(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offB, noiseWear);
                         stripes += noiseAmp * vary * (notch > 0 && v > 0 ? v * (1 - notch) : v);
                         // (an old belt's grain: its rock banded with its ridges; its hills drawn out across this distance)
                         if (oldNoise > 0) { grainNum += noiseAmp * oldNoise * v; grainDen += noiseAmp * oldNoise; }
@@ -1049,6 +1049,18 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
  * belt kind's ridge wavelength), then halves and quarters of that, each faded where the mesh cannot show it; about −1…+1.
  * Both coordinates belong to the crust: the noise rides with the range. `salt` gives each belt layer a noise of its own.
  */
+/** The ridge noise at its scales (cfg.ridgeNoiseScales: its own, much larger and much smaller), weighted, their sum kept
+ *  to one scale's spread. */
+function ridgeNoiseBands(noise, cfg, fade, x, y, z, d, across, salt, wear = 0) {
+    const S = cfg.ridgeNoiseScales, W = cfg.ridgeNoiseWeights;
+    if (!S?.length) return ridgeNoise(noise, cfg, fade, x, y, z, d, across, salt, wear);
+    let v = 0, w2 = 0;
+    for (let b = 0; b < S.length; b++) {
+        v += W[b] * ridgeNoise(noise, cfg, fade, x, y, z, d, across * S[b], S[b] === 1 ? salt : salt + 17.3 * (b + 1), wear);
+        w2 += W[b] * W[b];
+    }
+    return v / Math.sqrt(w2);
+}
 function ridgeNoise(noise, cfg, fade, x, y, z, d, across, salt, wear = 0) {
     const alongF = R / (across * cfg.ridgeNoiseStretch);
     let v = 0, amp = 1, norm = 0;

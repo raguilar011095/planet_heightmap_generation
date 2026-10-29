@@ -438,11 +438,18 @@ export const TERRAIN = {
     // Ridge noise along each range (developer, 8b round 5: "simplex noise that is aggressively stretched along the
     // direction of the ridges — can increase or decrease things"): read at the distance across the belt (fast) and the
     // position along it (slow), so its highs and lows are drawn out along the strike, over the whole belt
-    ridgeNoiseShare: 0.25,      // ± this share of the belt’s relief…
-    ridgeNoiseBaseKm: 0.08,     // …plus ± this much (× the belt's intensity)
+    ridgeNoiseShare: 0.35,      // ± this share of the belt’s relief… (0.25 until 2026-10-28 — developer: "slightly more of the
+                                // ridge noise layered on top to both increase height and decrease height a bit which can help
+                                // give purchase to carving later")
+    ridgeNoiseBaseKm: 0.11,     // …plus ± this much (× the belt's intensity; 0.08 until then)
     ridgeNoiseAcross: 0.8,      // its features are this share of the belt kind's ridge wavelength (stripeKm) across the strike…
     ridgeNoiseStretch: 8,       // …and this many times as long along it
     ridgeNoiseOctaves: 3,       // (then halves and quarters of that, where the mesh can show them)
+    // …at three scales: its own, and much larger and much smaller (developer, 2026-10-28: "the same as now but also much
+    // larger and smaller, the orogeny should be the main driver") — each this many times its size, this strong; their sum
+    // kept to one scale's spread (the much smaller where the mesh can show it: from ~10M; finer, the fine detail's)
+    ridgeNoiseScales: [4, 1, 0.25],
+    ridgeNoiseWeights: [0.6, 1, 0.5],
     // Broken ridgelines (developer, 2026-10-27: "the perfectly intact ridgelines we have may be unrealistic and they should
     // be broken a little (less so in the front …)" — the main range by the plate edge the most whole, though it can break;
     // the Andes least broken, "very close to what we have today", then Laramide, Ural, Himalayan). In patches of a noise
