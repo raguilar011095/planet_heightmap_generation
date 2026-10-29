@@ -574,7 +574,10 @@ crest size), plus strike-parallel ridges (`stripes.js`: guidance, a share
 of the belt's own uplift; the phasor sum taken at the corners of the plate's raster, where it rides with the crust, and
 carried to each point from its three corners by continuing each corner's wave — `stripeCarry` 0 sums every kernel at
 every point, the same look and ~30 % slower at 2.5M), ridge noise — simplex noise drawn out ~8× along the strike (read at the distance across the
-belt, fast, and the position along it, slow), so its highs and lows run with the range — and cones. The first
+belt, fast, and the position along it, slow), so its highs and lows run with the range; at three scales, its own and 4× and
+¼ of it (`ridgeNoiseScales`) — and cones. The ridges and the ridge noise undulate at every scale about the ridges’ own
+(`ridgeVary*`, 2026-10-28: octaves at 2, 1, ½ and ¼ of the ridge wavelength bend them and raise and lower them — peaks
+and saddles along each ridge, one ridge higher than the next). The first
 continents are not flat: when the history starts they get broad swells (`baseKm`, up to `baseReliefKm`, half on
 shields) that wear down like the rest of the relief and steer the history's rivers into the lowlands between them. Belts come in two layers — the current one and the one it overprinted, at half
 strength with its own grain — and each corner's share is scaled by noise of its own, so kinds of ground interfinger.
@@ -697,8 +700,9 @@ then Laramide, Ural, Himalayan; the main range by the plate edge at `ridgeBreakF
 behind it — `profiles.js mainRangeBackKm`). `ridgeBreak: {}` draws the ridges as before.
 **Old ranges keep their grain (2026-10-27).** An old range wears down, but its hard layers stand out and its soft ones
 wear into valleys between (the Appalachians' Valley and Ridge). As a belt falls quiet (`oldGrainMyr`), its massif and
-the hills on it are drawn out along its strike (`oldComb`, `oldHillsStretch`), its parallel ridges grow stronger and run
-on evenly (`oldRidgeGain`, `oldEven`: fewer segment gaps, crests that rise and fall less), and its rock is banded with
+the hills on it are drawn out along its strike (`oldComb`, `oldHillsStretch`), its parallel ridges grow stronger
+(`oldRidgeGain`) and a little less even than a young belt’s (`oldEven` −0.1: until 2026-10-28 0.7, which combed them
+into even rows), and its rock is banded with
 them — harder on the ridges, softer in the troughs, the same on the whole (`oldGrainHardness`) — so its rivers settle
 into the valleys along the strike and cross the ridges in gaps. `oldGrainMyr: 0` draws old belts as before.
 **The land's floor (2026-10-27).** A push down that would take land under the sea — a valley between crests, a failed
