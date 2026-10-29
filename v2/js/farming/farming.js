@@ -78,15 +78,43 @@ export function growingSeason(T, P, out = newSeason(), K = FARMING, F = FINISH, 
 }
 
 // ── the staples and their harvests (C2) ──
-/** What a place would grow most: four crops, or herding — what grows best there (not where each was first grown). */
-export const Staple = Object.freeze({ NONE: 0, RICE: 1, WHEAT: 2, MAIZE: 3, ROOTS: 4, HERDING: 5 });
-export const STAPLE_WORDS = ['Nothing grown', 'Rice', 'Wheat & barley', 'Maize & millet', 'Roots & tubers', 'Herding'];
-/** The crops, in the order their harvests are kept (Staple RICE…ROOTS). */
-export const CROPS = ['rice', 'wheat', 'maize', 'roots'];
+/**
+ * What a place lives on most — its staple: four crop groups, or herding — what grows best there (not where each was
+ * first grown). Each staple's code is its place in this list, and never changes (the exports' staple index, the
+ * page's per-staple arrays): a new one is appended, never put between. `crop`: its crop group's key in FARMING.crops
+ * (its harvests kept per place under it: farming.crops[key]); herding lives on the pasture.
+ */
+export const STAPLES = Object.freeze([
+    { key: 'none', word: 'Nothing grown' },
+    { key: 'rice', word: 'Rice', crop: 'rice' },
+    { key: 'wheat', word: 'Wheat & barley', crop: 'wheat' },
+    { key: 'maize', word: 'Maize & millet', crop: 'maize' },
+    { key: 'roots', word: 'Roots & tubers', crop: 'roots' },
+    { key: 'herding', word: 'Herding' },
+]);
+export const Staple = Object.freeze(Object.fromEntries(STAPLES.map((s, code) => [s.key.toUpperCase(), code])));
+export const STAPLE_WORDS = STAPLES.map(s => s.word);
+/** The crop groups, in the order their harvests are worked out (cropYields' out). */
+export const CROPS = STAPLES.filter(s => s.crop).map(s => s.crop);
+/** Each crop group's staple (by its index in CROPS); each staple's crop group (an index in CROPS, or -1: herding, none). */
+export const CROP_STAPLE = CROPS.map(k => STAPLES.findIndex(s => s.crop === k));
+export const STAPLE_CROP = STAPLES.map(s => (s.crop ? CROPS.indexOf(s.crop) : -1));
 /** Harvests a year kept in a byte: up to this many, finer where they are few (the byte ∝ √harvests). */
 const HARVESTS_MAX = 6;
 export const encHarvests = h => Math.max(0, Math.min(255, Math.round(255 * Math.sqrt(Math.max(0, h) / HARVESTS_MAX))));
 export const decHarvests = b => HARVESTS_MAX * (b / 255) ** 2;
+/** Whether a moment's farming kept its crops' harvests, each group's under its own name (one detailed before they were
+ *  counted, or kept all in one, is detailed again). */
+export const hasHarvests = F => !!F?.crops && !ArrayBuffer.isView(F.crops);
+/** A place's harvests (into e: CROPS' order, by rain and watered — cropYields' out) from the bytes kept per group (`crops`:
+ *  {group: two bytes a place}), at place i; a group the moment has none of (detailed before it was added) grows nothing. */
+export function harvestsAt(crops, i, e) {
+    for (let g = 0; g < CROPS.length; g++) {
+        const b = crops[CROPS[g]];
+        e[2 * g] = b ? decHarvests(b[2 * i]) : 0; e[2 * g + 1] = b ? decHarvests(b[2 * i + 1]) : 0;
+    }
+    return e;
+}
 
 /** A crop kind's growth each month (0…1: its share of a month at its best) — warm past its base, linearly to its optimum
  *  (growing degree-days), not too hot, and wet enough (its water `avail` ÷ potential evaporation, plus `brought` mm a
@@ -232,11 +260,11 @@ export function climateSoil(cv, out = {}, K = FARMING) {
 }
 
 /** Per-cell bytes the final climate fills (one place at a time): the seasons (months × 20), black earth, leaching,
- *  podzol and the climate's waterlogging (× 255); each crop group's harvests a year by rain and watered (CROPS' order,
- *  two bytes each, encHarvests) and the pasture (× 255). */
+ *  podzol and the climate's waterlogging (× 255); each crop group's harvests a year by rain and watered (`crops`: under
+ *  each group's name, two bytes a cell, encHarvests — a group added later is a name more) and the pasture (× 255). */
 export function newFarmClimate(n, K = FARMING) {
     return { rain: new Uint8Array(n), warm: new Uint8Array(n), black: new Uint8Array(n), leach: new Uint8Array(n), podzol: new Uint8Array(n), wet: new Uint8Array(n),
-        crops: new Uint8Array(2 * CROPS.length * n), pasture: new Uint8Array(n), _s: newSeason(), _c: {}, _y: new Float64Array(2 * CROPS.length), _w: cropWork(K) };
+        crops: Object.fromEntries(CROPS.map(k => [k, new Uint8Array(2 * n)])), pasture: new Uint8Array(n), _s: newSeason(), _c: {}, _y: new Float64Array(2 * CROPS.length), _w: cropWork(K) };
 }
 const byte = v => Math.max(0, Math.min(255, Math.round(255 * v)));
 /** One land cell's climate parts (its months as the land's cover read them, and that cover). */
@@ -246,8 +274,8 @@ export function addFarmClimate(fc, c, T, P, cv, K = FARMING) {
     climateSoil(cv, fc._c, K);
     fc.black[c] = byte(fc._c.black); fc.leach[c] = byte(fc._c.leach); fc.podzol[c] = byte(fc._c.podzol);
     fc.wet[c] = byte(S(K.wetlandWet, cv.wetness));
-    const y = cropYields(T, fc._s, fc._y, K, fc._w), n = 2 * CROPS.length, o = n * c;
-    for (let k = 0; k < n; k++) fc.crops[o + k] = encHarvests(y[k]);
+    const y = cropYields(T, fc._s, fc._y, K, fc._w);
+    for (let g = 0; g < CROPS.length; g++) { const b = fc.crops[CROPS[g]]; b[2 * c] = encHarvests(y[2 * g]); b[2 * c + 1] = encHarvests(y[2 * g + 1]); }
     fc.pasture[c] = byte(pastureOf(cv, K));
 }
 
@@ -370,8 +398,8 @@ export const farmIndex = (v, K = FARMING) => v / (v + K.farmHalf);
  *   tech, rain — farmland (0…1) with the techniques and by rain alone: the best crop's food, on farmIndex;
  *   harvests, harvestsRain — that crop's harvests a year (its own crop's, a second one's counted in them); water (0…1);
  *   staple (Staple: the best crop, or herding by the pasture where that does better), score (0…1: how well it grows
- *   there), second; and, given out.scores (6), each staple's score — given out.foods (6), each one's food (herding's as
- *   the staple is chosen by: its pasture × K.herdWeight).
+ *   there), second; and, given out.scores (one a staple: STAPLES.length), each staple's score — given out.foods (as
+ *   many), each one's food (herding's as the staple is chosen by: its pasture × K.herdWeight).
  */
 export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
     const slopeRain = 1 - K.slopeMaxLoss * S(K.slopeLoss, p.slope);
@@ -381,13 +409,14 @@ export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
     const eff = h => Math.min(1, h) + more * Math.max(0, h - 1);
     let best = Staple.NONE, bv = K.stapleMin, bw = 1, bh = 0, second = Staple.NONE, sv = K.stapleMin, rv = 0, rh = 0;
     for (let g = 0; g < CROPS.length; g++) {
-        const c = K.crops[CROPS[g]], er = e[2 * g], ew = e[2 * g + 1], soilF = 1 - c.soil + c.soil * p.soil;
-        const ht = eff(er + water * Math.max(0, ew - er)), hr = eff(er);
-        const v = ht * soilF * ground ** c.level * (g === 0 ? 1 : wetTech) * c.weight;
-        const vr = hr * soilF * slopeRain ** c.level * (g === 0 ? 1 : wetRain) * c.weight;
-        if (scores) scores[g + 1] = Math.min(1, v / c.weight);
-        if (foods) foods[g + 1] = v;
-        if (v > bv) { second = best; sv = bv; best = g + 1; bv = v; bw = c.weight; bh = ht; } else if (v > sv) { second = g + 1; sv = v; }
+        const c = K.crops[CROPS[g]], er = e[2 * g], ew = e[2 * g + 1], soilF = 1 - c.soil + c.soil * p.soil, st = CROP_STAPLE[g];
+        // (a paddy crop stands in water: a waterlogged flat costs it nothing)
+        const ht = eff(er + water * Math.max(0, ew - er)), hr = eff(er), paddy = c.kinds[0].paddy;
+        const v = ht * soilF * ground ** c.level * (paddy ? 1 : wetTech) * c.weight;
+        const vr = hr * soilF * slopeRain ** c.level * (paddy ? 1 : wetRain) * c.weight;
+        if (scores) scores[st] = Math.min(1, v / c.weight);
+        if (foods) foods[st] = v;
+        if (v > bv) { second = best; sv = bv; best = st; bv = v; bw = c.weight; bh = ht; } else if (v > sv) { second = st; sv = v; }
         if (vr > rv) { rv = vr; rh = hr; }
     }
     out.tech = best ? farmIndex(bv, K) : 0; out.rain = farmIndex(rv, K); out.harvests = bh; out.harvestsRain = rh; out.water = water;

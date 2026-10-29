@@ -352,9 +352,7 @@ js/farming/        the finish's farming (plans/V2_FARMING_PLAN.md; Madeline Jame
                    bring; each crop's harvests a year; farmland and the staple put together with the techniques chosen),
                    spread (the hearths where farming began and how each one's strains spread: a travel cost a km over
                    a 0.5° grid — rivers, coasts and plains cheap; hills, deserts, mountains and open ocean dear — the first
-                   strain of each crop to reach a place keeping it), varietals (real crops for the strains' names: ~30
-                   of Earth's domesticates by staple group and Köppen climate, and 12 packages of crops domesticated
-                   together, matched to the hearths by staples and climate — every rule a weighted preference), people
+                   strain of each crop to reach a place keeping it, each strain at home in its hearth's climates), people
                    (how many the land could feed: people a km², and the whole land's)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
@@ -569,45 +567,38 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    (two where it can be, three at most — never taking a hearth's leading one, an extra swapped for a staple fewer hearths have that grows there too; a hearth's second, if none other qualifies, likewise the rarest that grows there). Each crop's strains spread from their
    hearths by one multi-source Dijkstra (the first to reach a cell keeps it); the page gives each pixel the strain its
    four grid cells vote for, and its crops: the best of those that reached it (or herds), a second where it feeds ≥ 80 %
-   as much. The hearths are chosen by rain alone (their spacing too), so the same whatever the techniques. **Real crops**
-   (C4b, `farming/varietals.js`): a crop suits a hearth's strain by its climate (the hearth region's Köppen mix: the
-   same class 1, the same first two letters 0.6, the same first letter 0.3), + the pull of the Earth packages it is in
-   (the Fertile Crescent, the Andes, the Sahel…: each as its climate × the hearth's staples it covers suit the hearth —
-   a hearth partly like several), + how great a staple it was (the great staples first); each staple group's crops
-   shared out one each among its strains, the best sharing found exactly. A package's crops also pull a hearth's second
-   staple. The legend lists each hearth's crops as choices (its group's crops, the likeliest first; one another strain
-   has swaps with it), kept per detailed moment, and says which Earth hearths it is partly like; a Real crops chip and
-   a Reset. **Each crop's own climates in the spread** (C4c): spreadBase (the picture read, the hearths, their crops —
-   cached per techniques) and spreadStrains (again when a crop is chosen, ~0.3 s): each strain spreads by its own
-   Dijkstra, its fit the group's × its crop's niche (Köppen like its climates: from 0.25 outside to 1 in them, averaged
-   over each grid cell's land); a cell's strain the first to reach it unless a later one is worth more there — niche ×
-   (0.6…1 as the crop was a great staple) × e^(−lateness ÷ 3000) — so a better crop from near wins out, one from over a
-   long sea never; and each place's crops weighed by their strains' niches (spreadPlace takes the pixel's Köppen
-   class). Real crops off: the staple groups alone. The sea is crossed freely where no strain is yet (1 a km within
-   200 km of land, rising to 40 at 700 km; never past 1000 km from land — the open ocean, not searched; reach 50 000),
-   but counts 10× in a strain's lateness against one already there; between hearths it stays as dear as before. Each
-   strain's spread is kept (by its hearth's place, its staple and crop), so a crop chosen re-spreads only its strain
-   (~0.1 s). **Re-roll** (C4d): spreadBase is spreadGround (the picture read, the ways — cached per techniques) and
-   spreadHearths(ground, roll): at roll 0 the likeliest, as before (byte-identical); at another the same scores as odds —
-   the order the regions are tried in by their richness × e^(0.25 × a random field smooth over ~1000 km), a hearth's
-   other staples by their shares × e^(0.4 × a normal number) (its leading one kept), each real crop's pull + 0.3 × a
-   Gumbel draw before the one-each sharing — every rule kept as before; each a hash of the roll, its stream and the place
-   (the same every time, at any detail). The legend's Re-roll chip picks a roll at random, 1–999999 as a seed is, kept
-   in the link as `crops=` and in a planet file's settings (none: roll 0; New World back to 0); a crop chosen goes (the
-   hearths may move); Reset crops back to roll 0; the hearths' numbered pins drawn over the
-   planet, not on its texture (`#mapPins`, placed again each time the planet is drawn: GlobeView.screenAt — the globe's
-   near side, or the map's projection forward at its zoom and pan), round and sharp in every projection and zoom; a re-roll ~0.5–0.8 s. **One part of the world; at home** (C4e): a hearth's crops
-   pull on each other — each pair + 0.6 × how near their Earth homes were (1 one package; packages' rough places on
-   Earth, 1 within 1500 km falling to 0 at 6000) — solved by sharing each group out again in turn with the others'
-   names (block coordinate ascent: the total only grows) until none changes; and each strain's niche is its crop's
-   blended 30 % toward its hearth's climates (each class as like one of the hearth's, as that covers 5–25 % of its land:
-   varietals.js strainNiche), so a strain grows well around its own hearth (its suits kept per hearth place and crop). `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it,
-   the land's people plausible, the hearths far apart with every
-   staple domesticated, each strain its own real crop of its group, mostly great staples in a climate like its hearth's, each crop grown more in its own climates, the hearths the same
-   whatever the techniques, their strains spread far over seas but never the open ocean, little good crop land
-   unreached, little farmland left to foragers, each re-roll another history keeping every rule (the richest hearth
-   still near in most), a hearth's crops from one part of the world more than by their own suits alone, each strain
-   at home around its hearth;
+   as much. The hearths are chosen by rain alone (their spacing too), so the same whatever the techniques. **At home**
+   (C6a — archetypes, not species: the real crops of C4b–C4e, `farming/varietals.js`, went to branch `crops`, to come
+   back as a layer over this): spreadBase (the picture read, the hearths — cached per techniques) and spreadStrains:
+   each strain spreads by its own Dijkstra, its fit the group's × its hearth's niche — at home in the hearth's climates
+   (each Köppen class 1 − homeBias (0.4) × (1 − how like one of them it is: the same class 1, the same first two letters
+   0.6, the same first letter 0.3, each fully as it covers 5–25 % of the hearth's land), averaged over each grid cell's
+   land); a cell's strain the first to reach it unless a later one is worth more there — niche × e^(−lateness ÷ 3000) —
+   so a strain at home from near wins out, one from over a long sea never; and each place's crops weighed by their
+   strains' niches (spreadPlace takes the pixel's Köppen class). The sea is crossed freely where no strain is yet (1 a
+   km within 200 km of land, rising to 40 at 700 km; never past 1000 km from land — the open ocean, not searched; reach
+   50 000), but counts 10× in a strain's lateness against one already there; between hearths it stays as dear as
+   before. Each strain's spread is kept (by its hearth's place and staple), so a re-roll re-spreads only the strains it
+   moved. **Re-roll** (C4d): spreadBase is spreadGround (the picture read, the ways — cached per techniques) and
+   spreadHearths(ground, roll): at roll 0 the likeliest; at another the same scores as odds — the order the regions are
+   tried in by their richness × e^(0.25 × a random field smooth over ~1000 km), a hearth's other staples by their
+   shares × e^(0.4 × a normal number) (its leading one kept) — every rule kept as before; each a hash of the roll, its
+   stream and the place (the same every time, at any detail; stream 3, the real crops' names, kept for them). The
+   legend's Re-roll chip picks a roll at random, 1–999999 as a seed is, kept in the link as `farm=` (`crops=` left for
+   the crops layer) and in a planet file's settings as `farm` (none: roll 0; New World back to 0); Reset back to roll
+   0; the hearths' numbered pins drawn over the planet, not on its texture (`#mapPins`, placed again each time the
+   planet is drawn: GlobeView.screenAt — the globe's near side, or the map's projection forward at its zoom and pan),
+   round and sharp in every projection and zoom; a re-roll ~0.5 s. **The staples one list** (C6a, farming.js
+   `STAPLES`): each staple's code its place in it, never renumbered (the exports' staple index; a new one appended);
+   `CROPS`, `CROP_STAPLE` and `STAPLE_CROP` map crop groups and staples both ways — no code counts on "group + 1". Each
+   crop group's harvests are kept under its own name (`farming.crops.rice` …: two bytes a place, by rain and watered —
+   in the finish per cell and in the picture per pixel; `harvestsAt` reads them, a group a moment lacks growing
+   nothing; `hasHarvests` false for a moment detailed before them, or one that kept them all in one array).
+   `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it, the
+   land's people plausible, the hearths far apart with every staple domesticated, the hearths and their staples the
+   same whatever the techniques, their strains spread far over seas but never the open ocean, little good crop land
+   unreached, little farmland left to foragers, each strain grown more at home than were none at home, each re-roll
+   another history keeping every rule (the richest hearth still near in most), each strain at home around its hearth;
    `tuning/farming/earth-farming.mjs` checks the climate's part, the staples and the classes at 95 places on Earth.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)

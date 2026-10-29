@@ -28,7 +28,7 @@ import { FastNoise } from '../core/fast-noise.js';
 import { locate } from '../core/mesh-locate.js';
 import { classifyRocks } from '../geology/rocks.js';
 import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
-import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests } from '../farming/farming.js';
+import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests } from '../farming/farming.js';
 
 const DEPOSIT_IDS = DEPOSITS.map(d => d.id);
 
@@ -523,8 +523,9 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     const rockPx = cw && geology?.rock ? new Uint8Array(cw * ch) : null, recPx = rockPx && geology.rec ? new (geology.simCells < 65536 ? Uint16Array : Int32Array)(cw * ch) : null, dither = rockPx ? new FastNoise(0x6e0c) : null, ditherF = R / (1.5 * (mesh.edgeKm ?? 30));
     // (and the farming's parts, on the climate's picture: its land cells' weighted mean — the soil's kind the weightiest's)
     const farmPx = cw && farming ? Object.fromEntries(FARM_KEYS.map(k => [k, new Uint8Array(cw * ch)])) : null, farmKind = farmPx ? new Uint8Array(cw * ch) : null;
-    // (each crop group's harvests a year, by rain and watered: each averaged in harvests, not in its byte)
-    const NC = farming?.crops ? farming.crops.length / mesh.numCells : 0, cropPx = farmPx && NC ? new Uint8Array(NC * cw * ch) : null;
+    // (each crop group's harvests a year, by rain and watered — two bytes a pixel under its name: each averaged in
+    // harvests, not in its byte)
+    const cropPx = farmPx && hasHarvests(farming) ? Object.fromEntries(Object.keys(farming.crops).map(key => [key, new Uint8Array(2 * cw * ch)])) : null;
     // (each column's longitude's cosine and sine, once)
     const cosLon = new Float64Array(w), sinLon = new Float64Array(w);
     for (let px = 0; px < w; px++) { const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI; cosLon[px] = Math.cos(lon); sinLon[px] = Math.sin(lon); }
@@ -558,10 +559,11 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
                             farmPx[key][k] = Math.round(s / ws);
                         }
                         farmKind[k] = farming.kind[best];
-                        if (cropPx) for (let q = 0; q < NC; q++) {
+                        if (cropPx) for (const key in cropPx) for (let q = 0; q < 2; q++) {
+                            const b = farming.crops[key];
                             let s = 0;
-                            for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && climate.tAnnual[c] === climate.tAnnual[c]) s += w3[j] * decHarvests(farming.crops[NC * c + q]); }
-                            cropPx[NC * k + q] = encHarvests(s / ws);
+                            for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && climate.tAnnual[c] === climate.tAnnual[c]) s += w3[j] * decHarvests(b[2 * c + q]); }
+                            cropPx[key][2 * k + q] = encHarvests(s / ws);
                         }
                     }
                     if (rockPx) {

@@ -46,7 +46,7 @@ self.onmessage = async ({ data }) => {
         self.postMessage({ type: 'stage', id, stage: 'picture' });
         const t0 = performance.now();
         const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
-        const farm = raster.farming ? [...FARM_KEYS, 'kind', ...(raster.farming.crops ? ['crops'] : [])].map(k => raster.farming[k].buffer) : [];
+        const farm = raster.farming ? [...[...FARM_KEYS, 'kind'].map(k => raster.farming[k].buffer), ...Object.values(raster.farming.crops ?? {}).map(a => a.buffer)] : [];
         out.ms.picture = performance.now() - t0;
         // (the finished moment's climate: the grid's fields, and its own picture of the land's climate)
         const climate = { ...out.climate.page, raster: raster.climate };

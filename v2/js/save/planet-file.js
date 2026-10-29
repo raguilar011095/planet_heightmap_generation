@@ -46,7 +46,7 @@ export function planetBytes(frames, fin) {
 
 /**
  * The planet file of a history and its detailed moment.
- * `settings`: the world's ({seed, cont, len, ending, sim, terrain, greenhouse, rain, more, crops?}); `history`: {frames,
+ * `settings`: the world's ({seed, cont, len, ending, sim, terrain, greenhouse, rain, more, farm?}); `history`: {frames,
  * simMesh, simMyr, steps, stopped, snapshotMyr, omit (fields not to save: those a history opened from an older file lacked,
  * read there as zeros — so this file says it lacks them too)}; `detail`: {frame (one of the frames), fin (the page's
  * finished moment)}; `onProgress(share, text)`.

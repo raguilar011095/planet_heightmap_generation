@@ -278,11 +278,11 @@ export function produceMap(fin, W, lk, job) {
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
-/** The Farming views' choices, for the README: the techniques on, the re-roll, the crops chosen. */
+/** The Farming views' choices, for the README: the techniques on, the re-roll. */
 function farmingNote() {
     const on = TECHNIQUES.filter(k => farmOptions[k]);
     return `Farming maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
-        `${farmOptions.roll ? `crops re-rolled (crops=${farmOptions.roll} in the link)` : 'the likeliest crops'}${farmOptions.realCrops ? '' : ', the staple groups alone'}`;
+        `${farmOptions.roll ? `its history re-rolled (farm=${farmOptions.roll} in the link)` : 'the likeliest history of its hearths'}`;
 }
 
 /**

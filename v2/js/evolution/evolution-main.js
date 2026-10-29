@@ -28,7 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmPickChanged, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -71,9 +71,10 @@ if (url.get('len')) ui.len.value = url.get('len');
 // (Greenhouse, W/m²; an older link's temp= was the same slider in °C steps of 1)
 if (url.get('greenhouse')) ui.tmp.value = url.get('greenhouse'); else if (url.get('temp')) ui.tmp.value = 2 * Number(url.get('temp'));
 if (url.get('rain')) ui.prc.value = url.get('rain');
-// (the Farming legend's Re-roll: which likely history of its hearths and crops — 0, not in the link, the likeliest)
-const linkedCrops = Number(url.get('crops'));
-if (Number.isInteger(linkedCrops) && linkedCrops > 0) farmOptions.roll = linkedCrops;
+// (the Farming legend's Re-roll: which likely history of its hearths and crops — 0, not in the link, the likeliest;
+// `farm=`, leaving `crops=` for the real crops' layer one day)
+const linkedFarm = Number(url.get('farm'));
+if (Number.isInteger(linkedFarm) && linkedFarm > 0) farmOptions.roll = linkedFarm;
 // The planet's Temperature and Precipitation (as Generate's): the climate's options, for the preview climate and for Add
 // detail — they change the climate only, not the history (plans/V1_NEW_CLIMATE_PLAN.md, phase 7)
 const climateOptions = () => ({ greenhouseWm2: Number(ui.tmp.value), precipScale: Math.max(0, 1 + 0.5 * Number(ui.prc.value)) });
@@ -168,7 +169,7 @@ $('loadFile').addEventListener('change', e => { const f = e.target.files[0]; e.t
 ui.terrain.addEventListener('change', () => setTerrainDetail());
 // (more: how far the history was kept going — a link rebuilds the same history, run on as far)
 const saveUrl = () => history.replaceState(null, '', `?seed=${encodeURIComponent(seedShown())}&cont=${ui.cont.value}&len=${ui.len.value}&end=${ui.ending.value}&sim=${ui.sim.value}&terrain=${ui.terrain.value}` +
-    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : '') + (farmOptions.roll ? `&crops=${farmOptions.roll}` : ''));
+    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : '') + (farmOptions.roll ? `&farm=${farmOptions.roll}` : ''));
 let linkedMore = Number(url.get('more')) || 0;          // (the first build only: a new world starts at its length)
 // Keep going: the history runs on in pieces this long, until stopped (a multiple of the step grid and of the snapshot
 // interval — pieces of the one history, the same as a single run: tectonics/simulate.js, resume)
@@ -516,7 +517,7 @@ async function loadPlanet(file) {
     // its settings, and the link to them (the same history again, built here)
     ui.seed.value = s.seedText ?? String(s.seed); ui.cont.value = s.cont; ui.len.value = s.len; setIf(ui.ending, s.ending); setIf(ui.sim, String(s.sim));
     setIf(ui.terrain, String(terrainCells)); ui.tmp.value = s.greenhouse; ui.prc.value = s.rain;
-    farmOptions.roll = Number.isInteger(s.crops) && s.crops > 0 ? s.crops : 0;         // (its crops as re-rolled when saved; else the likeliest)
+    farmOptions.roll = Number.isInteger(s.farm) && s.farm > 0 ? s.farm : 0;            // (its farming as re-rolled when saved; else the likeliest)
     ui.quality.value = Object.keys(QUALITY).find(k => QUALITY[k].sim === ui.sim.value && QUALITY[k].terrain === ui.terrain.value) ?? 'custom';
     $('customGroup').hidden = ui.quality.value !== 'custom';
     clearView(m.history.toMyr, { play: false, label: 'Opening…' });
@@ -1036,7 +1037,7 @@ const planetFile = {
         const [greenhouse, rain] = fin.climateKey.split('|').map(Number);
         const { blob } = await savePlanet({
             settings: { seed: b.seed, ...(b.seedText ? { seedText: b.seedText } : {}), cont: b.contPct, len: b.lengthMyr, ending: b.ending, sim: b.simCells, terrain: b.terrainCells, greenhouse, rain, more: b.moreTo || 0,
-                ...(farmOptions.roll ? { crops: farmOptions.roll } : {}) },             // (the Farming legend's re-roll, as the link has it)
+                ...(farmOptions.roll ? { farm: farmOptions.roll } : {}) },              // (the Farming legend's re-roll, as the link has it)
             history: { frames: b.frames, simMesh: b.simMesh, simMyr: b.simMyr, steps: b.steps, stopped: b.stopped ?? null, snapshotMyr: SNAPSHOT_MYR, omit: [...(b.lacking ?? [])] },
             detail: { frame, fin }, onProgress: progress });
         return { blob, name: fileName(['orogen', b.seedText ?? b.seed, `${Math.round(frame.time)}Myr`], 'orogen') };
@@ -1244,8 +1245,6 @@ function setLayer(layer) {
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
 // (the Farming legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
 $('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
-// (…and a hearth's crop chosen in the Crop spread legend: its strain spreads as that crop does)
-$('climateLegend').addEventListener('change', e => { if (farmPickChanged(e.target)) dirty = true; });
 $('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
 $('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
 $('cardAction').addEventListener('click', mainAction);

@@ -5,7 +5,7 @@
 // twenty). From a finished moment's farming picture (farming/farming.js farmPlace, per pixel), with the techniques
 // chosen. What the land could support — not who would live there.
 
-import { farmPlace, decHarvests, Staple, CROPS } from './farming.js';
+import { farmPlace, harvestsAt, hasHarvests, Staple, CROPS } from './farming.js';
 import { FARMING } from './farming-config.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 
@@ -51,7 +51,7 @@ export function peopleAt(r, p, tech, C = PEOPLE, K = FARMING) {
  * @returns {{people: number (pre-industrial), land: number (km²)}}
  */
 export function landPeople(F, L, tech, C = PEOPLE, K = FARMING) {
-    const kef = KOPPEN_ID.EF, p = {}, e = new Float64Array(2 * CROPS.length), r = {}, n = 2 * CROPS.length;
+    const kef = KOPPEN_ID.EF, p = {}, e = new Float64Array(2 * CROPS.length), r = {}, kept = hasHarvests(F);
     // (the picture read about C.sampleW pixels wide: each sample stands for its stride × stride pixels)
     const stride = Math.max(1, Math.ceil(F.w / C.sampleW)), R = 6371, pxKm2 = (2 * Math.PI * R / F.w) * (Math.PI * R / F.h);
     let people = 0, land = 0;
@@ -63,7 +63,7 @@ export function landPeople(F, L, tech, C = PEOPLE, K = FARMING) {
             land += a * pxKm2;
             if (L.koppen[i] === kef) continue;
             p.soil = F.soil[i] / 255; p.warm = F.warm[i] / 20; p.flood = F.flood[i] / 255; p.canal = F.canal[i] / 255; p.slope = 2 * F.slope[i]; p.wetland = F.wetland[i] / 255;
-            if (F.crops) for (let k = 0; k < n; k++) e[k] = decHarvests(F.crops[n * i + k]); else e.fill(0);
+            if (kept) harvestsAt(F.crops, i, e); else e.fill(0);
             farmPlace(p, e, F.pasture[i] / 255, tech, r, K);
             people += a * pxKm2 * peopleAt(r, p, tech, C, K);
         }

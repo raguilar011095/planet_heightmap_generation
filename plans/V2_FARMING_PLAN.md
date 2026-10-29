@@ -253,6 +253,28 @@ them over per pixel; the page combines them with the techniques chosen, at once.
   the README through main's `readmeLists`), check-save drawing the farming's maps from the moment read back and
   skipping them on a kept planet saved without them. On the new rocks the hearths' crops come from one part of the
   world (nearness 0.39): check-farming 56/56; check-geology 56/56; check-save all pass.
+- **C6 — Archetypes, not species** (developer, 2026-10-29: "for this pr/next release, i want to separate the
+  people/farming/ways of life/staples out from individual crops or species … this should be talking about idealized or
+  archetypal of each type of crops and lifestyles, and which would dominate … a 'staple food source' and then a 'primary
+  lifestyle' that can also like blend over like the others"; and "it shouldnt be settled, but more 'farming'. im thinking
+  of like the pacific northwest where they could maintain high population density without farming just gathering all
+  year round"). The real crops (varietals.js; C4b, C4c and C4e's crop climates; the Real crops chip and its picks) and
+  the crops plan (`plans/V2_CROPS_PLAN.md`, `_RESEARCH.md`) moved to branch `crops` (6fb6c9f), to come back as a layer
+  over this one. Two parts, each checked in the browser:
+  - **C6a — the ground under it** (no map changes but the spread's): (1) the food sources one list with codes that
+    never change (`farming.js` STAPLES: the exports' staple index; a new source appended, never renumbered — no code
+    counting on "crop group + 1" or "≤ roots"); (2) each crop group's harvests saved under its own name
+    (`farming.crops.rice` …, two bytes a place: by rain, watered) — a group added later is data added (an older moment
+    lacks it: detailed again), not a new layout; (3) the spread without species — a strain is its hearth's strain of a
+    staple group, at home in its hearth's climates (`SPREAD.homeBias`), every strain worth the same; the hearths'
+    staples from their land alone (Earth's packages no longer pull); (4) the link's `crops=` (the Re-roll) is now
+    `farm=`, the saved settings' `crops` `farm`, so `crops=` is free for the crops layer's own; the view stays "Crop
+    spread" until C6b names it. Checks: the farming's fingerprints (cell and picture parts, staples, farmland, people)
+    unchanged before and after (but the spread); check-farming, check-save.
+  - **C6b — staple food source and primary lifestyle** (to plan with the developer): the staples as archetypes
+    (paddy grain, cool-season grain, warm-season grain, roots and tubers, livestock, and new: fish, wild foods), the
+    lifestyles Farming · Herding · Gathering (hunting, fishing and gathering — the Pacific Northwest's dense gatherers),
+    each a map that blends where two are close; People counting each lifestyle's own density.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 
