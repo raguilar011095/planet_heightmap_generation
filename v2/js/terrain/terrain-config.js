@@ -420,6 +420,16 @@ export const TERRAIN = {
     detailRenewMyr: 150,        // …over about this long (0: never — the detail stays frozen on the crust)
     stripeMeanderKm: 16,        // stripes wander by about this much…
     stripeMeanderAlongKm: 350,  // …over this distance (so they bend by ~15° at most, and stay parallel to the front)
+    // …and they undulate at every scale about their own, in every direction (developer, 2026-10-28: "the overall shape is
+    // great, but its too uniform. It needs to undulate in every direction … and at every scale (larger than phasor and
+    // less than phasor)"): octaves of a noise at these multiples of the ridges' wavelength (stripeKm), where the mesh can
+    // show them, bend the ridges — each displacing them by ± ridgeVaryBend of its own wavelength — and raise and lower
+    // them: the parallel ridges and the ridge noise × e^(ridgeVaryHeight × the octaves' sum), its mean kept. Peaks and
+    // saddles along each ridge, one ridge higher than the next, groups of them higher, uneven flanks
+    ridgeVaryScales: [2, 1, 0.5, 0.25],
+    ridgeVaryWeights: [1, 1, 0.8, 0.6],
+    ridgeVaryBend: 0.035,
+    ridgeVaryHeight: 0.5,
     // En-echelon ridges: where plates met obliquely, fold axes turn by half the obliquity. Along a transform that is
     // the whole story (the Transverse Ranges); at an oblique trench or collision most of the sideways motion goes onto
     // a separate fault along the margin (strain partitioning — the Great Sumatran Fault), so folds stay nearly parallel.
