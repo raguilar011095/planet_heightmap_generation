@@ -802,9 +802,9 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                     const seg = smooth(-0.35, 0.3, renewed(x * segF + 2.7, y * segF + 5.7, z * segF + 8.7, 2));
                     texture = (0.2 + 0.8 * seg) * (0.55 + 0.45 * renewed(x * crestF + 3.9, y * crestF + 7.3, z * crestF + 1.2, 2) * 1.8);
                 }
-                // (an old belt's ridges run on, evenly: its segments and crest variation fade by oldEven; its troughs no deeper
+                // (an old belt's segments and crest variation by oldEven — less even than a young one's; its troughs no deeper
                 // than its ridges are high — the rivers in them deepen them — so the stronger ridges leave it as high on the whole)
-                const tex = oldStripes > 0 ? texture + (1 - texture) * cfg.oldEven * oldStripes : texture, lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
+                const tex = oldStripes > 0 ? Math.max(0, texture + (1 - texture) * cfg.oldEven * oldStripes) : texture, lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
                 if (stripeAmp > 0.005 && carry) {
                     if (!carried) {                     // (the point on the raster of the plate under it, unwarped)
                         carried = true;

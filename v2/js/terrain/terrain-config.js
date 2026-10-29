@@ -384,9 +384,11 @@ export const TERRAIN = {
     oldComb: 0.8,               // the share of the massif and of the hills drawn out along the strike, once old
     oldHillsStretch: 4,
     oldRidgeGain: 1,            // the parallel ridges this much stronger, once old…
-    oldEven: 0.7,               // …and this much more even along the strike: their segments' fading, their crests' rise and fall
-                                // and the crests' roughening × 1 − this (old ranges' even-crested ridges, the Appalachians'),
-                                // so their troughs run on and catch the rivers — broken only where ridgeBreak breaks them
+    oldEven: -0.25,             // …and this much more even along the strike: their segments' fading, their crests' rise and fall
+                                // and the crests' roughening × 1 − this. Negative: a little LESS even than a young belt's — 0.7
+                                // (the Appalachians' even crests, troughs running on to catch the rivers) until 2026-10-28,
+                                // when the old belts read as combed rows (developer: "old belts should not be more even,
+                                // maybe it should even be slightly less")
     oldGrainHardness: 0.6,      // erodibility × 1 ∓ this on the ridges and in the troughs (×0.4 … ×1.6, the same on the whole), once old
 
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
