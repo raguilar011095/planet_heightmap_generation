@@ -243,6 +243,16 @@ them over per pixel; the page combines them with the techniques chosen, at once.
   ~35–40); the breadbaskets 46–52 and the Nile, Java, the Yangtze ~100 unchanged. On seed 12345's world the rainforests'
   leached bedrock now feeds 10–14 a km² (was 17–26); its river silt (a quarter of them: rice, ~2 harvests a year by
   rain) still ~150 — open.
+- **Main's geology merged in** (developer, 2026-10-28: "i merged the geology (and other changes) into main, i need you
+  to pull that in and make sure you respect the nature of those changes"; main's PR #82: ores, ages, districts, gems, the
+  record's four views dropped, the rocks shaping the land L0–L7). The geology is main's throughout — its views, checks,
+  exports (geology-export.js) and its way of knowing a history saved before the record (the file's `lacking`, not a
+  look at the frame) — with the farming fitted to it: the `farming` stage after main's `deposits` (the rocks now come
+  before the final climate), rocks.js handing over `youngKind` again for the soils, the Farming views beside the Geology
+  ones in the tiles, legend keys and readout, the Farming export group after main's Geology one (its staples listed in
+  the README through main's `readmeLists`), check-save drawing the farming's maps from the moment read back and
+  skipping them on a kept planet saved without them. On the new rocks the hearths' crops come from one part of the
+  world (nearness 0.39): check-farming 56/56; check-geology 56/56; check-save all pass.
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

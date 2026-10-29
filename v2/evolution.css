@@ -168,10 +168,14 @@
 .evo-card-ghost:disabled { opacity: 0.65; cursor: default; }
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
-/* Satellite and Geology come with detail: their tabs locked on previews */
+/* Satellite, Geology and Farming come with detail: their tabs locked on previews */
 .map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after, .map-tab[data-layer="farming"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
 .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
+/* the Ages legend's entries are its switch: tap one to see it alone */
+.evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
+.evo-age-chips [data-age-res]:hover { background: rgba(255,255,255,0.06); }
+.evo-age-chips [data-age-res].on { background: rgba(100,160,255,0.18); box-shadow: inset 0 0 0 1px rgba(100,160,255,0.45); }
 /* the view strip, the layers and the legend (styles.css .layer-bar, .view-strip, .legend-card): here the legend clears
    the timeline, and the chip (what a layer needs) ends the bar's column */
 @media (min-width: 769px) { #legendCard { bottom: 110px; } }
@@ -286,8 +290,8 @@
     #ui:not(.collapsed) .evo-sheet-line { display: none; }
     #exportCard select, #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
     .evo-act { min-height: 44px; }
-    /* the Geology and Farming rows: in the layer list instead (as Climate's), the legend's chips and choices 44 px */
-    .layer-bar #geologyTabs, .layer-bar #farmingTabs { display: none !important; }
+    /* the Farming row's views: in the layer list too (as the Geology row's, below); its legend's chips and choices 44 px */
+    .layer-bar #farmingTabs { display: none !important; }
     .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
     .evo-farm-pick { min-height: 44px; font-size: 13px; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
@@ -295,6 +299,9 @@
     #mapCanvas { top: 36px; height: calc(100vh - 36px); }
     #info { display: none; }
     #hoverInfo { bottom: 176px; }
+    /* (the Geology row's views are in the layer list there, as the Climate row's are; its pickers stay, under the list) */
+    .layer-bar #geologyTabs { display: none !important; }
+    .evo-age-chips [data-age-res] { min-height: 32px; display: inline-flex; align-items: center; }
     .evo-chip { font-size: 12px; }
     .evo-chip button { min-height: 44px; padding: 0 16px; }
     .evo-climate-btn { min-height: 44px; }

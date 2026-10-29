@@ -17,6 +17,8 @@ export const GeoFlag = Object.freeze({
 
 // ── A frame's geology fields: what each holds and how it is packed into a byte or two per cell ──
 export const GEO_FRAME_FIELDS = ['geoFlags', 'coverKm', 'coverMaxKm', 'coverMaxAge', 'facies', 'exhumKm', 'unroofKm', 'floodMyr', 'floodAge', 'arcMyr'];
+/** The frame's other fields the finish's geology reads beyond the terrain's (geology/deposits.js: a belt's start). */
+export const GEOLOGY_READS = ['oroStart'];
 
 const COVER_MAX_KM = 16;                    // cover, by the square root: fine where thin (0.25 m), coarse where thick (0.16 km at 10 km)
 const EXHUM_STEP_KM = 0.25, FLOOD_STEP_MYR = 2, ARC_STEP_MYR = 2, AGE_STEP_MYR = 8, FLOOD_AGE_STEP_MYR = 5;

@@ -63,15 +63,61 @@ export function hillshade8(h, W, H, exaggeration = 20) {
     return out;
 }
 
+/**
+ * A picture of classes (`data`, R.w × R.h: a class per pixel, 0 none — the sea) at width W, each land pixel (`sea`, W ×
+ * W/2, 0) its class: averaged down, the class most of its block has; enlarged, the class the nearest four by four pixels
+ * weigh most by a cubic B-spline (smooth, positive weights: the classes' stair-stepped borders rounded into curves). Land
+ * the picture marks as none (a coast a pixel apart) takes the nearest class. `n`: how many classes. (The Köppen zones'
+ * export; Evolution's rocks.)
+ */
+export function classIndexMap(R, data, n, W, sea) {
+    const H = W >> 1, out = new Uint8Array(W * H);
+    const s = R.w / W, K = Math.max(1, Math.round(s)), votes = new Float32Array(n), bx = [0, 0, 0, 0], by = [0, 0, 0, 0];
+    const bspline = (t, w) => { const t2 = t * t, t3 = t2 * t, u = 1 - t; w[0] = u * u * u / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6; };
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        const p = y * W + x;
+        let z = 0;
+        if (!sea[p]) {
+            votes.fill(0);
+            if (s >= 1) {
+                for (let dy = 0; dy < K; dy++) for (let dx = 0; dx < K; dx++) votes[data[Math.min(R.h - 1, y * K + dy) * R.w + Math.min(R.w - 1, x * K + dx)]]++;
+            } else {
+                const u = (x + 0.5) * s - 0.5, v = (y + 0.5) * s - 0.5, x0 = Math.floor(u), y0 = Math.floor(v);
+                bspline(u - x0, bx); bspline(v - y0, by);
+                for (let j = 0; j < 4; j++) {
+                    const row = Math.min(R.h - 1, Math.max(0, y0 - 1 + j)) * R.w;
+                    for (let i = 0; i < 4; i++) votes[data[row + ((x0 - 1 + i) % R.w + R.w) % R.w]] += bx[i] * by[j];
+                }
+            }
+            for (let c = 1; c < votes.length; c++) if (votes[c] > votes[z]) z = c;
+            if (!z) z = nearestClass(R, data, Math.min(R.w - 1, Math.floor((x + 0.5) * s)), Math.min(R.h - 1, Math.floor((y + 0.5) * s)));
+        }
+        out[p] = z;
+    }
+    return out;
+}
+/** The nearest class to a picture's pixel (a ring at a time, up to 3 pixels out), or 0. */
+function nearestClass(R, data, cx, cy) {
+    for (let d = 1; d <= 3; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
+        if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
+        const yy = cy + dy;
+        if (yy < 0 || yy >= R.h) continue;
+        const z = data[yy * R.w + ((cx + dx) % R.w + R.w) % R.w];
+        if (z) return z;
+    }
+    return 0;
+}
+
 /** The season's word in a file name and the README. */
 export const SEASON_NAMES = { year: 'the year', jan: 'January', jul: 'July' };
 
 /**
  * The README.txt that goes in a ZIP: what every file is, its kind and scale, and how the export was made.
- * `files`: [{ name, row, variant, season, file, kind, W, H }]; `about`: { page, planet, link, width, height, projection,
- * centerLon, hillshade, notes }.
+ * `files`: [{ name, row, variant, season, file, kind, about, W, H }] (kind 'file': not a map — `about` says what it is);
+ * `about`: { page, planet, link, width, height, projection, centerLon, hillshade, notes }; `lists`: more numbered lists
+ * after the Köppen classes' ([{ title, items }]: a class index file's classes).
  */
-export function readmeText(about, files, koppenClasses = null) {
+export function readmeText(about, files, koppenClasses = null, lists = []) {
     const L = [];
     L.push(`World Orogen — export from the ${about.page} page`, `https://orogen.studio/`, '');
     if (about.planet) L.push(`Planet: ${about.planet}`);
@@ -84,7 +130,7 @@ export function readmeText(about, files, koppenClasses = null) {
     for (const n of about.notes || []) L.push(n);
     L.push('', 'Files', '-----');
     for (const f of files) {
-        const kind = f.kind === 'rgba' ? 'colour PNG' : f.kind === 'gray16' ? '16-bit greyscale PNG' : '8-bit greyscale PNG';
+        const kind = f.kind === 'file' ? f.about : f.kind === 'rgba' ? 'colour PNG' : f.kind === 'gray16' ? '16-bit greyscale PNG' : '8-bit greyscale PNG';
         const season = f.season ? `, ${SEASON_NAMES[f.season] || f.season}` : '';
         let scale = '';
         if (f.file?.scale) {
@@ -97,15 +143,9 @@ export function readmeText(about, files, koppenClasses = null) {
         L.push('', 'Köppen classes (the index in the class-index file)', '----------------------------------------------');
         koppenClasses.forEach((k, i) => L.push(`${String(i).padStart(2)}  ${k.code || 'sea'}${k.name ? `  ${k.name}` : ''}`));
     }
-    // (any other index file's classes, as its data file lists them: `file.classes`, a name per index)
-    const listed = new Set();
-    for (const f of files) {
-        const cl = f.file?.classes;
-        if (!cl || listed.has(f.file.key)) continue;
-        listed.add(f.file.key);
-        const head = `${f.file.label} (the index in its file)`;
-        L.push('', head, '-'.repeat(head.length));
-        cl.forEach((name, i) => L.push(`${String(i).padStart(2)}  ${name}`));
+    for (const { title, items } of lists) {
+        L.push('', title, '-'.repeat(title.length));
+        items.forEach((t, i) => L.push(`${String(i).padStart(2)}  ${t}`));
     }
     L.push('', 'Data files are linear greyscales on the scale given: value = lo + grey / top × (hi − lo). The 16-bit files',
         'open in GIMP, Photoshop, QGIS, Blender and most game engines; a viewer that reads only 8 bits shows the top byte.',

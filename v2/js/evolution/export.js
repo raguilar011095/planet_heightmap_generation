@@ -7,18 +7,19 @@
 // width: its own, averaged down, or enlarged for use downstream (developer, 2026-10-17: "allow the different sizes even if
 // it enlarges the pixels … some smart interpolation"): heights by a clamped bicubic, coasts, lakes and climate zones by the
 // weighted majority of the nearest pixels, satellite colours blended — then painted at the full width, so the hillshade,
-// the coasts and the rivers' lines stay sharp.
+// the coasts and the rivers' lines stay sharp. And the geology's (geology-export.js): each of its views' maps, the rock
+// types and a richness mask per resource as data, the districts as GeoJSON and CSV, a resource atlas in words. And the
+// farming's (farming-view.js): each of its views as shown, and its numbers as data.
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { GEOLOGY_LAYERS, finishedGeologyColor, hasRecord, rockPixel } from './geology-view.js';
 import { finishedFarmingColor, finishedFarmingValue, drawHearths, farmOptions } from './farming-view.js';
-import { ROCK_INFO, Rock } from '../geology/rocks.js';
 import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
 import { initExportPanel } from '../view/export-panel.js';
-import { DATA_SCALES as SC, scaled, hillshade8, climateRows } from '../view/export-raster.js';
+import { DATA_SCALES as SC, scaled, hillshade8, climateRows, classIndexMap } from '../view/export-raster.js';
+import { GEOLOGY_GROUP, produceGeology, rockTypesList } from './geology-export.js';
 
 /** The heightmap's scale: black −11 km (below the deepest trench), white +9 km (above the highest peak), linear. */
 export const HEIGHT_RANGE_M = [-11000, 9000];
@@ -27,16 +28,17 @@ export const LAND_TOP_M = 9000;
 /** The widest export: 16384 px (a picture of 134 million pixels); on a phone 4096. */
 export const EXPORT_MAX = 16384, EXPORT_MAX_TOUCH = 4096;
 const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v)));
-/** The Geology and Farming data maps' scales (linear, as export-raster.js's; an index's classes listed in the README). */
-const VIEW_SCALES = {
-    rockIndex: { unit: 'rock kind index (0 = sea; the README lists the kinds)', lo: 0, hi: 255 },
+/** The Farming data maps' scales (linear, as export-raster.js's; the staples' index listed in the README). */
+const FARM_SCALES = {
     farmland:  { unit: 'farmland (0 barren … 1 the richest: the Farmland view\'s ramp)', lo: 0, hi: 1 },
     people:    { unit: 'people a km² (pre-industrial)', lo: 0, hi: 1000 },
     soil:      { unit: 'soil fertility (0 barren … 1 the richest)', lo: 0, hi: 1 },
     season:    { unit: 'months crops grow', lo: 0, hi: 12 },
     staple:    { unit: 'staple index (0 = nothing grown or sea; the README lists them)', lo: 0, hi: 255 },
 };
-const viewData = (key, suffix, label, scale, bits = 16, classes = null) => ({ key, suffix, label, scale: VIEW_SCALES[scale], bits, ...(classes ? { classes } : {}) });
+const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
+/** The README's list of the staples (the staple index file's numbers), when the export has one. */
+const staplesList = files => (files.some(f => f.file?.key === 'staple') ? [{ title: 'Staples (the number in the staple index file)', items: STAPLE_WORDS }] : []);
 
 /** The catalogue of a moment's maps (the panel's rows): as Colour, as Data, or both. */
 export const CATALOGUE = [
@@ -53,31 +55,25 @@ export const CATALOGUE = [
         { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief lit from the north-west, on its own — to lay over a flat colour map' },
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
-    // (the Geology and Farming views as shown — the Farming ones with the techniques, crops and re-roll chosen in its
-    // legend; their data maps the numbers themselves)
-    { id: 'geology', label: 'Geology', rows: [
-        { id: 'geoRocks', label: 'Rocks', colour: true, needs: 'geology', data: [viewData('rockIndex', 'index', 'Rock kind index', 'rockIndex', 8, ROCK_INFO.map(k => k.name))], tip: 'What the land is made of at the surface; as data, each rock kind\'s index (the README lists them)' },
-        { id: 'geoBelts', label: 'Mountain belts', colour: true, needs: 'record', tip: 'Mountain belts by when each was last active' },
-        { id: 'geoSeas', label: 'Past seas', colour: true, needs: 'record', tip: 'Where shallow seas lay over the continents, and when' },
-        { id: 'geoCover', label: 'Sediment', colour: true, needs: 'record', tip: 'The sediment laid on the continents, by its top' },
-        { id: 'geoWear', label: 'Erosion depth', colour: true, needs: 'record', tip: 'How deep erosion has cut into the basement' },
-    ] },
+    GEOLOGY_GROUP,
+    // (the Farming views as shown — with the techniques, crops and re-roll chosen in its legend; their data maps the
+    // numbers themselves)
     { id: 'farming', label: 'Farming', rows: [
-        { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [viewData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), viewData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
-        { id: 'farmStaple', label: 'Staples', colour: true, needs: 'farming', data: [viewData('staple', 'index', 'Staple index', 'staple', 8, STAPLE_WORDS)], tip: 'What each place would grow most; as data, each staple\'s index (the README lists them)' },
+        { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
+        { id: 'farmStaple', label: 'Staples', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple index', 'staple', 8)], tip: 'What each place would grow most; as data, each staple\'s index (the README lists them)' },
         { id: 'farmSpread', label: 'Crop spread', colour: true, needs: 'farming', tip: 'Where each place\'s crops came from, with the numbered hearths — the crops and the re-roll chosen in its legend' },
-        { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [viewData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
-        { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [viewData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },
-        { id: 'farmSeason', label: 'Growing season', colour: true, needs: 'farming', data: [viewData('seasonRain', 'rain', 'Growing season by rain alone', 'season'), viewData('seasonWatered', 'watered', 'Growing season, watered', 'season')], tip: 'The months crops grow, as its legend shows; as data, by rain alone and watered' },
+        { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [farmData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
+        { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [farmData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },
+        { id: 'farmSeason', label: 'Growing season', colour: true, needs: 'farming', data: [farmData('seasonRain', 'rain', 'Growing season by rain alone', 'season'), farmData('seasonWatered', 'watered', 'Growing season, watered', 'season')], tip: 'The months crops grow, as its legend shows; as data, by rain alone and watered' },
     ] },
 ];
 
-/** Whether a moment has a row's data: its climate, Satellite, rivers, rocks, rock record (the moment's frame `frame`,
- *  if the history kept it) or farming — a moment detailed by an older World Orogen may lack the newer ones. */
-export function rowAvailable(row, fin, frame = null) {
+/** Whether a moment has a row's data: its climate, Satellite, rivers, rocks, deposits or farming — a moment detailed by an
+ *  older World Orogen may lack the newer ones. */
+export function rowAvailable(row, fin) {
     const n = row.needs;
     return n === 'climate' ? !!fin.climate?.raster?.koppen : n === 'satellite' ? !!fin.climate?.raster?.sat : n === 'rivers' ? !!fin.rivers
-        : n === 'geology' ? !!fin.raster?.geology : n === 'record' ? !!fin.raster?.geology?.rec && hasRecord(frame)
+        : n === 'geology' ? !!fin.raster?.geology : n === 'deposits' ? !!fin.raster?.geology?.deposits?.land
         : n === 'farming' ? !!(fin.raster?.farming?.crops && fin.climate?.raster?.koppen) : true;
 }
 /** The row ids whose colours climate-view.js names otherwise. */
@@ -186,47 +182,14 @@ export function satelliteMap(fin, W, season, look) {
  * climate picture marks as sea (a coast a pixel apart) takes the nearest zone.
  */
 export function koppenIndexMap(fin, W, centerLon = 0) {
-    const R = fin.climate.raster, H = W >> 1, { sea } = pictureAt(fin, W), out = new Uint8Array(W * H);
-    const s = R.w / W, K = Math.max(1, Math.round(s)), votes = new Float32Array(KOPPEN_RGB.length), bx = [0, 0, 0, 0], by = [0, 0, 0, 0];
-    const bspline = (t, w) => { const t2 = t * t, t3 = t2 * t, u = 1 - t; w[0] = u * u * u / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6; };
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const p = y * W + x;
-        let z = 0;
-        if (!sea[p]) {
-            votes.fill(0);
-            if (s >= 1) {
-                for (let dy = 0; dy < K; dy++) for (let dx = 0; dx < K; dx++) votes[R.koppen[Math.min(R.h - 1, y * K + dy) * R.w + Math.min(R.w - 1, x * K + dx)]]++;
-            } else {
-                const u = (x + 0.5) * s - 0.5, v = (y + 0.5) * s - 0.5, x0 = Math.floor(u), y0 = Math.floor(v);
-                bspline(u - x0, bx); bspline(v - y0, by);
-                for (let j = 0; j < 4; j++) {
-                    const row = Math.min(R.h - 1, Math.max(0, y0 - 1 + j)) * R.w;
-                    for (let i = 0; i < 4; i++) votes[R.koppen[row + ((x0 - 1 + i) % R.w + R.w) % R.w]] += bx[i] * by[j];
-                }
-            }
-            for (let c = 1; c < votes.length; c++) if (votes[c] > votes[z]) z = c;
-            if (!z) z = nearestZone(R, Math.min(R.w - 1, Math.floor((x + 0.5) * s)), Math.min(R.h - 1, Math.floor((y + 0.5) * s)));
-        }
-        out[p] = z;
-    }
-    return rollRows(out, W, H, 1, rollShift(W, centerLon));
+    const R = fin.climate.raster, { sea } = pictureAt(fin, W);
+    return rollRows(classIndexMap(R, R.koppen, KOPPEN_RGB.length, W, sea), W, W >> 1, 1, rollShift(W, centerLon));
 }
 /** The Köppen zones in their colours (the sea in Ocean's colour), from the index map. */
 export function koppenMap(fin, W, centerLon = 0) {
     const idx = koppenIndexMap(fin, W, centerLon), H = W >> 1, rgba = new Uint8ClampedArray(4 * W * H);
     for (let p = 0; p < W * H; p++) { const c = KOPPEN_RGB[idx[p]], o = 4 * p; rgba[o] = c[0]; rgba[o + 1] = c[1]; rgba[o + 2] = c[2]; rgba[o + 3] = 255; }
     return { kind: 'rgba', W, H, data: rgba };
-}
-/** The nearest land zone to a climate-picture pixel (a ring at a time, up to 3 pixels out), or 0. */
-function nearestZone(R, cx, cy) {
-    for (let d = 1; d <= 3; d++) for (let dy = -d; dy <= d; dy++) for (let dx = -d; dx <= d; dx++) {
-        if (Math.max(Math.abs(dx), Math.abs(dy)) !== d) continue;
-        const yy = cy + dy;
-        if (yy < 0 || yy >= R.h) continue;
-        const z = R.koppen[yy * R.w + ((cx + dx) % R.w + R.w) % R.w];
-        if (z) return z;
-    }
-    return 0;
 }
 
 /**
@@ -254,14 +217,10 @@ export function climateMap(fin, W, layer, season, look) {
         colorAt: finishedClimateColor(layer, season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
-/**
- * A Geology or Farming view as shown (geology-view.js, farming-view.js), shaded or flat, lakes as water — the Crop spread
- * view with its numbered hearths. `at`: the moment's frame and plate mesh (the Geology views of the history's record).
- */
-export function viewMap(fin, W, layer, look, at = {}) {
+/** A Farming view as shown (farming-view.js), shaded or flat, lakes as water — the Crop spread view with its numbered hearths. */
+export function farmingMap(fin, W, layer, look) {
     const H = W >> 1, image = new ImageData(W, H), shift = rollShift(W, look.centerLon);
-    const colorAt = GEOLOGY_LAYERS.has(layer) ? finishedGeologyColor(layer, at.frame, at.simMesh, W, fin) : finishedFarmingColor(layer, fin, W);
-    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt });
+    paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt: finishedFarmingColor(layer, fin, W) });
     const rgba = rollRows(image.data, W, H, 4, shift);
     if (layer !== 'farmSpread') return { kind: 'rgba', W, H, data: rgba };
     // (the hearths' pins, drawn for the map's own width: as large, relative to it, at any width — turned as the map is)
@@ -270,13 +229,10 @@ export function viewMap(fin, W, layer, look, at = {}) {
     ctx.save(); ctx.translate(-shift, 0); drawHearths(ctx, W, fin); ctx.restore();
     return { kind: 'rgba', W, H, data: ctx.getImageData(0, 0, W, H).data };
 }
-/** A Geology or Farming quantity as numbers (8-bit for a class index, else 16-bit), on its scale. */
-export function viewValueMap(fin, W, file, centerLon = 0) {
+/** A Farming quantity as numbers (8-bit for the staples' index, else 16-bit), on its scale. */
+export function farmingValueMap(fin, W, file, centerLon = 0) {
     const H = W >> 1, { sea } = pictureAt(fin, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
-    // (the rock's index as the Rocks view draws it: geology-view.js rockPixel — land the picture has as sea, its nearest)
-    const G = fin.raster.geology, px = file.key === 'rockIndex' ? rockPixel(G, W) : null, at = px
-        ? (x, y) => { const i = px(x, y); return (i >= 0 && G.rock[i]) || Rock.ALLUVIUM; }
-        : finishedFarmingValue(file.key, fin, W);
+    const at = finishedFarmingValue(file.key, fin, W);
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const p = y * W + x; out[p] = sea[p] ? 0 : Math.round(top * scaled(at(x, y), file.scale)); }
     return { kind: file.bits === 8 ? 'gray8' : 'gray16', W, H, data: rollRows(out, W, H, 1, rollShift(W, centerLon)) };
 }
@@ -295,14 +251,18 @@ export function hillshadeMap(fin, W, exaggeration, centerLon = 0) {
 /**
  * One map of a finished moment, W wide, as the panel asks for it: `job` {row (a CATALOGUE row), variant ('colour' or
  * 'data'), file (one of the row's data files), season}; `lk` the look ({lut, exaggeration, water, riverQ, byRegime,
- * shaded, centerLon}); `at` the moment's frame and plate mesh ({frame, simMesh}: the Geology views of the rock record).
- * (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
+ * shaded, centerLon} — and for the geology's rows the Deposits view's pick, the moment's frame and the seed:
+ * geology-export.js). (v2/tools/check-save.mjs draws every one from each saved planet it keeps.)
  */
-export function produceMap(fin, W, lk, job, at = {}) {
+export function produceMap(fin, W, lk, job) {
     const s = job.season || 'year', id = job.row.id, c = lk.centerLon;
+    if (job.row.geology) {
+        const g = produceGeology(fin, W, lk, job, { pictureAt, paintAt });
+        return g.kind === 'file' ? g : { ...g, data: rollRows(g.data, g.W, g.H, g.kind === 'rgba' ? 4 : 1, rollShift(g.W, c)) };
+    }
     if (job.variant === 'colour') {
         if (id === 'color') return colorMap(fin, W, lk);
-        if (job.row.needs === 'geology' || job.row.needs === 'record' || job.row.needs === 'farming') return viewMap(fin, W, id, lk, at);
+        if (job.row.needs === 'farming') return farmingMap(fin, W, id, lk);
         if (id === 'satellite') return satelliteMap(fin, W, s, lk);
         if (id === 'koppen') return koppenMap(fin, W, c);
         if (id === 'rivers') return riversMap(fin, W, lk);
@@ -314,7 +274,7 @@ export function produceMap(fin, W, lk, job, at = {}) {
     if (key === 'landmask') return { kind: 'gray8', W, H, data: landMask8(fin, W, c) };
     if (key === 'hillshade') return hillshadeMap(fin, W, lk.exaggeration, c);
     if (key === 'koppenIndex') return { kind: 'gray8', W, H, data: koppenIndexMap(fin, W, c) };
-    if (job.row.needs === 'geology' || job.row.needs === 'farming') return viewValueMap(fin, W, job.file, c);
+    if (job.row.needs === 'farming') return farmingValueMap(fin, W, job.file, c);
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
@@ -327,18 +287,19 @@ function farmingNote() {
 
 /**
  * Wire the export panel on the Evolution page. `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null;
- * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }); `centerLon()`: the map view's;
- * `simMesh()`: the history's plate mesh (the Geology views of its rock record); `planetFile`: the page's planet file
- * ({ status, save }: export-panel.js), offered beside the maps.
+ * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }, and the geology's: { deposit (the
+ * Deposits view's pick) }); `centerLon()`: the map view's; `planetFile`: the page's planet file ({ status, save }:
+ * export-panel.js), offered beside the maps.
  */
-export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, simMesh = () => null, planetFile = null, fine = null }) {
+export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null }) {
     const adapter = {
         page: 'evolution',
         options: { hillshade: true },
         planetFile,
         koppenClasses: KOPPEN_CLASSES,
+        readmeLists: files => [...rockTypesList(files), ...staplesList(files)],
         widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
-        available: (row, ctx) => rowAvailable(row, ctx.fin, ctx.frame),
+        available: (row, ctx) => rowAvailable(row, ctx.fin),
         titleNote: (ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`,
         begin: async (W, opts, ctx, progress) => {
             let fin = ctx.fin;
@@ -347,14 +308,14 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
                 const data = await fine(fin, ctx.seed, W, p => progress?.(0, `Adding the detail finer than the mesh… ${Math.round(100 * p)} %`));
                 fin = { ...fin, fine: { W, ...data } };
             }
-            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon }, fin, at: { frame: ctx.frame, simMesh: simMesh() } };
+            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon, frame: ctx.frame, seed: ctx.seed }, fin };
         },
         end: async () => {},
         names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
         about: (ctx, opts) => ({ page: 'Evolution', planet: `seed ${ctx.seed}, the moment at ${Math.round(ctx.frame.time)} Myr`, link: location.href,
             sizeNote: opts.width > ctx.fin.raster.w ? (ctx.fin.raster.drivers ? `drawn from the ${ctx.fin.raster.w} px the moment was detailed at, with the detail finer than its mesh added` : `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at`) : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at',
             notes: ctx.fin.raster?.farming ? [farmingNote()] : [] }),
-        produce: async (rctx, job) => produceMap(rctx.fin, rctx.W, rctx.look, job, rctx.at),
+        produce: async (rctx, job) => produceMap(rctx.fin, rctx.W, rctx.look, job),
     };
     return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue: CATALOGUE, adapter, onOpen: moment, getCenterLon: centerLon, getProjection: projection });
 }

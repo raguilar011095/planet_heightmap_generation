@@ -25,8 +25,9 @@ import { paintPalette, heightLutOf, PALETTES, CRUST_WORDS, settingOf } from './l
 import { ClimateService, CLIMATE_LAYERS, SEASONAL_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paintUnavailable, drawArrows, drawItcz, drawLegend, readoutLines, finishedClimateColor, finishedClimateLines } from './climate-view.js';
 import { FinishService, paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from './finish-view.js';
 import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
-import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, hasRecord } from './geology-view.js';
-import { GEO_FRAME_FIELDS } from '../tectonics/model/geology.js';
+import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
+import { AGES } from '../geology/ages.js';
+import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
 import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmPickChanged, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
@@ -201,7 +202,7 @@ let glinting = false, glintFrom = null;
 let lines = null, linesKey = null;      // the GPU's overlay: the grid and a climate layer's arrows, drawn again only when they change
 const PALETTE_KEY = 'orogen.evolution.palette';
 const storedPalette = (() => { try { return localStorage.getItem(PALETTE_KEY); } catch { return null; } })();
-const view = { layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, projection: 'equirect', projOpts: {}, season: 'year', finished: true,
+const view = { deposit: 'all', age: 'bronze', ageRes: 'all', layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, projection: 'equirect', projOpts: {}, season: 'year', finished: true,
     water: true, riverQ: 40, byRegime: false,                        // (rivers and lakes on finished moments: the density's threshold, m³/s; coloured by regime)
     shaded: true };                                                  // (the hillshade; off, every view flat colour)
 let flat = null;
@@ -388,10 +389,11 @@ function sameBytes(a, b) {
     for (let i = 0; i < x.length; i++) if (x[i] !== y[i]) return false;
     return true;
 }
-/** Two frames (PackedFrames) the same: every field as packed, to the bit, and every property. */
-function sameFrame(a, b) {
-    const pa = a._packed, pb = b._packed, ka = Object.keys(pa), ma = Object.keys(a);
-    if (ka.length !== Object.keys(pb).length || ma.length !== Object.keys(b).length) return false;
+/** Two frames (PackedFrames) the same: every field as packed, to the bit, and every property — but the fields in `skip`
+ *  (those a planet file's frames lack: newer than the file), and then too the properties only `a` (the replay's) has. */
+function sameFrame(a, b, skip = null) {
+    const older = !!skip?.size, pa = a._packed, pb = b._packed, ka = Object.keys(pa).filter(k => !skip?.has(k)), ma = Object.keys(a).filter(k => !older || k in b);
+    if (ka.length !== Object.keys(pb).filter(k => !skip?.has(k)).length || ma.length !== Object.keys(b).length) return false;
     for (const k of ka) {
         const x = pa[k], y = pb[k];
         if (!y || x.type !== y.type || x.length !== y.length || !Object.is(x.bg, y.bg) || x.first !== y.first) return false;
@@ -414,7 +416,16 @@ async function replayHistory(b) {
     };
     const onFrame = (frame, i) => {
         if (B !== b) return;
-        if (i < b.frames.length) { if (!differs && !sameFrame(frame, b.frames[i])) { differs = b.frames[i]; ctl.abort(); } return; }
+        if (i < b.frames.length) {
+            if (!differs && !sameFrame(frame, b.frames[i], b.lacking)) { differs = b.frames[i]; ctl.abort(); }
+            // (what the file lacked — the geological record, in a file saved before it was kept — taken from the replay)
+            else if (!differs && b.lacking?.size) {
+                const old = b.frames[i];
+                for (const k of b.lacking) if (frame._packed[k]) { old._packed[k] = frame._packed[k]; delete old._open[k]; }
+                for (const k of Object.keys(frame)) if (!(k in old)) old[k] = frame[k];
+            }
+            return;
+        }
         // (past the file's end: the history running on — as build()'s)
         b.frames.push(frame); b.player?.addFrame(frame); if (frame.time > Number(ui.time.max)) setScale(frame.time); rail();
     };
@@ -429,6 +440,7 @@ async function replayHistory(b) {
         if (B !== b) { run.close(); return; }
         console.info(`[evolution] history run again to ${time.toFixed(0)} Myr in ${((performance.now() - job.started) / 1000).toFixed(1)} s: every moment the same as the file's`);
         b.replay = null; b.run = run; b.stopped = run.stopped;
+        if (b.lacking?.size) { b.lacking.clear(); b.noGeology = false; dirty = true; }     // (every frame has its record now)
         keepGoing(b);
     } catch (err) {
         run?.close();
@@ -511,12 +523,15 @@ async function loadPlanet(file) {
     status(`Opening ${name}…`, 0);
     if (IS_TOUCH) ui.panel.classList.add('collapsed');
     try {
-        const { mesh, frames, detail, detailNote } = await planet.read({ detail: withDetail, onProgress: (share, text) => { if (B === b) status(text, share); } });
+        const { mesh, frames, detail, detailNote, lacking } = await planet.read({ detail: withDetail, onProgress: (share, text) => { if (B === b) status(text, share); } });
         if (B !== b) return;
         // (a file saved without the mesh's neighbours: the same mesh's, found again here)
         const near = mesh.adjOffset ? mesh : simMeshOf(mesh.numCells);
         b.simMesh = meshFromArrays({ numCells: mesh.numCells, xyz: mesh.xyz, adjOffset: near.adjOffset, adjList: near.adjList });
         b.frames = frames.map(f => new PackedFrame(f));
+        // (fields the file's frames lack, read as zeros: left out when its history is run again, and the geology off
+        // without its record — until a replay that matches brings the record in)
+        b.lacking = new Set(lacking); b.noGeology = GEO_FRAME_FIELDS.some(k => b.lacking.has(k));
         const shown = b.frames[m.detail?.frame ?? 0] ?? b.frames[0];
         if (detail) { b.finishes.set(b.frames[detail.frame], detail.moment); b.finishOk = true; b.finishNote = `Opened from ${name}`; }
         // (a moment left in the file — too old to read, or more than a phone can show: this moment, ready to be detailed again)
@@ -718,14 +733,14 @@ function climateOverlays(t, C) {
 }
 
 /** The legend's key for a finished moment's view (a legend made for another is made again). */
-const finishedLegendKey = (frame, fin, farm) => `finished|${view.layer}|${view.season}|${frame.time}|${fin.cells}${farm ? `|${farmOptionsKey()}` : ''}`;
+const finishedLegendKey = (frame, fin, farm) => `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}${farm ? `|${farmOptionsKey()}` : ''}`;
 
 /** The finished moment shown for a frame on the layer shown, if any: on the height layers, and on the climate layers
  *  (a finish brings the moment's own climate) — or null. */
 function finishedShown(frame) {
     if (!view.finished || !B || !(view.layer === 'terrain' || view.layer === 'heightmap' || CLIMATE_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer))) return null;
     const fin = B.finishes.get(frame);
-    return fin && (!CLIMATE_LAYERS.has(view.layer) || fin.climate) && (!FINISHED_ONLY_LAYERS.has(view.layer) || fin.climate?.raster?.sat) ? fin : null;
+    return fin && (!CLIMATE_LAYERS.has(view.layer) || fin.climate) && (!FINISHED_ONLY_LAYERS.has(view.layer) || fin.climate?.raster?.sat) && (!GEOLOGY_LAYERS.has(view.layer) || fin.raster.geology) ? fin : null;
 }
 
 /** A finished moment: its picture, coloured and shaded as the live terrain is — or its climate, per pixel. */
@@ -737,7 +752,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
     // farming views their lakes too, as water)
     paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm,
-        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, frame, B.simMesh, t.width, fin) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
     if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
     t.ctx.putImageData(t.image, 0, 0);
     // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
@@ -750,7 +765,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
     const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
     if (legend.dataset.key !== legendKey) {
-        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, frame, fin);
+        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
         else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
@@ -783,7 +798,7 @@ function viewPlaces() {
 }
 /** What the patch's tiles are painted for: a number that changes when the layer, its colours or what is drawn over it do. */
 function patchLookOf(fin) {
-    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${FARMING_LAYERS.has(view.layer) ? `|${farmOptionsKey()}` : ''}`;
+    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${GEOLOGY_LAYERS.has(view.layer) ? `|${view.deposit}|${view.age}|${view.ageRes}` : ''}${FARMING_LAYERS.has(view.layer) ? `|${farmOptionsKey()}` : ''}`;
     if (key !== patchLookKey || fin.climate !== patchClimate) { patchLookKey = key; patchClimate = fin.climate; patchLook++; }
     return patchLook;
 }
@@ -812,7 +827,7 @@ function paintTile(fin, t, look) {
     const W = t.win.W, lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
     const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
     if (tileColors.look !== look) { tileColors.look = look; tileColors.byWidth.clear(); }
-    if ((C || geo || farm) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, painted, B.simMesh, W, fin) : farm ? finishedFarmingColor(view.layer, fin, W)
+    if ((C || geo || farm) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, W, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, W)
         : finishedClimateColor(view.layer, view.season, C, W, lut, fin));
     if (tileImage?.width !== t.win.w || tileImage.height !== t.win.h) tileImage = new ImageData(t.win.w, t.win.h);
     paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm, shaded: view.shaded,
@@ -860,10 +875,9 @@ async function finishMoment(again = null) {
     b.finishNote = null; b.finishOk = false;
     b.finishJob = { frame, cells, stage: 'starting', share: 0, startedAt: performance.now() };
     updateClimateUi();
-    // (the terrain's fields, and the geological record for the rocks: geology/rocks.js)
-    // (the rock record with it — unless the history was saved before it was kept: a planet file's older frames read it
-    // as zeros, no record, so the moment is detailed without its rocks — geology-view.js hasRecord)
-    const slim = Object.fromEntries([...FRAME_FIELDS, ...(hasRecord(frame) ? GEO_FRAME_FIELDS : [])].map(k => [k, frame[k]]));
+    // (the terrain's fields, and the geological record for the rocks: geology/rocks.js — none from a history saved before
+    // it was kept: its frames read the record as zeros, and the finish then makes no geology)
+    const slim = Object.fromEntries([...FRAME_FIELDS, ...(b.noGeology ? [] : GEO_FRAME_FIELDS), ...GEOLOGY_READS].map(k => [k, frame[k]]));
     slim.plates = frame.plates.map(p => p && { quat: p.quat });
     // (progress: the stages' shares so far, and the picture's own)
     let before = 0;
@@ -932,7 +946,7 @@ function updateCard() {
     }
     const t = frame ? frame.time.toFixed(0) : '', dt = detFrame?.time.toFixed(0), pct = job ? (100 * Math.min(1, job.share)).toFixed(0) : 0;
     // the one thing to do next: the card's button and the timeline's
-    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate and the Satellite view (seconds to a minute)';
+    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate, the Satellite view and its geology (seconds to a minute)';
     if (job) { main = short = `Cancel · ${pct}%`; title = `Adding detail to ${job.frame.time.toFixed(0)} Myr (${job.stage}) — click to cancel`; }
     else if (isDet) { main = short = 'Export'; title = 'Save this detailed moment as map files: heightmaps (the sea floor too), a land mask and the colour map'; }
     else if (detFrame) title = `Add detail to ${t} Myr — it replaces the detailed ${dt} Myr once it is done (one moment is kept in detail)`;
@@ -952,9 +966,9 @@ function updateCard() {
     const computing = !!b?.live && !b.going;
     $('cardText').textContent = !frame ? (b?.loading ? 'Opening a planet file…' : b?.problem ? '' : 'A new world is starting…')
         : job ? `Adding detail to ${job.frame.time.toFixed(0)} Myr: ${job.stage}…`
-        : isDet ? 'This moment, sculpted in detail. Look around — Satellite and Climate show it at its detail — then export it as map files.'
+        : isDet ? 'This moment, sculpted in detail. Look around — Satellite, Climate and Geology show it at its detail — then export it as map files.'
         : playing ? (computing ? 'Computing the history — scrub through any of it as it fills in. Pause on a moment you like, then add detail.' : 'Pause on a moment you like, then add detail.')
-        : 'This is a preview. Add detail sculpts it again, finely: rivers and lakes, glaciers, its own climate and the Satellite view — ready to export.';
+        : 'This is a preview. Add detail sculpts it again, finely: rivers and lakes, glaciers, its own climate, the Satellite view and its geology — ready to export.';
     showIf($('detailGroup'), !!frame && !job);
     showIf($('waterGroup'), isDet && !job);
     const again = $('cardAgain'), stale = isDet && fin.climateKey !== climateKey();
@@ -987,14 +1001,14 @@ function updateCard() {
     }
     // (the collapsed bottom sheet: the moment and what is going on, in a line)
     $('sheetLine').textContent = b?.problem && !frame ? b.problem : !frame ? (b?.loading ? 'Opening a planet…' : 'Starting a world…') : `${t} Myr · ${badge}` + (job ? ` · adding detail ${pct}%` : computing ? ' · computing the history…' : b?.going ? ' · extending the history…' : replay ? ' · running the history again…' : '');
-    // Satellite comes with detail: its tab locked on previews
-    const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame));
+    // Satellite and Geology come with detail: their tabs locked on previews
+    const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology), farmOk = !!(frame && b?.finishes.get(frame));
     document.querySelector('#mapTabs [data-layer="satellite"]').classList.toggle('locked', !satOk);
     $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite 🔒';
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
     $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
-    document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !geoOk);
-    $('mobileFarming').label = geoOk ? 'Farming' : 'Farming 🔒';
+    document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
+    $('mobileFarming').label = farmOk ? 'Farming' : 'Farming 🔒';
     const legend = $('regimeLegend');
     legend.hidden = !(view.byRegime && view.water && view.layer === 'terrain' && isDet);
     if (!legend.childElementCount) legend.innerHTML = REGIME_STYLE.map(s => `<span><i style="background:${s.rgb}"></i>${s.name}</span>`).join('');
@@ -1023,16 +1037,15 @@ const planetFile = {
         const { blob } = await savePlanet({
             settings: { seed: b.seed, ...(b.seedText ? { seedText: b.seedText } : {}), cont: b.contPct, len: b.lengthMyr, ending: b.ending, sim: b.simCells, terrain: b.terrainCells, greenhouse, rain, more: b.moreTo || 0,
                 ...(farmOptions.roll ? { crops: farmOptions.roll } : {}) },             // (the Farming legend's re-roll, as the link has it)
-            history: { frames: b.frames, simMesh: b.simMesh, simMyr: b.simMyr, steps: b.steps, stopped: b.stopped ?? null, snapshotMyr: SNAPSHOT_MYR },
+            history: { frames: b.frames, simMesh: b.simMesh, simMyr: b.simMyr, steps: b.steps, stopped: b.stopped ?? null, snapshotMyr: SNAPSHOT_MYR, omit: [...(b.lacking ?? [])] },
             detail: { frame, fin }, onProgress: progress });
         return { blob, name: fileName(['orogen', b.seedText ?? b.seed, `${Math.round(frame.time)}Myr`], 'orogen') };
     },
 };
 const exportPanel = initEvolutionExport({
     moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed }; },
-    look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime }),
-    centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH,
-    simMesh: () => B?.simMesh, planetFile,
+    look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
+    centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH, planetFile,
     // (an export wider than the picture: the whole planet drawn with the detail finer than the mesh, in bands)
     fine: (fin, _seed, W, onProgress) => detail.window(fin, B.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress) });
 
@@ -1087,10 +1100,14 @@ function updateClimateUi() {
     }
     const chip = $('climateChip'), shown = frame ? finishedShown(frame) : null, t = frame ? frame.time.toFixed(0) : '';
     let text = null, act = null;
-    if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
-        const fjob = b.finishJob, what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Farming views come';
-        text = fjob ? `Adding detail to ${fjob.frame.time.toFixed(0)} Myr…` : `The ${what} with detail — add detail to ${t} Myr to see ${view.layer === 'satellite' ? 'it' : 'them'}`;
-        act = fjob ? null : 'Add detail';
+    if (frame && GEOLOGY_LAYERS.has(view.layer) && b.noGeology) {
+        text = 'This planet was saved before Evolution kept a record of its rocks — Build This World (under World) builds its history again with one, to see its geology';
+    } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
+        const fjob = b.finishJob, again = !!fin && GEOLOGY_LAYERS.has(view.layer);
+        const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Farming views come';
+        text = fjob ? `Adding detail to ${fjob.frame.time.toFixed(0)} Myr…` : again ? `${t} Myr was detailed before its geology was — add detail again to see it`
+            : `The ${what} with detail — add detail to ${t} Myr to see ${view.layer === 'satellite' ? 'it' : 'them'}`;
+        act = fjob ? null : again ? 'Add detail again' : 'Add detail';
     } else if (frame && CLIMATE_SUB.has(view.layer) && !shown && !have) {
         text = job ? `Working out the climate of ${job.frame.time.toFixed(0)} Myr…` : playing ? 'Pause on a moment to see its climate' : `No climate for ${t} Myr`;
         act = job || playing ? null : 'Calculate';
@@ -1220,6 +1237,8 @@ function setLayer(layer) {
     $('geologyTabs').hidden = !geo;
     $('farmingTabs').hidden = !farm;
     $('season').hidden = !SEASONAL_LAYERS.has(layer);
+    $('depositPick').hidden = layer !== 'geoDeposits';
+    $('agePick').hidden = $('ageRes').hidden = layer !== 'geoAges';
     updateClimateUi();
 }
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
@@ -1244,6 +1263,20 @@ $('cardDetailed').addEventListener('click', e => {
 });
 $('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
 $('season').addEventListener('change', e => { view.season = e.target.value; dirty = true; });
+$('depositPick').addEventListener('change', e => { view.deposit = e.target.value; dirty = true; });
+// the Ages view: the age, then its resources (all, one alone, or its potential) — the legend's entries switch them too
+function fillAgeRes() {
+    const age = AGES.find(a => a.id === view.age), sel = $('ageRes');
+    sel.innerHTML = '<option value="all">All its resources</option>' + age.resources.map(r => `<option value="${r.id}">${r.name}</option>`).join('') +
+        (age.potential ? `<option value="potential">${age.potential.name} potential</option>` : '');
+    sel.value = view.ageRes;
+}
+fillAgeRes();
+$('agePick').addEventListener('change', e => { view.age = e.target.value; view.ageRes = 'all'; fillAgeRes(); dirty = true; });
+$('ageRes').addEventListener('change', e => { view.ageRes = e.target.value; dirty = true; });
+const pickAgeRes = el => { if (view.layer !== 'geoAges') return; view.ageRes = view.ageRes === el.dataset.ageRes ? 'all' : el.dataset.ageRes; $('ageRes').value = view.ageRes; dirty = true; };
+$('climateLegend').addEventListener('click', e => { const el = e.target.closest('[data-age-res]'); if (el) pickAgeRes(el); });
+$('climateLegend').addEventListener('keydown', e => { const el = e.target.closest('[data-age-res]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pickAgeRes(el); } });
 $('chkShade').addEventListener('change', e => { view.shaded = e.target.checked; dirty = true; });
 $('palette').value = view.palette;
 $('palette').addEventListener('change', e => {
@@ -1309,12 +1342,15 @@ function readout(e) {
     if (plate >= 0) lines.push(`<span class="hi-label">Age</span> ${Math.max(0, Math.round(f.time - f.formedAt[w])).toLocaleString()} Myr`);
     const setting = plate >= 0 ? settingOf(f, w) : null;
     if (setting) lines.push(`<span class="hi-label">Setting</span> ${setting}`);
-    // the geology views: the record under the pointer (its belt, its seas, its cover, its wear)
+    // the geology views: the rock under the pointer and the record it came from (its belt, its seas, its cover, its wear)
     if (fin && GEOLOGY_LAYERS.has(view.layer)) {
         // (the record where the terrain read it, if the finish handed that over: the cell the pixel shows)
         const rw = !at.ocean ? recAt(fin, p[0], p[1]) : -1, wr = rw >= 0 ? rw : w;
         const rl = !at.ocean ? rockLine(rockAt(fin, p[0], p[1]), f, wr) : null;
         if (rl) lines.push(rl);
+        if (view.layer === 'geoDeposits') lines.push(...depositLines(fin, p[0], p[1], !!at.ocean, view.deposit));
+        if (view.layer === 'geoAges') lines.push(...ageLines(fin, view.age, p[0], p[1], !!at.ocean));
+        if ((view.layer === 'geoDeposits' || view.layer === 'geoAges') && !at.ocean) lines.push(...districtLines(fin, f, view.layer, view.deposit, view.age, view.ageRes, p[0], p[1]));
         lines.push(...geologyLines(f, wr));
         ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
         return;

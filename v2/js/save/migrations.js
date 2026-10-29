@@ -56,9 +56,11 @@ const fieldTypes = () => (schema ??= Object.entries(frameArrays(1)).map(([k, v])
 
 /**
  * A frame read from a file ({meta, fields}, packed by `manifest.frameCodec`, meaning `manifest.frameVersion`), as today's
- * PackedFrame reads it — `numCells` the plate mesh's. A field today's frames carry and this one lacks is all zeros.
+ * PackedFrame reads it — `numCells` the plate mesh's. A field today's frames carry and this one lacks is all zeros (and
+ * named in `lacking`, a Set, if given: the page turns off what needs it — the geology, for a history saved before its
+ * record was kept).
  */
-export function migrateFrame(frame, manifest, numCells) {
+export function migrateFrame(frame, manifest, numCells, lacking = null) {
     let { meta, fields } = frame;
     if (manifest.frameCodec !== FRAME_CODEC || manifest.frameVersion !== FRAME_VERSION) {
         const unpack = UNPACK[manifest.frameCodec];
@@ -75,6 +77,7 @@ export function migrateFrame(frame, manifest, numCells) {
     const none = new Map();
     for (const [k, type, per] of fieldTypes()) {
         if (fields[k]) continue;
+        lacking?.add(k);
         if (fields === frame.fields) fields = { ...fields };
         const length = per * numCells;
         if (!none.has(length)) none.set(length, new Uint8Array((length + 7) >> 3));

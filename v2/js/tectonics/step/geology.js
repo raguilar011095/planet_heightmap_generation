@@ -32,6 +32,8 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 const warmShare = (lat, G) => 1 - smooth(G.warmLat[0], G.warmLat[1], lat);
 const aridShare = (lat, G) => smooth(G.aridLat[0], G.aridLat[1], lat) * (1 - smooth(G.aridLat[2], G.aridLat[3], lat));
 const wetShare = (lat, G) => Math.max(1 - smooth(G.wetLat[0], G.wetLat[1], lat), smooth(G.wetLat[2], G.wetLat[3], lat) * (1 - smooth(G.wetLat[4], G.wetLat[5], lat)));
+// (coal where the basin lay in a wet belt — or, by Madeline James's rule, anywhere within ~45° of the equator: GEOLOGY.guideRules.coalByWetBelts)
+const coalBelt = (lat, G) => (G.coalByWetBelts === false ? 1 - smooth(40, 50, lat) : wetShare(lat, G));
 
 /** Ocean floor's depth (km) at an age (Myr): half-space cooling flattening with age (Stein & Stein's GDH1). */
 export const oceanDepthKm = age => (age < 20 ? 2.6 + 0.365 * Math.sqrt(Math.max(0, age)) : 5.651 - 2.473 * Math.exp(-0.0278 * age));
@@ -67,7 +69,7 @@ export function recordWear(crust, c, wornKm, basinKm, lat, time, dt, G) {
     }
     if (basinKm > G.forelandDepthKm[0]) {
         crust.geoFlags[c] |= GeoFlag.FORELAND;
-        deposit(crust, c, G.forelandRateKmPerMyr * dt * smooth(G.forelandDepthKm[0], G.forelandDepthKm[1], basinKm), 0, 0, G.coalShare * wetShare(lat, G), 0, time, G);
+        deposit(crust, c, G.forelandRateKmPerMyr * dt * smooth(G.forelandDepthKm[0], G.forelandDepthKm[1], basinKm), 0, 0, G.coalShare * coalBelt(lat, G), 0, time, G);
     }
     // (a belt still active: its deposits form at their depths below today's surface — the unroofing counts from now)
     if (crust.oroType[c] !== OrogenyType.NONE && time - crust.oroLast[c] <= dt + 1e-9) crust.unroofKm[c] = 0;
@@ -264,12 +266,12 @@ export function evolveGeology(world, dt) {
                 k.floodMyr[c] += span; k.floodLast[c] = time;
                 k.geoFlags[c] |= shelf ? GeoFlag.SHELF : GeoFlag.EPEIRIC;
             } else if (fs > 0) {
-                deposit(k, c, G.forelandRateKmPerMyr * span * fs, 0, 0, G.coalShare * wetShare(lat, G), 0, time, G);
+                deposit(k, c, G.forelandRateKmPerMyr * span * fs, 0, 0, G.coalShare * coalBelt(lat, G), 0, time, G);
             } else if ((k.flags[c] & (CrustFlag.FAILED_RIFT | CrustFlag.RIFT_MARGIN)) && time - k.riftAt[c] < G.riftBasinMyr) {
                 // a young rift basin on land: sand and mud off its shoulders; in the arid belt salt, else a lake's black mud;
                 // coal where it is wet
                 const arid = aridShare(lat, G);
-                deposit(k, c, G.riftRateKmPerMyr * span, 0, G.saltShare * arid, G.coalShare * 0.5 * wetShare(lat, G), G.organicShare * (1 - arid), time, G);
+                deposit(k, c, G.riftRateKmPerMyr * span, 0, G.saltShare * arid, G.coalShare * 0.5 * coalBelt(lat, G), G.organicShare * (1 - arid), time, G);
                 k.geoFlags[c] |= GeoFlag.RIFT_BASIN;
             }
         }

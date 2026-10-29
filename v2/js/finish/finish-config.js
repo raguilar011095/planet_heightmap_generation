@@ -63,6 +63,25 @@ export const FINISH = {
         crestHardness: [0.5, 0.55, 0.6, 0.65],
     },
 
+    // ── the rocks shape the land (plans/V2_LITHOLOGY_RELIEF_PLAN.md L3; finish-lithology.js; each rock's hardness and
+    // bedding: geology-config.js lithology) — on a moment with the history's geological record ──
+    lithReliefKm: 0.6,          // hard rock stands, soft is worn down: ± this × (its hardness − its region's mean)…
+    lithRegionKm: 80,           // …the region's mean over about this…
+    lithUnroofKm: [1, 6],       // …as far as the history has stripped the ground (its unroofing since its belt was last
+                                // active, and a quarter of its whole wear, km): none … all (a Valley and Ridge: ~300 m between
+                                // its sandstone ridges and shale vales)
+    lithBaseKm: [0.02, 0.6],    // …and as high as the ground stands above its base level, the sea (km: a lowland plain at the
+                                // rivers' grade cannot stand in relief, whatever its rock; land stays land): none … all
+    lithK: 2.3,                 // the carve's k × e^(this × (½ − hardness)): shale ~2×, granite ~0.45× (stream power's
+                                // erodibility differs by orders of magnitude between rocks: Stock & Montgomery 1999)
+    lithSlope: [0.75, 1.25],    // its critical slope × this, soft … hard
+    lithCreep: 0.6,             // soil creep weaker on hard rock: × (1 − this × hardness)
+    lithDissect: [1.3, 0.7],    // the dissection's depth × this, soft … hard
+    coverStepKm: 0.25,          // where the rivers cut into bedded cover, its walls stepped — beds about this thick (0.6–1.4 × it)…
+    coverRiser: 0.4,            // …each one's riser this share of it…
+    coverStairShare: 0.6,       // …this much where it is dry…
+    coverStairWet: 0.25,        // …and this much where it is wet (soil and creep round the steps)
+
     // ── F2: closed basins — a basin whose inflow cannot make up what its lake would lose to evaporation stays closed:
     // a flat salt pan or playa at the level where the two balance, the rivers of its catchment ending there ──
     basinMinKm2: 3000,          // (smaller hollows are left to the rivers)
@@ -296,6 +315,14 @@ export const COVER = {
     sandTint: [1.22, 1.1, 0.86],
     loessTint: [1.1, 1.05, 0.92],
     basaltTint: [0.5, 0.48, 0.47],
+    // …and by the rock under it (plans/V2_LITHOLOGY_RELIEF_PLAN.md L6; geology/rocks.js Rock's order: sea, young sediment,
+    // sandstone, shale, limestone, salt, basalt, andesite & rhyolite, granite, slate & schist, gneiss, shield, greenstone,
+    // ophiolite) — where the land is bare enough to show it (deserts, tundra): red sandstone, pale limestone, white salt,
+    // dark slate, greenstone and ophiolite, pink-grey granite (basalt's own: basaltTint, by the flood basalt's cap);
+    // rockTintShare of each
+    rockTint: [[1, 1, 1], [1, 1, 1], [1.4, 0.9, 0.62], [0.78, 0.78, 0.8], [1.4, 1.38, 1.3], [1.8, 2.2, 3], [1, 1, 1], [0.72, 0.66, 0.72],
+        [1.2, 1.04, 0.96], [0.62, 0.65, 0.72], [0.85, 0.83, 0.83], [1.1, 1, 0.92], [0.6, 0.7, 0.58], [0.5, 0.53, 0.42]],
+    rockTintShare: 1,
 
     // ── the terrain in the satellite view (S2, plans/V2_SATELLITE_PLAN.md) ──
     // the cover's temperatures at each place's own full height (the climate takes only part of a place's height above

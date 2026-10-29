@@ -7,6 +7,18 @@
 // each rock where its setting puts it; the structure the terrain drew followed — an old belt's rock banded with its
 // ridges, the far field's folds baring older rock on their crests, a shield's greenstone on its grain — the heights
 // untouched by it.
+// G3 — deposit systems (geology/deposits.js): copper and gold over arcs and in belts, tin scarce, epithermal gold only near
+// young arcs, kimberlites only on cratons (or spilling just past their edge), deposits in districts rather than scattered.
+// G4 — the climate and the rivers: bauxite on wet tropical ground, placers down rivers from their sources, enriched copper
+// under dry skies — and the climate's tests on observed Earth beside where bauxite, peat and salt really are.
+// G5 — resources by age (geology/ages.js): each age only what it can reach — copper grows with the ages, tin stays scarce,
+// bronze can be made in a few places, iron is everywhere in the Iron Age, the Industrial map does not light up the planet.
+// G6 — districts, stories, exports (geology/districts.js, evolution/geology-export.js): districts on land, few for the
+// scarce metals, stories that read the history, landmass summaries that add up, the files well formed, all quick.
+// G7 — gems: scarce, the rarest rarest, each in its setting (rubies in collision belts, amethyst on flood basalts, opal in
+// dry country).
+// Contrast — the Deposits and Ages maps' washes (evolution/geology-view.js ink): every colour at every grade held at its
+// least contrast with the ground, in any light, on land or at sea, and where two meet; the grades in order.
 // Usage: node v2/tools/check-geology.mjs
 
 import { createHash } from 'node:crypto';
@@ -17,11 +29,20 @@ import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { packFrame } from '../js/tectonics/frame-pack.js';
 import { CrustType, OrogenyType } from '../js/tectonics/model/crust.js';
 import { spreadKm } from '../js/core/min-heap.js';
-import { GEO_FRAME_FIELDS, GeoFlag, decodeCoverKm, decodeExhumKm, decodeUnroofKm, decodeFacies, decodeAge } from '../js/tectonics/model/geology.js';
+import { GEO_FRAME_FIELDS, GEOLOGY_READS, GeoFlag, decodeCoverKm, decodeExhumKm, decodeUnroofKm, decodeFacies, decodeAge } from '../js/tectonics/model/geology.js';
 import { TerrainPool, FRAME_FIELDS } from '../js/terrain/terrain-pool.js';
 import { terrainMesh } from '../js/terrain/terrain-mesh.js';
-import { finishPlanet } from '../js/finish/finish.js';
+import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../js/geology/rocks.js';
+import { DEPOSITS, DEPOSIT_INDEX, METALS } from '../js/geology/deposits.js';
+import { AGES, resourceField, landShares, potentialField } from '../js/geology/ages.js';
+import { GEOLOGY } from '../js/geology/geology-config.js';
+import { earthDeposits } from '../../tuning/geology/earth-deposits.mjs';
+import { findDistricts, landmasses, landmassShares, districtStory, districtSource } from '../js/geology/districts.js';
+import { districtRows, districtsGeoJson, districtsCsv, resourceAtlas, GEOLOGY_GROUP, produceGeology } from '../js/evolution/geology-export.js';
+import { heightLutOf } from '../js/evolution/looks.js';
+import { CrustFlag, VolcanicType } from '../js/tectonics/model/crust.js';
+import { washGround, inkWash, inkOf, inkContrast } from '../js/evolution/geology-view.js';
 
 const SEED = 12345, SIM = 20000, UNTIL = 400;
 const ACTIVE = new Set([OrogenyType.ANDEAN, OrogenyType.LARAMIDE, OrogenyType.URAL, OrogenyType.HIMALAYAN]);
@@ -149,7 +170,7 @@ function beltRecord(last, into) {
 
 // ── G2: rocks on a finished moment ──
 section('G2 — rocks: a finished moment’s land, by family, against Earth’s (GLiM)');
-const frameOf = f => { const o = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS].map(k => [k, f[k]])); o.plates = f.plates.map(p => p && { quat: p.quat }); return o; };
+const frameOf = f => { const o = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS, ...GEOLOGY_READS].map(k => [k, f[k]])); o.plates = f.plates.map(p => p && { quat: p.quat }); return o; };
 const momentFrame = frameOf(last), pool = await TerrainPool.create(mesh);
 const finishAt = async cells => finishPlanet({ frame: momentFrame, simMesh: mesh, seed: SEED, cells, pool });
 const families = sh => { const fam = {}; for (let k = 1; k < ROCK_COUNT; k++) fam[ROCK_INFO[k].family] = (fam[ROCK_INFO[k].family] ?? 0) + sh[k]; return fam; };
@@ -169,7 +190,7 @@ pool.terminate();
     const c = families(coarse.stats.rocks), worst = Math.max(...Object.keys(EARTH_FAMILIES).map(k => Math.abs((c[k] ?? 0) - (fam[k] ?? 0))));
     check('the same at 160K and 640K cells: each family within 5 points', worst <= 0.05, `160K: ${famWords(c)} · 640K: ${famWords(fam)}`);
     // (the rocks read the finished surface — its relief, its rivers' plains, a warp for their contacts: ~6–7 %)
-    check('…and quickly: the geology stage a few % of the finish', fine.ms.geology <= 0.08 * Object.values(fine.ms).reduce((a, b) => a + b, 0), `${(fine.ms.geology / 1000).toFixed(2)} s of ${(Object.values(fine.ms).reduce((a, b) => a + b, 0) / 1000).toFixed(1)} s`);
+    check('…and quickly: the rocks a few % of the finish', fine.ms.geology <= 0.08 * Object.values(fine.ms).reduce((a, b) => a + b, 0), `${(fine.ms.geology / 1000).toFixed(2)} s of ${(Object.values(fine.ms).reduce((a, b) => a + b, 0) / 1000).toFixed(1)} s`);
 }
 section('G2 — each rock where its setting puts it');
 {
@@ -215,6 +236,223 @@ section('G2 — the rocks follow the structure the terrain drew');
     check('a shield\'s greenstone on its grain\'s ridges, between its granite-gneiss domes', green.length >= 30 && median(green) >= median(dome) + 15,
         `the grain where greenstone ${median(green)} (${green.length} cells) · granite-gneiss ${median(dome)} (${dome.length})`);
     check('…the heights untouched by it: the surface the same with it handed over or not', sameSurface, '');
+}
+
+section('G3 — deposit systems');
+const Dp = fine.geology.deposits, K = Dp.cells.length, [P0, P1] = GEOLOGY.deposits.grades;
+const gridOf = id => { const k = DEPOSIT_INDEX[id], v = new Float32Array(Dp.w * Dp.h); for (let j = 0; j < K; j++) v[Dp.cells[j]] = Dp.data[k * K + j] / 255; return v; };
+const centre = g => { const y = Math.floor(g / Dp.w), x = g % Dp.w, la = (90 - (y + 0.5) * Dp.step) * Math.PI / 180, lo = (-180 + (x + 0.5) * Dp.step) * Math.PI / 180; return [Math.cos(la) * Math.cos(lo), Math.cos(la) * Math.sin(lo), Math.sin(la)]; };
+const simAt = g => { const p = centre(g); return mesh.index.nearest(p[0], p[1], p[2]); };
+const landShare = id => { const k = DEPOSIT_INDEX[id]; return Dp.shares[3 * k] + Dp.shares[3 * k + 1] + Dp.shares[3 * k + 2]; };
+/** The grid cells where a system is at least `min`, and the share of them for which `ok(g)` holds. */
+const where = (id, min, ok) => { const v = gridOf(id); let n0 = 0, n1 = 0; for (const g of Dp.cells) if (v[g] >= min) { n0++; if (ok(g)) n1++; } return [n1, n0]; };
+/** Within km of a sim cell where `test(w)` holds (km over the sim mesh). */
+const near = (test, km) => { const d = new Float32Array(n).fill(Infinity); for (let w = 0; w < n; w++) if (test(w)) d[w] = 0; spreadKm(mesh, d, { maxKm: km }); return d; };
+{
+    const cu = landShare('porphyry'), sn = landShare('tin');
+    check('tin far scarcer than copper (tin ≤ ⅓ of porphyry copper\'s ground)', sn <= cu / 3 && cu > 0.01, `tin ${(100 * sn).toFixed(2)} % of the land, porphyry copper ${(100 * cu).toFixed(2)} %`);
+    const time = last.time, youngArc = near(w => last.owner[w] >= 0 && last.type[w] !== CrustType.OCEAN && (last.type[w] === CrustType.ARC || ((last.oroType[w] === OrogenyType.ANDEAN || last.oroType[w] === OrogenyType.ARC || last.oroType[w] === OrogenyType.LARAMIDE) && time - last.oroLast[w] < 40)), 250);
+    const [e1, e0] = where('epithermal', P1, g => youngArc[simAt(g)] < 250);
+    check('epithermal gold only near young arcs (≥ 85 % of it within 250 km of an arc live in the last 40 Myr)', e0 > 0 && e1 / e0 >= 0.85, `${e1} of ${e0} grid cells`);
+    const arcsBelts = near(w => last.owner[w] >= 0 && last.type[w] !== CrustType.OCEAN && (last.oroType[w] > 0 || last.arcMyr[w] > 0 || last.type[w] === CrustType.ARC || (last.geoFlags[w] & (GeoFlag.WAS_ARC | GeoFlag.OPHIOLITE))), 250);
+    const [p1, p0] = where('porphyry', P0, g => arcsBelts[simAt(g)] < 250), [o1, o0] = where('orogenicGold', P0, g => arcsBelts[simAt(g)] < 250);
+    check('porphyry copper and orogenic gold along arcs and belts (≥ 90 % within 250 km of one)', p0 > 0 && o0 > 0 && p1 / p0 >= 0.9 && o1 / o0 >= 0.9, `porphyry ${p1} of ${p0}, orogenic gold ${o1} of ${o0} grid cells`);
+    // (the record is read through a contact warp of up to ~160 km: a field at a craton's edge may spill past it — more of
+    // them on main's start world of rifted fragments, 2026-10-27: seed 12345 94.5 % within 150 km, the farthest 235 km;
+    // seeds 777 and 2024 100 % and 96.5 %)
+    const cratons = near(w => last.owner[w] >= 0 && last.type[w] === CrustType.CRATON, 300);
+    const [k1, k0] = where('kimberlite', P0, g => cratons[simAt(g)] < 150), [k2] = where('kimberlite', P0, g => cratons[simAt(g)] < 300);
+    check('kimberlites only on cratons (≥ 90 % within 150 km of one, none past 300 km), and few', k0 === 0 || (k1 / k0 >= 0.9 && k2 === k0 && landShare('kimberlite') < 0.02),
+        `${k1} of ${k0} grid cells within 150 km, ${k2} within 300 km · ${(100 * landShare('kimberlite')).toFixed(2)} % of the land`);
+    // districts: the system's ground in patches of 3 grid cells or more (a district, however small), not lone specks
+    const clumped = id => {
+        const v = gridOf(id), seen = new Uint8Array(v.length), W = Dp.w;
+        let inBig = 0, all = 0;
+        for (const g0 of Dp.cells) {
+            if (v[g0] < P0 || seen[g0]) continue;
+            const stack = [g0], patch = []; seen[g0] = 1;
+            while (stack.length) { const g = stack.pop(); patch.push(g); const y = Math.floor(g / W), x = g % W; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const yy = y + dy; if (yy < 0 || yy >= Dp.h) continue; const h = yy * W + (x + dx + W) % W; if (!seen[h] && v[h] >= P0) { seen[h] = 1; stack.push(h); } } }
+            all += patch.length; if (patch.length >= 3) inBig += patch.length;
+        }
+        return all ? inBig / all : 1;
+    };
+    const cl = ['porphyry', 'orogenicGold', 'mvt', 'oil', 'coal'].map(id => [id, clumped(id)]);
+    check('deposits come in districts: ≥ 60 % of each system\'s ground in patches of 3+ grid cells, not lone specks', cl.every(([, x]) => x >= 0.6), cl.map(([id, x]) => `${id} ${Math.round(100 * x)} %`).join(' · '));
+    // the metals, all their sources together: iron the commonest ore by far (the Iron Age's was a question of fuel), gold
+    // and tin scarce (developer, 2026-10-20)
+    const M = id => { const i = METALS.findIndex(m => m.id === id); return [Dp.metalShares[3 * i] + Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2], Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]; };
+    const [fe, feM] = M('iron'), [cuAll, cuM] = M('copper'), [au, auM] = M('gold'), [snAll, snM] = M('tin');
+    check('iron the commonest metal by far (≥ 3 × copper’s ground), gold and tin scarce (each ≤ 2 % of the land moderate or rich)', fe >= 3 * cuAll && auM <= 0.02 && snM <= 0.02,
+        `iron ${(100 * fe).toFixed(1)} % (${(100 * feM).toFixed(1)} % moderate+) · copper ${(100 * cuAll).toFixed(1)} % (${(100 * cuM).toFixed(1)}) · gold ${(100 * au).toFixed(1)} % (${(100 * auM).toFixed(1)}) · tin ${(100 * snAll).toFixed(1)} % (${(100 * snM).toFixed(1)})`);
+    // (~30 systems, the metals, placers down the rivers: ~7–8 % of a finish, measured 2026-10-20 — 10 % allows for a busy machine)
+    check('…and the stage is quick: the deposits under a tenth of the finish', fine.ms.deposits <= 0.1 * Object.values(fine.ms).reduce((a, b) => a + b, 0), `${(fine.ms.deposits / 1000).toFixed(2)} s`);
+}
+
+section('G4 — the climate and the rivers');
+{
+    const { mesh: fm, ocean, climate: { cell: cc } } = fine, gidx = new Int32Array(fm.numCells);
+    for (let c = 0; c < fm.numCells; c++) { const x = fm.xyz[3 * c], y = fm.xyz[3 * c + 1], z = fm.xyz[3 * c + 2], la = Math.asin(z) * 180 / Math.PI, lo = Math.atan2(y, x) * 180 / Math.PI; gidx[c] = Math.min(Dp.h - 1, Math.floor((90 - la) / Dp.step)) * Dp.w + Math.min(Dp.w - 1, Math.floor((lo + 180) / Dp.step)); }
+    const baux = gridOf('bauxite');
+    let b0 = 0, b1 = 0;
+    for (let c = 0; c < fm.numCells; c++) if (!ocean[c] && baux[gidx[c]] >= P1) { b0++; if (cc.tAnnual[c] > 19 && cc.pAnnual[c] > 900) b1++; }
+    check('bauxite on hot, wet ground (≥ 80 % of its moderate and rich cells: > 19 °C a year, > 900 mm)', b0 > 0 && b1 / b0 >= 0.8, `${b1} of ${b0} cells`);
+    // placers: down rivers (a river in the grid cell) from a source (gold within ~150 km upstream: in reach on the grid)
+    const pg = gridOf('placerGold'), src = ['orogenicGold', 'epithermal', 'greenstoneGold', 'porphyry', 'reef'].map(gridOf), river = new Uint8Array(Dp.w * Dp.h);
+    const q = fine.water?.q ?? null;
+    const R6 = Math.ceil(150 / (111 * Dp.step));
+    let r0 = 0, r1 = 0;
+    for (const g of Dp.cells) {
+        if (pg[g] < P0) continue;
+        r0++;
+        const y = Math.floor(g / Dp.w), x = g % Dp.w;
+        let found = false;
+        for (let dy = -R6; dy <= R6 && !found; dy++) for (let dx = -R6; dx <= R6 && !found; dx++) { const yy = y + dy; if (yy < 0 || yy >= Dp.h) continue; const h = yy * Dp.w + (x + dx + Dp.w) % Dp.w; if (src.some(v => v[h] >= P0)) found = true; }
+        if (found) r1++;
+    }
+    check('placer gold lies down rivers from gold sources (≥ 90 % of it, any grade, within ~150 km of one)', r0 > 0 && r1 / r0 >= 0.9, `${r1} of ${r0} grid cells`);
+    // enriched copper: more of the porphyry ground enriched where it is dry than where it is wet
+    const por = gridOf('porphyry'), sup = gridOf('supergene');
+    const t = { dry: [0, 0], wet: [0, 0] };
+    for (let c = 0; c < fm.numCells; c++) { if (ocean[c] || por[gidx[c]] < P0) continue; const k = cc.pAnnual[c] < 800 ? 'dry' : cc.pAnnual[c] > 1600 ? 'wet' : null; if (!k) continue; t[k][0]++; if (sup[gidx[c]] >= P0) t[k][1]++; }
+    const sd = t.dry[0] ? t.dry[1] / t.dry[0] : 0, sw = t.wet[0] ? t.wet[1] / t.wet[0] : 0;
+    check('copper enriched under dry skies, not wet ones (enriched share of the porphyry ground: dry > 2 × wet)', t.dry[0] > 0 && sd > 2 * sw, `dry ${Math.round(100 * sd)} % (${t.dry[0]} cells) · wet ${Math.round(100 * sw)} % (${t.wet[0]} cells)`);
+    // the climate's tests on observed Earth
+    const E = earthDeposits();
+    if (!E) check('the climate tests on observed Earth (no reference climate here: node tuning/climate/fetch-references.mjs)', true, 'skipped');
+    else for (const [test, words, need] of [['baux', 'bauxite', 0.8], ['peat', 'peat', 0.8], ['evap', 'salt', 0.8], ['semi', 'enriched copper', 0.66], ['arid', 'opal and turquoise', 0.8]]) {
+        const ok = E[test].has.filter(([, v]) => v >= 0.4).length, bad = E[test].not.filter(([, v]) => v > 0.15);
+        check(`on observed Earth, ${words}'s climate where it really is (≥ ${Math.round(100 * need)} % of its districts) and not where it is not`, ok / E[test].has.length >= need && !bad.length,
+            `${ok} of ${E[test].has.length} districts${bad.length ? ` · wrongly at ${bad.map(([nm]) => nm).join(', ')}` : ''}`);
+    }
+}
+
+section('G5 — resources by age');
+{
+    const grades = GEOLOGY.deposits.grades, age = id => AGES.find(a => a.id === id);
+    const share = (ageId, resId) => landShares(Dp, resourceField(Dp, age(ageId).resources.find(r => r.id === resId)), grades);
+    const any = s => s[0] + s[1] + s[2], modPlus = s => s[1] + s[2], pc = x => `${(100 * x).toFixed(1)} %`;
+    const cu = ['copper', 'bronze', 'iron', 'industrial'].map(a => any(share(a, 'copper')));
+    check('copper grows with the ages: Copper ≤ Bronze ≤ Iron ≤ Industrial Age (its ground)', cu[0] <= cu[1] && cu[1] <= cu[2] && cu[2] <= cu[3] && cu[3] > 0.01, cu.map(pc).join(' ≤ '));
+    const tin = share('bronze', 'tin');
+    check('tin scarce in the Bronze Age: ≤ 1 % of the land moderate or rich', modPlus(tin) <= 0.01, `${pc(any(tin))} of the land, ${pc(modPlus(tin))} moderate or rich`);
+    const bronze = landShares(Dp, potentialField(Dp, age('bronze')), grades);
+    check('bronze can be made in a few places only: its potential on ≤ 5 % of the land', any(bronze) <= 0.05, `${pc(any(bronze))} (${pc(modPlus(bronze))} moderate or rich)`);
+    const fe = share('iron', 'iron');
+    check('iron everywhere in the Iron Age: on ≥ 10 % of the land', any(fe) >= 0.1, `${pc(any(fe))} (${pc(modPlus(fe))} moderate or rich)`);
+    // (the Industrial Age's metals together, moderate or better, weighed by the land)
+    const ind = age('industrial').resources.filter(r => r.id !== 'coal' && r.id !== 'oilGas').map(r => resourceField(Dp, r));
+    let lit = 0, all = 0;
+    for (let j = 0; j < Dp.cells.length; j++) { const L = Dp.land[j]; if (!L) continue; all += L; if (ind.some(f => f[j] >= grades[1])) lit += L; }
+    check('the Industrial map does not light up the planet: ≤ 35 % of the land has a metal moderate or rich', lit / all <= 0.35, pc(lit / all));
+}
+
+section('G6 — districts, stories, exports');
+{
+    const metalRow = id => { const i = METALS.findIndex(m => m.id === id), f = new Float32Array(K); for (let j = 0; j < K; j++) f[j] = Dp.data[(DEPOSITS.length + i) * K + j] / 255; return f; };
+    const L = landmasses(Dp), t0 = performance.now();
+    const ds = Object.fromEntries(METALS.filter(m => m.id !== 'wood').map(m => [m.id, findDistricts(Dp, metalRow(m.id))]));
+    const findMs = performance.now() - t0;
+    let on = 0, all = 0;
+    for (const [id, list] of Object.entries(ds)) if (id !== 'oilGas') for (const d of list) { all++; if (d.landmass >= 0) on++; }
+    check('districts lie on land (≥ 95 % of every metal\'s, oil and gas aside, on a landmass)', all > 0 && on / all >= 0.95, `${on} of ${all}`);
+    const n = id => ds[id].length;
+    check('the scarce metals have few districts: tin fewer than copper, gold fewer than iron', n('tin') < n('copper') && n('gold') < n('iron'), `tin ${n('tin')} · copper ${n('copper')} · gold ${n('gold')} · iron ${n('iron')}`);
+    // stories: read off the record under each district (its finish cells' record cells), not the kind's generic words
+    const recOf = Array.from({ length: K }, () => []), kept = new Int32Array(Dp.w * Dp.h).fill(-1);
+    for (let j = 0; j < K; j++) kept[Dp.cells[j]] = j;
+    {
+        const { mesh: fm } = fine, rec = fine.geology.rec;
+        for (let c = 0; c < fm.numCells; c++) {
+            const la = Math.asin(fm.xyz[3 * c + 2]) * 180 / Math.PI, lo = Math.atan2(fm.xyz[3 * c + 1], fm.xyz[3 * c]) * 180 / Math.PI;
+            const j = kept[Math.min(Dp.h - 1, Math.floor((90 - la) / Dp.step)) * Dp.w + Math.min(Dp.w - 1, Math.floor((lo + 180) / Dp.step))];
+            if (j >= 0 && recOf[j].length < 3) recOf[j].push(rec[c]);
+        }
+    }
+    let told = 0, tales = 0;
+    for (const id of ['copper', 'gold']) for (const d of ds[id].slice(0, 12)) {
+        const src = districtSource(Dp, METALS.find(m => m.id === id).sources, d.j);
+        if (!src || !['porphyry', 'orogenicGold', 'epithermal', 'vms'].includes(src.id)) continue;
+        const words = DEPOSITS.find(x => x.id === src.id).words, story = districtStory(src.id, last, [d.j, ...d.cells.slice(0, 15)].flatMap(j => recOf[j]));
+        tales++; if (story.toLowerCase() !== words.toLowerCase()) told++;
+    }
+    check('stories read the history: ≥ 70 % of the richest arc and belt districts tell of their own arc or belt', tales > 0 && told / tales >= 0.7, `${told} of ${tales}`);
+    const sums = landmassShares(Dp, ['iron', 'copper', 'gold', 'tin'].map(metalRow));
+    const over = sums.filter(x => { for (let f = 0; f < 4; f++) if (x.by[3 * f] + x.by[3 * f + 1] + x.by[3 * f + 2] > x.km2 * 1.0001) return true; return false; }).length;
+    check('the landmasses\' summaries add up (no resource over its landmass\'s land), largest first', over === 0 && L.list.every((l, i) => !i || l.km2 <= L.list[i - 1].km2),
+        `${L.list.length} landmasses, the largest ${(L.list[0]?.km2 / 1e6).toFixed(1)} million km²`);
+    // the files, from the picture the page has
+    const raster = finishRaster(fine.mesh, fine.z, fine.ocean, 1024, null, fine.lake, fine.lakeLevel, fine.climate.cell, fine.geology), F = { raster };
+    const t1 = performance.now(), rows = districtRows(F, last), atlas = resourceAtlas(F, last, { seed: SEED }), fileMs = performance.now() - t1;
+    const gj = JSON.parse(districtsGeoJson(rows)), csv = districtsCsv(rows).trim().split('\n');
+    check('the exports well formed: GeoJSON a point per district, CSV a row each, the atlas a section per landmass',
+        gj.features.length === rows.length && csv.length === rows.length + 1 && gj.features.every(x => x.geometry.coordinates.length === 2) && /## The world's richest/.test(atlas) && /## The largest/.test(atlas),
+        `${rows.length} districts · atlas ${atlas.length.toLocaleString()} characters`);
+    // (the export panel's Geology rows: each view's map, and as data the rock types and a mask per resource — every
+    // metal and fuel, each age's resources and its potential — at a width other than the rocks' picture's)
+    const lk = { lut: heightLutOf('relief'), exaggeration: 20, shaded: true, deposit: 'all', frame: last, seed: SEED };
+    let maps = 0, masks = 0, blank = 0;
+    const empty = [];
+    for (const r of GEOLOGY_GROUP.rows) for (const job of [...(r.colour ? [{ variant: 'colour' }] : []), ...(r.data ?? []).map(file => ({ variant: 'data', file }))]) {
+        const out = produceGeology(F, 768, lk, { ...job, row: r });
+        if (out.kind === 'file') continue;
+        const mask = !!job.file?.scale?.unit.startsWith('richness'), varied = out.data.length >= 768 * 384 && out.data.some(v => v !== out.data[0]);
+        if (mask) { masks++; if (!varied) blank++; } else { maps++; if (!varied) empty.push(`${r.id} ${job.file?.key ?? 'colour'}`); }
+    }
+    const want = METALS.length + AGES.reduce((a, g) => a + g.resources.length + (g.potential ? 1 : 0), 0);
+    check('…and every view\'s map, the rock types, and a greyscale mask per resource (each metal and fuel; each age\'s, and its potential): no map blank, a mask only for a rare resource (≤ ¼)',
+        masks === want && empty.length === 0 && blank <= want / 4, `${maps} maps · ${masks} masks of ${want}, ${blank} blank${empty.length ? ` · blank: ${empty.join(', ')}` : ''}`);
+    check('…all quick: every metal\'s districts, every row with its story, and the atlas under a second', findMs + fileMs < 1000, `districts ${findMs.toFixed(0)} ms · rows and atlas ${fileMs.toFixed(0)} ms`);
+}
+
+section('G7 — gems');
+{
+    const modPlus = id => { const k = DEPOSIT_INDEX[id]; return Dp.shares[3 * k + 1] + Dp.shares[3 * k + 2]; }, pc = x => `${(100 * x).toFixed(2)} %`;
+    const gems = DEPOSITS.filter(d => d.group === 'gem').map(d => d.id), heavy = gems.filter(id => modPlus(id) > (id === 'garnet' ? 0.05 : 0.015));
+    check('gems scarce: each on ≤ 1.5 % of the land moderate or rich (garnet, the commonest, ≤ 5 %)', heavy.length === 0, gems.map(id => `${id} ${pc(landShare(id))}`).join(' · '));
+    check('the rarest rarest: emerald ≤ ⅓ of the pegmatite gems\' ground, lapis ≤ ⅓ of ruby and sapphire\'s', landShare('emerald') <= landShare('pegmatite') / 3 && landShare('lapis') <= landShare('corundum') / 3,
+        `emerald ${pc(landShare('emerald'))} · pegmatite ${pc(landShare('pegmatite'))} · lapis ${pc(landShare('lapis'))} · ruby and sapphire ${pc(landShare('corundum'))}`);
+    const COLL = new Set([OrogenyType.URAL, OrogenyType.HIMALAYAN, OrogenyType.TRANSPRESSION]);
+    const belts = near(w => last.owner[w] >= 0 && last.type[w] !== CrustType.OCEAN && (COLL.has(last.oroType[w]) || COLL.has(last.prevType[w]) || !!(last.flags[w] & CrustFlag.SUTURE) || (last.oroType[w] > 0 && last.oroLast[w] < 0)), 250);
+    const [c1, c0] = where('corundum', P0, g => belts[simAt(g)] < 250);
+    check('rubies and sapphires in collision belts, live or old (≥ 85 % within 250 km of one)', c0 === 0 || c1 / c0 >= 0.85, `${c1} of ${c0} grid cells`);
+    const lips = near(w => last.owner[w] >= 0 && last.volcType[w] === VolcanicType.LIP, 150);
+    const [a1, a0] = where('amethyst', P0, g => lips[simAt(g)] < 150);
+    check('amethyst geodes on flood basalts (≥ 85 % within 150 km of one)', a0 === 0 || a1 / a0 >= 0.85, `${a1} of ${a0} grid cells`);
+    const { mesh: fm, ocean, climate: { cell: cc } } = fine, op = gridOf('opal');
+    let o0 = 0, o1 = 0;
+    for (let c = 0; c < fm.numCells; c++) {
+        if (ocean[c]) continue;
+        const la = Math.asin(fm.xyz[3 * c + 2]) * 180 / Math.PI, lo = Math.atan2(fm.xyz[3 * c + 1], fm.xyz[3 * c]) * 180 / Math.PI;
+        if (op[Math.min(Dp.h - 1, Math.floor((90 - la) / Dp.step)) * Dp.w + Math.min(Dp.w - 1, Math.floor((lo + 180) / Dp.step))] < P1) continue;
+        o0++; if (cc.pAnnual[c] < 800) o1++;
+    }
+    check('opal in dry country (≥ 80 % of its moderate and rich cells under 800 mm a year)', o0 === 0 || o1 / o0 >= 0.8, `${o1} of ${o0} cells`);
+}
+
+section('Contrast — the washes');
+{
+    // (every colour the Deposits and Ages views draw, and halfway between any two that can meet in an All view)
+    const groups = [METALS.filter(m => m.group === 'metal'), DEPOSITS, ...AGES.map(a => [...a.resources, ...(a.potential ? [a.potential] : [])])];
+    const cols = [...new Map(groups.flat().map(x => [x.rgb.join(), x.rgb])).values()];
+    for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) cols.push(g[i].rgb.map((x, ch) => (x + g[j].rgb[ch]) / 2));
+    const [p0, p1, p2] = GEOLOGY.deposits.grades, o = new Uint8ClampedArray(4), w = {};
+    let n = 0, bad = 0, worst = Infinity, worstY = Infinity, order = 0;
+    for (const c of cols) {
+        const flat = [];
+        for (const v of [p0, p1, p2, 1]) for (const [wet, lake] of [[0, 0], [1, 0], [0, 1]]) for (let kk = 0.35; kk <= 1.0001; kk += 0.05) {
+            washGround(o, 0, wet, kk, lake);
+            const ground = [o[0], o[1], o[2]];
+            inkWash(o, 0, c, v, wet, kk, w);
+            const k = inkContrast([o[0], o[1], o[2]], ground);
+            n++; worst = Math.min(worst, k.all / w.t); worstY = Math.min(worstY, Math.abs(k.dY) / w.t);
+            if (k.all < w.t - 1 || Math.abs(k.dY) < w.t / 2 - 1) bad++;
+            if (!wet && !lake && kk > 0.999) flat.push(k.all);
+        }
+        if (!(flat[0] < flat[1] && flat[1] < flat[2])) order++;
+    }
+    check(`every wash at its least contrast with the ground or more — poor ${inkOf(p0).t}, rich ${inkOf(1).t} of 255, at least half of it in lightness — on the paper in any light, at sea, on a lake: every colour, and where two meet`,
+        bad === 0, `${cols.length} colours × ${n / cols.length} grounds and grades: ${bad} short; the least ${(100 * worst).toFixed(0)} % of its mark, lightness ${(100 * worstY).toFixed(0)} %`);
+    check('the grades read in order: each colour on the paper stronger from poor to moderate to rich', order === 0, `${order} of ${cols.length} out of order`);
 }
 
 finish('Geology');
