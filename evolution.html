@@ -14,7 +14,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://orogen.studio/evolution">
     <meta property="og:title" content="World Orogen — Evolution">
-    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view and the rocks and ores its history left. Free, in your browser.">
+    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view, the rocks and ores its history left and what its land could grow. Free, in your browser.">
     <meta property="og:image" content="https://orogen.studio/assets/studio/evolution.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="750">
@@ -34,7 +34,7 @@
         "@type": "WebApplication",
         "name": "World Orogen — Evolution",
         "url": "https://orogen.studio/evolution",
-        "description": "Simulates a planet's tectonic history in the browser: plates rift, drift and collide over hundreds of millions of years while continents grow. Any moment can be sculpted in detail with rivers, lakes, glaciers, a seasonal climate and a satellite view, and exported as heightmaps.",
+        "description": "Simulates a planet's tectonic history in the browser: plates rift, drift and collide over hundreds of millions of years while continents grow. Any moment can be sculpted in detail with rivers, lakes, glaciers, a seasonal climate and a satellite view, with the rocks and ore deposits its history left and what its land could grow, and exported as heightmaps and maps.",
         "applicationCategory": "DesignApplication",
         "operatingSystem": "Any (browser-based)",
         "browserRequirements": "Requires a modern browser with WebGL support",
@@ -45,6 +45,7 @@
             "Detailed moments with rivers, lakes, glaciers and a seasonal climate",
             "Satellite and Köppen climate views of a detailed moment",
             "Geology of a detailed moment, read off its history: a rock-type map, ore, fuel, mineral and gem deposits graded poor to rich, what each technological age could reach, and each deposit district with the story of how it formed — exported as maps, richness masks, GeoJSON and CSV, and a resource atlas",
+            "Food of a detailed moment, from its soil, ground and growing season: farmland by rain or with water brought, each place's staple food, its way of life (farming, herding or gathering) and how many people the land could feed",
             "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July), Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
             "Planet files: the whole history and its detailed moment saved as one file and opened again later, without building either again — the same planet in any browser"
         ],
@@ -83,7 +84,7 @@
         <div id="sheetLine" class="evo-sheet-line"></div>
         <div id="sidebarHeader">
             <div>
-                <h2>World Orogen <span class="evo-beta">Beta</span></h2>
+                <h2>World Orogen</h2>
                 <div class="sub">Evolution — a planet's tectonic history</div>
                 <div class="evo-beta-note">Best on a desktop for now</div>
             </div>
@@ -284,8 +285,8 @@
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
                 <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
-                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. Comes with Add detail">Geology</button>
-                <button class="map-tab" data-layer="farming" title="What the land could feed, and how its people would live: farmland — soil × ground × growing season, by rain alone or with water brought by flood farming and canals, terraces and raised fields — each place's staple food, whether its people would farm, herd or gather, and how many it could feed. Comes with Add detail">Food</button>
+                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. Comes with Add detail. In beta">Geology</button>
+                <button class="map-tab" data-layer="farming" title="What the land could feed, and how its people would live: farmland — soil × ground × growing season, by rain alone or with water brought by flood farming and canals, terraces and raised fields — each place's staple food, whether its people would farm, herd or gather, and how many it could feed. Comes with Add detail. In beta">Food</button>
                 <button class="map-tab" data-layer="heightmap">Heightmap</button>
                 <button class="map-tab" data-layer="plates">Plates</button>
             </div>
@@ -319,6 +320,7 @@
                 <button class="map-tab" data-layer="geoRocks" title="What the land is made of at the surface: sediment and sedimentary rock, volcanic rock, granite, metamorphic rock and the ancient shields — from the history's rock record">Rocks</button>
                 <button class="map-tab" data-layer="geoDeposits" title="Where the ores, fuels and minerals lie — each system from the history's arcs, belts, basins, plumes and cratons, and from the climate and the rivers: poor, moderate or rich">Deposits</button>
                 <button class="map-tab" data-layer="geoAges" title="What a people of each technological age could reach — Stone, Copper, Bronze, Iron, Industrial — and fuel, gems and building stone: each one's resources, poor to rich, and where bronze or iron could be made">Ages</button>
+                <span class="evo-beta">Beta</span>
             </div>
             <select id="depositPick" aria-label="Which deposits" title="Which deposits: all the metals and minerals together (each place its richest), one metal or fuel alone — or a kind of deposit, by how it formed" hidden>
                 <option value="all" selected>All metals and minerals</option>
@@ -425,6 +427,7 @@
                 <button class="map-tab" data-layer="farmPeople" title="How many people the land could feed, pre-industrial, with the farming techniques chosen, each place by its way of life — a tenth to a few a km² where gatherers live, a few on herders' pasture and in the rainforests (their poor ground farmed in long fallows), over a hundred a km² on the richest river plains">People</button>
                 <button class="map-tab" data-layer="farmSoil" title="How fertile the ground is: river silt and loess richest, then volcanic ash; black earth under grassland, leached red earth in the wet tropics, acid podzol under boreal forest">Soil</button>
                 <button class="map-tab" data-layer="farmSeason" title="The months crops grow: warm enough and wet enough — by rain alone, or watered">Growing season</button>
+                <span class="evo-beta">Beta</span>
             </div>
             <select id="season" aria-label="Season">
                 <option value="year" selected>Year</option>
@@ -472,7 +475,7 @@
                 <h3>A Planet's History</h3>
                 <p>Evolution simulates a planet's tectonic history: a supercontinent breaks up, oceans open and close, and the continents collide and gather again.</p>
                 <p>A history is already building behind this card &mdash; you can watch it while you read.</p>
-                <p class="evo-beta-note">Evolution is in <strong>beta</strong> and works best on a desktop computer for now. It runs on a phone with lighter settings: coarser plates, and Add detail up to 640K cells.</p>
+                <p class="evo-beta-note">Evolution works best on a desktop computer for now. It runs on a phone with lighter settings: coarser plates, and Add detail up to 640K cells. Its Geology and Food tabs are new and in <strong>beta</strong>, and haven't been tried on a phone yet.</p>
             </div>
             <div class="tutorial-step" data-step="1">
                 <h3>Scrub the Timeline</h3>

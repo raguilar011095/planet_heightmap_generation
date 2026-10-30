@@ -60,7 +60,7 @@
         ],
         "screenshot": "https://orogen.studio/preview.png",
         "sameAs": ["https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t", "https://x.com/worldorogen", "https://www.threads.com/@orogen.studio", "https://www.instagram.com/orogen.studio/", "https://github.com/raguilar011095/planet_heightmap_generation"],
-        "softwareVersion": "3.0",
+        "softwareVersion": "2.2.0",
         "creator": {
             "@type": "Organization",
             "name": "World Orogen"
@@ -515,54 +515,58 @@
             <button id="whatsNewClose">&times;</button>
             <div class="whatsnew-step" data-step="0">
                 <h3>What's New in World Orogen</h3>
-                <p>The biggest update yet: <strong>Evolution</strong>, a new tool that grows a planet through its whole tectonic history &mdash; and keeps it, in a file you can open again; <strong>every map exportable</strong>, as colour or data, in ten map projections; a new climate with seasons behind every page; a new look from space; and <strong>Studio</strong>, a home for the tools.</p>
-                <p class="whatsnew-warn"><strong>Heads up:</strong> Saved planet codes still load with the same terrain, but the climate is all new, so deserts, forests and ice will sit differently. Codes saved with a very cold Temperature (&minus;10 or below) now give icy or fully frozen worlds.</p>
+                <p><strong>Evolution</strong> is out of beta, with two new tabs that are in beta themselves: <strong>Geology</strong>, with the rocks, ores and gems a planet's history left and what each technological age could mine, and <strong>Food</strong>, with what its land could grow and how its people would live. Histories now start from an older, pieced-together world, and zoomed in, the land is drawn finer and shaped by the rock beneath it.</p>
+                <p class="whatsnew-warn"><strong>Heads up:</strong> Evolution builds its histories in a new way, so a saved Evolution link or seed now grows a different planet. Links and planet files made before still open as they were at orogen.studio/v/2.1/evolution. Generate and Import are unchanged: planet codes give the same worlds as before.</p>
             </div>
             <div class="whatsnew-step" data-step="1">
-                <h3>Evolution: Watch a Planet Form <span class="whatsnew-beta">Beta</span></h3>
-                <p>In the new <strong>Evolution</strong> tab, plates drift, rift and collide over up to one and a half billion years while the continents grow. Mountains rise where they meet and wear down once they stop.</p>
+                <h3>Geology: Rocks, Ores and Ages <span class="whatsnew-beta">Beta</span></h3>
+                <p>Add detail to a moment in Evolution, and the new <strong>Geology</strong> tab reads its rocks and ores off the simulated history.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>The supercontinent cycle</strong> &mdash; Continents break apart and gather again. Choose how the story ends: a Pangaea, a supercontinent breaking up, or continents spread out as on Earth today.</li>
-                    <li><strong>Scrub it like a film</strong> &mdash; Play or drag through the history; <strong>Extend history</strong> runs it on for as long as you like.</li>
-                    <li><strong>Share it</strong> &mdash; The link rebuilds the same history, on desktop or phone. Seeds run to over two billion, and any word can be one.</li>
-                    <li><strong>Keep it</strong> &mdash; <strong>Save planet</strong> puts the whole history and its detailed moment in one file; <strong>Load Planet&hellip;</strong> opens it again later with no waiting &mdash; the same planet in any browser.</li>
+                    <li><strong>Rocks</strong> &mdash; Sediment from old seas and basins, volcanic arcs, flood basalts, granite, slate and gneiss, ancient shields with their greenstone belts. Hover a rock for how it came to be there.</li>
+                    <li><strong>Deposits</strong> &mdash; About thirty kinds of ore, fuel and mineral, placed by the history, the climate and the rivers: copper and gold over volcanic arcs, scarce tin far inland, nickel under flood basalts, diamonds on ancient cratons, coal, oil and gas, salt. Each is poor, moderate or rich; see them all together, one metal at a time, or by the kind of deposit.</li>
+                    <li><strong>Ages</strong> &mdash; What a people of the Stone, Copper, Bronze, Iron and Industrial Ages could reach, plus fuel, gems and building stone, and where bronze and iron could be made.</li>
+                    <li><strong>Districts</strong> &mdash; Hover a deposit for its district, how it formed and its rank on the world. Every map exports, with the districts as GeoJSON and CSV and a resource atlas in words.</li>
                 </ul>
-                <p class="whatsnew-beta-note">Evolution is in <strong>beta</strong> and works best on a desktop computer for now.</p>
             </div>
             <div class="whatsnew-step" data-step="2">
-                <h3>Add Detail to Any Moment</h3>
-                <p>Pause on a moment you like and press <strong>Add detail</strong>: it is sculpted again, finely, with a climate of its own.</p>
+                <h3>Food: What the Land Could Feed <span class="whatsnew-beta">Beta</span></h3>
+                <p>The new <strong>Food</strong> tab, also on a detailed moment, works out what the land could grow from its soil, its ground and its growing season.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>Rivers through the seasons</strong> &mdash; Fed by the moment's own rain: permanent, flooding each year or dry for months, with lakes, inland seas and salt lakes.</li>
-                    <li><strong>Landscapes with a past</strong> &mdash; Glaciers and fjords, sand seas, wide shelves and coastal plains along old coasts, and mountains cut by erosion.</li>
-                    <li><strong>Its own climate</strong> &mdash; Every climate layer and the Satellite view, for the year, January or July.</li>
-                    <li><strong>Export it</strong> &mdash; Every map of it, up to 16,384 px wide, rivers and lakes on their own too.</li>
+                    <li><strong>Farmland</strong> &mdash; Counted in harvests a year, by rain alone or with water brought by flood farming and canals, plus terraces and raised fields. Switch each technique on and off in the legend.</li>
+                    <li><strong>Staple food</strong> &mdash; What each place would live on most: paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods.</li>
+                    <li><strong>Lifestyle</strong> &mdash; Whether its people would farm, herd or gather. Gatherers keep their way of life unless farming or herding would feed ten times as many, so a rich coast can stay theirs.</li>
+                    <li><strong>People</strong> &mdash; How many the land could feed before industry: a few gatherers on the tundra, over a hundred a km&sup2; on the richest river plains. Soil and Growing season have views of their own.</li>
                 </ul>
+                <p class="whatsnew-beta-note">Geology and Food are new and in <strong>beta</strong>, and haven't been tried on a phone yet.</p>
             </div>
             <div class="whatsnew-step" data-step="3">
-                <h3>Export Anything, in Ten Projections</h3>
-                <p>One panel for every map the page can draw, on Generate, Import and Evolution.</p>
+                <h3>Histories with Deeper Roots</h3>
+                <p>Evolution's histories now start from an older world, and its collisions reach further.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>Colour or Data</strong> &mdash; Each map as shown, in its legend's colours, and / or as the numbers themselves: 16-bit greyscales on fixed scales &mdash; temperature, rain, pressure, winds, currents, ice, heightmaps, a hillshade, the K&ouml;ppen class index, plate numbers.</li>
-                    <li><strong>Seasons</strong> &mdash; The year, January, July, or all three; one file, or a ZIP with a README.txt that says what every file is, its units and its scale.</li>
-                    <li><strong>Ten map projections</strong> &mdash; Equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map and Van der Grinten&rsquo;s world in a circle &mdash; each with its own options, centred on any longitude. The map view on every page shows them live, too.</li>
-                    <li><strong>Flat or shaded</strong> &mdash; Turn the hillshade off to export colour maps flat, and to see Evolution's views flat, ready to shade your own way.</li>
+                    <li><strong>A first supercontinent with a past</strong> &mdash; Pieced together from the ancient cores of earlier continents, with the seams where they joined and young belts along its edges. Its lowlands carry old sediment, and its old ranges are worn down by age.</li>
+                    <li><strong>Pushes felt far inland</strong> &mdash; A collision's push travels deep into the continent: the ancient cores pass it on and weak lines take it up, raising ranges far from any plate edge, and broad swells and basins that steer the big rivers.</li>
+                    <li><strong>Old ranges rise again</strong> &mdash; Where a push lands on an old range, the range lifts again along its own lines.</li>
+                    <li><strong>Rivers that reach the sea</strong> &mdash; Lakes form only in real hollows, and a major river ends only in a huge one, so rivers wander less and fewer end in small lakes.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="4">
-                <h3>A New Climate, Everywhere</h3>
+                <h3>Finer Detail, Shaped by the Rock</h3>
+                <p>Zoom in on a detailed moment and the land is drawn finer than its mesh, at your screen's resolution, and in large exports too.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>Seasons</strong> &mdash; Every climate layer shows the Year, January or July, in real units: &deg;C, mm of rain, hPa, m/s.</li>
-                    <li><strong>More to inspect</strong> &mdash; Pressure and winds, ocean currents and upwelling, sea ice and snow, rain shadows, growing season and more.</li>
-                    <li><strong>Temperature &amp; Precipitation work through the physics</strong> &mdash; Cool the planet and the ice spreads; warm it and the world gets wetter.</li>
+                    <li><strong>Up close</strong> &mdash; Faint ridges and valleys on the mountains, dunes in the sand seas, coves along the coasts. Ridgelines break up by the kind of range, and the main range by the plate edge stays most whole.</li>
+                    <li><strong>Hard rock and soft</strong> &mdash; Hard rock is left standing and soft rock worn into vales; on the coast, hard rock juts out as headlands and soft rock wears back into bays. Layered rock steps into benches and mesa rims, the last ice age leaves ice-scoured knobs, and limestone sinks into closed hollows.</li>
+                    <li><strong>Old ranges keep their grain</strong> &mdash; Long, even ridges run along the range, and rivers settle into the valleys between them.</li>
+                    <li><strong>Flood basalts</strong> &mdash; Flat lava plateaus like the Deccan's, with edges that thin out, escarpments where they stand above lower ground, and canyons only where big rivers cut them.</li>
+                    <li><strong>Bedrock from space</strong> &mdash; In the Satellite view, bare ground shows its rock's colour: red sandstone, pale limestone, white salt, dark slate, pink-grey granite.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="5">
-                <h3>A New Look from Space</h3>
+                <h3>Also Since 2.0</h3>
                 <ul class="whatsnew-list">
-                    <li><strong>Satellite view</strong> &mdash; On every page, each climate's colours climb with the land to bare rock and snow, with summer and winter versions and sharp, ragged sea ice.</li>
-                    <li><strong>Colours</strong> &mdash; The Terrain view on Generate and Import can take Evolution's palettes: map styles from Relief and Swiss to Antique, or the look of arid, frozen, lush, alien and volcanic worlds.</li>
-                    <li><strong>Studio</strong> &mdash; The new home page: it explains the three tools, where to start, and the worldbuilding resources behind them. Generate is a click away in the top bar, and old planet links still open their planets.</li>
+                    <li><strong>Evolution</strong> &mdash; A planet's whole tectonic history, over up to one and a half billion years: play it like a film, share its link, or save it as a planet file and open it again later.</li>
+                    <li><strong>Add detail</strong> &mdash; Any moment sculpted again, finely: rivers through the seasons, glaciers and fjords, sand seas and a climate of its own.</li>
+                    <li><strong>Export anything</strong> &mdash; Every map on every page, as colour or as 16-bit data, in ten map projections.</li>
+                    <li><strong>Seasons and a look from space</strong> &mdash; Every climate layer for the year, January or July, and a Satellite view on every page.</li>
                 </ul>
                 <p class="whatsnew-follow">World Orogen is now on <a href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener">Bluesky</a>, <a href="https://x.com/worldorogen" target="_blank" rel="noopener">X</a> and <a href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener">Threads</a>: new releases, work in progress and sneak peeks of what's coming. If it's been useful to you, you can also support it on <a href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener">Ko-fi</a>. It stays free either way.</p>
             </div>
