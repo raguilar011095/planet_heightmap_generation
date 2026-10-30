@@ -1,4 +1,4 @@
-// Every tunable of the Farming tab (plans/V2_FARMING_PLAN.md), in physical units — °C, mm, km, m³/s, m per km — so it
+// Every tunable of the Food tab (plans/V2_FARMING_PLAN.md), in physical units — °C, mm, km, m³/s, m per km — so it
 // reads the same at every detail. Each factor is a smooth ramp [from, to] (0 at the first, 1 at the second; either way
 // round). PRIORS: each value's range in the literature (or the range that still looks right), as the climate's.
 

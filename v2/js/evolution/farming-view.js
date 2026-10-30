@@ -1,4 +1,4 @@
-// The Farming tab (plans/V2_FARMING_PLAN.md C1; Madeline James's culture series, Part 4): finished moments only, drawn per
+// The Food tab (plans/V2_FARMING_PLAN.md C1; Madeline James's culture series, Part 4): finished moments only, drawn per
 // pixel of the finished picture over its hillshade, from the parts the finish worked out (farming/farming.js):
 //   Farmland — what the land could grow: green by rain alone, teal where only water brought makes it farmable (the
 //              Nile's kind of land); the techniques — flood farming, canals, terraces, raised fields — chips in the
@@ -238,7 +238,7 @@ const pct = v => `${Math.round(100 * v)}%`;
 
 export function farmingLegendHTML(layer, fin) {
     const head = t => `<div class="evo-legend-head">${t}</div>`, note = t => `<div class="evo-legend-note">${t}</div>`;
-    if (!fin?.raster?.farming) return head('Farming — add detail again to see it (this moment was detailed before farming was added)');
+    if (!fin?.raster?.farming) return head('Food — add detail again to see it (this moment was detailed before these views were added)');
     const T = tally(fin), sw = (c, label, share) => `<span><i style="background:${css(c)}"></i>${label} <em>${pct(share)}</em></span>`, c = [0, 0, 0];
     if (layer === 'farmSoil') return head('Soil — how fertile the ground is (on flat ground)') + bar(SOIL, 'poor → rich') +
         `<div class="evo-koppen">${['Barren', 'Poor', 'Middling', 'Good', 'Rich'].map((w, k) => sw(ramp(SOIL, [0.05, 0.2, 0.4, 0.62, 0.88][k], c).slice(), w, T.soil[k])).reverse().join('')}</div>` +

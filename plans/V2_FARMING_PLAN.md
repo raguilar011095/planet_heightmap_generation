@@ -291,6 +291,8 @@ them over per pixel; the page combines them with the techniques chosen, at once.
     page from what a moment keeps (no save change: older moments read it). Exports: Staple food and Lifestyle rows, an
     index each, listed in the README. On seed 12345's 400 Myr world: farming 63 %, herding 31 % (98 % of the cold
     steppe it would graze), gathering 5 %, uninhabited 1 %; gatherers' median 0.14 a km². check-farming 39/39.
+    The tab then renamed **Food** (2026-10-30: with herding and gathering it was more than farming; the views'
+    names, the code's `farming` names and the export's file names unchanged).
 - **C5 (optional)**: her Parts 1–3 — cultural barrier clusters, domesticable animals (herding from its own hearths);
   her polity typology map.
 

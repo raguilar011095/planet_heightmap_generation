@@ -101,8 +101,8 @@ at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed 
 drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
 the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
 `detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
-costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology and Farming views
-too: their colours the picture's, the relief and coasts the detail's; the farming's pins stay over the planet), the planet's own rivers drawn
+costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology and Food views
+too: their colours the picture's, the relief and coasts the detail's), the planet's own rivers drawn
 over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
 the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
 before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
@@ -195,10 +195,10 @@ age's map (as data, a mask for each of its resources and its potential), and two
 metals, fuels and gems, bronze and ironworking, and its richest districts with their stories). Its maps wider than the
 picture are drawn over the detail finer than the mesh, as the others are (its relief and coasts). The rocks, a picture
 as wide as the climate's, are drawn narrower by their commonest (`js/view/export-raster.js` classIndexMap, as the Köppen
-zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). And the farming's: the Farming views as shown —
-their legend's techniques, crops and re-roll, noted in the README.txt; Crop spread with its hearths' pins (export.js
-farmingMap) — and their numbers as data (export.js FARM_SCALES: farmland with the techniques and by rain, 0…1; the
-staple's index, the README listing them; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
+zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). And the farming's: the Food views as shown —
+their legend's techniques and how firmly gatherers hold on, noted in the README.txt (export.js farmingMap) — and
+their numbers as data (export.js FARM_SCALES: farmland with the techniques and by rain, 0…1; the staple food's and
+the lifestyle's indices, the README listing them; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
 watered, months; finishedFarmingValue). A moment detailed before the rocks or the farming were added lacks their rows
 (rowAvailable). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
 1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
@@ -212,8 +212,8 @@ detailed moment as one `.orogen` file (a deflated ZIP: `js/save/`, plans/V2_SAVE
 and 10M detail: 558 MB, a 211 MB file, saved in 8 s and opened in 2 s (on screen in 7 s — built, it took 176 s and 98 s).
 A phone opens a history it can hold (400 MB); a desktop's detailed moment (more than 150 MB) is left in the file there,
 the moment ready to be detailed at the phone's size. The detailed moment's rocks and farming go in it as they are (~17
-bytes a pixel of the climate's picture for the farming, 3–5 for the rocks: some 140 + 25–40 MB at 4096 px before compression),
-and the Farming legend's re-roll in its settings (`crops`, as the link). A history saved before the rock record was kept
+bytes a pixel of the climate's picture for the farming, 3–5 for the rocks: some 140 + 25–40 MB at 4096 px before compression).
+A history saved before the rock record was kept
 reads its fields as zeros (save/migrations.js), the file saying it lacks them: its moments are detailed without rocks
 (the farming then gives every soil a middling parent rock, shaped by the climate), the Geology tab saying so, rather than from an empty record.
 
@@ -386,7 +386,7 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Farming tab: Farmland, Staples, Crop spread, People, Soil, Growing season; its technique and staple chips, the hearths' pins)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
@@ -540,7 +540,7 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    leaching in the hot wet tropics unless floods, ash or rising ranges renew the ground, podzol under boreal conifers);
    slope over ~12 km; waterlogged flats; and the water a big river's floodplain or canals from rivers and fresh lakes
    could bring (reaching farther from a bigger river, onto ground not far above it). The picture carries them per pixel;
-   the Farming tab puts them together with the techniques chosen in its legend (flood farming, canals, terraces, raised
+   the Food tab puts them together with the techniques chosen in its legend (flood farming, canals, terraces, raised
    fields — not tied to the metal ages), as a soft ramp or graded classes: green by rain, aqua where only water brought
    makes the land farmable. **Harvests and staples** (C2): each cell's harvests a year of four crop groups — paddy
    rice, wheat and barley, maize and millet, roots and tubers — by rain and watered (water brought tops a month up to

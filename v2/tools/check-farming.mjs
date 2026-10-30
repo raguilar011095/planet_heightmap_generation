@@ -1,4 +1,4 @@
-// Headless checks for the Farming tab (plans/V2_FARMING_PLAN.md), phase by phase.
+// Headless checks for the Food tab (plans/V2_FARMING_PLAN.md), phase by phase.
 // C1 — farmland, soil and growing season on a finished moment: the same at two details; each part where it belongs
 // (river silt and loess rich, granite poor, the wet tropics leached; mountains farmed only with terraces; deserts only
 // with water brought, and then only by the rivers); the growing season by climate; quick.

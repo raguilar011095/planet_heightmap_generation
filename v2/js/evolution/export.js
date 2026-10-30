@@ -29,7 +29,7 @@ export const LAND_TOP_M = 9000;
 /** The widest export: 16384 px (a picture of 134 million pixels); on a phone 4096. */
 export const EXPORT_MAX = 16384, EXPORT_MAX_TOUCH = 4096;
 const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v)));
-/** The Farming data maps' scales (linear, as export-raster.js's; the staple foods' and the lifestyles' indices listed in the README). */
+/** The Food data maps' scales (linear, as export-raster.js's; the staple foods' and the lifestyles' indices listed in the README). */
 const FARM_SCALES = {
     farmland:  { unit: 'farmland (0 barren … 1 the richest: the Farmland view\'s ramp)', lo: 0, hi: 1 },
     people:    { unit: 'people a km² (pre-industrial)', lo: 0, hi: 1000 },
@@ -59,8 +59,8 @@ export const CATALOGUE = [
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
     GEOLOGY_GROUP,
-    // (the Farming views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
-    { id: 'farming', label: 'Farming', rows: [
+    // (the Food views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
+    { id: 'farming', label: 'Food', rows: [
         { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
         { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
         { id: 'farmLife', label: 'Lifestyle', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index', 'lifestyle', 8)], tip: 'How each place’s people would live — farming, herding or gathering; as data, each lifestyle’s index (the README lists them)' },
@@ -219,13 +219,13 @@ export function climateMap(fin, W, layer, season, look) {
         colorAt: finishedClimateColor(layer, season, fin.climate, W, look.lut, fin) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
-/** A Farming view as shown (farming-view.js), shaded or flat, lakes as water. */
+/** A Food view as shown (farming-view.js), shaded or flat, lakes as water. */
 export function farmingMap(fin, W, layer, look) {
     const H = W >> 1, image = new ImageData(W, H);
     paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: true, shaded: look.shaded !== false, colorAt: finishedFarmingColor(layer, fin, W) });
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
 }
-/** A Farming quantity as numbers (8-bit for the staple food's and the lifestyle's indices, else 16-bit), on its scale. */
+/** A Food quantity as numbers (8-bit for the staple food's and the lifestyle's indices, else 16-bit), on its scale. */
 export function farmingValueMap(fin, W, file, centerLon = 0) {
     const H = W >> 1, { sea } = pictureAt(fin, W), out = file.bits === 8 ? new Uint8Array(W * H) : new Uint16Array(W * H), top = file.bits === 8 ? 255 : 65535;
     const at = finishedFarmingValue(file.key, fin, W);
@@ -274,10 +274,10 @@ export function produceMap(fin, W, lk, job) {
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
-/** The Farming views' choices, for the README: the techniques on, how firmly gatherers hold on. */
+/** The Food views' choices, for the README: the techniques on, how firmly gatherers hold on. */
 function farmingNote() {
     const on = TECHNIQUES.filter(k => farmOptions[k]);
-    return `Farming maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
+    return `Food maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
         `gatherers holding on unless farming or herding feeds ${GATHER.hold}× as many`;
 }
 

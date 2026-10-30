@@ -776,7 +776,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
 // picture's own pixels, the tiles in view are drawn at about the screen's resolution — as it moves, nearest its middle
 // first — and laid over the planet as they come, each sent to the GPU once (TileLayers) ──
 /** The layers a patch is painted for: the heights', the climate's, the geology's and the farming's — not those whose
- *  arrows or lines are on the picture (the farming's pins are over the planet, not on it). */
+ *  arrows or lines are on the picture. */
 const patchLayer = layer => layer === 'terrain' || layer === 'heightmap' || (CLIMATE_LAYERS.has(layer) && !ARROW_LAYERS[layer] && layer !== 'pressure')
     || GEOLOGY_LAYERS.has(layer) || FARMING_LAYERS.has(layer);
 /** The view's places: a 9 × 9 grid over the globe's canvas or the map's frame, as [lon, lat] (null off the planet), and
@@ -1003,7 +1003,7 @@ function updateCard() {
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
     $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
     document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
-    $('mobileFarming').label = farmOk ? 'Farming' : 'Farming 🔒';
+    $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
     const legend = $('regimeLegend');
     legend.hidden = !(view.byRegime && view.water && view.layer === 'terrain' && isDet);
     if (!legend.childElementCount) legend.innerHTML = REGIME_STYLE.map(s => `<span><i style="background:${s.rgb}"></i>${s.name}</span>`).join('');
@@ -1098,7 +1098,7 @@ function updateClimateUi() {
         text = 'This planet was saved before Evolution kept a record of its rocks — Build This World (under World) builds its history again with one, to see its geology';
     } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
         const fjob = b.finishJob, again = !!fin && GEOLOGY_LAYERS.has(view.layer);
-        const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Farming views come';
+        const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Food views come';
         text = fjob ? `Adding detail to ${fjob.frame.time.toFixed(0)} Myr…` : again ? `${t} Myr was detailed before its geology was — add detail again to see it`
             : `The ${what} with detail — add detail to ${t} Myr to see ${view.layer === 'satellite' ? 'it' : 'them'}`;
         act = fjob ? null : again ? 'Add detail again' : 'Add detail';
@@ -1191,7 +1191,7 @@ addEventListener('keydown', e => {
 // ── view options (V1's) ──
 let climateLayer = 'koppen';            // (the Climate tab opens on the climate map last shown)
 let geologyLayer = 'geoRocks';          // (…and the Geology tab on its view last shown)
-let farmingLayer = 'farmLand';          // (…and the Farming tab on its)
+let farmingLayer = 'farmLand';          // (…and the Food tab on its)
 function setLayer(layer) {
     if (layer === 'climate') layer = climateLayer;
     if (layer === 'geology') layer = geologyLayer;
@@ -1216,7 +1216,7 @@ function setLayer(layer) {
     updateClimateUi();
 }
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
-// (the Farming legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
+// (the Food legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
 $('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
 $('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
 $('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
