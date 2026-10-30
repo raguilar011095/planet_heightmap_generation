@@ -217,9 +217,11 @@ function readRecord(mesh, simMesh, S, seed, cfg) {
  *                     the surface drew — an old belt's band, the far field's folds, a shield's grain: synthesize.js
  *                     surfaceRange `cue`), lithoDz (km: what the rock itself raised or lowered the surface by —
  *                     finish-lithology.js; the relief read without it, so a hard ridge it raised keeps its hard rock) }
- * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array}} rec: each cell's record cell;
- *          shares: each kind's share of the land (by cell);
- *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice
+ * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array, youngKind: Uint8Array}} rec: each
+ *          cell's record cell; shares: each kind's share of the land (by cell);
+ *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice;
+ *          youngKind: where young sediment won, which (1 a river's, 2 dunes, 3 loess, 4 the ice's; 0 none or a speck
+ *          the majority filter turned — for the farming's soils)
  */
 export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCell = null, on, local = {} }, G = GEOLOGY) {
     const n = mesh.numCells, { xyz } = mesh, rock = new Uint8Array(n), shares = new Float64Array(ROCK_COUNT);
@@ -290,7 +292,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         if (sample.length >= 50) { sample.sort((a, b) => a - b); keelAt = p => sample[Math.max(0, Math.min(sample.length - 1, Math.round(p * (sample.length - 1))))]; }
     }
     let land = 0;
-    const youngBy = new Float64Array(4), ci = new Int32Array(4), cw = new Float64Array(4), ti = new Int32Array(4), tw = new Float64Array(4);
+    const youngBy = new Float64Array(4), youngKind = new Uint8Array(n), ci = new Int32Array(4), cw = new Float64Array(4), ti = new Int32Array(4), tw = new Float64Array(4);
     // the river plains: along the big rivers (floodplains); and deltas and basin floors — the land where the rivers laid
     // the most, about plainsShare of it (how much they lay differs with the detail; where they lay it does not), never where
     // they laid less than alluviumKm[0] — a cell's deposit with its neighbours' (a plain, not a speck)
@@ -323,7 +325,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         land++;
         const w = rec[c];
         // (land the record has as sea — a delta built out, a strait filled — is young sediment)
-        if (!S.land[w]) { rock[c] = Rock.ALLUVIUM; shares[Rock.ALLUVIUM]++; youngBy[0]++; continue; }
+        if (!S.land[w]) { rock[c] = Rock.ALLUVIUM; shares[Rock.ALLUVIUM]++; youngBy[0]++; youngKind[c] = 1; continue; }
         const x = xyz[3 * c], y = xyz[3 * c + 1], zz = xyz[3 * c + 2];
         // (the structure the surface drew here: an old belt's band, + on its hard ridges; the far field's fold, + on a crest)
         const band = cues ? cues[3 * c] / 127 : 0, farFold = cues ? cues[3 * c + 1] / 127 : 0, hard = band ? Math.exp(G.bandGain * band) : 1, soft = band ? 1 / hard : 1;
@@ -422,10 +424,10 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         for (let k = 1; k < ROCK_COUNT; k++) if (score[k] > bv) { bv = score[k]; best = k; }
         rock[c] = best; shares[best]++;
         // (for the checks: what made young sediment win — a river's deposit, dunes, loess, the ice's moraines)
-        if (best === Rock.ALLUVIUM) youngBy[young === yA ? 0 : young === yE ? 1 : young === yL ? 2 : 3]++;
+        if (best === Rock.ALLUVIUM) { const by = young === yA ? 0 : young === yE ? 1 : young === yL ? 2 : 3; youngBy[by]++; youngKind[c] = by + 1; }
     }
     // (a cell alone among others of one kind takes theirs — a speck on a map is noise, at any detail)
     for (let pass = 0; pass < G.despeckle; pass++) despeckle(mesh, rock, ocean, shares);
     if (land) { for (let k = 0; k < ROCK_COUNT; k++) shares[k] /= land; for (let k = 0; k < 4; k++) youngBy[k] /= land; }
-    return { rock, rec, shares, youngBy };
+    return { rock, rec, shares, youngBy, youngKind };
 }

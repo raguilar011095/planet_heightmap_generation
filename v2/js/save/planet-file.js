@@ -46,10 +46,10 @@ export function planetBytes(frames, fin) {
 
 /**
  * The planet file of a history and its detailed moment.
- * `settings`: the world's ({seed, cont, len, ending, sim, terrain, greenhouse, rain, more}); `history`: {frames, simMesh,
- * simMyr, steps, stopped, snapshotMyr, omit (fields not to save: those a history opened from an older file lacked, read
- * there as zeros — so this file says it lacks them too)}; `detail`: {frame (one of the frames), fin (the page's finished
- * moment)}; `onProgress(share, text)`.
+ * `settings`: the world's ({seed, cont, len, ending, sim, terrain, greenhouse, rain, more}); `history`: {frames,
+ * simMesh, simMyr, steps, stopped, snapshotMyr, omit (fields not to save: those a history opened from an older file lacked,
+ * read there as zeros — so this file says it lacks them too)}; `detail`: {frame (one of the frames), fin (the page's
+ * finished moment)}; `onProgress(share, text)`.
  * @returns {Promise<{blob: Blob, bytes: number}>} bytes: before compression
  */
 export async function savePlanet({ settings, history, detail, onProgress = () => {} }) {

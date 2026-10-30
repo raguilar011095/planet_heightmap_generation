@@ -79,7 +79,8 @@ lowered and k raised so its erosion climbs further up the headwaters (rivers dra
 dissection cut deeper (by drainage area in km², the same at every detail), soil creep shorter and the fold belts' crests
 harder — over the mountains 5 % more relief, 13 % less ground above 4 km than at 0; sediment laid down (fans, floodplains,
 deltas); soil creep where it is wet and warm; an Earth-like last ice age (U-troughs, fjords, scoured lake hollows,
-moraines, basins still sunk by the ice); and the wind (sand seas with dune ridges at 10M, pans, loess). It runs in its
+moraines, basins still sunk by the ice); and the wind (sand seas with dune ridges at 10M, pans, loess — its silt mostly
+the outwash's and the cold deserts', kept where the climate is not tropical: Earth's lies 30–55°). It runs in its
 own worker (which alone holds a 10M-cell mesh) and returns an equirectangular picture of heights and the ocean, painted
 like the live terrain; one moment is kept in detail per history (the one before is let go once the next is done, so a cancel loses nothing).
 The finish's own carving (plans/V2_FINE_DETAIL_PLAN.md, 2026-10-26; measured against the real Alps and Nepal at the same
@@ -100,8 +101,8 @@ at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed 
 drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
 the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
 `detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
-costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology views too: their colours the
-picture's, the relief and coasts the detail's), the planet's own rivers drawn
+costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology and Food views
+too: their colours the picture's, the relief and coasts the detail's), the planet's own rivers drawn
 over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
 the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
 before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
@@ -194,7 +195,12 @@ age's map (as data, a mask for each of its resources and its potential), and two
 metals, fuels and gems, bronze and ironworking, and its richest districts with their stories). Its maps wider than the
 picture are drawn over the detail finer than the mesh, as the others are (its relief and coasts). The rocks, a picture
 as wide as the climate's, are drawn narrower by their commonest (`js/view/export-raster.js` classIndexMap, as the Köppen
-zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
+zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). And the farming's: the Food views as shown —
+their legend's techniques and how firmly gatherers hold on, noted in the README.txt (export.js farmingMap) — and
+their numbers as data (export.js FARM_SCALES: farmland with the techniques and by rain, 0…1; the staple food's and
+the lifestyle's indices, the README listing them; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
+watered, months; finishedFarmingValue). A moment detailed before the rocks or the farming were added lacks their rows
+(rowAvailable). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
 1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
 detail, narrower ones averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped
 bicubic, coasts, lakes and climate zones by the weighted majority of the nearest pixels, satellite colours blended — then
@@ -205,7 +211,11 @@ detailed moment as one `.orogen` file (a deflated ZIP: `js/save/`, plans/V2_SAVE
 1200 Myr and 2.5M detail: 355 MB of data, a 140 MB file, saved in 5 s and read back in 1.5 s; at 160K plates, 600 Myr
 and 10M detail: 558 MB, a 211 MB file, saved in 8 s and opened in 2 s (on screen in 7 s — built, it took 176 s and 98 s).
 A phone opens a history it can hold (400 MB); a desktop's detailed moment (more than 150 MB) is left in the file there,
-the moment ready to be detailed at the phone's size.
+the moment ready to be detailed at the phone's size. The detailed moment's rocks and farming go in it as they are (~17
+bytes a pixel of the climate's picture for the farming, 3–5 for the rocks: some 140 + 25–40 MB at 4096 px before compression).
+A history saved before the rock record was kept
+reads its fields as zeros (save/migrations.js), the file saying it lacks them: its moments are detailed without rocks
+(the farming then gives every soil a middling parent rock, shaped by the climate), the Geology tab saying so, rather than from an empty record.
 
 ```
 node tuning/dev-server.mjs 8123        # any static server works; there is no build step
@@ -233,6 +243,8 @@ node v2/tools/check-far-field.mjs      # the far field: records only, through cr
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
 node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md): the record changes no history; seas, cover, wear; rocks; deposits (+ an Earth check); ages; districts and exports; gems; the washes' contrast
 node tuning/geology/earth-deposits.mjs   # the deposits' climate tests on observed Earth beside where bauxite, peat, salt, enriched copper, opal and turquoise are
+node v2/tools/check-farming.mjs        # the farming (plans/V2_FARMING_PLAN.md): the same at 160K and 640K; soils, seasons, water, slopes where they belong
+node tuning/farming/earth-farming.mjs  # the farming's climate part on Earth's observed climate: breadbaskets, the irrigated river valleys, black earth, leaching, podzol, staples
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
 node v2/tools/trace-coasts.mjs 40000 12345 --stages --drawn 60,300,800 [--png] [--off mechanism,…] [--set key=value,…]
@@ -334,6 +346,13 @@ js/geology/        the finish's geology (plans/V2_GEOLOGY_PLAN.md): geology-conf
                    building stone, G7), districts (each field's districts, the landmasses and their shares, each
                    district's kind of deposit and its story from the record — G6), lithology (what each rock does to the
                    land — limestone's hardness by the climate: plans/V2_LITHOLOGY_RELIEF_PLAN.md)
+js/farming/        the finish's farming (plans/V2_FARMING_PLAN.md; Madeline James's culture series, Part 4): farming-config
+                   (its tunables, in °C / mm / km / m³/s, with their ranges), farming (the growing season from a place's
+                   months; the soil from its rock and climate; slope, waterlogging and the water rivers and lakes could
+                   bring; each crop's harvests a year; farmland and the staple put together with the techniques chosen),
+                   living (the ways of life in the abstract: gatherers' fish and wild foods, the staple food and the
+                   lifestyle — farming, herding or gathering — and the people each place's feeds), people
+                   (how many the land could feed: people a km², and the whole land's)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
   anchor           the fine detail belongs to the crust: plate-frame positions for noise, per-crust-cell random streams
@@ -367,7 +386,7 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
@@ -512,6 +531,62 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    darkened on the paper, a dark one lightened at sea, its hue kept (`geology-view.js ink`; `check-geology.mjs` holds it
    for every colour, grade and light, and where two colours meet). With Hillshade off the paper is flat; the views follow
    the map's projections and zoom as every view does.
+   **Farming** (plans/V2_FARMING_PLAN.md, after Madeline James's culture series, Part 4, and Ramankutty et al. 2002's
+   cropland suitability): the finish's `farming` stage (`farming/farming.js`) works out each land cell's parts — the
+   growing season from its final climate's months (each month warm, 5 → 15 °C, × wet, its rain, melt and 100 mm of soil
+   water past ~half its potential evaporation: the FAO's growing period), by rain and watered; the soil from its rock
+   (river silt and loess richest, then ash, basalt, limestone and shale; granite and shields poor; the bedrock's soils
+   read over ~100 km, the young sediment's crisp) and its climate (black earth in the subhumid continental climates,
+   leaching in the hot wet tropics unless floods, ash or rising ranges renew the ground, podzol under boreal conifers);
+   slope over ~12 km; waterlogged flats; and the water a big river's floodplain or canals from rivers and fresh lakes
+   could bring (reaching farther from a bigger river, onto ground not far above it). The picture carries them per pixel;
+   the Food tab puts them together with the techniques chosen in its legend (flood farming, canals, terraces, raised
+   fields — not tied to the metal ages), as a soft ramp or graded classes: green by rain, aqua where only water brought
+   makes the land farmable. **Harvests and staples** (C2): each cell's harvests a year of four crop groups — paddy
+   rice, wheat and barley, maize and millet, roots and tubers — by rain and watered (water brought tops a month up to
+   what the crop wants, ~60 mm at most: a desert river grows a cool season's grain, not a paddy). Each crop kind grows
+   month by month by degree-days from its base to its optimum, wet enough and not drowned (surplus mm), and ripens after
+   its cycle; a dry or cold gap ends a run (winter grains sleep through the cold); harvests a staircase, a second one a
+   whole cycle and a turnaround later (wheat and barley one a year, rice up to three); a second crop of another group in
+   the months the first leaves. Rain-fed harvests discounted where the year is dry or its rain seasonal (failed years).
+   Kept two bytes a group (√-encoded). The page: each group's food — harvests with the techniques' water (past the first
+   only as the soil can feed them) × soil × ground (rice level fields) × how many it feeds — the best is the staple (or
+   herding) and the Farmland (good: one sure harvest; excellent: more). **People** (C3, `farming/people.js`): from the
+   farming picture, people a km² (pre-industrial potential: ~60 for each good harvest a year's worth of food, a few on
+   herders' pasture) on the share of the land cropped at once — poor ground rested in long fallows (Ruthenberg's
+   cultivation intensity: every year from soil 0.65, down to 15 % on the poorest where it is warm the year round — a
+   rainforest's shifting cultivation; half that need where a winter is; a big river's flood renews it), so the leached
+   rainforests feed a few a km² — and the whole land's (`tuning/farming/earth-farming.mjs` holds it at Earth's places:
+   the Nile, Java, the breadbaskets, the Amazon, the Congo). **Staple food and lifestyle** (C6b,
+   `farming/living.js`; in the abstract — what the land would support, not where farming came: the spread of crops, C4,
+   is on branch `farming-spread` for the next release, the real crops on branch `crops`): gatherers' food — the sea's fish
+   (once per moment on a 0.25° grid: the shelf's share of each cell, sea shallower than 200 m in the picture, × the
+   sea's richness from the moment's 1° climate — 0.3 on a warm clear shelf rising to 1 as the sea's year runs from 24 to
+   12 °C or its upwelling from 0.1 to 1 m/day, × (1 − 0.9 × its sea ice) — spread over 40 km, a day's paddle; a pixel's
+   fishing up to 2.5 a km² as that runs from 0.02 to 0.25, as the land has a summer (1–4 months warm enough), + fresh
+   water's up to 0.5 along big rivers' plains, rivers and lake shores) and the land's wild foods (up to 0.3 a km² as its
+   growing season runs from half a month to 9, + 0.08 × its pasture: grassland game) — the ethnographic record's
+   foragers, ~0.01–0.5 on land, 1–3 on the richest coasts. A place's lifestyle: gathering where `hold` (10) × its
+   gatherers' people beat what farming or herding would feed there (people.js peopleAt on farmPlace's staple), else
+   farmPlace's — farming or herding; uninhabited under 0.005 a km². Its staple food that way of life's: the crop or the
+   herds farmPlace chose, or fish or wild foods (whichever feeds more). A second way of life, or food, where it does 90 %
+   as well (the land's runner-up by its food, as farmPlace weighs them; gathering against the land by people) — the
+   views stripe it (at 80 % the land's runner-up came that close on ~40 % of it). People counts each place by its way of
+   life (livingPeople). Nothing more is saved: a moment detailed before reads it too. The views: **Staple food** (each
+   food a hue, paler where it feeds less well, a chip each to show it alone) and **Lifestyle** (farming green, herding
+   ochre, gathering violet, paler where few could live; a chip each to show how many it alone could feed); their data
+   maps an index each (`STAPLES`' and `LIFESTYLES`' codes, listed in the README). **The staples one list** (C6a,
+   farming.js `STAPLES`: paddy grains, cool-season grains, warm-season grains, roots and tubers, livestock, fish, wild
+   foods — archetypes, not species): each staple's code its place in it, never renumbered (the exports' staple index; a
+   new one appended); `CROPS`, `CROP_STAPLE` and `STAPLE_CROP` map crop groups and staples both ways — no code counts on
+   "group + 1". Each crop group's harvests are kept under its own name (`farming.crops.rice` …: two bytes a place, by
+   rain and watered — in the finish per cell and in the picture per pixel; `harvestsAt` reads them, a group a moment
+   lacks growing nothing; `hasHarvests` false for a moment detailed before them, or one that kept them all in one
+   array). `check-farming.mjs` holds it all the same at 160K and 640K, each staple and class where its climate puts it,
+   the land's people plausible, each way of life's and staple food's share the same at both details, the good farmland
+   farmed, gatherers wherever nothing would be farmed or herded and as many a km² as the record's foragers, the sea
+   feeding more off cool coasts than tropical ones, little land uninhabited, herders still on the cold steppes;
+   `tuning/farming/earth-farming.mjs` checks the climate's part, the staples and the classes at 95 places on Earth.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

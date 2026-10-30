@@ -159,8 +159,8 @@
 .evo-card-ghost:disabled { opacity: 0.65; cursor: default; }
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
-/* Satellite and Geology come with detail: their tabs locked on previews */
-.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
+/* Satellite, Geology and Food come with detail: their tabs locked on previews */
+.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after, .map-tab[data-layer="farming"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
 .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
 /* the Ages legend's entries are its switch: tap one to see it alone */
@@ -173,6 +173,23 @@
 #layerBar .evo-chip { position: static; transform: none; }
 /* Playback Speed, on the timeline beside Play */
 .evo-rate { flex: none; width: auto; padding: 4px 22px 4px 8px; font-size: 12px; background-position: right 8px center; }
+/* the Food legend: its techniques as chips (on or off), and its ramps as bars */
+.evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.evo-farm-chip {
+    padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
+    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6;
+}
+.evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
+.evo-farm-chip:hover { filter: brightness(1.2); }
+/* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
+.evo-farm-staple { color: #aab; }
+.evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.evo-farm-staple em { color: #778; font-style: normal; }
+.evo-farm-staple.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.12); color: #fff; }
+.evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
+.evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
+.evo-farm-bar span { min-width: 0; }
+.evo-farm-bar + .evo-koppen, .evo-farm-chips + .evo-koppen { margin-top: 2px; }
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {
@@ -251,6 +268,9 @@
     #ui:not(.collapsed) .evo-sheet-line { display: none; }
     #exportCard select, #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
     .evo-act { min-height: 44px; }
+    /* the Food row's views: in the layer list too (as the Geology row's, below); its legend's chips and choices 44 px */
+    .layer-bar #farmingTabs { display: none !important; }
+    .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
     #mapCanvas { top: 36px; height: calc(100vh - 36px); }

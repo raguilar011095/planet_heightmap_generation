@@ -222,7 +222,12 @@ export const FINISH = {
     panKm: 0.03,                // deflation pans in desert plains, this deep…
     panScaleKm: 35,             // …about this far apart
     loessKm: 0.08,              // loess downwind of deserts and the ice age's outwash, up to this thick…
-    loessReachKm: 600,          // …over this far downwind
+    loessReachKm: 600,          // …over this far downwind…
+    loessHotShare: 0.25,        // …the silt coming mostly from the outwash and the cold deserts (frost and glaciers grind
+                                // it): a hot desert (BWh), whose dust is mostly sand, gives this share of a cold one's…
+    loessWarmC: [21, 15],       // …and kept where the year is no warmer than this (°C, its mean: fading from the first) —
+                                // tropical rain weathers silt into clay and washes it off; Earth's loess lies 30–55°
+                                // (China's plateau, Ukraine, the Midwest, the Pampas), not on the Sahel
 };
 
 // ── the land's cover, as a satellite sees it (plans/V2_SATELLITE_PLAN.md; finish-cover.js) — from each place's twelve

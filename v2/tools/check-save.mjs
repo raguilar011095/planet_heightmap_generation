@@ -6,10 +6,10 @@
 //       plain, as Node runs them; then older files: one whose detailed moment is of an older finish version (its
 //       history opens, the moment left to be detailed again), and one whose frames lack a field (it reads as zeros, and
 //       the file says which — a history saved again leaves them out, as the page does); and every geology map and file
-//       the Export panel offers is drawn from the fresh moment;
+//       the Export panel offers is drawn from the fresh moment, and every farming map from the moment read back;
 //   (b) every planet kept in v2/tools/fixtures/saves/ (one per version of the format) still opens: its history's
 //       terrain is built from a frame, and every map the Export panel offers is drawn from its moment (the geology's
-//       where it has one: a planet saved before it was kept has none — the page says so).
+//       where it has one: a planet saved before it was kept has none — the page says so; the farming's likewise).
 // The file of (a) is written to v2/out/check-save.orogen (any unzip tool opens it), the older files beside it (to open
 // on the page: drop them on it).
 //
@@ -40,7 +40,7 @@ import { unpackCodec1 } from '../js/save/migrations.js';
 import { seedOf } from '../js/core/seed.js';
 import { ZipReader, ZipWriter } from '../js/save/zip-io.js';
 import { FORMAT_VERSION, FRAME_VERSION, FINISH_VERSION, FRAME_CODEC } from '../js/save/versions.js';
-import { CATALOGUE, produceMap } from '../js/evolution/export.js';
+import { CATALOGUE, produceMap, rowAvailable } from '../js/evolution/export.js';
 import { heightLutOf } from '../js/evolution/looks.js';
 import { riverPaths, rasterAt } from '../js/evolution/finish-view.js';
 import { detailSource, fineWindow } from '../js/finish/fine-detail.js';
@@ -136,7 +136,7 @@ const slim = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS, ...GEOLOG
 slim.plates = moment.plates.map(p => p && { quat: p.quat });
 const pool = await TerrainPool.create(simMesh);
 const out = await finishPlanet({ frame: slim, simMesh, seed: SEED, cells: CELLS, pool, closePool: true });
-const raster = finishRaster(out.mesh, out.z, out.ocean, W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology);
+const raster = finishRaster(out.mesh, out.z, out.ocean, W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
 const climate = { ...out.climate.page, raster: raster.climate };
 delete raster.climate;
 raster.drivers = out.drivers;                                 // (as finish-worker.js keeps them: the detail finer than the mesh's)
@@ -173,6 +173,7 @@ const { paths, ...own } = fin, momentDiff = differ(own, back.detail.moment, 'mom
 check(!momentDiff, `the detailed moment comes back bit for bit (${momentDiff})`);
 check(!('paths' in back.detail.moment), 'the views\' caches are not saved');
 check(!!back.detail.moment.raster.geology?.deposits?.land && back.lacking.length === 0, `the moment's geology is in it, and no frame lacks a field (${back.lacking})`);
+check(!!back.detail.moment.raster.farming?.crops, 'the farming comes back with it');
 check(back.manifest.detail.time === moment.time && back.manifest.settings.seed === SEED, 'the manifest says what it holds');
 // (a word for a seed, 2026-10: the setting added — no version bump — while the kept planets, without it, open as before)
 {
@@ -248,6 +249,23 @@ if (!FIXTURE) {
     console.log(`geology's ${n} maps and files drawn, and the rocks at twice their picture (${secs()})`);
 }
 
+// ── (a) the farming's maps, as the Export panel draws them, from the moment read back ──
+{
+    const look0 = { lut: heightLutOf('relief'), exaggeration: 20, water: false, riverQ: 40, byRegime: false, shaded: true, centerLon: 0 };
+    let drawn = 0;
+    for (const row of CATALOGUE.find(g => g.id === 'farming').rows) {
+        if (!check(rowAvailable(row, back.detail.moment), `the read-back moment offers ${row.id}`)) continue;
+        for (const job of [...(row.colour ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))]) {
+            let r = null, e = null;
+            try { r = produceMap(back.detail.moment, 256, look0, { ...job, row, season: 'year' }); } catch (x) { e = x.message; }
+            const data = r?.data, varied = data && data.some(v => v !== data[0]);
+            check(data && data.length >= 256 * 128 && varied, `${row.id} ${job.variant}${job.file ? ` ${job.file.key}` : ''} is drawn (${e ?? (data ? 'one colour' : 'nothing')})`);
+            drawn++;
+        }
+    }
+    console.log(`the farming's ${drawn} maps drawn from the moment read back (${secs()})`);
+}
+
 // ── (b) every planet kept: it opens, its history's terrain is built, every map is drawn from its moment ──
 const kept = fs.existsSync(FIXTURES) ? fs.readdirSync(FIXTURES).filter(f => f.endsWith('.orogen')).sort() : [];
 check(kept.length > 0, `a planet is kept in ${path.relative(ROOT, FIXTURES)} (node v2/tools/check-save.mjs --fixture)`);
@@ -276,9 +294,9 @@ for (const name of kept) {
     for (const group of CATALOGUE) for (const row of group.rows) {
         const seasons = row.seasonal ? ['year', 'jan', 'jul'] : ['year'];
         if (row.geology && !m.raster.geology) continue;
-        const needs = row.needs === 'climate' ? !!m.climate?.raster?.koppen : row.needs === 'satellite' ? !!m.climate?.raster?.sat : row.needs === 'rivers' ? !!m.rivers
-            : row.needs === 'deposits' ? !!m.raster.geology?.deposits?.land : true;
-        if (!check(needs, `${name}: ${row.id}'s data is there`)) continue;
+        // (a planet kept before the farming has none: the panel does not offer its maps)
+        if (row.needs === 'farming' && !m.raster.farming) continue;
+        if (!check(rowAvailable(row, m), `${name}: ${row.id}'s data is there`)) continue;
         const jobs = [...(row.colour && row.id !== 'rivers' ? [{ variant: 'colour' }] : []), ...(row.data ?? []).map(file => ({ variant: 'data', file }))];
         for (const job of jobs) for (const season of seasons) {
             let r = null, e = null;

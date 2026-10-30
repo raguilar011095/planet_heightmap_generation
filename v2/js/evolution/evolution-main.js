@@ -28,6 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -651,7 +652,7 @@ function paint(frame, sharpTable = null, sharp = !!sharpTable) {
         const C = FINISHED_ONLY_LAYERS.has(view.layer) ? null : climateOf(frame);
         if (C) paintClimate(view.layer, view.season, C, { heightKm: T.heightKm, shade }, B.tMesh, out, o => tint(T.heightKm, shade, o));
         else { tint(T.heightKm, shade, out); paintUnavailable(out, B.tMesh.numCells); }
-    } else if (GEOLOGY_LAYERS.has(view.layer)) { tint(T.heightKm, shade, out); paintUnavailable(out, B.tMesh.numCells); }   // (comes with detail)
+    } else if (GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) { tint(T.heightKm, shade, out); paintUnavailable(out, B.tMesh.numCells); }   // (comes with detail)
     else byHeight = heightLutOf(view.palette);
     const C = CLIMATE_LAYERS.has(view.layer) && !FINISHED_ONLY_LAYERS.has(view.layer) ? climateOf(frame) : null;
     // the sun glints off the sea on the Terrain view (V1's water shows there only)
@@ -727,10 +728,13 @@ function climateOverlays(t, C) {
     t.ctx.restore();
 }
 
+/** The legend's key for a finished moment's view (a legend made for another is made again). */
+const finishedLegendKey = (frame, fin, farm) => `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}${farm ? `|${farmOptionsKey()}` : ''}`;
+
 /** The finished moment shown for a frame on the layer shown, if any: on the height layers, and on the climate layers
  *  (a finish brings the moment's own climate) — or null. */
 function finishedShown(frame) {
-    if (!view.finished || !B || !(view.layer === 'terrain' || view.layer === 'heightmap' || CLIMATE_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer))) return null;
+    if (!view.finished || !B || !(view.layer === 'terrain' || view.layer === 'heightmap' || CLIMATE_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer))) return null;
     const fin = B.finishes.get(frame);
     return fin && (!CLIMATE_LAYERS.has(view.layer) || fin.climate) && (!FINISHED_ONLY_LAYERS.has(view.layer) || fin.climate?.raster?.sat) && (!GEOLOGY_LAYERS.has(view.layer) || fin.raster.geology) ? fin : null;
 }
@@ -739,23 +743,25 @@ function finishedShown(frame) {
 function paintFinishedFrame(frame, fin, T, sharp) {
     const t = sharp ? (tex.sharp ??= texture(SHARP_WIDTH)) : tex.lo;
     const lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
-    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer);
+    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
     glint(view.layer === 'terrain' || view.layer === 'satellite');
-    // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology views
-    // their lakes too, as water)
-    paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo,
-        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+    // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
+    // farming views their lakes too, as water)
+    paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm,
+        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
     if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
     t.ctx.putImageData(t.image, 0, 0);
     // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
-    // (the rivers' lines on the Terrain view; from space they are ground, not lines — the Satellite view draws none)
-    if (water && view.layer === 'terrain' && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime); t.ctx.restore(); }
+    // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
+    // are ground, not lines — the Satellite view draws none)
+    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
     drawLines(t, C);
     show(t);
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
-    const legend = $('climateLegend'), legendKey = C || geo ? `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}` : '';
+    const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
     if (legend.dataset.key !== legendKey) {
         if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
+        else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
         legend.dataset.key = legendKey;
@@ -769,10 +775,10 @@ function paintFinishedFrame(frame, fin, T, sharp) {
 // ── the detail finer than the mesh (detail-view.js): where the view, paused on a detailed moment, is zoomed in past its
 // picture's own pixels, the tiles in view are drawn at about the screen's resolution — as it moves, nearest its middle
 // first — and laid over the planet as they come, each sent to the GPU once (TileLayers) ──
-/** The layers a patch is painted for: the heights', the climate's and the geology's — not those whose arrows or lines are
- *  on the picture. */
+/** The layers a patch is painted for: the heights', the climate's, the geology's and the farming's — not those whose
+ *  arrows or lines are on the picture. */
 const patchLayer = layer => layer === 'terrain' || layer === 'heightmap' || (CLIMATE_LAYERS.has(layer) && !ARROW_LAYERS[layer] && layer !== 'pressure')
-    || GEOLOGY_LAYERS.has(layer);
+    || GEOLOGY_LAYERS.has(layer) || FARMING_LAYERS.has(layer);
 /** The view's places: a 9 × 9 grid over the globe's canvas or the map's frame, as [lon, lat] (null off the planet), and
  *  its height in device pixels. */
 function viewPlaces() {
@@ -787,7 +793,7 @@ function viewPlaces() {
 }
 /** What the patch's tiles are painted for: a number that changes when the layer, its colours or what is drawn over it do. */
 function patchLookOf(fin) {
-    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${GEOLOGY_LAYERS.has(view.layer) ? `|${view.deposit}|${view.age}|${view.ageRes}` : ''}`;
+    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${GEOLOGY_LAYERS.has(view.layer) ? `|${view.deposit}|${view.age}|${view.ageRes}` : ''}${FARMING_LAYERS.has(view.layer) ? `|${farmOptionsKey()}` : ''}`;
     if (key !== patchLookKey || fin.climate !== patchClimate) { patchLookKey = key; patchClimate = fin.climate; patchLook++; }
     return patchLook;
 }
@@ -808,24 +814,25 @@ function updatePatch(now) {
     layers.lay(tiles, look, t => paintTile(fin, t, look), PATCH_BUDGET_MS);
 }
 let tileImage = null;                                   // (a tile's pixels, painted before they go on its canvas: one, reused)
-const tileColors = { look: -1, byWidth: new Map() };    // (a climate or geology layer's colours, per level's width, for the look painted)
+const tileColors = { look: -1, byWidth: new Map() };    // (a climate, geology or farming layer's colours, per level's width, for the look painted)
 /** A tile painted for the layer shown (as paintFinishedFrame paints the planet), once per look: a SLOT-px canvas — the
  *  tile and a pixel of its neighbours' all round — with the rivers' lines and the grid over it. */
 function paintTile(fin, t, look) {
     if (t.look === look) return t.canvas;
     const W = t.win.W, lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
-    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer);
+    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
     if (tileColors.look !== look) { tileColors.look = look; tileColors.byWidth.clear(); }
-    if ((C || geo) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, W, fin, view.deposit, view.age, view.ageRes)
+    if ((C || geo || farm) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, W, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, W)
         : finishedClimateColor(view.layer, view.season, C, W, lut, fin));
     if (tileImage?.width !== t.win.w || tileImage.height !== t.win.h) tileImage = new ImageData(t.win.w, t.win.h);
-    paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo, shaded: view.shaded,
-        colorAt: C || geo ? tileColors.byWidth.get(W) : null });
+    paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm, shaded: view.shaded,
+        colorAt: C || geo || farm ? tileColors.byWidth.get(W) : null });
     if (!t.canvas) { t.canvas = document.createElement('canvas'); t.canvas.width = t.canvas.height = SLOT; }
     const ctx = t.canvas.getContext('2d'), x0 = t.win.x0 + 1, y0 = t.win.y0 + 1;     // (the canvas's pixel 0, 0 on the planet W px wide)
     ctx.putImageData(tileImage, -1, -1);                                    // (the window's outer pixel the hillshade's neighbours only)
     // (the planet's rivers, crisp: a little thicker the closer the view, not as thick as the picture's enlarged)
-    if (water && view.layer === 'terrain' && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime, W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
+    // (and on Farmland, as the picture has them: the water canals and floods come from)
+    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime && view.layer === 'terrain', W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
     if (view.grid) {
         // (the grid's lines, as thin as the screen's pixels)
         const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
@@ -990,11 +997,13 @@ function updateCard() {
     // (the collapsed bottom sheet: the moment and what is going on, in a line)
     $('sheetLine').textContent = b?.problem && !frame ? b.problem : !frame ? (b?.loading ? 'Opening a planet…' : 'Starting a world…') : `${t} Myr · ${badge}` + (job ? ` · adding detail ${pct}%` : computing ? ' · computing the history…' : b?.going ? ' · extending the history…' : replay ? ' · running the history again…' : '');
     // Satellite and Geology come with detail: their tabs locked on previews
-    const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology);
+    const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology), farmOk = !!(frame && b?.finishes.get(frame));
     document.querySelector('#mapTabs [data-layer="satellite"]').classList.toggle('locked', !satOk);
     $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite 🔒';
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
     $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
+    document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
+    $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
     const legend = $('regimeLegend');
     legend.hidden = !(view.byRegime && view.water && view.layer === 'terrain' && isDet);
     if (!legend.childElementCount) legend.innerHTML = REGIME_STYLE.map(s => `<span><i style="background:${s.rgb}"></i>${s.name}</span>`).join('');
@@ -1087,10 +1096,11 @@ function updateClimateUi() {
     let text = null, act = null;
     if (frame && GEOLOGY_LAYERS.has(view.layer) && b.noGeology) {
         text = 'This planet was saved before Evolution kept a record of its rocks — Build This World (under World) builds its history again with one, to see its geology';
-    } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer)) && !shown) {
+    } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
         const fjob = b.finishJob, again = !!fin && GEOLOGY_LAYERS.has(view.layer);
+        const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Food views come';
         text = fjob ? `Adding detail to ${fjob.frame.time.toFixed(0)} Myr…` : again ? `${t} Myr was detailed before its geology was — add detail again to see it`
-            : `The ${view.layer === 'satellite' ? 'Satellite view comes' : 'Geology views come'} with detail — add detail to ${t} Myr to see ${view.layer === 'satellite' ? 'it' : 'them'}`;
+            : `The ${what} with detail — add detail to ${t} Myr to see ${view.layer === 'satellite' ? 'it' : 'them'}`;
         act = fjob ? null : again ? 'Add detail again' : 'Add detail';
     } else if (frame && CLIMATE_SUB.has(view.layer) && !shown && !have) {
         text = job ? `Working out the climate of ${job.frame.time.toFixed(0)} Myr…` : playing ? 'Pause on a moment to see its climate' : `No climate for ${t} Myr`;
@@ -1146,7 +1156,8 @@ function tick(now) {
     }
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
     updatePatch(now);
-    globe.resize(); globe.renderIfNeeded();                 // (the globe, or the map: the same renderer draws both)
+    globe.resize();
+    globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
 }
 requestAnimationFrame(tick);
 
@@ -1180,27 +1191,33 @@ addEventListener('keydown', e => {
 // ── view options (V1's) ──
 let climateLayer = 'koppen';            // (the Climate tab opens on the climate map last shown)
 let geologyLayer = 'geoRocks';          // (…and the Geology tab on its view last shown)
+let farmingLayer = 'farmLand';          // (…and the Food tab on its)
 function setLayer(layer) {
     if (layer === 'climate') layer = climateLayer;
     if (layer === 'geology') layer = geologyLayer;
+    if (layer === 'farming') layer = farmingLayer;
     if (CLIMATE_SUB.has(layer)) climateLayer = layer;
-    const geo = GEOLOGY_LAYERS.has(layer);
+    const geo = GEOLOGY_LAYERS.has(layer), farm = FARMING_LAYERS.has(layer);
     if (geo) geologyLayer = layer;
+    if (farm) farmingLayer = layer;
     view.layer = layer; dirty = true;
-    for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo));
-    for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
+    for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
+    for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
     const more = $('climateMore'), inMore = !!more.querySelector(`option[value="${layer}"]`);
     more.value = inMore ? layer : ''; more.classList.toggle('active', inMore);
     $('mobileViewSwitch').value = layer;
-    $('subBar').hidden = !CLIMATE_SUB.has(layer) && !SEASONAL_LAYERS.has(layer) && !geo;
+    $('subBar').hidden = !CLIMATE_SUB.has(layer) && !SEASONAL_LAYERS.has(layer) && !geo && !farm;
     $('climateTabs').hidden = $('climateMore').hidden = !CLIMATE_SUB.has(layer);
     $('geologyTabs').hidden = !geo;
+    $('farmingTabs').hidden = !farm;
     $('season').hidden = !SEASONAL_LAYERS.has(layer);
     $('depositPick').hidden = layer !== 'geoDeposits';
     $('agePick').hidden = $('ageRes').hidden = layer !== 'geoAges';
     updateClimateUi();
 }
-for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
+for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
+// (the Food legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
+$('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
 $('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
 $('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
 $('cardAction').addEventListener('click', mainAction);
@@ -1216,7 +1233,7 @@ $('cardDetailed').addEventListener('click', e => {
     e.preventDefault(); setPlaying(false);
     playTime = Number(a.dataset.t); ui.time.value = playTime; dirty = true; rail();
 });
-$('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
+$('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
 $('season').addEventListener('change', e => { view.season = e.target.value; dirty = true; });
 $('depositPick').addEventListener('change', e => { view.deposit = e.target.value; dirty = true; });
 // the Ages view: the age, then its resources (all, one alone, or its potential) — the legend's entries switch them too
@@ -1307,6 +1324,12 @@ function readout(e) {
         if (view.layer === 'geoAges') lines.push(...ageLines(fin, view.age, p[0], p[1], !!at.ocean));
         if ((view.layer === 'geoDeposits' || view.layer === 'geoAges') && !at.ocean) lines.push(...districtLines(fin, f, view.layer, view.deposit, view.age, view.ageRes, p[0], p[1]));
         lines.push(...geologyLines(f, wr));
+        ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
+        return;
+    }
+    // the farming views: what the land could grow there, and why (its water, soil, season and ground)
+    if (fin && FARMING_LAYERS.has(view.layer)) {
+        lines.unshift(...farmingLines(fin, p[0], p[1], !!at.ocean, view.layer));
         ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
         return;
     }

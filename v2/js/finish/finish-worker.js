@@ -8,11 +8,12 @@
 //              · {type: 'prepare', cells, simCells, delaunatorUrl} — the meshes a finish at `cells` needs, built ahead
 //              while nothing waits on them (no reply; a finish asked for meanwhile waits for them, then finds them built)
 // Messages out: {type: 'stage', id, stage} · {type: 'progress', id, share} (the picture) · {type: 'done', id, raster:
-//              {w, h, heightM, ocean, water}, rivers (finish-hydro.js), climate (the moment's own, at its detail: the
+//              {w, h, heightM, ocean, water, geology, farming (farming/farming.js: its parts per pixel)}, rivers
+//              (finish-hydro.js), climate (the moment's own, at its detail: the
 //              grid's fields, climate-fields.js, and raster {w, h, koppen, tAnnual (°C × 100), pAnnual (mm), stats} — the land's
 //              climate, at most 4096 px wide), stats, ms} · {type: 'error', id, message}
 
-import { finishPlanet, finishRaster } from './finish.js';
+import { finishPlanet, finishRaster, FARM_KEYS } from './finish.js';
 import { driverWidth, DRIVER_FIELDS } from './finish-drivers.js';
 import { climateTransfers } from '../evolution/climate-fields.js';
 import { TerrainPool } from '../terrain/terrain-pool.js';
@@ -44,7 +45,8 @@ self.onmessage = async ({ data }) => {
         const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: true, climateOptions, driversWidth: driverWidth(width), onStage: stage => self.postMessage({ type: 'stage', id, stage }) });
         self.postMessage({ type: 'stage', id, stage: 'picture' });
         const t0 = performance.now();
-        const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology);
+        const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
+        const farm = raster.farming ? [...[...FARM_KEYS, 'kind'].map(k => raster.farming[k].buffer), ...Object.values(raster.farming.crops ?? {}).map(a => a.buffer)] : [];
         out.ms.picture = performance.now() - t0;
         // (the finished moment's climate: the grid's fields, and its own picture of the land's climate)
         const climate = { ...out.climate.page, raster: raster.climate };
@@ -53,7 +55,7 @@ self.onmessage = async ({ data }) => {
         raster.drivers = out.drivers;
         const rv = out.rivers;
         self.postMessage({ type: 'done', id, raster, rivers: rv, climate, stats: out.stats, ms: out.ms },
-            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, ...(raster.geology ? [raster.geology.rock.buffer, ...(raster.geology.rec ? [raster.geology.rec.buffer] : []), ...(raster.geology.deposits ? [raster.geology.deposits.cells.buffer, raster.geology.deposits.data.buffer, raster.geology.deposits.land.buffer] : [])] : []), rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
+            [raster.heightM.buffer, raster.ocean.buffer, raster.water.buffer, ...farm, ...(raster.geology ? [raster.geology.rock.buffer, ...(raster.geology.rec ? [raster.geology.rec.buffer] : []), ...(raster.geology.deposits ? [raster.geology.deposits.cells.buffer, raster.geology.deposits.data.buffer, raster.geology.deposits.land.buffer] : [])] : []), rv.start.buffer, rv.lat.buffer, rv.lon.buffer, rv.q.buffer, rv.season.buffer,
                 ...(rv.regime ? [rv.regime.buffer, rv.floodFrom.buffer, rv.floodTo.buffer, rv.farFed.buffer] : []), ...climateTransfers(climate),
                 ...DRIVER_FIELDS.map(k => raster.drivers[k].buffer)]);
     } catch (err) {

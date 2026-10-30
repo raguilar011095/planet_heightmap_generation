@@ -103,6 +103,36 @@ export class LatLonGrid {
             return out;
         });
     }
+    /**
+     * The largest of `field` within radiusKm of each cell — a window as many km wide at every latitude (square: rows, then
+     * columns; longitude wraps, the poles clamp). @returns {Float32Array}
+     */
+    maxWithin(field, radiusKm) {
+        const { w, h } = this, v = Float32Array.from(field), n = Math.max(w, h), line = new Float32Array(n), out = new Float32Array(n);
+        const ext = new Float32Array(3 * n), pre = new Float32Array(3 * n), suf = new Float32Array(3 * n);
+        // (van Herk–Gil–Werman: blocks as long as the window, each cell's max from the block's start and to its end)
+        const slide = (len, r, wrap) => {
+            const m = len + 2 * r, k = 2 * r + 1;
+            for (let t = 0; t < m; t++) { const s = t - r; ext[t] = s >= 0 && s < len ? line[s] : wrap ? line[(s % len + len) % len] : -Infinity; }
+            for (let t = 0; t < m; t++) pre[t] = t % k ? Math.max(pre[t - 1], ext[t]) : ext[t];
+            for (let t = m - 1; t >= 0; t--) suf[t] = (t + 1) % k && t + 1 < m ? Math.max(suf[t + 1], ext[t]) : ext[t];
+            for (let i = 0; i < len; i++) out[i] = Math.max(suf[i], pre[i + 2 * r]);
+        };
+        for (let j = 0; j < h; j++) {
+            const lat = 90 - (j + 0.5) * this.step, r = Math.min((w - 1) >> 1, Math.round(radiusKm / (KM_PER_DEG * this.step * Math.max(0.02, Math.cos(lat * Math.PI / 180)))));
+            if (!r) continue;
+            for (let i = 0; i < w; i++) line[i] = v[j * w + i];
+            slide(w, r, true);
+            for (let i = 0; i < w; i++) v[j * w + i] = out[i];
+        }
+        const r = Math.min(h, Math.round(radiusKm / (KM_PER_DEG * this.step)));
+        if (r) for (let i = 0; i < w; i++) {
+            for (let j = 0; j < h; j++) line[j] = v[j * w + i];
+            slide(h, r, false);
+            for (let j = 0; j < h; j++) v[j * w + i] = out[j];
+        }
+        return v;
+    }
     /** A grid field at each cell (bilinear; NaN grid cells fall back to the nearest of the four that has a value). */
     sample(field, lat, lon, out = new Float32Array(lat.length)) {
         const { w, h, step } = this;
