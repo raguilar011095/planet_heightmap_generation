@@ -488,18 +488,37 @@
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
             <div class="tutorial-step" data-step="3">
-                <h3>Look Around &amp; Export</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Climate shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. Climate also works on a paused preview. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (scroll to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
-                <p>Geology, on a detailed moment, shows what the history left in the rock: a map of its <strong>Rocks</strong> &mdash; hover for how each came to be there &mdash; its <strong>Deposits</strong> (metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit) and its <strong>Ages</strong> (what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone &mdash; tap a legend entry to see it alone; hover a deposit for its district, its rank on the world and how it formed).</p>
-                <p><strong>Food</strong> shows what the land could grow &mdash; green by rain alone, aqua where only water brought from rivers makes it farmable &mdash; what each place would live on most (paddy grains, cool- or warm-season grains, roots, livestock, fish or wild foods) and how its people would live (farming, herding or gathering), how many people it could feed, its soil and its growing season; switch the farming techniques on and off in its legend.</p>
-                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate and food view can go too, and each map as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales &mdash; as well as colour; and the geology's: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words. Several save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
+                <h3>Look Around</h3>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet.</p>
+                <p><strong>Climate</strong> shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. It also works on a paused preview.</p>
+                <p>The arrow at the tabs' left opens the view options: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (<span data-touch="pinch">scroll</span> to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
             </div>
             <div class="tutorial-step" data-step="4">
+                <h3>Geology <span class="evo-beta">Beta</span></h3>
+                <p>On a detailed moment, <strong>Geology</strong> shows what the history left in the rock.</p>
+                <p><strong>Rocks</strong> &mdash; what the land is made of. <span data-touch="Tap">Hover</span> a rock for how it came to be there.</p>
+                <p><strong>Deposits</strong> &mdash; metals, fuels and minerals, poor to rich: all together, one metal at a time, or by the kind of deposit.</p>
+                <p><strong>Ages</strong> &mdash; what the Stone, Copper, Bronze, Iron and Industrial Ages could reach, and fuel, gems and building stone. Tap a legend entry to see it alone, and <span data-touch="tap">hover</span> a deposit for its district, its rank on the world and how it formed.</p>
+            </div>
+            <div class="tutorial-step" data-step="5">
+                <h3>Food <span class="evo-beta">Beta</span></h3>
+                <p>On a detailed moment, <strong>Food</strong> shows what the land could feed.</p>
+                <p><strong>Farmland</strong> &mdash; green where rain alone grows crops, aqua where only water brought from rivers makes it farmable. Switch the farming techniques on and off in its legend.</p>
+                <p><strong>Staple food</strong> &mdash; what each place would live on most: paddy grains, cool- or warm-season grains, roots, livestock, fish or wild foods. <strong>Lifestyle</strong> &mdash; whether its people would farm, herd or gather.</p>
+                <p><strong>People</strong> &mdash; how many the land could feed. <strong>Soil</strong> and <strong>Growing season</strong> show what lies behind it.</p>
+            </div>
+            <div class="tutorial-step" data-step="6">
+                <h3>Export</h3>
+                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate and food view can go too, each as colour or as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales.</p>
+                <p>From Geology: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words.</p>
+                <p>Several maps save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
+            </div>
+            <div class="tutorial-step" data-step="7">
                 <h3>Keep a Planet</h3>
                 <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load Planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
                 <p>The file holds the history itself, so it opens exactly as it was saved, in any browser. <strong>Extend history</strong> on an opened planet first runs the history again here from its seed (as long as it took to build), and then goes on from where the file ends &mdash; if it comes out the same in this browser.<span data-touch=" On a phone, a detailed moment saved on a desktop is too big to show: the history opens, ready for you to add detail at the phone's size."></span></p>
             </div>
-            <div class="tutorial-step" data-step="5">
+            <div class="tutorial-step" data-step="8">
                 <h3>Steer It</h3>
                 <p><strong>New World</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
                 <p>At the end of a history, <strong>Extend history</strong> runs it on for as long as you like. The link in your address bar rebuilds the same history, so you can share it.</p>
@@ -511,6 +530,9 @@
                 <span class="dot" data-dot="3"></span>
                 <span class="dot" data-dot="4"></span>
                 <span class="dot" data-dot="5"></span>
+                <span class="dot" data-dot="6"></span>
+                <span class="dot" data-dot="7"></span>
+                <span class="dot" data-dot="8"></span>
             </div>
             <div class="tutorial-nav">
                 <button id="tutorialBack" class="btn-ghost" disabled>Back</button>
