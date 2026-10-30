@@ -122,11 +122,13 @@
     padding: 2px 7px; border-radius: 5px; background: rgba(255,255,255,0.1); color: #bcd;
 }
 .evo-badge.detailed { background: rgba(110,200,90,0.18); color: #ad8; }
-/* Evolution is in beta: a tag by the title, a line under it, and one in the tutorial */
+/* Geology and Food are in beta: a tag at the end of their sub-bars (on the main tabs it wrapped the bar below 1360 px),
+   and a line in the tutorial (beside Evolution's "best on a desktop") */
 .evo-beta {
     display: inline-block; vertical-align: 3px; margin-left: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
     padding: 2px 7px; border-radius: 5px; background: rgba(255,180,60,0.16); color: #fc8;
 }
+.map-tabs > .evo-beta { align-self: center; margin: 0 6px 0 5px; }
 #ui .evo-beta-note { font-size: 12px; color: #a98; margin-top: 4px; }
 #tutorialCard .evo-beta-note { font-size: 13px; color: #a98; }
 #tutorialCard .evo-beta-note strong { color: #fc8; }

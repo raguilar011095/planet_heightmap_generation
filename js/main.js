@@ -1085,7 +1085,7 @@ const store = {
 
 // What's New modal — shown once per version for returning users
 (function initWhatsNew() {
-    const VERSION    = '4';
+    const VERSION    = '5';
     const LS_KEY     = 'wo-whatsnew-seen';
     const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
     const overlay    = document.getElementById('whatsNewOverlay');
