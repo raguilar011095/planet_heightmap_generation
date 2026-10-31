@@ -331,7 +331,7 @@ If World Orogen has been useful to you, you can support it on [Ko-fi](https://ko
 
 ## Using your maps
 
-Maps, heightmaps and images you make with World Orogen are yours to use however you like, including commercially. I claim no rights in them. Raw output may not be protected by copyright, and anyone who enters the same planet code or link gets the same planet, so exclusivity isn't possible. Your own additions on top are yours. The app's code stays under the GPL-3.0.
+Maps, heightmaps and images you make with World Orogen are yours to use however you like, including commercially. I claim no rights in them. Raw output may not be protected by copyright, and anyone who enters the same planet code or link gets the same planet, so exclusivity isn't possible. Your own additions on top are yours. Crediting World Orogen is always appreciated. The app's code stays under the GPL-3.0.
 
 ## License
 

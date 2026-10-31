@@ -35,7 +35,7 @@ World Orogen generates realistic procedural planets shaped by tectonic plate sim
 
 ## Using the maps
 
-Maps, heightmaps and images made with World Orogen are the maker's to use however they like, including commercially; the author claims no rights in them. Raw output may not be protected by copyright, and anyone who enters the same planet code or link gets the same planet, so exclusivity isn't possible; what the maker adds on top is theirs. The app's code is free software under the GPL-3.0 (Copyright (C) 2026 Robert Aguilar).
+Maps, heightmaps and images made with World Orogen are the maker's to use however they like, including commercially; the author claims no rights in them. Raw output may not be protected by copyright, and anyone who enters the same planet code or link gets the same planet, so exclusivity isn't possible; what the maker adds on top is theirs. Crediting World Orogen (orogen.studio) is always appreciated. The app's code is free software under the GPL-3.0 (Copyright (C) 2026 Robert Aguilar).
 
 ## URL
 
@@ -59,4 +59,4 @@ https://orogen.studio/v/2.1/ — a previous version, kept online: from 2.1 on, e
 - Fibonacci sphere meshing with Voronoi tessellation
 - Braun-Willett stream power erosion, Barnes et al. pit-filling algorithm
 - Coupled climate on a fixed 1° grid: seasonal energy balance, derived pressure belts and winds, wind-driven ocean gyres with upwelling (seasonal in the tropics), and a column-water rain budget — a few seconds at any resolution; Köppen from each region's twelve months
-- Fully client-side — no server, no data collection
+- Fully client-side — no server

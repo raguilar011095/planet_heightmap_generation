@@ -150,7 +150,7 @@ export function readmeText(about, files, koppenClasses = null, lists = []) {
     L.push('', 'Data files are linear greyscales on the scale given: value = lo + grey / top × (hi − lo). The 16-bit files',
         'open in GIMP, Photoshop, QGIS, Blender and most game engines; a viewer that reads only 8 bits shows the top byte.',
         'Equirectangular maps wrap: the left and right edges meet. The planet is a sphere of Earth\'s size (6371 km radius).');
-    L.push('', 'These maps are yours to use however you like, including commercially.');
+    L.push('', 'These maps are yours to use however you like, including commercially. Crediting World Orogen is always appreciated.');
     return L.join('\n') + '\n';
 }
 
