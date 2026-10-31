@@ -259,6 +259,8 @@ sitemap.xml             Sitemap for search engine indexing
 site.webmanifest        Web app manifest (metadata + theming)
 llms.txt                AI/LLM-readable site description (AISEO)
 humans.txt              Project credits
+LICENSE                 The GNU GPL v3.0, verbatim
+COPYRIGHT               The copyright notice
 CNAME                   Custom domain config (orogen.studio)
 404.html                Custom 404 page
 preview.png             Social preview image (og:image / Twitter card)
@@ -327,9 +329,13 @@ New releases, work in progress and sneak peeks of what's coming, plus the odd pl
 
 If World Orogen has been useful to you, you can support it on [Ko-fi](https://ko-fi.com/orogenstudio). It stays free either way: no ads, no account, nothing locked.
 
+## Using your maps
+
+Maps, heightmaps and images you make with World Orogen are yours to use however you like, including commercially. I claim no rights in them. Raw output may not be protected by copyright, and anyone who enters the same planet code or link gets the same planet, so exclusivity isn't possible. Your own additions on top are yours. Crediting World Orogen is always appreciated. The app's code stays under the GPL-3.0.
+
 ## License
 
-This project is licensed under the GNU General Public License v3.0 — see [LICENSE](LICENSE) for details.
+World Orogen · Copyright (C) 2026 Robert Aguilar. Free software under the GNU General Public License v3.0 — see [LICENSE](LICENSE).
 
 ## Acknowledgments
 
