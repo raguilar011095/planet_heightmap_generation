@@ -16,18 +16,20 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 - `generate.html`, `import.html`, `js/`: Generate and Import Heightmap
 - `evolution.html`, `v2/`: Evolution, with its tectonic history engine, finish, geology, food and planet files (see `v2/README.md`)
 - `v2/js/climate/`: the one climate every tool runs (see the climate rule below)
+- `docs/`: each tool's guide and what they share; `README.md`: the front door
 - `tuning/`: the automated Earth checks; `plans/`: design docs and phase plans
 
 ## Key Rules
 
-After any code change, check whether README.md needs updating. The README documents all UI controls, features, algorithms, and project structure. If a change adds, removes, or modifies any of the following, update the README to match:
+After any code change, check whether the docs need updating. The README is the Studio's front door: the vision in short, the tools, quick start, project structure and dependencies. Each tool's guide in `docs/` (`generate.md`, `import.md`, `evolution.md`) documents its controls, interactions, pipeline and algorithms; `docs/shared.md` covers what every tool shares (the navigation, the view, the climate, the export panel, previous versions); `v2/README.md` documents Evolution's engine for developers. If a change adds, removes, or modifies any of the following, update the matching file:
 
-- Sliders, dropdowns, toggles, or other UI controls (names, ranges, defaults)
-- User interactions (keyboard shortcuts, mouse actions, edit behaviors)
-- Generation pipeline steps or algorithms
-- Visual features (rendering, overlays, debug layers)
-- Project file structure (new files, renamed files, removed files)
-- External dependencies
+- Sliders, dropdowns, toggles, or other UI controls (names, ranges, defaults): the tool's guide
+- User interactions (keyboard shortcuts, mouse actions, edit behaviors): the tool's guide
+- Generation pipeline steps or algorithms: the tool's guide (and `v2/README.md` for Evolution's engine)
+- Visual features (rendering, overlays, debug layers): the tool's guide, or `docs/shared.md` if every tool has it
+- Project file structure (new files, renamed files, removed files): the README (Generate's and Import's `js/` files are listed in `docs/generate.md`)
+- External dependencies: the README
+- What a tool is or does (a new tool, a new headline feature): the tool's summary in the README
 
 After any code change, check whether the tutorial modal content (inside `#tutorialOverlay`: in `generate.html` for Generate and Import, in `evolution.html` for Evolution) needs updating. The tutorial steps describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
 
