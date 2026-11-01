@@ -177,12 +177,32 @@
 .evo-rate { flex: none; width: auto; padding: 4px 22px 4px 8px; font-size: 12px; background-position: right 8px center; }
 /* the Food legend: its techniques as chips (on or off), and its ramps as bars */
 .evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+/* the Origins view's hearths: numbered pins over the planet (evolution-main placePins) */
+.evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.evo-pin {
+    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
+    display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+.evo-pin[hidden] { display: none; }
+.evo-hearths { flex-direction: column; align-items: flex-start; }
+.evo-hearths > span { white-space: normal; }
 .evo-farm-chip {
     padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
     border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6;
 }
 .evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
 .evo-farm-chip:hover { filter: brightness(1.2); }
+/* (named crops and animals: each archetype's group, its named chips with a Wikipedia link) */
+.evo-farm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 3px 0; }
+.evo-farm-groupname { font-size: 11px; color: #cdd3e0; margin-right: 2px; white-space: nowrap; }
+.evo-farm-groupname i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.evo-farm-groupname em { font-style: normal; color: #8a93a6; }
+.evo-farm-var { display: inline-flex; align-items: center; }
+.evo-farm-wiki { font-size: 11px; color: #8fb8e8; text-decoration: none; padding: 0 3px; }
+.evo-farm-wiki:hover { color: #cfe4ff; }
+/* (the Crops view's finder) */
+.evo-farm-find { flex: 1; min-width: 0; font: inherit; font-size: 11px; padding: 4px 8px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.18); background: rgba(255,255,255,0.05); color: #dde; }
 /* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
 .evo-farm-staple { color: #aab; }
 .evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
@@ -191,6 +211,37 @@
 .evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
 .evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
 .evo-farm-bar span { min-width: 0; }
+/* the pick row (farming-view.js pickRow): ‹ › × always in one place, and what is shown in a fixed two or three lines — the
+   legend hangs from the screen's bottom, so it keeps one height whatever is picked; and a picked one's key in a box of one height */
+.evo-farm-pick { display: flex; align-items: flex-start; gap: 4px; margin: 0 0 8px; }
+.evo-farm-step { flex: none; min-width: 28px; padding: 1px 0 2px; text-align: center; font-size: 14px; line-height: 1.2; color: #dde3f0; border-color: rgba(255,255,255,0.28); }
+.evo-farm-step[disabled] { opacity: 0.35; cursor: default; filter: none; }
+.evo-farm-picked { flex: 1; min-width: 0; font-size: 11px; line-height: 1.35; color: #cdd3e0; height: 2.7em; overflow: hidden;
+    display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.evo-farm-picked.three { height: 4.05em; -webkit-line-clamp: 3; }
+.evo-farm-picked .evo-farm-wiki { padding: 0 2px; }
+.evo-farm-sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.evo-farm-key { height: 36px; overflow: hidden; margin: 0 0 5px; }
+.evo-farm-key .evo-koppen { margin: 0; }
+/* the Food tab's settings (farming-view.js foodSettings): Re-roll and a line saying what is set, the same atop every view; opened,
+   each setting with what it does — dimmed where the view does not use it */
+.evo-farm-set { margin: 0 0 8px; padding: 0 0 6px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+.evo-farm-sethead { display: flex; align-items: center; gap: 6px; }
+.evo-farm-reroll { flex: none; color: #dde3f0; border-color: rgba(120,190,255,0.45); background: rgba(60,120,200,0.22); }
+.evo-farm-setsum { flex: 1; min-width: 0; display: flex; align-items: center; gap: 6px; padding: 3px 4px; border: 0; background: none;
+    font: inherit; font-size: 11px; color: #9ab; text-align: left; cursor: pointer; border-radius: 6px; }
+.evo-farm-setsum:hover { background: rgba(255,255,255,0.05); color: #cdd3e0; }
+.evo-farm-setsum span { flex: 1; min-width: 0; }
+.evo-farm-setsum i { flex: none; font-style: normal; transition: transform 0.15s; }
+.evo-farm-set.open .evo-farm-setsum i { transform: rotate(90deg); }
+.evo-farm-setbody { display: none; margin-top: 6px; }
+.evo-farm-set.open .evo-farm-setbody { display: block; }
+.evo-farm-row { margin: 0 0 6px; }
+.evo-farm-rowhead { font-size: 11px; line-height: 1.35; color: #9ab; margin: 0 0 3px; }
+.evo-farm-rowhead b { color: #dde3f0; font-weight: 600; }
+.evo-farm-rowhead em { font-style: normal; color: #778; }
+.evo-farm-row .evo-farm-chips { margin: 0; }
+.evo-farm-row.dim { opacity: 0.45; }
 .evo-farm-bar + .evo-koppen, .evo-farm-chips + .evo-koppen { margin-top: 2px; }
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
@@ -272,7 +323,23 @@
     .evo-act { min-height: 44px; }
     /* the Food row's views: in the layer list too (as the Geology row's, below); its legend's chips and choices 44 px */
     .layer-bar #farmingTabs { display: none !important; }
-    .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
+    /* the Origins view's hearths: numbered pins over the planet (evolution-main placePins) */
+.evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.evo-pin {
+    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
+    display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+.evo-pin[hidden] { display: none; }
+.evo-hearths { flex-direction: column; align-items: flex-start; }
+.evo-hearths > span { white-space: normal; }
+.evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
+    .evo-farm-find { min-height: 44px; font-size: 13px; }
+    .evo-farm-step { min-width: 44px; }
+    .evo-farm-setsum { min-height: 44px; font-size: 12px; }
+    .evo-farm-rowhead { font-size: 12px; }
+    .evo-farm-picked { font-size: 12px; }
+    .evo-farm-wiki { min-width: 32px; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
     #mapCanvas { top: 36px; height: calc(100vh - 36px); }

@@ -102,7 +102,10 @@ drawn again at about the screen's resolution in 256-pixel tiles (`evolution/deta
 the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
 `detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
 costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology and Food views
-too: their colours the picture's, the relief and coasts the detail's), the planet's own rivers drawn
+too: their colours the picture's, the relief and coasts the detail's — the Food views' voted round the picture's pixels,
+not blocks: each pixel's say at a drawn point a Gaussian ~0.6 of a pixel wide, shades of one colour counted together,
+the edge eased over a drawn pixel, so their boundaries curve between the pixels; their stripes and hatching the tile's
+own, fine lines at any zoom — farming-view.js VOTE), the planet's own rivers drawn
 over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
 the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
 before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
@@ -197,8 +200,8 @@ picture are drawn over the detail finer than the mesh, as the others are (its re
 as wide as the climate's, are drawn narrower by their commonest (`js/view/export-raster.js` classIndexMap, as the Köppen
 zones are) and wider as the view draws them zoomed in (geology-view.js `rockPixel`). And the farming's: the Food views as shown —
 their legend's techniques and how firmly gatherers hold on, noted in the README.txt (export.js farmingMap) — and
-their numbers as data (export.js FARM_SCALES: farmland with the techniques and by rain, 0…1; the staple food's and
-the lifestyle's indices, the README listing them; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
+their numbers as data (export.js FARM_SCALES: farmland with the techniques and by rain, 0…1; the staple food's, the
+lifestyle's, the way of life's and the leading beast's indices, the README listing them; the fly belt, 0…1; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
 watered, months; finishedFarmingValue). A moment detailed before the rocks or the farming were added lacks their rows
 (rowAvailable). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
 1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
@@ -245,6 +248,14 @@ node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md):
 node tuning/geology/earth-deposits.mjs   # the deposits' climate tests on observed Earth beside where bauxite, peat, salt, enriched copper, opal and turquoise are
 node v2/tools/check-farming.mjs        # the farming (plans/V2_FARMING_PLAN.md): the same at 160K and 640K; soils, seasons, water, slopes where they belong
 node tuning/farming/earth-farming.mjs  # the farming's climate part on Earth's observed climate: breadbaskets, the irrigated river valleys, black earth, leaching, podzol, staples
+node tuning/farming/earth-history.mjs [--runs 40] [--png] [--parts] [--factors] [--set key=a,b …]
+                                       # a farmed Earth (earth-world.mjs: assets/earth.png's heights, the observed climate on 0.25°, rivers
+                                       # routed to the sea, the gatherers' sea from observed SST and wind-driven upwelling) through the
+                                       # history: the hearth odds at Earth's 14 centres and 15 places farming came to (rank, AUC, the top
+                                       # 5 %), the candidate regions, N re-rolls of the hearths on Earth's own luck (beasts as Earth had them,
+                                       # the fly in Africa) against the centres — HISTORY / HEARTHS overridable for a trial
+node tuning/farming/earth-crops.mjs [--rolls 3] [--list kind]   # the crops beyond the staples on the farmed Earth: each one's share of the
+                                       # farmed land at 10,000 years and the full spread, by kind and niche, the widest and narrowest
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
 node v2/tools/trace-collisions.mjs wilson 160          # collision records, events, belt statistics
 node v2/tools/trace-coasts.mjs 40000 12345 --stages --drawn 60,300,800 [--png] [--off mechanism,…] [--set key=value,…]
@@ -365,8 +376,14 @@ js/farming/        the finish's farming (plans/V2_FARMING_PLAN.md; Madeline Jame
                    months; the soil from its rock and climate; slope, waterlogging and the water rivers and lakes could
                    bring; each crop's harvests a year; farmland and the staple put together with the techniques chosen),
                    living (the ways of life in the abstract: gatherers' fish and wild foods, the staple food and the
-                   lifestyle — farming, herding or gathering — and the people each place's feeds), people
-                   (how many the land could feed: people a km², and the whole land's)
+                   lifestyle — farming, herding or gathering — the food system, and the people each place's feeds),
+                   beasts (the eight beasts' wild homes and where each can be kept, the leading one, the plough, the
+                   fly belt), larder (each crop archetype's wild ancestor's niche; productivity, temperature seasons),
+                   history (the domestication history's 0.5° ground: the larder per cell, landmasses joined across
+                   shallow shelves and each one's luck — its beasts, the fly — and the hearth odds), hearths (the
+                   history: candidate regions, ignition, founders, know-how and contact, the spread in years), people
+                   (how many the land could feed: people a km², and the whole land's), calendar (each farming place's
+                   harvest month, read over its neighbourhood: the readout's Harvest line)
 js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of any resolution —
   terrain-config   every terrain tunable, in km / Myr (TERRAIN; terrainConfig(overrides))
   anchor           the fine detail belongs to the crust: plate-frame positions for noise, per-crust-cell random streams
@@ -400,7 +417,7 @@ js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, 
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Food tab: Farmland, Staple food, Way of life, Animals, People, Soil, Growing season; its technique, food, way-of-life and beast chips) + farming-store (what each land pixel is — farmland, staple, way of life, people, food system, beasts — worked out once per moment and techniques and kept at half precision, ~12 bytes a pixel and 9 more for Way of life or Animals, so a view, a chip, a zoomed-in tile, the legend and the data maps only read and recolour; and the history's ground and each landmass's luck, once per moment and re-roll)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
@@ -613,6 +630,218 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    farmed, gatherers wherever nothing would be farmed or herded and as many a km² as the record's foragers, the sea
    feeding more off cool coasts than tropical ones, little land uninhabited, herders still on the cold steppes;
    `tuning/farming/earth-farming.mjs` checks the climate's part, the staples and the classes at 95 places on Earth.
+   **The harvest month** (plans/V2_FOOD_PLAN.md F1; `farming/calendar.js`, the readout's **Harvest** line): the finish
+   keeps each crop group's harvest month per place, by rain and watered (`farming.months.rice` …: two bytes a place, 0 none,
+   1 January … 12 December, 13 the year round — in the picture the weightiest land cell's, a month never averaged; a moment
+   detailed before them lacks them: `hasMonths`). farming.js `kindHarvests` finds it: the longest run's crop brought in
+   once it has grown its whole cycle and `harvestLag` (½ month) more; a winter grain (`dormant`) counted from the end of
+   its winter to `springShare` (¾) of its cycle — it flowers on the lengthening days; the year round where a run never
+   stops and ripens again and again (`allYearHarvests`) or where roots dug as needed (`piecemeal`) grow
+   `piecemealMonths` or more. The page reads the leading crop's month (watered where water brought makes most of its
+   harvest) over ~150 km as a mean on the year's wheel (`calendarGround`, a 0.25° grid), so a region harvests together.
+   Farming places only. (A Calendar view with lean months and harvest risk was tried and set aside: they come back as food
+   security once each place's whole mix of crops is known.) `check-farming.mjs` F1 holds every farming place with a
+   month, the same at two details, the hemispheres mirrored, the ever-wet tropics all year; `earth-farming.mjs` checks the
+   month at 15 places (one known miss: the Ethiopian highlands' two rainy seasons — the model sows at the short belg rains).
+   **Ways of life and animals** (plans/V2_FOOD_PLAN.md F2; the **Way of life** and **Animals** views, "best possible": every
+   beast wherever it could be kept, until the history says which came). `farming/beasts.js`: eight beasts (`BEASTS`, codes
+   appended only — the export's index: great grazer, small stock, steppe horse, desert camel, high-country beast, tundra
+   deer, forest pig, wallowing buffalo), each with its roles. From a place's measures (living.js `measuresAt`: the year's
+   mean, its warmest and coldest month — ± half the kept range — rain, aridity, height off the picture, the trees' share by
+   the cover's biome, ruggedness, the farming's water and wetland, and Binford's effective temperature) each beast's wild
+   home and how well it is kept, smooth scores in °C, mm and km (the wet limits only where it is warm: a cold wet coast keeps
+   cattle; farmers keep theirs on the water they bring; reindeer where summers are short and winters hard; the buffalo's
+   wallows include the paddies). The leading beast is the one most at home: its wild home 0.65 of its rank, its keeping the
+   rest — a pig's halved where a plough beast is kept (the draught beast leads the farm); herders keep no pigs or buffalo.
+   The **fly belt** (a tsetse-like fly: hot, a wet season, wooded, below ~1,500 m, the coldest month above ~13 °C, a warmest
+   under ~31 °C) — cattle, horses and buffalo fail there and nobody ploughs; `L.flyHere` says whether the fly lives on a
+   landmass at all (1 everywhere for now; Earth's check: Africa's alone). **Food systems** (living.js `foodSystem`,
+   `FOOD_SYSTEMS`, codes appended only): gatherers settled (rich fish within reach, effective temperature above ~9 °C:
+   they must store) or mobile; herders grain and herds (crops nearly as good, on the dry margin) or nomadic; farmers through
+   gates taken in turn, each class what the gates before leave — highland (≥ ~1.8 km within ~25° of the equator), irrigated
+   (water brought makes most of the farmland, dry by rain), forest gardens (roots in the wet tropics), hoe (no plough —
+   even paddies, as West Africa's), paddy (paddy grains lead or come within a fifth), grain and herds, then plough and
+   flocks (Köppen's Cs, Ds and B, or aridity under ~0.7) or mixed farms; a second striped where it does nine-tenths as well.
+   Nothing more is saved. Exports: Way of life (colour; the lifestyle's index, unchanged, and the way of life's) and
+   Animals (colour; the beast's index, the fly belt). `check-farming.mjs` F2: the same at two details, the fly belt
+   tropical and lowland and never in deserts, no cattle, horses, buffalo or plough inside it, hoe farming only there,
+   paddies on paddy grains, irrigated valleys dry by rain, grain and herds on the dry margin, mixed farms humid, settled
+   foragers by rich fish, each beast in its climate, ~0.35 s for the whole picture; `earth-farming.mjs` checks 36 food
+   systems, 24 leading beasts and 9 fly-belt places on Earth (heights given; the fly kept to Africa).
+   **Tree & palm crops** (plans/V2_FOOD_PLAN.md F3a; staple 8, crop group `trees`, codes appended: a moment detailed before
+   grows none): perennials (`perennial`) — a dry or cool month a pause, not a run's end, down to the coldest month they
+   `survive` and for no more than `maxPause` months on end (bananas 2: Harris and Denham's clonal crops of the ever-wet
+   tropics; a year that breaks the run kills the grove — no harvest), their year's growth over their cycle (no sowing, no
+   turnaround), no second crop in their field; `swamp` (sago, taro: waterlogging costs them nothing, as a paddy); level 0.5
+   (groves climb hills); date palms where water is brought and the sky is dry (`rainMax`: rain spoils the fruit). Forest
+   gardens take tree crops as roots. On the planet ~1 % of the land, mostly the ever-wet tropics, often a close second to
+   roots; on Earth Sepik's sago and the New Guinea highlands lead with them.
+   **The wild larder, landmasses, hearth odds** (F3a; `farming/larder.js`, `farming/history.js`, the **Origins** view):
+   a 0.5° grid read off the finished picture once per moment (~0.3 s; a fixed sampling of ~1,024 pixels round the world,
+   so every detail reads alike): each cell's measures; the winter half's share of the rain and the wettest month from the
+   page climate's January and July; its relief over the neighbouring cells' mean heights (~165 km). Each crop archetype's
+   wild niche (larder.js `cropWild`, ported from the mock-up) and each beast's (beasts.js `beastWild`). Landmasses: land
+   joined across sea shallower than 120 m. Luck (`historyLuck`): per landmass, keyed by the 15° tile its centre lies in,
+   one seeded stream per mechanism from the world's seed, the moment's time and a re-roll (`farmOptions.roll`): each beast
+   at ~70 % (Fewer gaps ~96 %) as its habitat there grows from 5,000 to 50,000 km², ox-sized ones only on big land; the fly where it has
+   its habitat at ~35 % (~15 %) — and the fly's luck reaches Way of life and Animals (no fly, cattle can plough). Hearth odds:
+   the larder's variety within ~330 km (crops 1, beasts ½; a sliding maximum; graded from 0.5 to 6, so the likeliest stand
+   out — to 2.4 nearly half the farmable world tied at the top), the rank of the more seasonal of temperature (Matranga) and
+   rain (graded from the median to the most seasonal; where the larder within reach is roots and trees — `vegNiche` — from
+   the 20th to the 60th percentile: the wet tropics' margins tamed tubers and bananas without the seed crops' long dry
+   season), productivity (Miami), hilly flanks not too cold (mean 4–9 °C: the Andes' and Ethiopia's highlands farmed to
+   ~4 km), water, foragers within ~150 km not too rich (a soft maximum of their people a km², 0.8–2: the settled fishers of
+   a rich coast hold the land about them), none poleward of ~45°. Tuned on Earth (`tuning/farming/earth-history.mjs`, below). Exports: the
+   Origins colour map and two data maps (variety, odds). `check-farming.mjs` F3a holds the top tenth of the odds in two
+   bands and never poleward, the same pattern at two details (rank correlation ≥ 0.9), each wild range and each big
+   landmass's luck the same at two details, the luck near its odds over 40 rolls, tree crops in the wet tropics;
+   `earth-farming.mjs` checks 14 larder places (wild wheat in the Zagros and the Jordan, rice on the Ganges and Pearl
+   rivers, millet on the loess, sorghum in the Sudan, teosinte in the Balsas, the potato on the Altiplano, yams in Togo,
+   bananas in New Guinea, and none where Earth had none) and 5 tree-crop places.
+   **Hearths and the spread** (F3b; `farming/hearths.js`; Origins' **When farming came** and **From which hearth**, the
+   hearths pinned over the planet — `#mapPins`, placed by globe-view.js `screenAt` each time the planet is drawn): the
+   ground also holds each crop group's fit (its food with every technique on), each beast's keeping (the fly's toll put on by
+   the luck at run time), rivers, coasts, the foragers' richness and each sea cell's distance from land (Dijkstra, ≤ 1,000
+   km). Rivers through dry land (developer, 2026-11-01: crops "not spreading … fast enough … especially along rivers in
+   deserts"): the ground's fixed sampling (~40 km) and its cells' mean fit missed or drowned a valley a few km wide, so in
+   each cell where no crop group fits well on the whole (< `stripFit` 0.6) every watered pixel of the picture is read (as
+   finely on any picture: ~`stripW` 2,048 round the world — all a phone's, every other of a desktop's 4,096, so a sharper
+   picture finds no more rivers: river ways 29.0 % of the land on a phone's picture of the check planet, 29.6 % on a
+   desktop's, 32.9 % read pixel by pixel) — the strip's fit gives the spread its way through (`fitRun`, the minor ground's fit too), and the cell is a river's; a big
+   river's plain (flood water on any pixel) or such a strip is a river's way (`riverWay`, ~24 % of the land), where crops
+   spread × `river` 4 (other rivers and coasts × 2.5). On the check planet the dry cells such strips cross are all farmed
+   (61 % by their mean fit), ~600 years sooner. Fewer tamings of the same thing (developer: "we generally dont need multiple
+   variants of the same crop species"; animals "should have less types of domestication per animal group"): a region whose
+   crop or beast had already come near adopts it rather than taming its own — likelier the nearer, e^(−(km / `adoptKm` 700)²),
+   a beast's e^(−(km / `adoptBeastKm` 2,000)²) and at least `adoptBeastMass` 0.75 once tamed anywhere on its landmass — and
+   beasts spread at 1.6 km a year (was 1.0). On the farmed Earth strains fell from ~88 to ~44 a world (cattle ~2, sheep and
+   goats ~1, horses ~2), the variety still mixed at 83 % of a group's places on the check planet. Climates crossed slowly
+   (developer: cool-season grains "shut out a bit too much" — a West African yam hearth's roots sailed the coast lanes into
+   Europe ahead of the Fertile Crescent's wheat and, first come, led there): a crop strain's pace (the history's and the
+   named strains') × likeFloor + (1 − likeFloor) e^(−(ΔT / likeT)² − (ln(W / W₀) / likeW)²) against its hearth's climate
+   (likeT 6 °C, likeW 1.6, likeFloor 0.05), the coastal sea taking its shore's climate; on the farmed Earth wheat leads
+   Europe in every roll (cool-season grains 15 → 22 % of the land at the full spread, roots 26 → 18 %), farming reaching
+   Britain ~5,000–7,000 years after the first; on the check planet 88–98 % of the farmable land farmed by 10,000 years
+   (all of it before). Coasts (developer: "growth along ocean coasts can be further"): × 3 on the
+   coast's land (was 2.5) and, by boat, the sea within `laneKm` 120 km of land at `laneSpeed` 15 km a year (open-sea hops ≤ 280
+   km at 6) — the strains (minor.js `STRAIN`) alike; by 1,000 years farming covers ~5–20 % of the land it can grow on (was
+   ~3–8 %). Candidate regions are the hearth odds' local peaks ~300 km apart and the herders' beasts' wild hearts; each one's
+   larder read within ~165 km. A port of the mock-up's history (`runHearths`): each region's wild crops ignite at
+   exponential dates — ~15 first ignitions in 8,000 years over the planet, shared by odds³ × larder; a region whose wild
+   crops ignite with 12 hearths already begun, or within 0.6 × √(the farmable land ÷ 8) of one (~2,300 km on an Earth-sized
+   world), waits for farming to reach it instead — so ~8 hearths begin on their own, never more than 12, spread evenly by
+   their odds (developer, 2026-10-31: "cap it at like 12 … closer to like 8 … spread across the world evenly weighted by
+   likelihood"); 2–4 founders (the
+   likeliest, ≥ 3,500 km apart, leading with different crops) start within 100–1,500 years, their places kept — another
+   hearth keeps clear of a founder not yet farmed and leaves it room under the cap (on the farmed Earth 4.0 of its 4
+   founders begin, 3.3 when a nearer hearth could start first and block one); once farming is in a region its
+   other crops follow at ~1,200 / niche² years and its beasts at ~1,500 / niche²; the herders' beasts (horse, camel, reindeer)
+   ~2,000 years after farming came near, ~3,500 after the world's first; regions within 700 km of a new hearth become
+   receivers 400 years on; a candidate farming reaches first adopts. The spread: one search in years per archetype on the
+   0.5° grid — 0.4 km a year over land it fits (3 % of that where it barely does), ×2.5 along rivers and coasts, ×2 through
+   farmers, √(1 − 0.8 m) past rich foragers, 6 km a year across seas within 280 km of land; one seeded stream per
+   mechanism from the world's seed, the moment's time and the re-roll. ~0.35 s a run, once per moment and luck; ~0.9 s the
+   first time (the ground, the regions). Each centre's root is the primary hearth its farming came from; the primary hearths
+   are numbered in the order they began. The Origins export adds when farming came (years). `check-farming.mjs` F3b holds
+   the same run for the same roll, ~8 hearths (the mean of 8 rolls 6–10, never more than 12) none poleward of 50° and in
+   high odds, spread evenly (none within 1,500 km of another, a Clark–Evans ratio ≥ 1.5), 2–4 founders far apart, most of the
+   farmable land reached by 10,000 years but little by 1,000, the same count at two details, and the speed.
+   **As it came** (F4a; farming-store.js `cameOf`/`cameAt`; the legend's **10,000 years · Full spread · Best possible**
+   chips on Staple food, Way of life, Animals and People — `farmOptions.age`, 10,000 years by default): what had come to
+   each place by an age of the history (read smoothly, as Origins' When farming came and From which hearth are: history.js
+   `gridPlace` — each of the 4 × 4 cells round a point a Gaussian say, σ 0.7 cells, so territories and fronts are rounded
+   curves, not 0.5° squares; the thousand-year lines from the time's gradient, ~1 px at any zoom). Per cell of the ground, once per run and age: the archetypes come by then and those
+   ever come (a bit each) and how fully the come herds could graze it (the best come herd beast's keeping, smooth from 0.1
+   to 0.35). At a place each archetype's arrival is read between the cells as When farming came reads them (the corners
+   it ever reaches, weighted — so the fronts are smooth, not 0.5° squares). The store then works each place out with only
+   what had come: the crops not come zeroed before the staple is chosen (farming.js `cameHarvests`), the herds' pasture
+   scaled, the beasts not come kept nowhere (beasts.js `beastPlace`'s `L.beasts` — no plough where no plough beast came:
+   hoe farming); the people count (living.js `livingPeople`'s `came`), the legend's shares, the data maps and the
+   readout ("As it came: not yet come by 10,000 years: …") follow. Its stores are kept apart from the land's own, the last
+   three of a kind (the land's own and two ages: the chips switch in ~0.3 s once each is made, ~2.3 s the first time at
+   4,096 px); the ways store fills the places store in the same pass. ~15 ms an age; the
+   stores as quick as the land's own. `check-farming.mjs` F4a holds: never many more people than the land's own; no crop
+   staple where no crop came, no ploughing where no plough beast came, no leading beast that had not come; the beasts'
+   shares differ from the land's own; the same at 160K and 640K. The re-roll, Fewer gaps and the age go in the page's
+   link (`food` — the food seed: one number for the history's draws and the names', 0 the planet's own, Re-roll a random one;
+   an older link's `foodroll` read as it — `fewer`, `foodage`: only off their defaults; F4b).
+   **Named crops and animals** (F5a; `farming/names.js`, farming-store.js `namesOf`/`strainAt`/`variantsOf`; Staple
+   food's and Animals' **Named** chip, on by default): each centre of the history (hearth or secondary) is a site with its
+   climate (mean °C, the aridity index, height, January's or July's share of the rain) and is "like" one of 20 of Earth's
+   farming regions — climate fit (×2.6), a seeded nudge, and a regional pull toward its neighbours' likenesses, settled
+   over six sweeps, earliest first (the mock-up's `choosePackages`, its climate weighed more for the page's hundred-odd
+   sites). Each strain (the run's: an archetype tamed at a centre) is named from the catalogue — ~65 staple crops and
+   ~40 animals, each with its Earth homes, climate, popularity and nourishment — by nearness to its site's likeness,
+   climate, the side of the oceans and a nudge, each name once per kind and then II, III ("emmer-like", "zebu-like").
+   Its own seeded stream; once per run (~10 ms after the history). Each place's strain of its staple's crop group and of
+   its leading beast is the one with the most say round it (`strainAt`: the cells it had come to by the age, each a
+   Gaussian say, as the Origins views read the grid) — the strain that reached it first; kept per store and age (the
+   last three). Its colour turns round its archetype's hue (±16° steps to ±48°, then lighter or darker); the legend lists
+   each kind's named strains on ≥ 0.2 % of the land with a ↗ Wikipedia link (a Special:Search URL), a click shows one
+   alone; the readout names the staple's and beast's strain and lists every crop that grows and beast kept well there
+   that had come; Origins' hearth list names what each hearth tamed.
+   **Ranked crops and beasts** (developer, 2026-10-31: "anywhere a certain crop can grow, it WILL spread (barring
+   distance) but it wont take over as primary unless it is TRUELY a much better crop"; `minor.js` `strainSpreads`,
+   `strainRanks`, farming-store.js `strainsOf`): every strain spreads by itself over the 1° ground (`minorGround`, from the
+   history's 0.5° with its cells' climate kept) at the hearths' speeds where it grows well — its group's fit (or its beast's
+   keeping) × `homeMatch` (0.55–1: mean °C within ~7, wetness within ~2×, of its centre's) — faster along rivers, coasts and
+   through farmers, across short seas; ~1 s for ~200 strains, once per run. At each 1° cell the strains that had come by
+   the age are grouped by crop group (or beast) — a group there wherever its fit (or keeping) ≥ 0.25 and one of its
+   strains had come (developer: "if somewhere can grow wheat and root, they should always have both, not that 2 wheats
+   should occupy the same space as a primary") — each group's strains spreading together and crowding one another
+   ("if some crops (particularly those in a similar like grouping) are all crowding out a space they wont move in";
+   "there can also be like, more varieties of each … not always just one"): up to VARIETIES = 3 hold a cell, a later one
+   moving in (and on) while there is room, stopping at a full cell unless its fit × e^(−arrival / 1,500) beats the best
+   there, when it takes the weakest's place; a strain moves at its group's speed (the hearths' spread by the group's fit,
+   so its varieties go where it goes — home match decides only who holds and leads) and slows with the distance from home
+   (e^(−km / 8,000)); where a group had come before any of its varieties (the frontier) the variety that comes to hold the
+   place names it. Each strain is named for a species of its own while one is left whose climate is near enough its hearth's
+   (names.js `chooseItem`: climFit ≥ 0.1, the pull's sides kept), taken again (II, III) only where none is: names repeated on
+   ~7 % of the farmed Earth's strains (~30 % before). The main at an age is the best of those come by then; the groups ranked by their main's. The named views map each place's main — its staple's group's variety (its
+   leading beast's), striped by the runner-up's own variety where it does nearly as well — and, for a strain picked in the
+   legend, its rungs (farming-view.js `rungAt`, over `groupTable`'s per-cell group ranks): 1 where it is the main, 2 and 3
+   where its group is the next other groups at the cell (the pixel's main group left out), 4 grown there otherwise (a lesser
+   variety, or its group lower), 0 not — the rung with the most Gaussian say round the 1° cells (developer: a crop's "full
+   spread/where is it primary, secondary or tertiary in rungs"). The legend's pick row (`pickRow`: ‹ › step through the chips
+   in their order, × clears) and the key keep the legend one height whatever is picked — it hangs from the screen's bottom, so a
+   change of height moved every chip ("when you click it moves around so its so hard to quickly toggle"); the Crops view's
+   one-crop card lives in the same row. The
+   readout lists every group, the staple's first, each with its other varieties. The staple crop group follows the same rule (farmPlace's `arrive`, from what had come:
+   `cameAt` gives each group's arrival).
+   **Crops** (F5b; `farming/minor.js`, farming-store.js `minorOf`/`minorAgeOf`; the Food tab's **Crops** view): the catalogue
+   beyond the staples (names.js CAT: ~230 crops in 29 kinds of niche and 14 small animals) on the 1° ground. Each kind a
+   climate niche (the mock-up's `minorNicheAt` on each cell's climate; the pulses ride with their partner staple's fit),
+   narrowed by each crop's own climate — its Earth home's where it gives none (names.js `itemClim`): away from it a crop
+   keeps a quarter of its kind's niche (a small animal an eighth), so basil keeps to the tropics' gardens and thyme to the
+   Mediterranean's. The views group the niches by kind; herbs with the spices (developer: "group spices and herbs together
+   not herbs and vegetables, given their usage in cooking"); tropical fruit its own niche (the grove fruit's subtropics shut
+   out mango and durian); a crop in one list only (the date palm and the chestnut the staples', mustard the seed spices',
+   sesame and chia the oilseeds'). Each crop grown on a world by a logistic draw on its popularity
+   and nourishment, as the realism weighs them; its home the farmed region (hearthRegions reached by farming, its Earth
+   likeness its nearest centre's) that suits it best and is most like its Earth home, sometimes a second home on another
+   landmass; first grown 300–2,000+ years after farming came there and spread by its own search — ×3 through farmed land
+   (orchards ×5), slow beyond — and only so far across land it does not grow on: × e^(−(gap / (GAP_KM 350 × (0.5 +
+   popularity)))²), the gap the km since it last grew (developer: the crops "spreading across big wide gaps"; on the farmed
+   Earth at the full spread a crop's land in patches with no home of its own fell from 68 % to 15 %, its patches from ~49 to
+   ~10) — along the coast by boat (the sea within 120 km of land, 12 km a year) only a quarter of the way counts, and a coast's
+   land speeds a crop × 3 (a farming place ~23 crops at the full spread); the coconut drifts (its item's `drift`: across warm seas, |lat| < 26°, at 20 km a year, along tropical coasts at 10,
+   never crowded out); a niche travels as its `move` says where it differs from its kind (the herbs and the seed
+   and root spices as gardens: sown by every household), the tree, vine and resin spices capped at 900 km (traded, not
+   grown, far from home). `tuning/farming/earth-crops.mjs` reports each crop's share of the farmed land on the farmed
+   Earth by kind and niche (10,000 years: pulses ~9 %, vegetables ~7 %, herbs ~15 %, seed spices ~8 %, fruit ~4 %, tree
+   spices ~0.2 %; a farming place ~17 crops, ~45 at the full spread). Arrivals kept a byte a cell (hundreds of years to 20,000, then
+   thousands). The crops of each kind of niche spread together, crowding: `SLOTS` (2–6) a place, the first come; a later one
+   does not move into a full place; their speed falls off with the distance from home, e^(−km / (REACH × (0.5 + popularity)))
+   (REACH 900–3,000 km by kind) — pre-state spread, regional (developer: "things shouldnt spread everywhere that easily").
+   Times are kept in 32 bits, the queue's keys rounded alike (else a step reads as stale and the spread dies). ~0.8 s once
+   per run and settings; each age's counts ~20 ms; a farming place grows ~16 crops at 10,000 years, ~40 at the full spread. The view reads the 1° cells smoothly (each a
+   Gaussian say, as the Origins views): Variety and each kind's count on a ramp to its 95th percentile, the leading pulse
+   or spice by its colour (a vote), one crop alone with its card, its homes pinned (◆), hatched where it would grow but had
+   not come; the finder (a datalist; evolution-main wires its change), the realism, likeness pull and names' re-roll
+   (`foodreal`, `foodpull` in the link; the names drawn from the food seed with the history). The readout lists every crop grown at the place by kind. The Crops
+   export adds how many crops a place grows. `check-farming.mjs` F5 holds: every strain named; the main crop the first
+   come unless far better; most places with a crop have a second; most of the catalogue grown, a farming place growing
+   dozens, the same within 15 % at 160K and 640K; spices near home; the speed.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

@@ -95,6 +95,7 @@ export const STAPLES = Object.freeze([
     { key: 'herding', word: 'Livestock', way: 'herding' },
     { key: 'fish', word: 'Fish', way: 'gathering' },
     { key: 'wild', word: 'Wild foods', way: 'gathering' },
+    { key: 'trees', word: 'Tree & palm crops', crop: 'trees', way: 'farming' },
 ]);
 export const Staple = Object.freeze(Object.fromEntries(STAPLES.map((s, code) => [s.key.toUpperCase(), code])));
 export const STAPLE_WORDS = STAPLES.map(s => s.word);
@@ -120,6 +121,14 @@ export function harvestsAt(crops, i, e) {
     return e;
 }
 
+/** The farming calendar (plans/V2_FOOD_PLAN.md F1): the month a crop group's main harvest comes in, kept a byte a place
+ *  per group, by rain and watered (`farming.months[group]`, two bytes a place as `crops`) — 0 none, 1 January … 12
+ *  December, 13 the year round (MONTH_ALL_YEAR + 1). A moment detailed before them has none (hasMonths: detailed again). */
+export const MONTH_ALL_YEAR = 12;
+export const encMonth = m => (m >= 0 ? m + 1 : 0);
+export const decMonth = b => b - 1;
+export const hasMonths = F => !!F?.months && !ArrayBuffer.isView(F.months);
+
 /** A crop kind's growth each month (0…1: its share of a month at its best) — warm past its base, linearly to its optimum
  *  (growing degree-days), not too hot, and wet enough (its water `avail` ÷ potential evaporation, plus `brought` mm a
  *  month) but, unless it is a paddy's, not drowned (a monsoon's deluge waterlogs the dry-land crops) — into rate; and into
@@ -127,13 +136,28 @@ export function harvestsAt(crops, i, e) {
  *  needs no water) rather than ending it. */
 function kindRates(c, T, therm, avail, pet, brought, rate, pause, K) {
     for (let m = 0; m < 12; m++) {
-        if (!(therm[m] > 0)) { rate[m] = 0; pause[m] = c.dormant && T[m] < c.base + 4 && T[m] > K.dormantKillC ? 1 : 0; continue; }
+        // (a winter grain sleeps through a cold month; a perennial through any it does not grow in, unless it kills it)
+        if (!(therm[m] > 0)) { rate[m] = 0; pause[m] = (c.dormant && T[m] < c.base + 4 && T[m] > K.dormantKillC) || (c.perennial && T[m] > c.survive) ? 1 : 0; continue; }
         // (water brought tops a month up to what the crop wants, no further: nobody irrigates in the monsoon)
         const a0 = avail[m], a = brought > 0 && a0 < c.wet[1] ? Math.min(a0 + brought / pet[m], c.wet[1]) : a0;
         // (drowned by the month's water beyond what it evaporates, in mm: a monsoon's hundreds, not a cool winter's or a
         // thaw's few tens — whose small evaporation makes the ratio large though little stands in the fields)
-        rate[m] = therm[m] * S(c.wet, a) * (c.paddy ? 1 : smooth(c.soggy[1], c.soggy[0], (a - 1) * pet[m]));
-        pause[m] = c.dormant && rate[m] < K.harvestBreak && T[m] < c.base + 4 && T[m] > K.dormantKillC ? 1 : 0;
+        // (and a crop wanting a dry sky — a date palm's fruit spoils in rain — fades as the month's own rain, not the water
+        // brought, passes its `rainMax`)
+        rate[m] = therm[m] * S(c.wet, a) * (c.paddy ? 1 : smooth(c.soggy[1], c.soggy[0], (a - 1) * pet[m])) * (c.rainMax ? smooth(c.rainMax[1], c.rainMax[0], a0) : 1);
+        pause[m] = rate[m] < K.harvestBreak && ((c.dormant && T[m] < c.base + 4 && T[m] > K.dormantKillC) || (c.perennial && T[m] > c.survive)) ? 1 : 0;
+    }
+    // (a perennial endures no more than maxPause such months on end: a longer dry season kills the grove)
+    if (c.maxPause) {
+        let from = -1;
+        for (let m = 0; m < 12; m++) if (!pause[m]) { from = m; break; }
+        if (from < 0) { pause.fill(0); return; }
+        for (let i = 1, run = 0; i <= 12; i++) {
+            const m = (from + i) % 12;
+            if (pause[m]) { run++; continue; }
+            if (run > c.maxPause) for (let k = 1; k <= run; k++) pause[(m - k + 12) % 12] = 0;
+            run = 0;
+        }
     }
 }
 /** A crop kind's warmth each month (warm past its base to its optimum, × not too hot) into therm — and whether the
@@ -164,19 +188,72 @@ function harvestSteps(L, cycle, K, max = K.maxHarvests) {
 /** The harvests a crop kind takes in a year: its runs of growing months — a month growing less than K.harvestBreak ends a
  *  run (what was sown dies in a dry or a cold gap) unless it only sleeps through it — each its staircase, and no more a
  *  year than the kind's `max` (wheat and barley one: they flower on the lengthening days after a winter's chill, once a
- *  year). `free` (12, or null): the months it may use (a second crop's: those the first leaves). */
+ *  year). `free` (12, or null): the months it may use (a second crop's: those the first leaves). And (into
+ *  kindHarvests.month, the farming calendar's — plans/V2_FOOD_PLAN.md F1) the month its main harvest comes in: the
+ *  longest run's, as it has grown its whole cycle plus K.harvestLag (drying, reaping) — 0 January … 11 December —
+ *  MONTH_ALL_YEAR where no gap stops it and it ripens again and again (harvested as each field ripens), -1 none. A run
+ *  that never stops but gives one harvest (a winter grain sleeping through a mild winter) starts after its slowest months. */
 function kindHarvests(rate, pause, c, free, K) {
     const brk = K.harvestBreak, max = c.max ?? K.maxHarvests;
     let start = -1;
     for (let m = 0; m < 12; m++) if ((free && !free[m]) || (rate[m] < brk && !pause[m])) { start = m; break; }
+    // (a perennial the year breaks — a dry season longer than it endures, a killing cold — is dead: no grove to harvest)
+    if (start >= 0 && c.perennial) { kindHarvests.month = -1; return 0; }
     // (no gap: the year one run, round and round — the wet tropics, the paddies of a river delta)
-    if (start < 0) { let L = 0; for (let m = 0; m < 12; m++) L += rate[m]; return harvestSteps(L, c.cycle, K, max); }
-    let h = 0, L = 0;
+    if (start < 0) {
+        let L = 0; for (let m = 0; m < 12; m++) L += rate[m];
+        // (a perennial's stand fruits on and on — no sowing, no turnaround: its year's growth over its cycle)
+        const h = c.perennial ? Math.min(max, L / c.cycle) : harvestSteps(L, c.cycle, K, max);
+        kindHarvests.month = !(h > 0) ? -1 : h >= K.allYearHarvests || c.piecemeal ? MONTH_ALL_YEAR : ripenMonth(rate, pause, slowestEnd(rate, pause, c) + 1, 12, c, K, true);
+        return h;
+    }
+    let h = 0, L = 0, runStart = -1, n = 0, bestL = 0, bestM = -1;
     for (let i = 1; i <= 12; i++) {
         const m = (start + i) % 12;
-        if ((free && !free[m]) || (rate[m] < brk && !pause[m])) { if (L > 0) h += harvestSteps(L, c.cycle, K, max); L = 0; } else L += rate[m];
+        if ((free && !free[m]) || (rate[m] < brk && !pause[m])) {
+            if (L > 0) {
+                const hs = harvestSteps(L, c.cycle, K, max); h += hs;
+                // (roots dug as they are needed: a long run's are taken the year round)
+                if (hs > 0 && L > bestL) { bestL = L; bestM = c.piecemeal && n >= K.piecemealMonths ? MONTH_ALL_YEAR : ripenMonth(rate, pause, runStart, n, c, K); }
+            }
+            L = 0; n = 0;
+        } else { if (!n) runStart = m; L += rate[m]; n++; }
     }
+    kindHarvests.month = bestM;
     return Math.min(h, max);
+}
+kindHarvests.month = -1;
+/** The month (0…11) a run of n months from `from` brings its crop in: where its growth reaches its whole cycle — the
+ *  fraction of that month — and K.harvestLag more; a run cut short, at its end. A winter grain (`dormant`) flowers on the
+ *  lengthening days after its winter: counted from the end of the run's slowest stretch (asleep, or growing least) to
+ *  K.springShare of its cycle (the rest grown in the autumn before); `afterSlow`: the run already starts there. */
+function ripenMonth(rate, pause, from, n, c, K, afterSlow = false) {
+    let s = from, len = n, need = c.cycle;
+    if (c.dormant) {
+        need = K.springShare * c.cycle;
+        if (!afterSlow) {
+            let lo = Infinity, at = 0;
+            for (let i = 0; i < n; i++) { const m = (from + i) % 12, v = pause[m] ? -1 : rate[m]; if (v < lo - 1e-9) { lo = v; at = i; } }
+            while (at + 1 < n) { const m = (from + at + 1) % 12, v = pause[m] ? -1 : rate[m]; if (v > lo + 1e-9) break; at++; }
+            s = (from + at + 1) % 12; len = n - at - 1;
+        }
+    }
+    let L = 0;
+    for (let i = 0; i < len; i++) {
+        const m = (s + i) % 12, r = rate[m];
+        if (L + r >= need && r > 0) return Math.floor(m + (need - L) / r + K.harvestLag) % 12;
+        L += r;
+    }
+    return (from + n - 1) % 12;
+}
+/** The last month of a year's slowest stretch (a winter: where a winter grain sleeps, or any crop grows least), the month
+ *  before growth rises again. */
+function slowestEnd(rate, pause, c) {
+    const v = m => (c.dormant && pause[m] ? -1 : rate[m]);
+    let lo = Infinity;
+    for (let m = 0; m < 12; m++) if (v(m) < lo) lo = v(m);
+    for (let m = 0; m < 12; m++) if (v(m) <= lo + 1e-9 && v((m + 1) % 12) > lo + 1e-9) return m;
+    return 0;
 }
 
 /** Working arrays for cropYields (one per worker: reused place after place). */
@@ -184,7 +261,7 @@ export function cropWork(K = FARMING) {
     const kinds = [];
     CROPS.forEach((name, g) => { for (const c of K.crops[name].kinds) kinds.push({ g, c }); });
     return { kinds, rate: kinds.map(() => new Float64Array(12)), pause: kinds.map(() => new Uint8Array(12)), therm: kinds.map(() => new Float64Array(12)),
-        can: new Uint8Array(kinds.length), h: new Float64Array(kinds.length), free: new Uint8Array(12) };
+        can: new Uint8Array(kinds.length), h: new Float64Array(kinds.length), mon: new Int8Array(kinds.length), free: new Uint8Array(12) };
 }
 
 /**
@@ -194,10 +271,11 @@ export function cropWork(K = FARMING) {
  * against it. From the place's twelve months' temperatures (°C) and the season growingSeason just worked out there. Into
  * out: [rice by rain, rice watered, wheat…, maize…, roots…]. The rain-fed harvests discounted where the rains are
  * unreliable — a dry climate's, and one whose rain comes in a few months (the Mediterranean's, a monsoon's margins): the
- * drier and the more seasonal, the more often a year's rains fail.
+ * drier and the more seasonal, the more often a year's rains fail. Given `months` (2 a group, the same order), the month
+ * each group's leading kind first ripens, by rain and watered (kindHarvests.month's: 0…11, MONTH_ALL_YEAR, -1 none).
  */
-export function cropYields(T, season, out = new Float64Array(8), K = FARMING, work = cropWork(K)) {
-    const A = season.avail, E = season._pet, { kinds, rate, pause, therm, can, h, free } = work;
+export function cropYields(T, season, out = new Float64Array(2 * CROPS.length), K = FARMING, work = cropWork(K), months = null) {
+    const A = season.avail, E = season._pet, { kinds, rate, pause, therm, can, h, mon, free } = work;
     const reliable = S(K.rainReliable, season.wetness) * (1 - K.seasonRisk * S(K.riskSeason, season.seasonality) * S(K.riskWet, season.wetness));
     // (each kind's warmth through the year, once: a kind the year is too cold or too hot to ripen takes no harvest, by rain
     // or watered — its water not worked out)
@@ -212,22 +290,24 @@ export function cropYields(T, season, out = new Float64Array(8), K = FARMING, wo
     for (let w = 0; w < 2; w++) {
         const brought = w ? K.waterSupplyMm : 0;
         for (let i = 0; i < kinds.length; i++) {
-            if (!can[i]) { h[i] = 0; rate[i].fill(0); continue; }
+            if (!can[i]) { h[i] = 0; mon[i] = -1; rate[i].fill(0); continue; }
             if (w && can[i] & 2) continue;                    // (as by rain: its months, its harvests, already worked out)
             kindRates(kinds[i].c, T, therm[i], A, E, brought, rate[i], pause[i], K);
             h[i] = kinds[i].c.share * kindHarvests(rate[i], pause[i], kinds[i].c, null, K);
+            mon[i] = kindHarvests.month;
         }
         for (let g = 0; g < CROPS.length; g++) {
             let lead = -1;
             for (let i = 0; i < kinds.length; i++) if (kinds[i].g === g && (lead < 0 || h[i] > h[lead])) lead = i;
             let e = h[lead];
-            if (e > 0.05) {
-                // (the second crop: the best other group's, in the months the first does not grow in)
+            if (e > 0.05 && !kinds[lead].c.perennial) {
+                // (the second crop: the best other group's, in the months the first does not grow in — never in a perennial's
+                // ground, nor a perennial as the second: an orchard holds its field the year round)
                 let any = 0;
                 for (let m = 0; m < 12; m++) { free[m] = rate[lead][m] < K.relayAt ? 1 : 0; any += free[m]; }
                 let relay = 0;
                 if (any) for (let i = 0; i < kinds.length; i++) {
-                    if (kinds[i].g === g || !(h[i] > 0.05)) continue;
+                    if (kinds[i].g === g || !(h[i] > 0.05) || kinds[i].c.perennial) continue;
                     const r = kinds[i].c.share * kindHarvests(rate[i], pause[i], kinds[i].c, free, K) * K.crops[CROPS[kinds[i].g]].weight / K.crops[CROPS[g]].weight;
                     if (r > relay) relay = r;
                 }
@@ -236,6 +316,7 @@ export function cropYields(T, season, out = new Float64Array(8), K = FARMING, wo
                 e += Math.min(relay, e);
             }
             if (w) out[2 * g + 1] = Math.max(e, out[2 * g]); else out[2 * g] = e * reliable;
+            if (months) months[2 * g + w] = h[lead] > 0 ? mon[lead] : -1;
         }
     }
     return out;
@@ -265,10 +346,12 @@ export function climateSoil(cv, out = {}, K = FARMING) {
 
 /** Per-cell bytes the final climate fills (one place at a time): the seasons (months × 20), black earth, leaching,
  *  podzol and the climate's waterlogging (× 255); each crop group's harvests a year by rain and watered (`crops`: under
- *  each group's name, two bytes a cell, encHarvests — a group added later is a name more) and the pasture (× 255). */
+ *  each group's name, two bytes a cell, encHarvests — a group added later is a name more), the month each group's main
+ *  harvest comes in (`months`, the same layout, encMonth) and the pasture (× 255). */
 export function newFarmClimate(n, K = FARMING) {
     return { rain: new Uint8Array(n), warm: new Uint8Array(n), black: new Uint8Array(n), leach: new Uint8Array(n), podzol: new Uint8Array(n), wet: new Uint8Array(n),
-        crops: Object.fromEntries(CROPS.map(k => [k, new Uint8Array(2 * n)])), pasture: new Uint8Array(n), _s: newSeason(), _c: {}, _y: new Float64Array(2 * CROPS.length), _w: cropWork(K) };
+        crops: Object.fromEntries(CROPS.map(k => [k, new Uint8Array(2 * n)])), months: Object.fromEntries(CROPS.map(k => [k, new Uint8Array(2 * n)])),
+        pasture: new Uint8Array(n), _s: newSeason(), _c: {}, _y: new Float64Array(2 * CROPS.length), _m: new Int8Array(2 * CROPS.length), _w: cropWork(K) };
 }
 const byte = v => Math.max(0, Math.min(255, Math.round(255 * v)));
 /** One land cell's climate parts (its months as the land's cover read them, and that cover). */
@@ -278,8 +361,12 @@ export function addFarmClimate(fc, c, T, P, cv, K = FARMING) {
     climateSoil(cv, fc._c, K);
     fc.black[c] = byte(fc._c.black); fc.leach[c] = byte(fc._c.leach); fc.podzol[c] = byte(fc._c.podzol);
     fc.wet[c] = byte(S(K.wetlandWet, cv.wetness));
-    const y = cropYields(T, fc._s, fc._y, K, fc._w);
-    for (let g = 0; g < CROPS.length; g++) { const b = fc.crops[CROPS[g]]; b[2 * c] = encHarvests(y[2 * g]); b[2 * c + 1] = encHarvests(y[2 * g + 1]); }
+    const y = cropYields(T, fc._s, fc._y, K, fc._w, fc._m);
+    for (let g = 0; g < CROPS.length; g++) {
+        const b = fc.crops[CROPS[g]], mo = fc.months[CROPS[g]];
+        b[2 * c] = encHarvests(y[2 * g]); b[2 * c + 1] = encHarvests(y[2 * g + 1]);
+        mo[2 * c] = encMonth(fc._m[2 * g]); mo[2 * c + 1] = encMonth(fc._m[2 * g + 1]);
+    }
     fc.pasture[c] = byte(pastureOf(cv, K));
 }
 
@@ -405,22 +492,28 @@ export const farmIndex = (v, K = FARMING) => v / (v + K.farmHalf);
  *   there), second; and, given out.scores (one a staple: STAPLES.length), each staple's score — given out.foods (as
  *   many), each one's food (herding's as the staple is chosen by: its pasture × K.herdWeight).
  */
-export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
+export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING, arrive = null) {
     const slopeRain = 1 - K.slopeMaxLoss * S(K.slopeLoss, p.slope);
     const ground = tech.terrace ? Math.max(slopeRain, 1 - K.slopeMaxLoss * S(K.terraceLoss, p.slope)) : slopeRain;
     const wetRain = 1 - K.wetlandLoss * p.wetland, wetTech = tech.raised ? 1 : wetRain;
     const water = Math.max(tech.flood ? p.flood : 0, tech.canal ? p.canal : 0), more = S(K.multiSoil, p.soil), scores = out.scores, foods = out.foods;
-    const eff = h => Math.min(1, h) + more * Math.max(0, h - 1);
-    let best = Staple.NONE, bv = K.stapleMin, bw = 1, bh = 0, second = Staple.NONE, sv = K.stapleMin, rv = 0, rh = 0;
+    // (the staple the crop that does best — or, given `arrive` (each crop group's arrival, years: as it came), the one that came
+    // first, a later one only where it does far better: its food × e^(−arrival / lateYears) ranks it; its food still counts)
+    let best = Staple.NONE, bk = -1, bv = K.stapleMin, bw = 1, bh = 0, second = Staple.NONE, sk = -1, sv = K.stapleMin, rv = 0, rh = 0;
     for (let g = 0; g < CROPS.length; g++) {
         const c = K.crops[CROPS[g]], er = e[2 * g], ew = e[2 * g + 1], soilF = 1 - c.soil + c.soil * p.soil, st = CROP_STAPLE[g];
-        // (a paddy crop stands in water: a waterlogged flat costs it nothing)
-        const ht = eff(er + water * Math.max(0, ew - er)), hr = eff(er), paddy = c.kinds[0].paddy;
-        const v = ht * soilF * ground ** c.level * (paddy ? 1 : wetTech) * c.weight;
-        const vr = hr * soilF * slopeRain ** c.level * (paddy ? 1 : wetRain) * c.weight;
+        // (a paddy crop stands in water — and sago and taro grow in swamps (`swamp`): a waterlogged flat costs them nothing)
+        // (harvests past the first a year as the soil can feed them; a level of 1 raises nothing — x ** 1 is x — and the page
+        // asks for millions of places a picture, so it is not worked out)
+        const hx = er + water * Math.max(0, ew - er), ht = Math.min(1, hx) + more * Math.max(0, hx - 1), hr = Math.min(1, er) + more * Math.max(0, er - 1), paddy = c.kinds[0].paddy || c.swamp;
+        const v = ht * soilF * (c.level === 1 ? ground : ground ** c.level) * (paddy ? 1 : wetTech) * c.weight;
+        const vr = hr * soilF * (c.level === 1 ? slopeRain : slopeRain ** c.level) * (paddy ? 1 : wetRain) * c.weight;
         if (scores) scores[st] = Math.min(1, v / c.weight);
         if (foods) foods[st] = v;
-        if (v > bv) { second = best; sv = bv; best = st; bv = v; bw = c.weight; bh = ht; } else if (v > sv) { second = st; sv = v; }
+        if (v > K.stapleMin) {
+            const rk = arrive ? v * Math.exp(-Math.min(arrive[g], 1e6) / K.lateYears) : v;
+            if (rk > bk) { second = best; sv = bv; sk = bk; best = st; bk = rk; bv = v; bw = c.weight; bh = ht; } else if (rk > sk) { second = st; sv = v; sk = rk; }
+        }
         if (vr > rv) { rv = vr; rh = hr; }
     }
     out.tech = best ? farmIndex(bv, K) : 0; out.rain = farmIndex(rv, K); out.harvests = bh; out.harvestsRain = rh; out.water = water;
@@ -431,6 +524,14 @@ export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
     if (herd * K.herdWeight > bv) { second = best; best = Staple.HERDING; bv = herd * K.herdWeight; bw = K.herdWeight; } else if (herd * K.herdWeight > sv) second = Staple.HERDING;
     out.staple = best; out.score = best ? Math.min(1, bv / bw) : 0; out.second = second;
     return out;
+}
+
+/** A place's harvests `e` (harvestsAt's) with only the crop groups whose bit is set in `mask` (the others' zeroed): the
+ *  crops that had come there (F4: the views as it came; the archetypes' bits, history.js ARCHETYPES — the crop groups
+ *  first, in CROPS's order). */
+export function cameHarvests(e, mask) {
+    for (let g = 0; g < CROPS.length; g++) if (!((mask >> g) & 1)) { e[2 * g] = 0; e[2 * g + 1] = 0; }
+    return e;
 }
 
 /** The class of a farmland value (farmIndex): 0 barren, 1 poor, 2 fair, 3 good, 4 excellent — from K.classesV, in food. */

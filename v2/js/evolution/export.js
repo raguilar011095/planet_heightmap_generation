@@ -13,9 +13,10 @@
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { finishedFarmingColor, finishedFarmingValue, farmOptions } from './farming-view.js';
+import { finishedFarmingColor, finishedFarmingValue, farmOptions, CAME_NEVER } from './farming-view.js';
 import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
-import { LIFESTYLE_WORDS, GATHER } from '../farming/living.js';
+import { LIFESTYLE_WORDS, GATHER, FOOD_SYSTEM_WORDS } from '../farming/living.js';
+import { BEAST_WORDS } from '../farming/beasts.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
 import { initExportPanel } from '../view/export-panel.js';
@@ -37,11 +38,21 @@ const FARM_SCALES = {
     season:    { unit: 'months crops grow', lo: 0, hi: 12 },
     staple:    { unit: 'staple food index (0 = nothing or sea; the README lists them)', lo: 0, hi: 255 },
     lifestyle: { unit: 'lifestyle index (0 = uninhabited or sea; the README lists them)', lo: 0, hi: 255 },
+    system:    { unit: 'way of life index (0 = uninhabited or sea; the README lists them)', lo: 0, hi: 255 },
+    beast:     { unit: 'leading beast index (0 = none — gatherers, the uninhabited — or sea; the README lists them)', lo: 0, hi: 255 },
+    fly:       { unit: 'fly belt (0 none … 1 surely)', lo: 0, hi: 1 },
+    variety:   { unit: 'wild larder variety (crops 1 each, beasts ½: 0 … 8.5)', lo: 0, hi: 8.5 },
+    odds:      { unit: 'hearth odds (0 low … 1 the highest on the planet)', lo: 0, hi: 1 },
+    came:      { unit: `years after the first farming that farming came (2 years a step, to 80,000; the top, ${CAME_NEVER.toLocaleString('en')}, never)`, lo: 0, hi: CAME_NEVER },
+    crops:     { unit: 'crops grown at a place, the staples too (0 … 255)', lo: 0, hi: 255 },
 };
 const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
-/** The README's lists of the staple foods and the lifestyles (the index files' numbers), when the export has them. */
+/** The README's lists of the staple foods, the lifestyles, the ways of life and the beasts (the index files' numbers), when
+ *  the export has them. */
 const staplesList = files => [...(files.some(f => f.file?.key === 'staple') ? [{ title: 'Staple foods (the number in the staple food index file)', items: STAPLE_WORDS }] : []),
-    ...(files.some(f => f.file?.key === 'lifestyle') ? [{ title: 'Lifestyles (the number in the lifestyle index file)', items: LIFESTYLE_WORDS }] : [])];
+    ...(files.some(f => f.file?.key === 'lifestyle') ? [{ title: 'Lifestyles (the number in the lifestyle index file)', items: LIFESTYLE_WORDS }] : []),
+    ...(files.some(f => f.file?.key === 'foodSystem') ? [{ title: 'Ways of life (the number in the way of life index file)', items: FOOD_SYSTEM_WORDS }] : []),
+    ...(files.some(f => f.file?.key === 'beast') ? [{ title: 'Beasts (the number in the leading beast index file)', items: BEAST_WORDS }] : [])];
 
 /** The catalogue of a moment's maps (the panel's rows): as Colour, as Data, or both. */
 export const CATALOGUE = [
@@ -62,8 +73,11 @@ export const CATALOGUE = [
     // (the Food views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
     { id: 'farming', label: 'Food', rows: [
         { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
-        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
-        { id: 'farmLife', label: 'Lifestyle', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index', 'lifestyle', 8)], tip: 'How each place’s people would live — farming, herding or gathering; as data, each lifestyle’s index (the README lists them)' },
+        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, tree and palm crops, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
+        { id: 'farmLife', label: 'Way of life', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index (farming, herding, gathering)', 'lifestyle', 8), farmData('foodSystem', 'system', 'Way of life index', 'system', 8)], tip: 'How each place’s people would live — paddy farming, irrigated valleys, plough and flocks, mixed farms, hoe farming, forest gardens, highland farming, grain and herds, nomadic herding, settled or mobile foragers — as its legend shows (or Simple: farming, herding or gathering); as data, the lifestyle’s index and the way of life’s (the README lists them)' },
+        { id: 'farmAnimals', label: 'Animals', colour: true, needs: 'farming', data: [farmData('beast', 'index', 'Leading beast index', 'beast', 8), farmData('flyBelt', 'fly', 'Fly belt', 'fly')], tip: 'Farmers’ and herders’ leading beast, the fly belt hatched; as data, the beast’s index (the README lists them) and the fly belt' },
+        { id: 'farmCrops', label: 'Crops', colour: true, needs: 'farming', data: [farmData('cropVariety', 'variety', 'How many crops a place grows', 'crops')], tip: 'Every crop beyond the staples and the small animals, as its legend shows them; as data, how many crops each place grows' },
+        { id: 'farmOrigins', label: 'Origins', colour: true, needs: 'farming', data: [farmData('larderVariety', 'larder', 'Wild larder variety', 'variety'), farmData('hearthOdds', 'odds', 'Hearth odds', 'odds'), farmData('farmCame', 'came', 'When farming came', 'came')], tip: 'The wild larder, the hearth odds, when farming came or from which hearth, as its legend shows; as data, the larder’s variety, the hearth odds and the years after the first farming that it came' },
         { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [farmData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
         { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [farmData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },
         { id: 'farmSeason', label: 'Growing season', colour: true, needs: 'farming', data: [farmData('seasonRain', 'rain', 'Growing season by rain alone', 'season'), farmData('seasonWatered', 'watered', 'Growing season, watered', 'season')], tip: 'The months crops grow, as its legend shows; as data, by rain alone and watered' },
@@ -274,11 +288,13 @@ export function produceMap(fin, W, lk, job) {
     return valueMap(fin, W, key, s, job.file.scale, c);
 }
 
-/** The Food views' choices, for the README: the techniques on, how firmly gatherers hold on. */
+/** The Food views' choices, for the README: the techniques on, how firmly gatherers hold on, and what Staple food, Way of
+ *  life, Animals and People show (as it came 10,000 years after the first farming, its full spread, or the best possible). */
 function farmingNote() {
     const on = TECHNIQUES.filter(k => farmOptions[k]);
+    const age = farmOptions.age === 'best' ? 'the best possible (every crop and beast everywhere)' : farmOptions.age === 'full' ? 'as it came, its full spread' : 'as it came, 10,000 years after the first farming';
     return `Food maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
-        `gatherers holding on unless farming or herding feeds ${GATHER.hold}× as many`;
+        `gatherers holding on unless farming or herding feeds ${GATHER.hold}× as many; staple food, way of life, animals and people ${age}`;
 }
 
 /**

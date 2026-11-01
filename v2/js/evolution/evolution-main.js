@@ -28,7 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey } from './farming-view.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins, farmLinkParams, farmFromLink, farmInputChanged } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -65,6 +65,7 @@ const ui = { canvas: $('canvas'), map: $('mapCanvas'), cont: $('sCont'), len: $(
 // ── settings ──
 ui.ending.innerHTML = ENDINGS.map(e => `<option value="${e.id}">${e.label}</option>`).join('');
 const url = new URLSearchParams(location.search);
+farmFromLink(url);                                      // (the Food views' re-roll, Fewer gaps and age, as linked)
 const setIf = (el, v) => { if (v !== null && [...(el.options ?? [])].some(o => o.value === v)) el.value = v; };
 if (url.get('cont')) ui.cont.value = url.get('cont');
 if (url.get('len')) ui.len.value = url.get('len');
@@ -165,7 +166,7 @@ $('loadFile').addEventListener('change', e => { const f = e.target.files[0]; e.t
 ui.terrain.addEventListener('change', () => setTerrainDetail());
 // (more: how far the history was kept going — a link rebuilds the same history, run on as far)
 const saveUrl = () => history.replaceState(null, '', `?seed=${encodeURIComponent(seedShown())}&cont=${ui.cont.value}&len=${ui.len.value}&end=${ui.ending.value}&sim=${ui.sim.value}&terrain=${ui.terrain.value}` +
-    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : ''));
+    (Number(ui.tmp.value) ? `&greenhouse=${ui.tmp.value}` : '') + (Number(ui.prc.value) ? `&rain=${ui.prc.value}` : '') + (B?.moreTo ? `&more=${B.moreTo}` : '') + farmLinkParams());
 let linkedMore = Number(url.get('more')) || 0;          // (the first build only: a new world starts at its length)
 // Keep going: the history runs on in pieces this long, until stopped (a multiple of the step grid and of the snapshot
 // interval — pieces of the one history, the same as a single run: tectonics/simulate.js, resume)
@@ -529,7 +530,8 @@ async function loadPlanet(file) {
         // without its record — until a replay that matches brings the record in)
         b.lacking = new Set(lacking); b.noGeology = GEO_FRAME_FIELDS.some(k => b.lacking.has(k));
         const shown = b.frames[m.detail?.frame ?? 0] ?? b.frames[0];
-        if (detail) { b.finishes.set(b.frames[detail.frame], detail.moment); b.finishOk = true; b.finishNote = `Opened from ${name}`; }
+        // (its seed and time: the Food tab's luck, drawn as when it was detailed)
+        if (detail) { b.finishes.set(b.frames[detail.frame], Object.assign(detail.moment, { seed: b.seed, time: b.frames[detail.frame].time })); b.finishOk = true; b.finishNote = `Opened from ${name}`; }
         // (a moment left in the file — too old to read, or more than a phone can show: this moment, ready to be detailed again)
         else if (m.detail) {
             b.loadFrame = shown;
@@ -760,11 +762,14 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
     const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
     if (legend.dataset.key !== legendKey) {
+        // (its scroll kept: a chip clicked stays under the pointer)
+        const card = $('legendCard'), top = card.scrollTop;
         if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
         else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
         legend.dataset.key = legendKey;
+        card.scrollTop = top;
     }
     updateClimateUi();
     ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;
@@ -891,7 +896,7 @@ async function finishMoment(again = null) {
         const secs = (performance.now() - started) / 1000;
         // (one detailed moment: this one replaces the one before, now that it is done)
         b.finishes.clear();
-        b.finishes.set(frame, { cells, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats, secs, climateKey: key });
+        b.finishes.set(frame, { cells, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats, secs, climateKey: key, seed: b.seed, time: frame.time });
         b.finishOk = true;
         b.finishNote = `Detail added in ${secs.toFixed(0)} s` + (again ? ' (after running short of memory: the moment kept in detail before was let go to make room)' : '');
         console.info(`[evolution] finish of ${frame.time.toFixed(0)} Myr at ${cells} cells: ${secs.toFixed(1)} s, ${(finishBytes(b.finishes.get(frame)) / 2 ** 20).toFixed(0)} MB kept`, Object.fromEntries(Object.entries(res.ms).map(([k, v]) => [k, +(v / 1000).toFixed(1)])), res.stats);
@@ -1157,7 +1162,27 @@ function tick(now) {
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
     updatePatch(now);
     globe.resize();
-    globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
+    if (globe.renderIfNeeded() || pinsWanted()) placePins();  // (the globe, or the map: the same renderer draws both)
+}
+
+// ── the numbered pins (the Origins view's hearths): drawn over the planet, not on its texture, so they stay round and sharp
+// on the globe and on the map at any projection and zoom — placed again each time the planet is drawn again ──
+const pinBox = $('mapPins');
+let pinsKey = '', pinsShown = [];
+/** Whether the pins shown are not the ones wanted (a view or a moment changed without the planet being drawn again). */
+const pinsWanted = () => `${view.layer}|${painted?.time ?? ''}|${farmOptionsKey()}` !== pinsKey.split('#')[0];
+function placePins() {
+    const fin = painted && B ? finishedShown(painted) : null, list = fin && view.finished !== false ? farmingPins(view.layer, fin) : [];
+    const key = `${view.layer}|${painted?.time ?? ''}|${farmOptionsKey()}#${list.map(p => `${p.label}:${p.lat}:${p.lon}:${p.fill}`).join('|')}`;
+    if (key !== pinsKey) {
+        pinsKey = key; pinsShown = list;
+        pinBox.innerHTML = list.map(p => `<b class="evo-pin" style="background:${p.fill};border-color:${p.ring};color:${p.ink}">${p.label}</b>`).join('');
+    }
+    pinsShown.forEach((p, k) => {
+        const at = globe.screenAt(p.lat, p.lon), el = pinBox.children[k];
+        el.hidden = !at;
+        if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+    });
 }
 requestAnimationFrame(tick);
 
@@ -1218,6 +1243,8 @@ function setLayer(layer) {
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
 // (the Food legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
 $('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
+// (the Crops view's finder: a crop typed and chosen, shown alone)
+$('climateLegend').addEventListener('change', e => { if (farmInputChanged(e.target, painted ? finishedShown(painted) : null)) { dirty = true; saveUrl(); } });
 $('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
 $('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
 $('cardAction').addEventListener('click', mainAction);

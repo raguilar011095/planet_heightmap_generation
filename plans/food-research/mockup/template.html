@@ -1,0 +1,258 @@
+<title>Food Tab Mockups</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo+Narrow:wght@500;600;700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a field-notes page around one live instrument — the Food tab mock-up, dark as the app is, with its notes beside it. */
+:root {
+    --paper: #edf0ea; --ink: #1b2420; --muted: #59655e; --rule: #cdd5cd; --card: #f7f8f4;
+    --accent: #1d6c56; --accent-2: #9a6516; --new: #1d6c56; --changed: #9a6516; --kept: #6a7470;
+    --app: #0c1015; --app-panel: #141a22; --app-line: #263040; --app-text: #dde3ea; --app-muted: #8c96a4; --app-on: rgba(30,110,100,0.5); --app-on-line: rgba(100,200,170,0.55);
+    --f-display: 'Archivo Narrow', 'Arial Narrow', 'Roboto Condensed', sans-serif;
+    --f-body: 'Source Sans 3', 'Segoe UI', system-ui, sans-serif;
+    --f-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --f-app: 'Segoe UI', system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --paper: #121714; --ink: #e2e8e3; --muted: #9aa69f; --rule: #2b342f; --card: #181e1b; --accent: #62c09c; --accent-2: #e0a54c; --new: #62c09c; --changed: #e0a54c; --kept: #9aa69f; color-scheme: dark; } }
+:root[data-theme="dark"] { --paper: #121714; --ink: #e2e8e3; --muted: #9aa69f; --rule: #2b342f; --card: #181e1b; --accent: #62c09c; --accent-2: #e0a54c; --new: #62c09c; --changed: #e0a54c; --kept: #9aa69f; color-scheme: dark; }
+
+body { background: var(--paper); color: var(--ink); font: 16px/1.55 var(--f-body); }
+.page { max-width: 1240px; margin: 0 auto; padding-block: 28px 48px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 34px; }
+h1, h2, h3, h4 { font-family: var(--f-display); text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: clamp(30px, 5vw, 46px); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 26px; font-weight: 600; }
+p { margin: 0; }
+.eyebrow { font: 500 12px/1 var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); }
+.head { display: grid; gap: 14px; max-width: 80ch; }
+.lede { font-size: 18px; color: var(--ink); max-width: 68ch; }
+.decided { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px 22px; margin: 4px 0 0; padding: 14px 0 0; border-top: 1px solid var(--rule); list-style: none; }
+.decided li { font-size: 14.5px; color: var(--muted); padding-left: 18px; position: relative; min-width: 0; }
+.decided li::before { content: ''; position: absolute; left: 0; top: 0.55em; width: 8px; height: 8px; border-radius: 2px; background: var(--accent); }
+.decided b { color: var(--ink); font-weight: 600; }
+.toy { font-size: 14px; color: var(--muted); max-width: 80ch; }
+
+/* ── the mock-up ── */
+.mock { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 20px; align-items: start; }
+.app { background: var(--app); color: var(--app-text); border-radius: 12px; font: 13px/1.4 var(--f-app); overflow: hidden; border: 1px solid #1f2733; min-width: 0; }
+.app-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px 8px; border-bottom: 1px solid var(--app-line); }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; min-width: 0; flex: 1 1 420px; }
+.tab { flex: none; font: inherit; color: var(--app-muted); background: transparent; border: 1px solid transparent; border-radius: 14px; padding: 5px 11px; cursor: pointer; white-space: nowrap; }
+.tab:hover { color: var(--app-text); }
+.tab.on { color: #fff; background: rgba(40,70,150,0.55); border-color: rgba(100,160,255,0.45); }
+.badge { font: 600 9px/1 var(--f-mono); letter-spacing: 0.06em; text-transform: uppercase; margin-left: 4px; vertical-align: 5px; }
+.b-new { color: #7fdcb7; } .b-changed { color: #e8b866; }
+.app-actions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.act { font: inherit; color: var(--app-text); background: #1b2330; border: 1px solid #2c384a; border-radius: 8px; padding: 5px 10px; cursor: pointer; }
+.act:hover { filter: brightness(1.25); }
+.app-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 12px; background: #10151c; border-bottom: 1px solid var(--app-line); }
+.seg { display: inline-flex; border: 1px solid #2c384a; border-radius: 8px; overflow: hidden; }
+.seg-b { font: inherit; color: var(--app-muted); background: transparent; border: 0; padding: 5px 12px; cursor: pointer; }
+.seg-b + .seg-b { border-left: 1px solid #2c384a; }
+.seg-b.on { color: #fff; background: #23324a; }
+.seg-none { color: var(--app-muted); font-size: 12px; }
+.age { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-left: auto; }
+.age-l { color: var(--app-muted); font-size: 12px; }
+.timebar { display: flex; align-items: center; gap: 12px; padding: 7px 12px; background: #10151c; border-bottom: 1px solid var(--app-line); }
+.timebar label { display: flex; align-items: center; gap: 12px; width: 100%; color: var(--app-muted); font-size: 12px; }
+.timebar b { color: var(--app-text); font-variant-numeric: tabular-nums; }
+.timebar input { flex: 1; accent-color: #5fc3a0; min-width: 0; }
+.mapwrap { position: relative; background: #0a0d12; }
+#map { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; max-width: 100%; touch-action: manipulation; cursor: crosshair; }
+#pins { position: absolute; inset: 0; pointer-events: none; }
+.pin { position: absolute; transform: translate(-50%, -50%); width: 20px; height: 20px; border-radius: 50%; background: var(--pin); color: #111; border: 2px solid #fff; font: 700 11px/16px var(--f-app); text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.6); }
+.pin-home { width: 14px; height: 14px; border-radius: 3px; transform: translate(-50%, -50%) rotate(45deg); background: var(--pin); border: 2px solid #fff; }
+.vrows { display: grid; gap: 6px; }
+.likectl { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; color: var(--app-muted); }
+.hls { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--app-muted); }
+.hl { display: inline-flex; align-items: center; gap: 5px; }
+.hl b { display: inline-grid; place-items: center; width: 16px; height: 16px; border-radius: 50%; color: #111; font-size: 10px; }
+.finder { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; color: var(--app-muted); }
+.finder input { font: inherit; font-size: 13px; color: var(--app-text); background: #0f141b; border: 1px solid #2c384a; border-radius: 8px; padding: 6px 10px; min-width: 0; width: min(320px, 100%); }
+.card { border: 1px solid #2c384a; background: #10161e; border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; font-size: 12.5px; color: var(--app-text); }
+.card p { margin: 0; color: #c3ccd6; }
+.card-h { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.card-h b { font-size: 15px; color: #fff; }
+.card-h span { color: var(--app-muted); }
+.card-h .chip { margin-left: auto; }
+.card a, .plist a { color: #8fd3ff; text-decoration: none; }
+.card a:hover, .plist a:hover { text-decoration: underline; }
+.meter { white-space: nowrap; color: #e3c46a; margin-left: 6px; }
+.plist { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13.5px; }
+.plist span { white-space: nowrap; }
+.notes .plist a { color: var(--accent); }
+.vmore { font-style: normal; color: #7d8796; font-size: 12px; align-self: center; }
+.vrow { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 8px; align-items: start; }
+.vrow-l { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--app-text); padding-top: 5px; }
+.vrow-l i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+@media (max-width: 560px) { .vrow { grid-template-columns: minmax(0, 1fr); } }
+.pin-founder { border-width: 3px; box-shadow: 0 0 0 3px rgba(255,255,255,0.35), 0 1px 4px rgba(0,0,0,0.6); }
+.pin-sec { width: 10px; height: 10px; border-width: 2px; background: transparent; border-color: var(--pin); box-shadow: 0 0 0 1px rgba(255,255,255,0.7); }
+.readout { position: absolute; z-index: 2; max-width: min(360px, 86%); background: rgba(12,16,22,0.94); border: 1px solid #2c384a; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.5; pointer-events: none; }
+.ro-l { color: var(--app-muted); display: inline-block; min-width: 84px; }
+.loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--app-muted); font-size: 14px; background: #0a0d12; }
+.legend { padding: 12px 14px 14px; display: grid; gap: 8px; background: var(--app-panel); }
+.lg-head { font-weight: 600; color: #fff; }
+.lg-note { color: var(--app-muted); font-size: 12px; max-width: 90ch; }
+.lg-note b { color: var(--app-text); }
+.chips { display: flex; flex-wrap: wrap; gap: 5px; }
+.chip { font: inherit; font-size: 12px; color: #ccd4dd; background: #1b2330; border: 1px solid #2c384a; border-radius: 14px; padding: 4px 10px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.chip em, .sw em { color: #7d8796; font-style: normal; font-variant-numeric: tabular-nums; }
+.chip i, .sw i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; flex: none; }
+.chip.on { border-color: var(--app-on-line); background: var(--app-on); color: #e3fff6; }
+.chip:hover { filter: brightness(1.2); }
+.sws { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; }
+.sws.cols { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.sw { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.bar { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--app-muted); }
+.bar i { display: block; width: 180px; max-width: 45%; height: 10px; border-radius: 3px; flex: none; }
+.ring { display: flex; flex-wrap: wrap; gap: 3px; }
+.ring span { font: 500 11px/1 var(--f-mono); color: #111; background: var(--c); border-radius: 3px; padding: 5px 6px; }
+.lands { margin: 0; padding: 0 0 0 2px; list-style: none; display: grid; gap: 2px; font-size: 12px; color: var(--app-muted); }
+.lands b { color: var(--app-text); }
+.tl-box { display: grid; gap: 4px; }
+.tl { width: 100%; max-width: 520px; height: auto; }
+.tl-cap { font-size: 11.5px; color: var(--app-muted); }
+.tl-grid { stroke: #2a3443; stroke-width: 1; }
+.tl-tick { fill: #7d8796; font: 9px var(--f-mono); text-anchor: middle; }
+.tl-n { fill: #111; font: 700 8px var(--f-app); text-anchor: middle; }
+.tl-run { stroke: #3a4658; stroke-width: 2; }
+.tl-dot { stroke: #0c1015; stroke-width: 1; }
+.tl-now { stroke: #5fc3a0; stroke-width: 1.5; stroke-dasharray: 3 2; }
+.app :focus-visible { outline: 2px solid #7fdcb7; outline-offset: 2px; }
+
+.notes { background: var(--card); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px; display: grid; gap: 10px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); min-width: 0; }
+.notes h3 { font-size: 22px; font-weight: 600; }
+.notes h4 { font: 500 11px/1 var(--f-mono); letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+.notes p { font-size: 14.5px; }
+.notes p:last-child { color: var(--muted); }
+.nt-status { justify-self: start; font: 600 11px/1 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; padding: 5px 8px; border-radius: 4px; border: 1px solid currentColor; }
+.nt-new { color: var(--new); } .nt-changed { color: var(--changed); } .nt-kept { color: var(--kept); }
+
+/* ── how it fits together ── */
+.flow { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0; border: 1px solid var(--rule); border-radius: 10px; overflow: hidden; background: var(--card); }
+.flow > div { padding: 16px 18px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.flow > div + div { border-left: 1px solid var(--rule); }
+.flow h3 { font-size: 20px; font-weight: 600; }
+.flow .tag { font: 500 11px/1 var(--f-mono); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.flow ul { margin: 0; padding-left: 18px; font-size: 14.5px; display: grid; gap: 4px; }
+.flow .later { background: repeating-linear-gradient(-45deg, transparent 0 9px, color-mix(in srgb, var(--rule) 45%, transparent) 9px 10px); }
+.flow .later ul { color: var(--muted); }
+.phases { display: grid; gap: 14px; }
+.phases ol { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 12px; counter-reset: ph; }
+.phases li { counter-increment: ph; border-top: 3px solid var(--accent); padding-top: 10px; display: grid; gap: 4px; min-width: 0; }
+.phases li::before { content: 'F' counter(ph); font: 500 12px/1 var(--f-mono); color: var(--accent); }
+.phases li b { font-family: var(--f-display); font-size: 18px; font-weight: 600; }
+.phases li span { font-size: 14px; color: var(--muted); }
+.foot { font-size: 13px; color: var(--muted); border-top: 1px solid var(--rule); padding-top: 14px; }
+.foot code { font: 12.5px var(--f-mono); }
+
+@media (max-width: 980px) { .mock { grid-template-columns: minmax(0, 1fr); } .notes { position: static; } }
+@media (max-width: 768px) {
+    .flow { grid-template-columns: minmax(0, 1fr); } .flow > div + div { border-left: 0; border-top: 1px solid var(--rule); }
+    .tab, .chip, .seg-b, .act { min-height: 44px; } .chip { padding: 6px 12px; } .age { margin-left: 0; }
+    .ro-l { min-width: 72px; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto !important; transition: none !important; } }
+</style>
+
+<div class="page">
+  <header class="head">
+    <div class="eyebrow">World Orogen · Evolution · Food tab</div>
+    <h1>The Food tab, rebuilt around its inputs</h1>
+    <p class="lede">Every proposed view and its key, live on a small made-up planet, now with a <b>Crops</b> tab: each hearth’s own variants, which crops compete and which stack. This round covers what later history and culture will build on: what the land offers, and how farming began and spread over ten thousand years. Cultures, cooking, trade and cities are left for later.</p>
+    <ul class="decided" aria-label="Your decisions">
+      <li><b>Soil and Season fold into Farmland.</b> All of it shapes People later.</li>
+      <li><b>Views show what came.</b> “Best possible” shows the land alone.</li>
+      <li><b>10,000 years by default</b>, with the full spread one click away. Each place starts at its own time, and faster after its first crop.</li>
+      <li><b>A landmass may lack a beast.</b> “Fewer gaps” makes that rarer.</li>
+      <li><b>Tree & palm crops</b> join as a new food (my call: see Staple food).</li>
+      <li><b>Calendar first.</b> The names are placeholders.</li>
+    </ul>
+    <p class="toy">The planet’s climate here is a quick stand-in, so the page builds in about a second in your browser. The crop model is the app’s own, ported, with tree crops added. Shapes and patterns are what to judge; numbers will differ in Orogen. Hover or tap the map for the readout.</p>
+  </header>
+
+  <section class="mock" aria-label="Food tab mock-up">
+    <div class="app">
+      <div class="app-top">
+        <nav class="tabs" id="tabs" role="tablist" aria-label="Food views"></nav>
+        <div class="app-actions">
+          <button type="button" class="act" id="reroll" title="Draw the domestication dates again, same planet">Re-roll history</button>
+          <button type="button" class="act" id="newworld" title="Another toy planet">New toy planet</button>
+        </div>
+      </div>
+      <div class="app-sub"><div id="sub"></div><div class="age" id="age"></div></div>
+      <div class="timebar" id="timebar" hidden><label for="yrs"><span>Years since the first farming: <b id="yrsv">10,000</b></span><input id="yrs" type="range" min="0" max="20000" step="250" value="10000"></label></div>
+      <div class="mapwrap" id="mapwrap">
+        <canvas id="map" width="720" height="360" aria-label="Map of the toy planet in the chosen view"></canvas>
+        <div id="pins"></div>
+        <div class="readout" id="readout" hidden></div>
+        <div class="loading" id="loading">Building a toy planet…</div>
+      </div>
+      <div class="legend" id="legend"></div>
+    </div>
+    <aside class="notes" id="notes" aria-live="polite"></aside>
+  </section>
+
+  <section class="flow" aria-label="How the parts fit together">
+    <div>
+      <span class="tag">Land · exists</span>
+      <h3>What the land offers</h3>
+      <ul>
+        <li>Harvests per crop group by degree-days</li>
+        <li>Soils from the rocks, water from rivers</li>
+        <li>Pasture, fish, wild foods</li>
+        <li>New: each place’s farming calendar</li>
+      </ul>
+    </div>
+    <div>
+      <span class="tag">History · new, slow and geographic</span>
+      <h3>How farming began and spread</h3>
+      <ul>
+        <li>Wild ancestors placed by their own niches</li>
+        <li>Hearths start at dates drawn from their odds</li>
+        <li>Faster domestication once a place farms</li>
+        <li>Crops and beasts spread in years; places farming reaches first adopt</li>
+        <li>Each landmass’s beasts are luck</li>
+        <li>Each hearth grows its own variants; staples compete for a field and a season, the other crops stack</li>
+      </ul>
+    </div>
+    <div class="later">
+      <span class="tag">Later · not in this round</span>
+      <h3>Culture and history on top</h3>
+      <ul>
+        <li>Trade routes, cities, states</li>
+        <li>Cooking, drinks, specialties</li>
+        <li>Events, ebbs and flows</li>
+        <li>People shaped by all of the above</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="phases" aria-label="Phases">
+    <h2>Building it, one phase at a time</h2>
+    <ol>
+      <li><b>Calendar</b><span>Harvest month, lean months and harvest risk: three new bytes in the finish. It stands alone and is quick.</span></li>
+      <li><b>Animals & Way of life</b><span>Beasts by habitat, the fly belt and eleven food systems, first as “best possible”. Scored on Earth against ArchaeoGLOBE and D-PLACE.</span></li>
+      <li><b>Wild larder & hearths</b><span>Wild ancestors, each landmass’s beasts, hearth odds and start dates. Tree & palm crops join the finish here.</span></li>
+      <li><b>The spread in years</b><span>Fronts, receivers, secondary centres, 10,000 years or the full spread, and every view “as it came”.</span></li>
+      <li><b>Crops & variants</b><span>Each hearth’s variants competing for the fields; pulses, orchards, spices and gardens stacking. Uses the crops research parked on branch <code>crops</code>.</span></li>
+      <li><b>People, words, exports</b><span>People from all of it, then the README, tutorial, exports and SEO.</span></li>
+    </ol>
+  </section>
+
+  <p class="foot">Mock-up only. Nothing here is in Orogen yet. The plan is <code>plans/V2_FOOD_PLAN.md</code> on branch <code>farming-spread</code>; <span id="worldname">Toy planet 1</span>.</p>
+</div>
+
+<script>
+/*WORLD*/
+</script>
+<script>
+/*NAMES*/
+</script>
+<script>
+/*ITEMS*/
+</script>
+<script>
+/*UI*/
+</script>
