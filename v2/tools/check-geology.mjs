@@ -34,7 +34,9 @@ import { TerrainPool, FRAME_FIELDS } from '../js/terrain/terrain-pool.js';
 import { terrainMesh } from '../js/terrain/terrain-mesh.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../js/geology/rocks.js';
-import { DEPOSITS, DEPOSIT_INDEX, METALS } from '../js/geology/deposits.js';
+import { DEPOSITS, DEPOSIT_INDEX, METALS, districtSystems } from '../js/geology/deposits.js';
+import { calibrationKey } from '../js/geology/district-shapes.js';
+import { DISTRICT_THRESHOLDS } from '../js/geology/district-thresholds.js';
 import { AGES, resourceField, landShares, potentialField } from '../js/geology/ages.js';
 import { GEOLOGY } from '../js/geology/geology-config.js';
 import { earthDeposits } from '../../tuning/geology/earth-deposits.mjs';
@@ -285,7 +287,11 @@ const near = (test, km) => { const d = new Float32Array(n).fill(Infinity); for (
     check('iron the commonest metal by far (≥ 3 × copper’s ground), gold and tin scarce (each ≤ 2 % of the land moderate or rich)', fe >= 3 * cuAll && auM <= 0.02 && snM <= 0.02,
         `iron ${(100 * fe).toFixed(1)} % (${(100 * feM).toFixed(1)} % moderate+) · copper ${(100 * cuAll).toFixed(1)} % (${(100 * cuM).toFixed(1)}) · gold ${(100 * au).toFixed(1)} % (${(100 * auM).toFixed(1)}) · tin ${(100 * snAll).toFixed(1)} % (${(100 * snM).toFixed(1)})`);
     // (~30 systems, the metals, placers down the rivers: ~7–8 % of a finish, measured 2026-10-20 — 10 % allows for a busy machine)
-    check('…and the stage is quick: the deposits under a tenth of the finish', fine.ms.deposits <= 0.1 * Object.values(fine.ms).reduce((a, b) => a + b, 0), `${(fine.ms.deposits / 1000).toFixed(2)} s`);
+    check('…and the stage is quick: the deposits under a tenth of the finish', fine.ms.deposits <= 0.1 * Object.values(fine.ms).reduce((a, b) => a + b, 0),
+        `${(fine.ms.deposits / 1000).toFixed(2)} s of ${(Object.values(fine.ms).reduce((a, b) => a + b, 0) / 1000).toFixed(1)} s`);
+    // (the districts' thresholds kept for today's settings — else every finish calibrates them: node v2/tools/calibrate-districts.mjs)
+    const calKey = calibrationKey(districtSystems(GEOLOGY), GEOLOGY.deposits.shapes);
+    check("the districts' thresholds kept are today's settings' (else: node v2/tools/calibrate-districts.mjs)", DISTRICT_THRESHOLDS.key === calKey, `kept ${DISTRICT_THRESHOLDS.key || 'none'} · today ${calKey}`);
 }
 
 section('G4 — the climate and the rivers');

@@ -153,7 +153,7 @@ export function evolveGeology(world, dt) {
     const span = world.geoClock;
     world.geoClock = 0;
     const { mesh, plates, owner, ownerCell, time } = world, { adjOffset, adjList, xyz, numCells: n, edgeKm } = mesh, H = heightsOf(world.config);
-    const s = scratchFor(n), { land, height, coast, kind, supply, fore, inBelt, flooded } = s;
+    const s = scratchFor(n), { land, height, coast, kind, supply, fore, inBelt, flooded, shore } = s;
 
     // ── the land (as the rivers see it), and the ocean floor's mean depth ──
     let depthSum = 0, oceanCells = 0, landCells = 0;
@@ -222,6 +222,9 @@ export function evolveGeology(world, dt) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && !flooded[nb]) heap.push(Math.max(level, height[nb]), nb); }
     }
     world.geoSea = { time, meanDepthKm: meanDepth, stand, share: landCells ? (shelfCells + inland) / landCells : 0 };
+    // (the coastal plains behind the shallow seas: how far each land cell lies from one, over land — paralic coal)
+    for (let w = 0; w < n; w++) shore[w] = land[w] && flooded[w] ? 0 : Infinity;
+    if (G.paralicKm > 0) spreadKm(mesh, shore, { canEnter: (c, nb) => land[nb] === 1, maxKm: G.paralicKm });
 
     // ── the slabs that flattened or steepened since last time: their arcs' moment of change ──
     const changed = new Set();
@@ -260,7 +263,10 @@ export function evolveGeology(world, dt) {
                 // most at a high stand, when the seas were widest and warmest
                 const shelf = flooded[w] === 1, sup = Math.exp(-supply[w] / G.supplyKm), restricted = shelf ? 0 : smooth(G.restrictedKm[0], G.restrictedKm[1], coast[w]);
                 const warm = warmShare(lat, G), carb = (warm + G.coolCarbonate * (1 - warm)) * (1 - sup);
-                const salt = G.saltShare * aridShare(lat, G) * restricted, organic = G.organicShare * restricted * stand * warm;
+                // (source rock: a restricted sea's black mud, more at a high stand; a shelf's at a high stand — upwelling, the
+                // oceans' anoxic events; warm water most, cool water some)
+                const salt = G.saltShare * aridShare(lat, G) * restricted;
+                const organic = G.organicShare * Math.max(restricted * (0.4 + 0.6 * stand), shelf ? G.organicShelf * stand : 0) * (G.organicCool + (1 - G.organicCool) * warm);
                 const sum = carb + salt + organic, f = sum > 1 ? 1 / sum : 1;
                 deposit(k, c, Math.max(shelf ? G.shelfRateKmPerMyr : G.epeiricRateKmPerMyr, G.forelandRateKmPerMyr * fs) * span, carb * f, salt * f, 0, organic * f, time, G);
                 k.floodMyr[c] += span; k.floodLast[c] = time;
@@ -273,6 +279,10 @@ export function evolveGeology(world, dt) {
                 const arid = aridShare(lat, G);
                 deposit(k, c, G.riftRateKmPerMyr * span, 0, G.saltShare * arid, G.coalShare * 0.5 * coalBelt(lat, G), G.organicShare * (1 - arid), time, G);
                 k.geoFlags[c] |= GeoFlag.RIFT_BASIN;
+            } else if (shore[w] < G.paralicKm && height[w] <= G.paralicMaxKm) {
+                // a coastal plain behind a shallow sea, low and slowly sinking: its swamps' coal measures where the belt is wet
+                // (the Illinois basin's, the Ruhr's) — thinning inland
+                deposit(k, c, G.paralicRateKmPerMyr * span * (1 - shore[w] / G.paralicKm), 0, 0, G.coalShare * coalBelt(lat, G), 0, time, G);
             }
         }
     }
@@ -283,6 +293,6 @@ let scratch = null;
 function scratchFor(n) {
     if (scratch?.n === n) return scratch;
     scratch = { n, land: new Uint8Array(n), height: new Float32Array(n), coast: new Float32Array(n), kind: new Uint8Array(n), supply: new Float32Array(n),
-        fore: new Float32Array(n), inBelt: new Uint8Array(n), flooded: new Uint8Array(n), heap: new MinHeap(1 << 14) };
+        fore: new Float32Array(n), inBelt: new Uint8Array(n), flooded: new Uint8Array(n), shore: new Float32Array(n), heap: new MinHeap(1 << 14) };
     return scratch;
 }

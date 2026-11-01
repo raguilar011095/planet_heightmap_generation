@@ -36,7 +36,8 @@ import { frameArrays } from '../js/tectonics/snapshot.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../js/tectonics/model/geology.js';
 import { savePlanet, readPlanet, openPlanet, planetBytes } from '../js/save/planet-file.js';
 import { encodeTree, decodeTree, binPieces, allocArrays, arrayFiller } from '../js/save/tree-codec.js';
-import { unpackCodec1 } from '../js/save/migrations.js';
+import { unpackCodec1, migrateMoment } from '../js/save/migrations.js';
+import { DEPOSITS, METALS } from '../js/geology/deposits.js';
 import { seedOf } from '../js/core/seed.js';
 import { ZipReader, ZipWriter } from '../js/save/zip-io.js';
 import { FORMAT_VERSION, FRAME_VERSION, FINISH_VERSION, FRAME_CODEC } from '../js/save/versions.js';
@@ -199,7 +200,17 @@ check(historyOnly.detail === null && historyOnly.frames.length === frames.length
 
 // ── (a) older files, made by hand: an older detailed moment; frames without a field today's frames carry ──
 if (!FIXTURE) {
-    const older = await rewritten(blob, m => { m.finishVersion = FINISH_VERSION - 1; });
+    // (finish 1 → 2: three kinds of deposit before the metals' rows — each older row lands where today's reads it)
+    {
+        const K = 4, rowsV1 = 53 + 15, data = new Uint8Array(rowsV1 * K);
+        for (let r = 0; r < rowsV1; r++) data.fill(r + 1, r * K, (r + 1) * K);
+        const m = migrateMoment({ raster: { geology: { deposits: { data, rows: rowsV1, shares: new Float32Array(3 * 53) } } } }, 1).moment, D = m?.raster?.geology?.deposits;
+        const at = r => D.data[r * K];
+        check(D && D.rows === DEPOSITS.length + METALS.length && at(0) === 1 && at(52) === 53 && at(53) === 0 && at(55) === 0 && at(56) === 54 && at(D.rows - 1) === rowsV1 && D.shares.length === 3 * DEPOSITS.length,
+            `a finish-1 moment's deposits move to today's rows: its 53 kinds kept, three empty, its metals after (${D?.rows} rows)`);
+    }
+    // (a version no step reads: 0 — version 1's moments have a step to 2, save/migrations.js, read by the kept file below)
+    const older = await rewritten(blob, m => { m.finishVersion = 0; });
     await write(path.join(OUT, 'check-save-old-detail.orogen'), older);
     const o = await readPlanet(older);
     check(o.detail === null && /older World Orogen/.test(o.detailNote ?? '') && o.frames.length === frames.length, `an older detailed moment is left in the file, its history opened, with a note (${o.detailNote})`);

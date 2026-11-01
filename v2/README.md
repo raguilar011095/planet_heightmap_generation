@@ -256,6 +256,15 @@ node --max-old-space-size=16000 v2/tools/render-moment.mjs --seed 799224 --cont 
 node --max-old-space-size=16000 v2/tools/render-litho.mjs --phase NAME [--base NAME] [--reuse-finish] [--note "…"] [--moments 432175:300,2024:900]
                                        # the same moments and places (picked by their rocks) rendered after each change — the planet and its places
                                        # zoomed in (Terrain, Rocks, Satellite, the height change) → v2/out/litho/, and index.html: any two side by side
+node --max-old-space-size=16000 v2/tools/render-deposits.mjs --phase NAME [--reuse-finish] [--fresh-frames] [--code GIT_REF] [--note "…"] [--moments 432175:300,2024:900,542650052:2180]
+                                       # the same moments' Deposits and Ages maps after each change, whole and a close-up (--reuse-finish: only the
+                                       # deposits again, ~3 s a moment; --code b9eb7fe: drawn by that version's deposits — today's look) and each
+                                       # metal's share by latitude and setting → v2/out/deposits/, and index.html: today and new side by side
+node v2/tools/calibrate-districts.mjs           # the deposits' district thresholds for today's settings → v2/js/geology/district-thresholds.js
+                                       # (run after changing geology-config's deposits.district or deposits.shapes; check-geology says when)
+node --max-old-space-size=16000 v2/tools/render-district-options.mjs [--moments 2024-900,542650052-2180] [--views mix,copper,gold,leadZinc]
+                                       # the deposits' district shapes varied along each of their scales (three levels each, and combinations), the
+                                       # same places beside today's → v2/out/deposits/options/index.html: to pick a look by eye
 node v2/tools/shoot-lab.mjs 4 56 http://localhost:8123 scene=india   # screenshots + page smoke test (needs the server)
 node v2/tools/probe-play.mjs 8b history 40     # presses Play headlessly: frames painted, the page's long tasks (EXTRA=cells=2500000)
 node v2/tools/bench-lab.mjs 2500000           # the lab's terrain pipeline piece by piece: timings + output hashes (is a speed-up exact?)
@@ -340,8 +349,13 @@ js/tectonics/
 js/geology/        the finish's geology (plans/V2_GEOLOGY_PLAN.md): geology-config (its tunables, in km, with their ranges;
                    guideRules — where the science overrode Madeline James's guide, each switchable back), rocks (each
                    finished cell's kind of rock: the frame's rock column read where the terrain read it, with the finish's
-                   cuts and young sediment — G2), deposits (~30 ore, fuel and mineral systems, from the record and the
-                   finished climate and rivers, on a grid — G3, G4; by metal: METALS), ages (each technological age's
+                   cuts and young sediment — G2), deposits (~35 ore, fuel and mineral systems, from the record and the
+                   finished climate and rivers, on a grid — G3, G4; by metal: METALS; plans/V2_DEPOSITS_LOOK_PLAN.md: coal,
+                   ironstone and oil shale as beds cropping out where the surface cuts them, the weathering and wetland ones
+                   by the ground, oil on the structure's highs, iron in most belts, building stone where it is got at),
+                   district-shapes (how each system's ground breaks into districts: clusters of clusters, drawn out along a
+                   belt's or a shield's grain, gathered on lineaments, bent and lobed, each association its own provinces —
+                   D0; district-thresholds: their thresholds for today's settings, made by calibrate-districts.mjs), ages (each technological age's
                    resources — its reach and its cut-off over the deposits — and the bronze and ironworking potentials, G5; gems and
                    building stone, G7), districts (each field's districts, the landmasses and their shares, each
                    district's kind of deposit and its story from the record — G6), lithology (what each rock does to the
@@ -472,7 +486,10 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    basement is worn (`exhumKm`; `unroofKm` since its belt was last active). The heights' wear strips the cover first
    (heights.js `recordWear`); belts thicken the cover with the crust (orogeny.js `thickenCover`); shelves, inland seas
    at a high stand, forelands in front of active belts (an intraplate range's too — the far field's: the Tarim beside the
-   Tian Shan) and young rift basins lay it down (every `geology.everyMyr`).
+   Tian Shan), young rift basins and the low coastal plains behind a shallow sea (their swamps' coal measures, where
+   the belt is wet: the Illinois basin's, the Ruhr's) lay it down (every `geology.everyMyr`); source rock (organic-rich
+   mud) in restricted seas at any stand and on shelves at a high one, warm water most and cool water some; coal and
+   source rock kept as the share of coal measures / source-rock interval (plans/V2_DEPOSITS_LOOK_PLAN.md D2).
    The sea's stand comes from the ocean floor's mean depth (GDH1): the lowest land joined to the sea floods, up to
    `floodShareMax` of it when the oceans are young. Plus the time spent under shallow sea and in a live arc, and the
    settings the other records forget (`GeoFlag`). The start world's crust is seeded worn deep — its old ranges by their
@@ -508,9 +525,18 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    gold reef; oil and gas by source, burial, trap and seal) and from the finished moment (bauxite and laterites,
    enriched copper, salt and peat by the climate's monthly tests — `tuning/geology/earth-deposits.mjs` runs them on
    observed Earth; placers carried down the rivers, stripped by the ice; coal; wood by biome). Each fades with the time
-   since it formed (`halfLifeMyr`: shallow ores fast, deep veins slow), and clusters in districts of its own noise — a
-   metal's within provinces (`province`), so a belt is a few endowed stretches; its host is judged per district (the
-   rocks' shares there); richness 0…1 kept per grid
+   since it formed (`halfLifeMyr`: shallow ores fast, deep veins slow), and breaks into districts (district-shapes.js:
+   clusters of clusters drawn out along a belt's or a shield's grain, on fault lines, each association with its own
+   provinces — `deposits.shapes`); its host is judged per district (the rocks' shares there). The sediment's deposits are
+   beds (`deposits.beds`): coal measures and oil shale at the cover's top, ironstone at some of its contacts, cropping
+   out where the finished surface cuts them (the rocks hand over where it meets the column: rocks.js `colS`, `colT`);
+   oil gathers on the structure's highs (`colArch`: a fold belt's anticlines, the far field's arches), any thick basin
+   with source rock having its oil window somewhere in it. The climate's crusts follow the ground (`deposits.ground`):
+   laterite and bauxite on interfluves and plateau tops (iron laterite richest over iron-rich rock), peat and bog iron
+   on wet floors, salt flats in pans. Iron also in most mountain belts (veins and replacements, an arc's
+   magnetite-apatite); building stone by how much of each rock there is × how easily it is got at — hill country bare,
+   plains under silt, loess and red earth, a few quarry districts — and clay for brick where stone is scarce
+   (`deposits.buildingStone`); richness 0…1 kept per grid
    cell (0.25° at 2.5M cells, coarser below: never finer than the mesh) and banded poor · moderate · rich.
    `guideRules`: `coalByWetBelts` (the history's coal: tectonics config `geology.coalByWetBelts`) and
    `iceStripsPlacers` are wired. The ages (`geology/ages.js`, on the page): each age's resources from the kinds of deposit it
