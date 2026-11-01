@@ -1,0 +1,118 @@
+# World Orogen — Vision
+
+**Believable worlds from the ground up: a free studio of planet tools that gets you from a blank page to a world that
+makes sense.**
+
+This file is the project's foundation: what Orogen is, who it is for, what each tool is for, and how to decide when goals
+conflict. `CLAUDE.md` imports it; the README carries a short public version. When a change would contradict something
+here, flag it. Don't quietly drift.
+
+## How we got here
+
+- **v1 (March 2026): concept art for planets.** One fast generator: sliders, Ctrl-click plates, a climate no other map
+  tool had. Its test was the *glance*: does it look real at first sight?
+- **v2 (October 2026): a world with a past.** v1 painted terrain from a single frozen snapshot. It looked right, but it
+  couldn't make what makes real planets read as real: old ranges far from any plate edge, coasts that fit across an ocean,
+  ancient shields. Evolution simulates the history instead. It automates the hand methods of the worldbuilding guides
+  (Worldbuilding Pasta's GPlates workflow; Madeline James's rocks, ores and food). From that history come the land, its
+  climate, its rocks and what it can feed. The test became *does it hold up when you look closer, and does it make sense?*
+- **The Studio.** Generate, Import Heightmap and Evolution became separate ways into the same idea, under one home page.
+
+Orogen is now beyond concept art, but it keeps concept art's instinct: the output has to look good first.
+
+## Who it's for
+
+1. **Curious explorers who become science-minded worldbuilders.** Someone opens a link, watches a world form, pokes at it
+   and gets hooked on why things are where they are: the Artifexian / Worldbuilding Pasta / Madeline James crowd. Design
+   for both ends of that journey at once: approachable on first open, deep when they dig.
+2. **Storytellers and game masters** who want a believable map for a novel or campaign, fast.
+3. **Artists and game developers** who need heightmaps and data to carry into other tools (Gaea, engines, Photoshop).
+
+## What every tool shares
+
+- **Free and open source**, for people to use. GPL-3.0. No paywalls, tiers, ads or accounts. Ko-fi is optional and
+  nothing is locked. The maps people make are theirs, commercially too.
+- **Zero friction.** Open a URL and you are making a world: in the browser, no install, no account, no server, no build
+  step.
+- **Globe first.** A true globe with proper wrapping. Flat maps (in any projection) are a second view.
+- **The climate is the spine.** Every tool's world gets the full seasonal climate (wind, currents, rain, Köppen). It is
+  the most-cited reason people choose Orogen. Never simplify it; new layers should build on it.
+- **Worlds are permanent.** Every seed, link and planet file ever shared opens again, and each minor release stays online
+  at `orogen.studio/v/<major>.<minor>/`.
+
+## The pillars
+
+Weigh all three together. When they conflict, break ties in this order:
+
+1. **Artistic appeal.** It looks compelling at every scale, from the whole planet to the zoomed-in close-up. It is informed
+   by science but not constrained by it.
+2. **Ease of use and efficiency.** Approachable, and fast for what the tool is for. Each tool sets its own speed target
+   (see the tool profiles).
+3. **Scientific plausibility, and every feature has a cause.** Grounded in real planetary science and believable rather
+   than precise. Beyond believable, *coherent*: a mountain range, a desert, an ore body, a breadbasket each exists because
+   of something the world did, not because noise put it there. Prefer a cause the world can trace over decoration that
+   only looks right.
+
+### How results are judged
+
+- **Looks are judged by eye, at both scales.** Real data (Blue Marble, observed climate) is a reference, not a target.
+  When a change is more literal but less legible, prefer legible. The aim is a clear improvement in the overall feel, not
+  perfection; stop when the gain is clear and what remains is small or costly.
+- **Earth is a benchmark, not gospel.** Simulations run on worlds that are not Earth, so every tunable is a physical
+  quantity with a literature range, never a fix for Earth's geography. Tune on the whole Earth, score each continent
+  separately so none gets worse, and check on synthetic planets too. A high Earth score bought by overfitting is a
+  regression.
+
+## The tools
+
+Each tool is a different way into a believable world. They are equals in the long run, even when one gets most of the
+attention for a while. Today that is Evolution, and the others are brought up to the same completeness later.
+
+| | **Generate** | **Import Heightmap** | **Evolution** |
+|---|---|---|---|
+| The way in | A planet in seconds, shaped by hand | Your own landmass, its climate | A planet with a past |
+| Optimises for | Speed and fast iteration | Showing how a drawn or real world would behave | Depth and cause; science weighs a little more here |
+| Speed target | Seconds. Never slow generation down to chase accuracy; if a shortcut looks as good, use it | Seconds | Something to watch within seconds (it builds while you watch); minutes are fine for depth that is asked for and says what it costs |
+| Control | The most direct: sliders and plate editing (Ctrl-click → Rebuild; edit mode on a phone) | Your map is the input; sculpting knobs | Few knobs (three sliders, settings folded away) and a chosen ending |
+| Phones | Fully phone-friendly: the most mobile of the tools | Phone-friendly | Phones explore (open links and planet files, look at every view, export); building can stay desktop-first |
+| Where it's heading | Parity with Evolution: its believability through fast approximations, and every downstream layer (geology, food, satellite look, fine detail) on its worlds | Parity where it fits (decided as it comes) | Deeper history, and the layers downstream of it |
+
+New tools may come. Each gets its own column here before it is built.
+
+## Scope
+
+- **Orogen owns everything the physical world determines:** tectonics → terrain → climate → rocks and resources → what the
+  land can grow and feed. Import already shows a tool can start partway down that chain (climate and erosion on a landmass
+  you bring).
+- **Downstream of the physical world** are the things it only supplies inputs for: peoples, cultures, nations, borders.
+  These may become tools or extensions of existing ones. Decide how each works when it is planned, usually somewhere
+  between fully generated from the world and generated-then-lightly-steered.
+- **Generator, not editor, as a gradient.** The existing tools are generators: knobs, seeds and steering, never brushes or
+  drawing. Steering is a feature, and tools differ in how much they offer: Generate gives more direct control than
+  Evolution. A future tool could be editor-first, but the existing ones don't drift into editors.
+- **Earth-like worlds are the core.** Exotic settings (tilt, spin direction, size, a different star) come later, as knobs
+  that work through the physics, never as one-off hacks.
+- **The app stays lean on teaching.** It shows the world; the Studio's resources, the credited guides, and possibly
+  companion media do the explaining.
+- **Orogen's own identity.** Other tools aren't rivals to copy. Follow what Orogen's own users ask for, and keep up with
+  what is common across the space.
+
+## What users love (protect these)
+
+Any change should preserve or enhance these and never degrade them as a side effect. If a change trades one for another,
+say so.
+
+1. **Climate depth.** "The only map generator with this level of detail." Every climate layer stays, and new features
+   lean on it (rivers fed by rain, food by growing season).
+2. **Instant and zero-friction.** A world from a URL, with no sign-up and no install.
+3. **Watching a world form.** The history plays like a film as it builds: supercontinents breaking up and gathering
+   again, a timeline to scrub, an ending to choose.
+4. **Exports and data.** Every map, as colour or 16-bit data on documented scales, in ten projections, plus planet
+   files: ready for whatever comes next.
+5. **A true globe.** Globe first, with seamless wrapping.
+6. **Free and open source.** A trust signal. No paywalls, no "pro" tier.
+7. **Terrain aesthetics.** Fractal-looking mountains, organic coastlines, believable erosion, and detail that holds up
+   close.
+8. **Plate editing (Generate).** "Haven't seen this functionality anywhere else." Don't break the Ctrl-click →
+   Rebuild pattern; extend it.
+9. **It runs on phones.** Per each tool's commitment above. Generate most of all.
