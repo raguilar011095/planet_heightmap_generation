@@ -4,8 +4,8 @@
 makes sense.**
 
 This file is the project's foundation: what Orogen is, who it is for, what each tool is for, and how to decide when goals
-conflict. `CLAUDE.md` imports it; the README carries a short public version. When a change would contradict something
-here, flag it. Don't quietly drift.
+conflict. It is a living document: it changes when the vision does, on purpose. `CLAUDE.md` imports it; the README
+carries a short public version. When a change would contradict something here, flag it. Don't quietly drift.
 
 ## How we got here
 
@@ -92,10 +92,13 @@ New tools may come. Each gets its own column here before it is built.
   Evolution. A future tool could be editor-first, but the existing ones don't drift into editors.
 - **Earth-like worlds are the core.** Exotic settings (tilt, spin direction, size, a different star) come later, as knobs
   that work through the physics, never as one-off hacks.
-- **The app stays lean on teaching.** It shows the world; the Studio's resources, the credited guides, and possibly
-  companion media do the explaining.
-- **Orogen's own identity.** Other tools aren't rivals to copy. Follow what Orogen's own users ask for, and keep up with
-  what is common across the space.
+- **Followable by those who know.** The app doesn't set out to teach. Instead, anyone who has read the guides, watched
+  the videos or knows the science should be able to follow what each tool is doing, and see where it is wrong or taking a
+  shortcut. Its methods are recognisable and credited, not hidden. The learning itself happens in the guides (the Studio
+  links them) and maybe in companion media.
+- **Orogen's own identity.** Other tools aren't rivals to copy: the more tools the merrier. Orogen follows one artistic
+  vision, its author's, set out in this living document. Users' requests are welcome input, not a roadmap. It does keep up
+  with what is common across the space, so it never falls out of date.
 
 ## What users love (protect these)
 
