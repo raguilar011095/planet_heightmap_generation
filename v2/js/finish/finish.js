@@ -28,7 +28,7 @@ import { FastNoise } from '../core/fast-noise.js';
 import { locate } from '../core/mesh-locate.js';
 import { classifyRocks } from '../geology/rocks.js';
 import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
-import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests } from '../farming/farming.js';
+import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests, hasMonths } from '../farming/farming.js';
 
 const DEPOSIT_IDS = DEPOSITS.map(d => d.id);
 
@@ -351,7 +351,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // the growing season the final climate gave (farming/farming.js) ──
     onStage('farming');
     const farm = farmCells({ mesh, z: C.z, ocean, q: Hy.q, lat, lon, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rock: Rk?.rock, youngKind: Rk?.youngKind, young, climate: farmC });
-    const farming = { ...farm, rain: farmC.rain, warm: farmC.warm, pasture: farmC.pasture, crops: farmC.crops };
+    const farming = { ...farm, rain: farmC.rain, warm: farmC.warm, pasture: farmC.pasture, crops: farmC.crops, months: farmC.months };
     Rk = null;
     forgetEdgeKm(mesh);                                               // (the river plains' and the canals' distances: their cache for this mesh)
     lap('farming');
@@ -526,6 +526,8 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     // (each crop group's harvests a year, by rain and watered — two bytes a pixel under its name: each averaged in
     // harvests, not in its byte)
     const cropPx = farmPx && hasHarvests(farming) ? Object.fromEntries(Object.keys(farming.crops).map(key => [key, new Uint8Array(2 * cw * ch)])) : null;
+    // (and the month each group's main harvest comes in — the weightiest land cell's: a month is not averaged)
+    const monthPx = farmPx && hasMonths(farming) ? Object.fromEntries(Object.keys(farming.months).map(key => [key, new Uint8Array(2 * cw * ch)])) : null;
     // (each column's longitude's cosine and sine, once)
     const cosLon = new Float64Array(w), sinLon = new Float64Array(w);
     for (let px = 0; px < w; px++) { const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI; cosLon[px] = Math.cos(lon); sinLon[px] = Math.sin(lon); }
@@ -565,6 +567,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
                             for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && climate.tAnnual[c] === climate.tAnnual[c]) s += w3[j] * decHarvests(b[2 * c + q]); }
                             cropPx[key][2 * k + q] = encHarvests(s / ws);
                         }
+                        if (monthPx) for (const key in monthPx) { const b = farming.months[key]; monthPx[key][2 * k] = b[2 * best]; monthPx[key][2 * k + 1] = b[2 * best + 1]; }
                     }
                     if (rockPx) {
                         // (the rock: where the pixel's cells differ, the one with the largest share scaled by a noise of
@@ -621,7 +624,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
     if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
     return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null,
-        farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
+        farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}), ...(monthPx ? { months: monthPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
 }
 
 /** The widest climate picture a finish makes: the page's sharpest texture (finer would not be seen). */

@@ -86,8 +86,20 @@ export const FARMING = {
             { base: 12, opt: 28, hot: [38, 44], wet: [0.15, 0.45], soggy: [50, 150], cycle: 2.8, share: 0.75 }] },
         // roots and tubers: yams, cassava, taro and sweet potatoes in the wet tropics (a long season; poor soil will do),
         // potatoes in cool highlands and short summers (where a grain does as well, the grain: it keeps and feeds more)
-        roots: { weight: 0.85, soil: 0.25, level: 1, kinds: [{ base: 12, opt: 25, hot: [36, 40], wet: [0.3, 0.7], soggy: [150, 300], cycle: 6, share: 1 },
+        roots: { weight: 0.85, soil: 0.25, level: 1, kinds: [{ base: 12, opt: 25, hot: [36, 40], wet: [0.3, 0.7], soggy: [150, 300], cycle: 6, share: 1, piecemeal: true },
             { base: 5, opt: 16, hot: [21, 26], wet: [0.3, 0.7], soggy: [100, 220], cycle: 3.2, max: 1, share: 0.8 }] },
+        // tree and palm crops (plans/V2_FOOD_PLAN.md decision 5): `perennial`s holding their ground the year round (no second
+        // crop in their field), a dry or cool month a pause, not the end — down to the coldest month they `survive` (°C), and
+        // for no more than `maxPause` months on end (a longer dry season kills the grove: bananas take ~2 — Harris, Denham: 2
+        // dry months or fewer give clonal crops, 3–5 roots with a grain fringe, more seed crops in granaries): bananas and
+        // plantains (a stand fruits again every ~6–8 months), breadfruit, sago, coconut in the warm wet tropics and their highlands (a monsoon's long dry season bars
+        // them), taken as they ripen; date palms in the hot oases, where water is brought. Poor soil will do; slopes cost them
+        // less than fields (level 0.5: groves climb the hills). Less food a year than roots — where roots do as well, roots
+        // (sago and taro grow in swamps: a waterlogged flat costs them nothing — `swamp`, as a paddy's standing water)
+        trees: { weight: 0.8, soil: 0.2, level: 0.5, swamp: true, kinds: [{ base: 13, opt: 25, hot: [36, 42], wet: [0.5, 1.0], soggy: [300, 500], cycle: 6.5, share: 1, piecemeal: true, perennial: true, survive: 10, maxPause: 2 },
+            // (a date grove: one crop a year, but more food a hectare than an old grain field — ~5–8 t of dates; a dry sky
+            // its fruit wants — a month's own rain past `rainMax` spoils it: the deserts' oases, not a savanna's rivers)
+            { base: 18, opt: 32, hot: [44, 50], wet: [0.1, 0.3], soggy: [60, 150], rainMax: [0.15, 0.4], cycle: 5, max: 1, share: 1.6, perennial: true, survive: 5, maxPause: 5 }] },
     },
     // ── harvests: a staircase, not a line — a crop gives nothing until it ripens; a second needs a second whole cycle ──
     // (each dry-land crop's `soggy`: it drowns as a month's water beyond what it evaporates passes this (mm) — fading from the
@@ -97,6 +109,12 @@ export const FARMING = {
     harvestTurn: 0.75,          // months between one harvest and the next crop's start (reaping, threshing, ploughing, sowing)
     harvestRamp: 0.35,          // a crop cut short by up to this share of its cycle still yields (eased: less)
     maxHarvests: 3,             // at most this many of one crop a year (rice in Java and Bengal: three)
+    // (the farming calendar — plans/V2_FOOD_PLAN.md F1: a crop is brought in this long after it has grown its whole cycle —
+    // drying in the field, reaping, threshing — and is "harvested all year" where a run that never stops gives this many a year)
+    harvestLag: 0.5,
+    allYearHarvests: 1.5,
+    springShare: 0.75,          // a winter grain ripens once its spring's growth reaches this share of its cycle (the rest grown before its winter)
+    piecemealMonths: 9,         // roots dug as they are needed (`piecemeal`) are taken the year round where their run is this long
     relayAt: 0.15,              // a second crop of another group takes the months the first grows less than this in (rice
                                 // then winter wheat on the Yangtze; winter wheat then summer millet on the Nile)
     multiSoil: [0.45, 0.9],     // harvests past the first count as the soil can feed them, from this fertility to this: two or

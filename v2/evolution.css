@@ -177,6 +177,16 @@
 .evo-rate { flex: none; width: auto; padding: 4px 22px 4px 8px; font-size: 12px; background-position: right 8px center; }
 /* the Food legend: its techniques as chips (on or off), and its ramps as bars */
 .evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+/* the Origins view's hearths: numbered pins over the planet (evolution-main placePins) */
+.evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.evo-pin {
+    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
+    display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+.evo-pin[hidden] { display: none; }
+.evo-hearths { flex-direction: column; align-items: flex-start; }
+.evo-hearths > span { white-space: normal; }
 .evo-farm-chip {
     padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
     border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6;
@@ -272,7 +282,17 @@
     .evo-act { min-height: 44px; }
     /* the Food row's views: in the layer list too (as the Geology row's, below); its legend's chips and choices 44 px */
     .layer-bar #farmingTabs { display: none !important; }
-    .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
+    /* the Origins view's hearths: numbered pins over the planet (evolution-main placePins) */
+.evo-pins { position: fixed; inset: 0; pointer-events: none; overflow: hidden; }
+.evo-pin {
+    position: absolute; left: 0; top: 0; width: 20px; height: 20px; margin: -10px 0 0 -10px; border-radius: 50%; border: 2px solid;
+    display: flex; align-items: center; justify-content: center; font: 700 11px system-ui, sans-serif; box-sizing: border-box;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+}
+.evo-pin[hidden] { display: none; }
+.evo-hearths { flex-direction: column; align-items: flex-start; }
+.evo-hearths > span { white-space: normal; }
+.evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
     #mapCanvas { top: 36px; height: calc(100vh - 36px); }

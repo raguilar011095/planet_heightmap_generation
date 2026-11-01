@@ -28,7 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey } from './farming-view.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -529,7 +529,8 @@ async function loadPlanet(file) {
         // without its record — until a replay that matches brings the record in)
         b.lacking = new Set(lacking); b.noGeology = GEO_FRAME_FIELDS.some(k => b.lacking.has(k));
         const shown = b.frames[m.detail?.frame ?? 0] ?? b.frames[0];
-        if (detail) { b.finishes.set(b.frames[detail.frame], detail.moment); b.finishOk = true; b.finishNote = `Opened from ${name}`; }
+        // (its seed and time: the Food tab's luck, drawn as when it was detailed)
+        if (detail) { b.finishes.set(b.frames[detail.frame], Object.assign(detail.moment, { seed: b.seed, time: b.frames[detail.frame].time })); b.finishOk = true; b.finishNote = `Opened from ${name}`; }
         // (a moment left in the file — too old to read, or more than a phone can show: this moment, ready to be detailed again)
         else if (m.detail) {
             b.loadFrame = shown;
@@ -891,7 +892,7 @@ async function finishMoment(again = null) {
         const secs = (performance.now() - started) / 1000;
         // (one detailed moment: this one replaces the one before, now that it is done)
         b.finishes.clear();
-        b.finishes.set(frame, { cells, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats, secs, climateKey: key });
+        b.finishes.set(frame, { cells, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats, secs, climateKey: key, seed: b.seed, time: frame.time });
         b.finishOk = true;
         b.finishNote = `Detail added in ${secs.toFixed(0)} s` + (again ? ' (after running short of memory: the moment kept in detail before was let go to make room)' : '');
         console.info(`[evolution] finish of ${frame.time.toFixed(0)} Myr at ${cells} cells: ${secs.toFixed(1)} s, ${(finishBytes(b.finishes.get(frame)) / 2 ** 20).toFixed(0)} MB kept`, Object.fromEntries(Object.entries(res.ms).map(([k, v]) => [k, +(v / 1000).toFixed(1)])), res.stats);
@@ -1157,7 +1158,27 @@ function tick(now) {
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
     updatePatch(now);
     globe.resize();
-    globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
+    if (globe.renderIfNeeded() || pinsWanted()) placePins();  // (the globe, or the map: the same renderer draws both)
+}
+
+// ── the numbered pins (the Origins view's hearths): drawn over the planet, not on its texture, so they stay round and sharp
+// on the globe and on the map at any projection and zoom — placed again each time the planet is drawn again ──
+const pinBox = $('mapPins');
+let pinsKey = '', pinsShown = [];
+/** Whether the pins shown are not the ones wanted (a view or a moment changed without the planet being drawn again). */
+const pinsWanted = () => `${view.layer}|${painted?.time ?? ''}|${farmOptionsKey()}` !== pinsKey.split('#')[0];
+function placePins() {
+    const fin = painted && B ? finishedShown(painted) : null, list = fin && view.finished !== false ? farmingPins(view.layer, fin) : [];
+    const key = `${view.layer}|${painted?.time ?? ''}|${farmOptionsKey()}#${list.map(p => `${p.label}:${p.lat}:${p.lon}:${p.fill}`).join('|')}`;
+    if (key !== pinsKey) {
+        pinsKey = key; pinsShown = list;
+        pinBox.innerHTML = list.map(p => `<b class="evo-pin" style="background:${p.fill};border-color:${p.ring};color:${p.ink}">${p.label}</b>`).join('');
+    }
+    pinsShown.forEach((p, k) => {
+        const at = globe.screenAt(p.lat, p.lon), el = pinBox.children[k];
+        el.hidden = !at;
+        if (at) el.style.transform = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+    });
 }
 requestAnimationFrame(tick);
 
