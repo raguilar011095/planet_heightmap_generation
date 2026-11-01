@@ -269,8 +269,14 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
                 if (p > 0 && draw(900 + a, R.cell) < p) continue;
             }
             // (a hearth of its own: not past the planet's cap, nor near one begun — it waits for farming, its date cleared so
-            // the know-how can date it again when farming comes)
-            if (a < NC && regFarm[idx] > t && (primaries.length >= Hh.maxHearths || primaries.some(C => gcKm(C.lat, C.lon, R.lat, R.lon) < hearthKm))) { domT[a][idx] = Infinity; continue; }
+            // the know-how can date it again when farming comes. A founder's place is kept: the others keep clear of a founder
+            // not yet farmed, and leave it room under the cap — the founders, far apart, begin whatever came first)
+            if (a < NC && regFarm[idx] > t && !isFounder[idx]) {
+                const near = (lat, lon) => gcKm(lat, lon, R.lat, R.lon) < hearthKm;
+                let waiting = 0, nearWaiting = false;
+                for (const f of founders) if (regFarm[f.R.r] > t) { waiting++; if (near(f.R.lat, f.R.lon)) nearWaiting = true; }
+                if (primaries.length + waiting >= Hh.maxHearths || nearWaiting || primaries.some(C => near(C.lat, C.lon))) { domT[a][idx] = Infinity; continue; }
+            }
             if (regCentre[idx] < 0) {
                 regCentre[idx] = centres.length;
                 centres.push({ id: centres.length, region: idx, cell: R.cell, lat: R.lat, lon: R.lon, t0: t, primary: a < NC && regFarm[idx] > t, founder: !!isFounder[idx], items: [] });

@@ -311,6 +311,7 @@ export function minorAgeOf(M, age) {
 }
 // ── the strains spreading by themselves, ranked at each place (minor.js strainSpreads, strainRanks) ──
 const spreadsCache = new WeakMap(), ranksCache = new WeakMap();
+let ranksMade = 0;
 /** Each 1° cell's farming's arrival (its 0.5° cells' first) — once per run. */
 function farmOf1(G, run, Gm) {
     let farm = farm1Cache.get(run);
@@ -347,7 +348,7 @@ export function strainsOf(fin, roll, fewer, age) {
                 if (t <= age) R.group[a][c] = full.group[a][c];
             }
         }
-        R.key = key;
+        R.key = key; R.id = ++ranksMade;
         list.unshift(R);
         if (list.length > 3) list.pop();
         ranksCache.set(SP, list);
@@ -394,7 +395,9 @@ export function strainVote(Gm, arr, lat, lon) {
 export function variantsOf(fin, P, Y, S, age) {
     const E = entry(fin), G = historyOf(fin);
     if (!G || !S) return null;
-    const key = `${P.key}|${Y?.key ?? '-'}|${age}`;
+    // (the ranks' own stamp too: in the best possible the places' key leaves the run out — a re-roll or Fewer gaps keeps the
+    // places but not the strains)
+    const key = `${P.key}|${Y?.key ?? '-'}|${age}|${S.R.id}`;
     return kept3(E.variants, key, () => {
         const F = fin.raster.farming, K = fin.climate.raster, kef = KOPPEN_ID.EF, N = E.index.count, crop = new Int16Array(N).fill(-1), beast = new Int16Array(N).fill(-1);
         let k = 0;

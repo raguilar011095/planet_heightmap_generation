@@ -13,7 +13,7 @@
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { finishedFarmingColor, finishedFarmingValue, farmOptions } from './farming-view.js';
+import { finishedFarmingColor, finishedFarmingValue, farmOptions, CAME_NEVER } from './farming-view.js';
 import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
 import { LIFESTYLE_WORDS, GATHER, FOOD_SYSTEM_WORDS } from '../farming/living.js';
 import { BEAST_WORDS } from '../farming/beasts.js';
@@ -41,9 +41,9 @@ const FARM_SCALES = {
     system:    { unit: 'way of life index (0 = uninhabited or sea; the README lists them)', lo: 0, hi: 255 },
     beast:     { unit: 'leading beast index (0 = none — gatherers, the uninhabited — or sea; the README lists them)', lo: 0, hi: 255 },
     fly:       { unit: 'fly belt (0 none … 1 surely)', lo: 0, hi: 1 },
-    variety:   { unit: 'wild larder variety (crops 1 each, beasts ½: 0 … 8)', lo: 0, hi: 8 },
+    variety:   { unit: 'wild larder variety (crops 1 each, beasts ½: 0 … 8.5)', lo: 0, hi: 8.5 },
     odds:      { unit: 'hearth odds (0 low … 1 the highest on the planet)', lo: 0, hi: 1 },
-    came:      { unit: 'years after the first farming that farming came (65,535 never)', lo: 0, hi: 65535 },
+    came:      { unit: `years after the first farming that farming came (2 years a step, to 80,000; the top, ${CAME_NEVER.toLocaleString('en')}, never)`, lo: 0, hi: CAME_NEVER },
     crops:     { unit: 'crops grown at a place, the staples too (0 … 255)', lo: 0, hi: 255 },
 };
 const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
@@ -73,7 +73,7 @@ export const CATALOGUE = [
     // (the Food views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
     { id: 'farming', label: 'Food', rows: [
         { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
-        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
+        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, tree and palm crops, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
         { id: 'farmLife', label: 'Way of life', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index (farming, herding, gathering)', 'lifestyle', 8), farmData('foodSystem', 'system', 'Way of life index', 'system', 8)], tip: 'How each place’s people would live — paddy farming, irrigated valleys, plough and flocks, mixed farms, hoe farming, forest gardens, highland farming, grain and herds, nomadic herding, settled or mobile foragers — as its legend shows (or Simple: farming, herding or gathering); as data, the lifestyle’s index and the way of life’s (the README lists them)' },
         { id: 'farmAnimals', label: 'Animals', colour: true, needs: 'farming', data: [farmData('beast', 'index', 'Leading beast index', 'beast', 8), farmData('flyBelt', 'fly', 'Fly belt', 'fly')], tip: 'Farmers’ and herders’ leading beast, the fly belt hatched; as data, the beast’s index (the README lists them) and the fly belt' },
         { id: 'farmCrops', label: 'Crops', colour: true, needs: 'farming', data: [farmData('cropVariety', 'variety', 'How many crops a place grows', 'crops')], tip: 'Every crop beyond the staples and the small animals, as its legend shows them; as data, how many crops each place grows' },

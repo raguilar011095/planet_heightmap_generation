@@ -63,6 +63,7 @@ export const HISTORY = {
     // ── what the spread reads ──
     fit: [0.05, 0.4],           // a crop group's fit as its food (÷ its weight: its harvests' worth) runs from this to this
     stripFit: 0.6,              // where no crop group fits a cell this well on the whole, its rivers' watered strips are read pixel by pixel
+    stripW: 2048,               // …about this many pixels round the world (a phone's whole picture, every other of a desktop's: the same rivers found on both)
     seaKmMax: 1000,             // the sea's distance from land worked out this far (km)
 };
 
@@ -234,15 +235,17 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
     // pixel of the picture (flood or canal water ≥ 0.3) is read: the crops' fit along its strip gives the spread its way
     // through (fitRun: the better of the cell's and the strip's), and the cell is a river's. And every cell a big river's plain
     // crosses (flood water ≥ 0.3 on any of its pixels), or such a strip, is a river's way (riverWay: the spread runs fastest
-    // along it — the canals' reach of every stream, ~70 % of the land, is not) ──
+    // along it — the canals' reach of every stream, ~70 % of the land, is not). The pixels read as finely on any picture
+    // (stripW round the world): a sharper picture finds no rivers a coarser one misses ──
     const fitRun = fit.map(f => Float32Array.from(f)), riverWay = new Uint8Array(N);
     for (let c = 0; c < N; c++) if (n[c] && flood[c] >= 0.3) riverWay[c] = 1;
     if (harvests) {
         const low = new Uint8Array(N), fw = CROPS.map(() => new Float64Array(N)), nw = new Float64Array(N), wmax = new Float32Array(N), W8 = Math.round(0.3 * 255);
         for (let c = 0; c < N; c++) if (n[c]) { let m = 0; for (let q = 0; q < NC; q++) if (fit[q][c] > m) m = fit[q][c]; low[c] = m < H.stripFit ? 1 : 0; }
-        for (let y = 0; y < K.h; y++) {
+        const ss = Math.max(1, Math.round(K.w / H.stripW));
+        for (let y = ss >> 1; y < K.h; y += ss) {
             const lat = 90 - (y + 0.5) / K.h * 180, j = Math.min(h - 1, Math.floor((90 - lat) / deg)), row = y * K.w;
-            for (let x = 0; x < K.w; x++) {
+            for (let x = ss >> 1; x < K.w; x += ss) {
                 const i = row + x;
                 if (F.flood[i] < W8 && F.canal[i] < W8) continue;
                 const kp = K.koppen[i], c = j * w + Math.min(w - 1, Math.floor((x + 0.5) / K.w * 360 / deg));

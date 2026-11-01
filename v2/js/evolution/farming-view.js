@@ -661,8 +661,10 @@ function farmPixelColour(layer, fin, W) {
                     else { pale(); if (hatch(x, y, W)) { c[0] *= 0.8; c[1] *= 0.8; c[2] *= 0.8; } }
                 } else if (lead) {
                     // (the leading pulse or spice, by its own colour; eased into the next over about a drawn pixel)
-                    if (!voteLand(Gm, lead, lat, lon) || MV.a < 0) pale(); else namedColour(iRGB[MV.a], 0.85, c);
-                    if (MV.b >= -1 && MV.say > 0) {
+                    // (no crop land round it: pale, with no easing — the vote's last place is another's)
+                    const voted = voteLand(Gm, lead, lat, lon);
+                    if (!voted || MV.a < 0) pale(); else namedColour(iRGB[MV.a], 0.85, c);
+                    if (voted && MV.b >= -1 && MV.say > 0) {
                         const m = 0.5 + 0.5 * smooth(0, MV.say * soft1, MV.sayA - MV.sayB);
                         if (m < 1) { if (MV.b < 0) { tmp[0] = STAPLE_PALE[0]; tmp[1] = STAPLE_PALE[1]; tmp[2] = STAPLE_PALE[2]; } else namedColour(iRGB[MV.b], 0.85, tmp); for (let s = 0; s < 3; s++) c[s] = c[s] * m + tmp[s] * (1 - m); }
                     }
@@ -876,8 +878,11 @@ export function finishedFarmingColor(layer, fin, W) {
  *  (months), `staple` the staple food (a Staple; 0 nothing), `lifestyle` the way of life (a Lifestyle; 0 uninhabited),
  *  `foodSystem` its food system (a FoodSystem; 0 uninhabited), `beast` the leading beast of its farmers or herders (a Beast;
  *  0 none), `flyBelt` the fly belt (0…1), `larderVariety` the wild larder's variety (crops 1, beasts ½), `hearthOdds` the hearth
- *  odds (0…1), `farmCame` the years after the first farming that it came (65,535 never) — the ice farms nothing; each read
+ *  odds (0…1), `farmCame` the years after the first farming that it came (CAME_NEVER never) — the ice farms nothing; each read
  *  from the store as the views are (people, staple, lifestyle, food system and beast as it came, with the age chosen). */
+/** "When farming came"'s never, as data: above every arrival (the history stops 80,000 years after the first farming), the
+ *  top of its export's scale (export.js FARM_SCALES.came). */
+export const CAME_NEVER = 131070;
 export function finishedFarmingValue(key, fin, W) {
     const F = fin?.raster?.farming, K = fin?.climate?.raster, kef = KOPPEN_ID.EF;
     if (!F || !K) return () => NaN;
@@ -891,7 +896,7 @@ export function finishedFarmingValue(key, fin, W) {
     if (key === 'farmCame') {
         // (as the view reads it: where farming came has the most say, its time; else never)
         const run = G && hearthsOf(fin, farmOptions.foodSeed, farmOptions.fewer), Kc = run && klassOf(G, run).came;
-        return run ? (x, y) => { if (landPixel(K, W, x, y) < 0) return NaN; const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180; if (!gridVote(G, Kc, run.farmTime, lat, lon)) { const t = timeAt(G, run.farmTime, lat, lon); return t < Infinity ? t : 65535; } return VS.a === 1 && VS.t < Infinity ? VS.t : 65535; } : () => NaN;
+        return run ? (x, y) => { if (landPixel(K, W, x, y) < 0) return NaN; const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180; if (!gridVote(G, Kc, run.farmTime, lat, lon)) { const t = timeAt(G, run.farmTime, lat, lon); return t < Infinity ? t : CAME_NEVER; } return VS.a === 1 && VS.t < Infinity ? VS.t : CAME_NEVER; } : () => NaN;
     }
     if (hist) return G ? (x, y) => (landPixel(K, W, x, y) < 0 ? NaN : fieldAt(G, key === 'hearthOdds' ? G.odds : G.variety, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180)) : () => NaN;
     const C = key === 'farmTech' || key === 'farmRain' ? null : cameView(fin, 'farmStaple', opt);
@@ -1225,7 +1230,7 @@ export function farmingLegendHTML(layer, fin) {
         return head(`People — how many the land could feed, pre-industrial, with these techniques${when}`) +
             bar(PEOPLE_LOG, '1 · 5 · 20 · 60 · 150+ a km²') +
             note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average (${by}); its richest river plains well over 100. ` +
-                'Each place by its way of life (the Lifestyle view): poor ground farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km² — ' +
+                'Each place by its way of life (the Way of life view): poor ground farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km² — ' +
                 'herders a km² or two, gatherers a tenth to a few. What it could support, not how many would live there') + cameNote;
     }
     // Farmland
@@ -1317,6 +1322,8 @@ export function farmChipClicked(target) {
     const b = target.closest?.('[data-farm]');
     if (!b) return false;
     farmOptions[b.dataset.farm] = !farmOptions[b.dataset.farm];
+    // (Fewer gaps draws another history: its strains are others — the picked one goes, as on a re-roll)
+    if (b.dataset.farm === 'fewer') farmOptions.variant = -1;
     return true;
 }
 // ── names in words (F5a) ──

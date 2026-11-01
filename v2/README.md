@@ -704,8 +704,10 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    the luck at run time), rivers, coasts, the foragers' richness and each sea cell's distance from land (Dijkstra, ≤ 1,000
    km). Rivers through dry land (developer, 2026-11-01: crops "not spreading … fast enough … especially along rivers in
    deserts"): the ground's fixed sampling (~40 km) and its cells' mean fit missed or drowned a valley a few km wide, so in
-   each cell where no crop group fits well on the whole (< `stripFit` 0.6) every watered pixel of the picture is read — the
-   strip's fit gives the spread its way through (`fitRun`, the minor ground's fit too), and the cell is a river's; a big
+   each cell where no crop group fits well on the whole (< `stripFit` 0.6) every watered pixel of the picture is read (as
+   finely on any picture: ~`stripW` 2,048 round the world — all a phone's, every other of a desktop's 4,096, so a sharper
+   picture finds no more rivers: river ways 29.0 % of the land on a phone's picture of the check planet, 29.6 % on a
+   desktop's, 32.9 % read pixel by pixel) — the strip's fit gives the spread its way through (`fitRun`, the minor ground's fit too), and the cell is a river's; a big
    river's plain (flood water on any pixel) or such a strip is a river's way (`riverWay`, ~24 % of the land), where crops
    spread × `river` 4 (other rivers and coasts × 2.5). On the check planet the dry cells such strips cross are all farmed
    (61 % by their mean fit), ~600 years sooner. Fewer tamings of the same thing (developer: "we generally dont need multiple
@@ -730,7 +732,9 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    world), waits for farming to reach it instead — so ~8 hearths begin on their own, never more than 12, spread evenly by
    their odds (developer, 2026-10-31: "cap it at like 12 … closer to like 8 … spread across the world evenly weighted by
    likelihood"); 2–4 founders (the
-   likeliest, ≥ 3,500 km apart, leading with different crops) start within 100–1,500 years; once farming is in a region its
+   likeliest, ≥ 3,500 km apart, leading with different crops) start within 100–1,500 years, their places kept — another
+   hearth keeps clear of a founder not yet farmed and leaves it room under the cap (on the farmed Earth 4.0 of its 4
+   founders begin, 3.3 when a nearer hearth could start first and block one); once farming is in a region its
    other crops follow at ~1,200 / niche² years and its beasts at ~1,500 / niche²; the herders' beasts (horse, camel, reindeer)
    ~2,000 years after farming came near, ~3,500 after the world's first; regions within 700 km of a new hearth become
    receivers 400 years on; a candidate farming reaches first adopts. The spread: one search in years per archetype on the
