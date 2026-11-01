@@ -6,7 +6,7 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 
 `VISION.md` is the project's foundation: what Orogen is, who it's for, the pillars and how to break ties between them, each tool's profile (speed, control, phones), the scope, and the strengths to protect. It is imported below. Read it before proposing or making a change, and flag any change that would contradict it. If a change trades one protected strength for another, say so explicitly.
 
-`VISION.md` is the owner's artistic vision and changes only when the owner decides. If work shows it is out of date (a new tool needs its column, a tool's profile no longer matches), propose the change; don't make it.
+`VISION.md` is the owner's artistic vision. Edit it when the owner asks you to, never on your own initiative. If work shows it is out of date (a new tool needs its column, a tool's profile no longer matches), propose the change and wait for the owner's go-ahead.
 
 @VISION.md
 
