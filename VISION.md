@@ -81,12 +81,27 @@ New tools may come. Each gets its own column here before it is built.
 
 ## Scope
 
-- **Orogen owns everything the physical world determines:** tectonics → terrain → climate → rocks and resources → what the
-  land can grow and feed. Import already shows a tool can start partway down that chain (climate and erosion on a landmass
-  you bring).
-- **Downstream of the physical world** are the things it only supplies inputs for: peoples, cultures, nations, borders.
-  These may become tools or extensions of existing ones. Decide how each works when it is planned, usually somewhere
-  between fully generated from the world and generated-then-lightly-steered.
+Orogen builds a world as a stack of layers. Each layer builds on the ones above it:
+
+1. **History:** plates moving, rifting and colliding. Evolution simulates it; Generate sets up a single moment of it.
+2. **Land:** continents, mountain ranges, coasts, the ocean floor.
+3. **Climate:** temperature, winds, ocean currents, rain, Köppen zones.
+4. **Water and ice:** rivers, lakes, glaciers, and the erosion they carve.
+5. **Rock and resources:** rock types, ores, fuels, gems.
+6. **What the land can feed:** soil, growing season, farmland, staple foods, how people could live there and how many.
+7. **People (later):** peoples, cultures, settlements, nations, borders.
+
+What that means:
+
+- **Layers 1–6 are Orogen's to make.** The physical world decides them, so each should follow from the layers above it
+  rather than be painted on top: rain from the winds and the mountains, ores from the history, farmland from soil, water
+  and season. This is "every feature has a cause" in practice.
+- **A tool can start at any layer.** You bring the layers above it, and Orogen makes the ones below. Import is the first
+  example: you bring the land, and Orogen makes its climate and erosion.
+- **Layer 7 is different.** The physical world shapes people but doesn't decide them; history, chance and choice do.
+  Tools or extensions for it are in scope later, built on the layers above: heartlands where the food is, borders along
+  rivers and mountains. How much the user steers is decided for each tool when it's planned, anywhere from fully
+  generated from the world to generated first, then nudged by hand.
 - **Generator, not editor, as a gradient.** The existing tools are generators: knobs, seeds and steering, never brushes or
   drawing. Steering is a feature, and tools differ in how much they offer: Generate gives more direct control than
   Evolution. A future tool could be editor-first, but the existing ones don't drift into editors.
