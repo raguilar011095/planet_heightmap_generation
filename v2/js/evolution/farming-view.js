@@ -341,8 +341,35 @@ function namedView(fin, layer, opt, P, Y) {
     if (!S) return null;
     return { run, N, S, rgb: strainColours(N), age, rank: opt.rank, V: variantsOf(fin, P, layer === 'farmAnimals' ? Y : null, S, age) };
 }
-/** The strain a named view's rank (2, 3) shows at a pixel: the ranks' map read with the most say round it. */
-const rankAt = (nv, kind, x, y, W) => strainVote(nv.S.Gm, nv.S.R[kind][nv.rank - 1], 90 - (y + 0.5) / (W >> 1) * 180, (x + 0.5) / W * 360 - 180);
+/** The strain a named view's rank (2, 3) shows at a pixel whose main group is `mainA` (its staple's crop group, its leading
+ *  beast's archetype; −1 none): of each 1° cell round it, the rank-th group other than the main among its ranked three —
+ *  the one with the most say. */
+const GPr = {}, rSay = new Float64Array(2048), rStamp = new Int32Array(2048), rUsed = new Int32Array(16);
+let rStampN = 0;
+function rankAt(nv, kind, x, y, W, mainA) {
+    const Gm = nv.S.Gm, R = nv.S.R[kind], SP = nv.S.SP, want = nv.rank - 1;
+    gridPlace(Gm, 90 - (y + 0.5) / (W >> 1) * 180, (x + 0.5) / W * 360 - 180, GPr);
+    let n = 0;
+    rStampN++;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GPr.j0 + dy;
+        if (j < 0 || j >= Gm.h) continue;
+        const wy = GRID_W[GPr.qy + dy];
+        for (let dx = 0; dx < 4; dx++) {
+            const c = j * Gm.w + ((GPr.i0 + dx) % Gm.w + Gm.w) % Gm.w;
+            if (!Gm.land[c]) continue;
+            // (its ranked groups, the main left out: the want-th of the rest)
+            let k = 0, s = -1;
+            for (let r = 0; r < 3; r++) { const id = R[r][c]; if (id < 0 || SP.strains[id].a === mainA) continue; if (k++ === want - 1 + (mainA < 0 ? 1 : 0)) { s = id; break; } }
+            if (s < 0 || s >= 2048) continue;
+            if (rStamp[s] !== rStampN) { rStamp[s] = rStampN; rSay[s] = 0; rUsed[n++] = s; }
+            rSay[s] += wy * GRID_W[GPr.qx + dx];
+        }
+    }
+    let top = -1;
+    for (let m = 0; m < n; m++) if (top < 0 || rSay[rUsed[m]] > rSay[top]) top = rUsed[m];
+    return top;
+}
 /** Each strain's share of the land (by area) at a rank (2, 3): its 1° cells' — kept per ranks' map. */
 const rankTallies = new WeakMap();
 function rankTally(nv, kind) {
@@ -603,7 +630,7 @@ function farmPixelColour(layer, fin, W) {
             if (layer === 'farmStaple') {
                 if (A) stapleColour(opt.only, dec(A[q]), c);
                 else {
-                    const st = P.staple[q], nd = st >> 4, s = nv ? (nv.rank > 1 ? rankAt(nv, 'crop', x, y, W) : nv.V.crop[q]) : -1;
+                    const st = P.staple[q], nd = st >> 4, s = nv ? (nv.rank > 1 ? rankAt(nv, 'crop', x, y, W, STAPLE_CROP[st & 15]) : nv.V.crop[q]) : -1;
                     if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else pale(); }
                     else {
                         if (s >= 0) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else stapleColour(st & 15, dec(P.score[q]), c);
@@ -624,7 +651,7 @@ function farmPixelColour(layer, fin, W) {
                     if (A) { const kp = dec(A[q]); beastColour(kp >= 0.15 ? opt.beast : 0, kp, c); }
                     else if (!(Y.flags[q] & 1)) pale();
                     else {
-                        const s = nv ? (nv.rank > 1 ? rankAt(nv, 'beast', x, y, W) : nv.V.beast[q]) : -1, t = 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep1[q]));
+                        const s = nv ? (nv.rank > 1 ? rankAt(nv, 'beast', x, y, W, b1 ? beastArchetype(b1) : -1) : nv.V.beast[q]) : -1, t = 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep1[q]));
                         if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], t, c); else pale(); }
                         else {
                             if (s >= 0) namedColour(nv.rgb[s], t, c); else beastColour(b1, dec(Y.keep1[q]), c);
@@ -879,13 +906,13 @@ export function farmingLegendHTML(layer, fin) {
         // (named: each crop group's named crops under it — those on ≥ 0.2 % of the land, the most first — with Wikipedia links)
         const nv = only ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), null);
         const namedChip = chip('named', 'Named', 'Each place\'s own crop — its hearth\'s strain, by its Earth-like name — instead of the archetypes', farmOptions.named);
-        const rankChips = nv ? `<div class="evo-farm-chips">${[[1, 'Main crop', 'Each place\'s main crop: the first come of those that grow there — unless a later one does far better'], [2, '2nd', 'Each place\'s second crop: what else came and grows well there'], [3, '3rd', 'Each place\'s third crop']].map(([r, w, t]) => `<button type="button" class="evo-farm-chip${farmOptions.rank === r ? ' on' : ''}" data-farm-rank="${r}" aria-pressed="${farmOptions.rank === r}" title="${t}">${w}</button>`).join('')}</div>` : '';
+        const rankChips = nv ? `<div class="evo-farm-chips">${[[1, 'Main crop', 'Each place\'s main crop: the first come of those that grow there — unless a later one does far better'], [2, '2nd', 'Each place\'s second crop: the next crop group that grows there and had come (another grain, a root, a tree crop…), by its own variety'], [3, '3rd', 'Each place\'s third crop group']].map(([r, w, t]) => `<button type="button" class="evo-farm-chip${farmOptions.rank === r ? ' on' : ''}" data-farm-rank="${r}" aria-pressed="${farmOptions.rank === r}" title="${t}">${w}</button>`).join('')}</div>` : '';
         if (nv && nv.rank > 1) {
             // (the second or third crop: every staple crop strain at that rank, the most land first)
             const RT = rankTally(nv, 'crop'), vs = nv.N.strains.filter(S => S.a < CROPS.length && RT[S.id] >= 0.002).sort((x, y) => RT[y.id] - RT[x.id]).slice(0, 24);
             return head(`Staple food — each place's ${nv.rank === 2 ? 'second' : 'third'} crop${when}`) + `<div class="evo-farm-chips">${vs.map(S => variantChip(nv, S.id, RT[S.id])).join('')}</div>` + rankChips + ages +
                 `<div class="evo-farm-chips">${namedChip}${chips}</div>` +
-                note('Every crop spreads wherever it can grow, barring distance; each place\'s crops are ranked by how well each grows there, the first come leading unless a later one does far better. Pale: no crop at that rank') + cameNote;
+                note('Every crop group a place can grow and that had come is there — its main, second and third crops are different groups (grains, roots, tree crops…), each by its own variety; a group\'s other varieties show in the readout. Ranked by how well each grows there, the first come leading unless a later one does far better. Pale: no crop group at that rank') + cameNote;
         }
         if (nv) {
             const VT = variantTally(fin, nv), list = st => {
@@ -1153,12 +1180,18 @@ function hereName(fin, a, lat, lon, layer) {
     const s = strainVote(S.Gm, S.R.group[a], lat, lon);
     return s >= 0 ? N.strains[s].label : '';
 }
-/** Every crop strain that grows here and beast kept here that had come, ranked (the main first) — by name. */
-function hereNames(fin, lat, lon, layer) {
+/** Every crop group that grows here and beast kept here that had come, ranked (the main first), each by its leading
+ *  strain's name and its other varieties in brackets ("emmer-like (main; also einkorn-like)"). */
+function hereNames(fin, lat, lon, layer, cropA = -1, beastA = -1) {
     const N = namesNow(fin), S = N && strainsOf(fin, farmOptions.roll, farmOptions.fewer, namesAge(layer));
     if (!S) return null;
-    const H = strainsHere(S, lat, lon, namesAge(layer)), word = (x, r) => `${N.strains[x.id].label}${r === 0 ? ' (main)' : ''}`;
-    return { crops: H.crops.slice(0, 10).map(word), beasts: H.beasts.slice(0, 8).map(word), nCrops: H.crops.length, nBeasts: H.beasts.length };
+    const H = strainsHere(S, lat, lon, namesAge(layer)), name = x => N.strains[x.id].label;
+    // (the place's staple's group and its leading beast first: its main crop and beast, as Staple food and Animals show)
+    // (where its 1° cell's ranks lack it — kept too poorly there on the whole — its own strain read from the group's map)
+    const first = (list, a) => { if (a < 0) return; const k = list.findIndex(G => G.a === a); if (k > 0) list.unshift(...list.splice(k, 1)); else if (k < 0) { const id = strainVote(S.Gm, S.R.group[a], lat, lon); if (id >= 0) list.unshift({ a, score: 0, strains: [{ id }] }); } };
+    first(H.crops, cropA); first(H.beasts, beastA);
+    const word = (G, r) => { const more = G.strains.slice(1).map(name); return `${name(G.strains[0])}${r === 0 || more.length ? ` (${[r === 0 ? 'main' : '', more.length ? `also ${more.join(', ')}` : ''].filter(Boolean).join('; ')})` : ''}`; };
+    return { crops: H.crops.map(word), beasts: H.beasts.map(word), nCrops: H.crops.length, nBeasts: H.beasts.length };
 }
 // ── the readout ──
 const SOIL_GRADE = s => (s >= 0.75 ? 'rich' : s >= 0.5 ? 'good' : s >= 0.3 ? 'middling' : s >= 0.12 ? 'poor' : 'barren');
@@ -1172,6 +1205,7 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     if (i < 0) return [];
     const L = (label, text) => `<span class="hi-label">${label}</span> ${text}`;
     if (K.koppen[i] === KOPPEN_ID.EF) return [L('Farmland', 'none — under ice')];
+    let beastMain = -1;
     // (its pixel's place — its centre, as the views read it: farming-store.js — and, on a view shown as it came, what had come)
     const plat = 90 - (((i / F.w) | 0) + 0.5) / F.h * 180, plon = ((i % F.w) + 0.5) / F.w * 360 - 180;
     const Cv = cameView(fin, layer), came = Cv ? cameAt(Cv, plat, plon, {}) : null;
@@ -1186,6 +1220,7 @@ export function farmingLines(fin, u, v, sea, layer = null) {
         lines.push(L('Way of life', sy.system ? `<b>${FOOD_SYSTEM_WORDS[sy.system]}</b>${life} — ${FOOD_SYSTEMS[sy.system].why}${sy.second ? ` · and ${FOOD_SYSTEM_WORDS[sy.second].toLowerCase()}` : ''}` : 'uninhabited'));
         const flyWords = bp.fly >= 0.5 ? ' · in the fly belt: no cattle, horses or buffalo, no plough' : bp.fly >= 0.25 ? ' · on the fly belt’s edge' : '';
         const bName = bp.beast ? hereName(fin, beastArchetype(bp.beast), plat, plon, layer) : '';
+        if (bp.beast && keepsBeasts(lv)) beastMain = beastArchetype(bp.beast);
         if (keepsBeasts(lv)) lines.push(L('Animals', bp.beast ? `<b>${BEAST_WORDS[bp.beast]}</b>${bName ? ` — <b>${bName}</b>` : ''} (${BEASTS[bp.beast].like}: ${BEASTS[bp.beast].roles})${bp.second ? ` · then ${BEAST_WORDS[bp.second].toLowerCase()}` : ''}${flyWords}` : `none kept well${flyWords}`));
     }
     // (Crops: every crop beyond the staples grown here, by kind)
@@ -1235,9 +1270,9 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     const sName = lv.staple && STAPLE_CROP[lv.staple] >= 0 ? hereName(fin, STAPLE_CROP[lv.staple], plat, plon, layer) : '';
     if (lv.staple) lines.push(L('Staple food', `<b>${STAPLE_WORDS[lv.staple]}</b>${sName ? ` — <b>${sName}</b>` : ''}${lv.second ? ` · then ${STAPLE_WORDS[lv.second].toLowerCase()}` : ''}`));
     // (named: every crop and beast that grows or is kept well here and had come, by name)
-    const here = farmOptions.named ? hereNames(fin, plat, plon, layer) : null;
-    if (here?.crops.length) lines.push(L('Core crops', `${here.crops.join(', ')}${here.nCrops > here.crops.length ? ` and ${here.nCrops - here.crops.length} more` : ''}`));
-    if (here?.beasts.length) lines.push(L('Beasts here', `${here.beasts.join(', ')}${here.nBeasts > here.beasts.length ? ` and ${here.nBeasts - here.beasts.length} more` : ''}`));
+    const here = farmOptions.named ? hereNames(fin, plat, plon, layer, lv.staple ? STAPLE_CROP[lv.staple] : -1, beastMain) : null;
+    if (here?.crops.length) lines.push(L('Core crops', here.crops.join(' · ')));
+    if (here?.beasts.length) lines.push(L('Beasts here', here.beasts.join(' · ')));
     // (how many it could feed; on poor ground, how long its fields rest — a year cropped in so many, shifting
     // cultivation's; gatherers' land, what farming or herding would have fed instead)
     const n = v => (v < 10 ? v.toFixed(v < 1 ? 2 : 1) : String(Math.round(v)));

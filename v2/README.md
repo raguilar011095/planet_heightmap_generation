@@ -747,9 +747,18 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    history's 0.5° with its cells' climate kept) at the hearths' speeds where it grows well — its group's fit (or its beast's
    keeping) × `homeMatch` (0.55–1: mean °C within ~7, wetness within ~2×, of its centre's) — faster along rivers, coasts and
    through farmers, across short seas; ~1 s for ~200 strains, once per run. At each 1° cell the strains that had come by
-   the age and grow there (fit ≥ 0.25) are ranked by fit × e^(−arrival / FARMING.lateYears = 1,500): the first come leads
-   unless a later one is far better. The named views read the ranks (Main · 2nd · 3rd chips); the readout lists every core
-   crop and beast in order. The staple crop group follows the same rule (farmPlace's `arrive`, from what had come:
+   the age are grouped by crop group (or beast) — a group there wherever its fit (or keeping) ≥ 0.25 and one of its
+   strains had come (developer: "if somewhere can grow wheat and root, they should always have both, not that 2 wheats
+   should occupy the same space as a primary") — each group's strains spreading together and crowding one another
+   ("if some crops (particularly those in a similar like grouping) are all crowding out a space they wont move in";
+   "there can also be like, more varieties of each … not always just one"): up to VARIETIES = 3 hold a cell, a later one
+   moving in (and on) while there is room, stopping at a full cell unless its fit × e^(−arrival / 1,500) beats the best
+   there, when it takes the weakest's place; a strain moves at its group's speed (the hearths' spread by the group's fit,
+   so its varieties go where it goes — home match decides only who holds and leads) and slows with the distance from home
+   (e^(−km / 8,000)); where a group had come before any of its varieties (the frontier) the variety that comes to hold the
+   place names it. The main at an age is the best of those come by then; the groups ranked by their main's. The named views read the ranks (Main · 2nd · 3rd chips): the main
+   is the place's staple's group (its beast the leading beast), the 2nd and 3rd the next other groups at its cell; the
+   readout lists every group, the staple's first, each with its other varieties. The staple crop group follows the same rule (farmPlace's `arrive`, from what had come:
    `cameAt` gives each group's arrival).
    **Crops** (F5b; `farming/minor.js`, farming-store.js `minorOf`/`minorAgeOf`; the Food tab's **Crops** view): the catalogue
    beyond the staples (names.js CAT: ~225 crops in 28 kinds and 14 small animals) on the 1° ground. Each kind a climate
@@ -759,7 +768,11 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    likeness its nearest centre's) that suits it best and is most like its Earth home, sometimes a second home on another
    landmass; first grown 300–2,000+ years after farming came there and spread by its own search — ×3 through farmed land
    (orchards ×5), slow beyond, spices capped at 900 km. Arrivals kept a byte a cell (hundreds of years to 20,000, then
-   thousands). ~0.8 s once per run and settings; each age's counts ~20 ms. The view reads the 1° cells smoothly (each a
+   thousands). The crops of each kind of niche spread together, crowding: `SLOTS` (2–6) a place, the first come; a later one
+   does not move into a full place; their speed falls off with the distance from home, e^(−km / (REACH × (0.5 + popularity)))
+   (REACH 900–3,000 km by kind) — pre-state spread, regional (developer: "things shouldnt spread everywhere that easily").
+   Times are kept in 32 bits, the queue's keys rounded alike (else a step reads as stale and the spread dies). ~0.8 s once
+   per run and settings; each age's counts ~20 ms; a farming place grows ~16 crops at 10,000 years, ~40 at the full spread. The view reads the 1° cells smoothly (each a
    Gaussian say, as the Origins views): Variety and each kind's count on a ramp to its 95th percentile, the leading pulse
    or spice by its colour (a vote), one crop alone with its card, its homes pinned (◆), hatched where it would grow but had
    not come; the finder (a datalist; evolution-main wires its change), the realism, likeness pull and names' re-roll

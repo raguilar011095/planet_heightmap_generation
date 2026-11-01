@@ -835,9 +835,26 @@ So:
   food × e^(−years later ÷ 1,500) is more (FARMING.lateYears). On the check planet: rice 7.4 → 6.5 %, wheat 25 → 23 %,
   maize 19 → 20 %, roots 10 → 11 %.
 - **Every strain spreads by itself** wherever it can grow (its group's fit × its home match), no longer blocked by the
-  first to arrive (the old single search per archetype let one strain flood a continent). Each place's strains are ranked
-  by fit × e^(−arrival ÷ 1,500): the named views' **Main · 2nd · 3rd** chips, and the readout's ranked **Core crops** and
-  **Beasts here**. On the check planet 99 % of the places with a crop have a second.
+  first to arrive (the old single search per archetype let one strain flood a continent).
+- Then the owner: *"if somewhere can grow wheat and root, they should always have both, not that 2 wheats should occupy
+  the same space as a primary. Maybe they can be a secondary or tertiary, but not more."* So the ranks are of **groups**:
+  a place has every crop group that grows there (fit ≥ 0.25) and had come, each by its leading strain (fit ×
+  e^(−arrival ÷ 1,500): the first come unless far better), with at most two more varieties of that group; the groups
+  ranked by their leading strain. The main crop is the place's staple's group, the main beast its leading beast; the
+  named views' **Main · 2nd · 3rd** chips map the next other groups, the readout lists every group with its varieties.
+
+- Then: *"if some crops (particularly those in a similar like grouping) are all crowding out a space they wont move in"*,
+  *"things shouldnt spread everywhere that easily"* (pre-state spread: staples and some fruit far, not everywhere) and
+  *"there can also be like, more varieties of each … not always just one"*. So:
+  - a group's varieties spread together, crowding: three hold a place, a later one moving in while there is room or where
+    it does far better (taking the weakest's place); they move at their group's speed, slowing with the distance from
+    home (e^(−km / 8,000)); on the check planet 91 % of a group's places have more than one variety, 74 % of places with
+    a crop grow a second group;
+  - the other crops: each kind of niche holds 2–6 at a place (the first come), their speed falls off with the distance
+    from home (900–3,000 km by kind, farther for popular crops): ~16 crops a farming place at 10,000 years (was ~45),
+    ~40 at the full spread; the commonest on about a third of the land, the median crop on ~3 %.
+  - A bug found on the way: the searches kept times in 32 bits but compared them with the queue's 64-bit keys, so about
+    half the steps read as stale and the spreads died early; the keys are rounded alike now.
 
 **The Crops view** (the mock-up's Crops tab and §4.4–4.6, on a 1° ground): ~225 crops in 28 kinds and a new list of 14
 small animals; Variety, each kind's count, the leading pulse or spice, one crop alone with its card and homes pinned, the

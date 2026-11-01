@@ -37,7 +37,7 @@ import { beastPlace, newBeasts, Beast, BEAST_WORDS, BEASTS } from '../js/farming
 import { historyGround, historyLuck, ARCHETYPES, oddsRank } from '../js/farming/history.js';
 import { hearthRegions, runHearths } from '../js/farming/hearths.js';
 import { cameOf, cameAt, placesOf, waysOf, flyAtOf, peopleFromLog, decLog, namesOf, strainsOf, minorOf, minorAgeOf } from '../js/evolution/farming-store.js';
-import { strainFit, byteYears, STRAIN_GROWS, ARRIVE_NEVER as NEVER_B, arriveByte } from '../js/farming/minor.js';
+import { ARRIVE_NEVER as NEVER_B, arriveByte, rankStrains } from '../js/farming/minor.js';
 import { FARMING } from '../js/farming/farming-config.js';
 import { KOPPEN_ID } from '../js/climate/koppen.js';
 import { farmPlace, farmClass, harvestsAt, SoilKind, SoilMod, Staple, STAPLES, STAPLE_WORDS, CROPS, MONTH_ALL_YEAR, hasMonths } from '../js/farming/farming.js';
@@ -467,21 +467,25 @@ section('F5 — named strains, their ranks, the crops beyond the staples');
         `${Rf.N.strains.length} strains · names ${Rf.ms.names.toFixed(0)} ms (with the history) · strains ${Rf.ms.strains.toFixed(0)} ms · crops ${Rf.ms.minor.toFixed(0)} ms`);
     // (the ranks: the main crop is the first come among those that grow, unless a later one does far better — e^(Δt / lateYears))
     const { SP, Gm, R } = Rf.S, ab = arriveByte(10000);
-    let cells = 0, bad = 0, seconds = 0;
+    let cells = 0, bad = 0, seconds = 0, same = 0, groupCells = 0, mixed = 0;
     for (let c = 0; c < Gm.N; c++) {
         const m = R.crop[0][c];
         if (m < 0) continue;
         cells++;
         if (R.crop[1][c] >= 0) seconds++;
-        const M = SP.strains[m], tm = byteYears(M.arrive[c]), fm = strainFit(Gm, M, SP.NCROP, c);
-        for (const S of SP.strains) {
-            if (S.a >= SP.NCROP || S.arrive[c] > ab || S.id === m) continue;
-            const fs = strainFit(Gm, S, SP.NCROP, c), ts = byteYears(S.arrive[c]);
-            if (fs >= STRAIN_GROWS && fs * Math.exp(-ts / FARMING.lateYears) > fm * Math.exp(-tm / FARMING.lateYears) * 1.0001) { bad++; break; }
+        // (the ranks: different groups)
+        const ga = [0, 1, 2].map(r => (R.crop[r][c] >= 0 ? SP.strains[R.crop[r][c]].a : -1 - r));
+        if (ga[0] === ga[1] || ga[0] === ga[2] || ga[1] === ga[2]) same++;
+        // (each group there: at most three varieties, its main the best of them — the first come unless one far better)
+        for (const Gr of rankStrains(SP, Gm, c, ab, false, FARMING.lateYears)) {
+            groupCells++;
+            if (Gr.strains.length > 1) mixed++;
+            if (Gr.strains.length > 3 || Gr.strains.some(x => x.score > Gr.strains[0].score * 1.0001)) bad++;
         }
     }
-    check('each place\'s main crop the first come of those that grow there, a later one only where far better', bad === 0, `${cells} cells with a crop · ${bad} not so`);
-    check('every crop spreads wherever it can grow: most places with a crop have a second (≥ 60 %)', seconds >= 0.6 * cells, `${(100 * seconds / Math.max(1, cells)).toFixed(0)} %`);
+    check('each crop group at a place: at most three varieties, its main the best of them (the first come, or one far better)', bad === 0, `${groupCells} group-places · ${bad} not so`);
+    check('the main, 2nd and 3rd crops different groups; most places with a crop grow a second group (≥ 50 %)', same === 0 && seconds >= 0.5 * cells, `${same} cells with a group twice · ${(100 * seconds / Math.max(1, cells)).toFixed(0)} % with a second`);
+    check('more than one variety of a group at most places it grows (≥ 50 %)', mixed >= 0.5 * groupCells, `${(100 * mixed / Math.max(1, groupCells)).toFixed(0)} % mixed`);
     // (the crops beyond the staples: many grown, a farming place growing dozens, much the same at two details)
     const varietyMean = X => { let s = 0, n = 0; for (let c = 0; c < X.M.Gm.N; c++) if (X.M.Gm.land[c] && X.M.farm[c] <= 10000) { s += X.A.variety[c]; n++; } return s / Math.max(1, n); };
     const grown = Rf.M.built.filter(b => b.exists).length, vf = varietyMean(Rf), vc = varietyMean(Rc);

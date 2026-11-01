@@ -330,11 +330,23 @@ export function strainsOf(fin, roll, fewer, age) {
     if (!minorGrounds.has(G)) minorGrounds.set(G, minorGround(G));
     const Gm = minorGrounds.get(G);
     let SP = spreadsCache.get(run);
-    if (!SP) { SP = strainSpreads(Gm, run, farmOf1(G, run, Gm), G, NCROP); spreadsCache.set(run, SP); }
+    if (!SP) { SP = strainSpreads(Gm, run, farmOf1(G, run, Gm), G, NCROP, FARMING.lateYears); spreadsCache.set(run, SP); }
     const key = String(age), list = ranksCache.get(SP) ?? [];
     let R = list.find(x => x.key === key);
     if (!R) {
         R = strainRanks(SP, Gm, age === null ? -1 : age === Infinity ? ARRIVE_NEVER - 1 : arriveByte(age), FARMING.lateYears, NA);
+        // (where a group had come — the history's own spread — before any of its varieties had, on the frontier: named by
+        // the variety that comes to hold the place)
+        if (age !== null && age !== Infinity) {
+            const full = strainRanks(SP, Gm, ARRIVE_NEVER - 1, FARMING.lateYears, NA), f = Math.round(Gm.deg / G.deg);
+            for (let a = 0; a < NA; a++) for (let c = 0; c < Gm.N; c++) {
+                if (R.group[a][c] >= 0 || full.group[a][c] < 0) continue;
+                const j = (c / Gm.w) | 0, i = c - j * Gm.w;
+                let t = Infinity;
+                for (let dj = 0; dj < f; dj++) for (let di = 0; di < f; di++) { const v = run.best[a][(j * f + dj) * G.w + i * f + di]; if (v < t) t = v; }
+                if (t <= age) R.group[a][c] = full.group[a][c];
+            }
+        }
         R.key = key;
         list.unshift(R);
         if (list.length > 3) list.pop();
@@ -342,7 +354,7 @@ export function strainsOf(fin, roll, fewer, age) {
     }
     return { SP, Gm, R, run };
 }
-/** The strains ranked at the 1° cell under (lat, lon): crops and beasts (minor.js rankStrains). */
+/** The groups ranked at the 1° cell under (lat, lon), each with its strains: crops and beasts (minor.js rankStrains). */
 export function strainsHere(S, lat, lon, age) {
     const Gm = S.Gm, c = Math.min(Gm.h - 1, Math.max(0, Math.floor((90 - lat) / Gm.deg))) * Gm.w + ((Math.floor((lon + 180) / Gm.deg) % Gm.w) + Gm.w) % Gm.w;
     if (!Gm.land[c]) return { crops: [], beasts: [] };

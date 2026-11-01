@@ -180,6 +180,11 @@ export const REAL = {
 // travels, km a year)
 const DELAY = { pulse: [300, 900], garden: [500, 1200], orchard: [2000, 1500], spice: [1800, 1800], stimulant: [1800, 1800], fibre: [800, 1500], fowl: [300, 900] };
 const SPEED = { pulse: 0.6, garden: 1.0, orchard: 0.7, spice: 0.3, stimulant: 0.4, fibre: 0.8, fowl: 1.0 };
+// (the reach: a crop's speed falls off with the distance from its home, e^(−km / (reach × (0.5 + its popularity)))) — the
+// pulses and fruit far, the gardens and drinks regional; spices also capped at 900 km. And the crowding: each kind of niche
+// (minor.js MINOR) holds at most this many crops at a place, the first come; a later one does not move into a full place)
+export const REACH = { pulse: 3000, garden: 2000, orchard: 3000, spice: 900, stimulant: 1600, fibre: 2500, fowl: 2200 };
+export const SLOTS = { pulse: 4, garden: 6, orchard: 4, spice: 2, stimulant: 3, fibre: 4, fowl: 5 };
 const PEN = { free: 0, regional: 0.35, strict: 2 };
 /** The fit (a byte) a crop must have at a place for a region to be its home; and to count it grown at a place. */
 export const HOME_FIT = 80, GROWN_FIT = 70;
@@ -221,8 +226,8 @@ function spreadFrom(Gm, sources, speed, capKm = Infinity) {
 }
 
 /**
- * Which crops this world grew, where each was first grown and when each place got it — on the 1° ground \`Gm\` with its
- * items; ctx { farm (each cell's farming's arrival, years), sites [{ cells, mass, pkg, pkg2, t }] (the farmed regions,
+ * Which crops this world grew, where each was first grown and when each place got it — the crops of each kind of niche
+ * spreading together, crowding one another (SLOTS a place; REACH) — on the 1° ground `Gm` with its items; ctx { farm (each cell's farming's arrival, years), sites [{ cells, mass, pkg, pkg2, t }] (the farmed regions,
  * each with its Earth likeness), seed }; opts { real, pull }. Returns, per item, { exists, noland (nowhere farmed suits
  * it), homes [{ cell, site, t }], arrive (Uint8Array: arriveByte; null where never grown) }.
  */
@@ -230,7 +235,7 @@ export function minorBuild(Gm, items, ctx, opts) {
     const { farm, sites, seed } = ctx, R = REAL[opts.real] ?? REAL.balanced, pen = PEN[opts.pull] ?? PEN.regional;
     const h01 = (s, i) => (mix(seed, s, i) + 0.5) / 4294967296, gum = (s, i) => -Math.log(-Math.log(h01(s, i)));
     const { land, river, coast, seaKm } = Gm;
-    return items.map(I => {
+    const outs = items.map(I => {
         const out = { exists: false, noland: false, homes: [], arrive: null };
         const cands = [];
         sites.forEach((S, si) => {
@@ -249,23 +254,54 @@ export function minorBuild(Gm, items, ctx, opts) {
         if (twin && h01(53, I.id) < R.twice) picks.push(twin);
         const [d0, dm] = DELAY[I.kind];
         out.homes = picks.map((c, j) => ({ cell: c.at, site: c.si, t: c.S.t + d0 + -Math.log(h01(59, I.id * 4 + j)) * dm }));
-        // (the spread: carried between farmers across land it would not grow on — all but the spices, kept near home; a
-        // popular crop a little faster)
-        const kind = I.kind, spice = kind === 'spice', f8 = I.fit8, base = SPEED[kind] * (1 + 0.6 * Math.min(1, R.pop) * (I.pop - 0.5));
-        const sp = (v, t) => {
-            if (!land[v]) return seaKm[v] < 280 ? 5 : 0;
-            const f = f8[v] / 255, farmed = farm[v] <= t;
-            if (farmed && !spice) { let x = base * (kind === 'orchard' ? 5 : 3) * (0.35 + 0.65 * sm(0.15, 0.55, f)); if (river[v] || coast[v]) x *= 2; return x; }
-            if (f < 0.15) return farm[v] === Infinity ? 0 : (kind === 'pulse' && farmed ? 0.05 : 0.02);
-            let x = base * sm(0.15, 0.55, f) * (farmed ? 3 : kind === 'pulse' ? 0.8 : 0.12);
-            if (river[v] || coast[v]) x *= 2;
-            return x;
-        };
-        const arr = spreadFrom(Gm, out.homes.map(h => ({ cell: h.cell, t: h.t })), sp, spice ? 900 : Infinity), a8 = new Uint8Array(Gm.N);
-        for (let c = 0; c < Gm.N; c++) a8[c] = arriveByte(arr[c]);
-        out.arrive = a8;
         return out;
     });
+    // (the spread: each kind of niche's crops together — carried between farmers across land they would not grow on, all but
+    // the spices; a popular crop a little faster and farther; slower the farther from home; where a crop grows, the first
+    // SLOTS of its kind to come hold the place and the rest stop there)
+    const { N, w, h } = Gm, steps = Gm.steps ??= (() => { const st = new Float64Array(h * 9); for (let j = 0; j < h; j++) for (let dj = -1; dj <= 1; dj++) { const jj = Math.min(h - 1, Math.max(0, j + dj)), kx = kmLat * Math.max(0.02, Math.cos((90 - (Math.min(j, jj) + 0.5 + (dj ? 0.5 : 0)) * Gm.deg) * Math.PI / 180)); for (let di = -1; di <= 1; di++) st[j * 9 + (dj + 1) * 3 + di + 1] = Math.hypot(di * kx, dj * kmLat); } return st; })();
+    for (let m = 0; m < MINOR.length; m++) {
+        const list = items.filter(I => I.m === m && outs[I.id].exists);
+        if (!list.length) continue;
+        const kind = MINOR[m].kind, spice = kind === 'spice', slots = SLOTS[kind];
+        const best = list.map(() => new Float32Array(N).fill(Infinity)), kms = list.map(() => new Float32Array(N)), held = new Uint8Array(N), heap = new Heap(1 << 14);
+        const base = list.map(I => SPEED[kind] * (1 + 0.6 * Math.min(1, R.pop) * (I.pop - 0.5))), reach = list.map(I => REACH[kind] * (0.5 + I.pop));
+        const arrive = list.map(() => new Uint8Array(N).fill(ARRIVE_NEVER));
+        list.forEach((I, k) => { for (const hm of outs[I.id].homes) { const t0 = Math.fround(hm.t); if (t0 < best[k][hm.cell]) { best[k][hm.cell] = t0; heap.push(t0, k * N + hm.cell); } } });
+        while (heap.n) {
+            const pay = heap.pop(), t = heap.top, k = (pay / N) | 0, v = pay - k * N;
+            if (t > best[k][v]) continue;
+            const f8 = list[k].fit8;
+            if (land[v] && f8[v] >= GROWN_FIT) {
+                if (held[v] >= slots) continue;                 // (full: it does not move in)
+                held[v]++; arrive[k][v] = arriveByte(t);
+            }
+            const j = (v / w) | 0, i = v - j * w, fric = Math.exp(-kms[k][v] / reach[k]), bk = best[k], kk = kms[k];
+            for (let dj = -1; dj <= 1; dj++) {
+                const jj = j + dj;
+                if (jj < 0 || jj >= h) continue;
+                const row = j * 9 + (dj + 1) * 3 + 1;
+                for (let di = -1; di <= 1; di++) {
+                    if (!dj && !di) continue;
+                    const q = jj * w + (i + di + w) % w, d = steps[row + di];
+                    if (spice && kk[v] + d > 900) continue;
+                    let x;
+                    if (!land[q]) x = seaKm[q] < 280 ? 5 : 0;
+                    else {
+                        const f = f8[q] / 255, farmed = farm[q] <= t;
+                        if (farmed && !spice) { x = base[k] * (kind === 'orchard' ? 5 : 3) * (0.35 + 0.65 * sm(0.15, 0.55, f)); if (river[q] || coast[q]) x *= 2; }
+                        else if (f < 0.15) x = farm[q] === Infinity ? 0 : (kind === 'pulse' && farmed ? 0.05 : 0.02);
+                        else { x = base[k] * sm(0.15, 0.55, f) * (farmed ? 3 : kind === 'pulse' ? 0.8 : 0.12); if (river[q] || coast[q]) x *= 2; }
+                    }
+                    if (!(x > 0)) continue;
+                    const nt = Math.fround(t + d / (x * fric));
+                    if (nt < bk[q]) { bk[q] = nt; kk[q] = kk[v] + d; heap.push(nt, k * N + q); }
+                }
+            }
+        }
+        list.forEach((I, k) => { outs[I.id].arrive = arrive[k]; });
+    }
+    return outs;
 }
 
 // ── the named strains of the staples and the beasts, each spreading by itself, ranked at each place ──
@@ -276,67 +312,130 @@ export const byteYears = b => (b >= ARRIVE_NEVER ? Infinity : b <= 200 ? b * 100
 export const homeMatch = (hT, hW, T, W) => { const dT = (T - hT) / 7, dW = Math.log(Math.max(0.02, W) / Math.max(0.02, hW)) / 0.7; return 0.55 + 0.45 * Math.exp(-(dT * dT + dW * dW)); };
 /** The fit a strain must have at a place to grow there at all (its group's fit × its home match). */
 export const STRAIN_GROWS = 0.25;
-const STRAIN = { speed: 0.4, beastSpeed: 1.0, fitSpeed: [0.08, 0.45], riverCoast: 2.5, beastRiverCoast: 1.8, through: 2, beastThrough: 1.4, seaSpeed: 6, seaHopKm: 280 };
+// (reachKm: the speed falls off with the distance from home, e^(−km / reachKm) — pre-state peoples carried their crops
+// and beasts far, but not everywhere (developer, 2026-10-31: "things shouldnt spread everywhere that easily"))
+export const STRAIN = { speed: 0.4, beastSpeed: 1.0, fitSpeed: [0.08, 0.45], riverCoast: 2.5, beastRiverCoast: 1.8, through: 2, beastThrough: 1.4, seaSpeed: 6, seaHopKm: 280, reachKm: 8000 };
 /**
- * Every strain of the history's run (hearths.js: an archetype tamed at a centre) spread by itself over the 1° ground `Gm` —
- * anywhere it can grow it will spread, barring distance (developer, 2026-10-31): from its centre at its date, as fast as
- * the hearths' spread where it grows well (its group's fit — or its beast's keeping — × how like its home's the climate
- * is), along rivers and coasts and through farmers (`farm`: each cell's farming's arrival) faster, across short seas.
- * Returns { NCROP, strains: [{ id, a, c1 (its home cell), hT, hW (its home's climate), arrive (Uint8Array: arriveByte) }] }.
+ * The strains of the history's run (hearths.js: an archetype tamed at a centre), spread over the 1° ground `Gm` — each
+ * group's (archetype's) together, crowding one another (developer, 2026-10-31: "if some crops (particularly those in a
+ * similar like grouping) are all crowding out a space they wont move in"): a strain moves as fast as the hearths' spread
+ * where it grows well (its group's fit — or its beast's keeping — × how like its home's the climate is), along rivers and
+ * coasts and through farmers (`farm`) faster, across short seas, slower the farther from home (STRAIN.reachKm); where its group grows (fit ≥ STRAIN_GROWS) the first of
+ * the group's strains hold the place — up to VARIETIES of them (developer: "there can also be like, more varieties of each
+ * like of the crops too, not always just one"), a later one moving in while there is room — and one that comes to a full
+ * place stops there, unless it does better there than the best (its fit × e^(−arrival / lateYears): "it wont take over as
+ * primary unless it is TRUELY a much better crop"), when it takes the weakest's place and moves on. Where the group cannot grow
+ * its strains pass through. Different groups do not crowd one another: wheat and roots both, wherever both grow.
+ * Returns { NCROP, strains: [{ id, a, c1 (its home cell), hT, hW (its home's climate) }], per (by archetype: hold, holdT —
+ * each cell's holders, up to VARIETIES, and when each came, as arriveByte's bytes; −1 none) }.
  */
-export function strainSpreads(Gm, run, farm, G, NCROP) {
-    const f = Math.round(Gm.deg / G.deg), C = Gm.clim;
+export function strainSpreads(Gm, run, farm, G, NCROP, lateYears) {
+    const f = Math.round(Gm.deg / G.deg), C = Gm.clim, N = Gm.N, w = Gm.w, h = Gm.h;
+    const steps = Gm.steps ??= (() => { const st = new Float64Array(h * 9); for (let j = 0; j < h; j++) for (let dj = -1; dj <= 1; dj++) { const jj = Math.min(h - 1, Math.max(0, j + dj)), kx = kmLat * Math.max(0.02, Math.cos((90 - (Math.min(j, jj) + 0.5 + (dj ? 0.5 : 0)) * Gm.deg) * Math.PI / 180)); for (let di = -1; di <= 1; di++) st[j * 9 + (dj + 1) * 3 + di + 1] = Math.hypot(di * kx, dj * kmLat); } return st; })();
     const strains = run.strains.map((s, id) => {
-        const Cn = run.centres[s.centre], j = Math.floor(Math.floor(Cn.cell / G.w) / f), i = Math.floor((Cn.cell % G.w) / f), c1 = j * Gm.w + i;
-        const crop = s.a < NCROP, fitA = crop ? Gm.fit[s.a] : Gm.keep[s.a - NCROP + 1], hT = C.T[c1], hW = C.W[c1];
-        // (its speed into each cell, worked out once — all but the farmers' boost, which waits for farming to come)
-        const base = new Float32Array(Gm.N), thr = crop ? STRAIN.through : STRAIN.beastThrough;
-        for (let v = 0; v < Gm.N; v++) {
-            if (!Gm.land[v]) { base[v] = Gm.seaKm[v] < STRAIN.seaHopKm ? STRAIN.seaSpeed : 0; continue; }
-            const fs = fitA[v] * homeMatch(hT, hW, C.T[v], C.W[v]);
-            let x = (crop ? STRAIN.speed : STRAIN.beastSpeed) * (0.03 + 0.97 * sm(STRAIN.fitSpeed[0], STRAIN.fitSpeed[1], fs));
-            if (fs > 0.3 && (Gm.river[v] || Gm.coast[v])) x *= crop ? STRAIN.riverCoast : STRAIN.beastRiverCoast;
-            base[v] = x;
-        }
-        const sp = (v, t) => (farm[v] <= t && Gm.land[v] ? base[v] * thr : base[v]);
-        const arr = spreadFrom(Gm, [{ cell: c1, t: s.t0 }], sp), a8 = new Uint8Array(Gm.N);
-        for (let c = 0; c < Gm.N; c++) a8[c] = arriveByte(arr[c]);
-        return { id, a: s.a, c1, hT, hW, arrive: a8 };
+        const Cn = run.centres[s.centre], j = Math.floor(Math.floor(Cn.cell / G.w) / f), i = Math.floor((Cn.cell % G.w) / f), c1 = j * w + i;
+        return { id, a: s.a, c1, hT: C.T[c1], hW: C.W[c1], t0: s.t0 };
     });
-    return { NCROP, strains };
+    const per = [], byA = new Map();
+    for (const S of strains) { if (!byA.has(S.a)) byA.set(S.a, []); byA.get(S.a).push(S); }
+    for (const [a, list] of byA) {
+        const crop = a < NCROP, fitA = crop ? Gm.fit[a] : Gm.keep[a - NCROP + 1], thr = crop ? STRAIN.through : STRAIN.beastThrough, K = list.length;
+        // (each strain's speed into each cell — all but the farmers' boost — and its fit there, worked out once)
+        const base = [], fitS = [];
+        for (const S of list) {
+            const b = new Float32Array(N), fs = new Float32Array(N);
+            for (let v = 0; v < N; v++) {
+                if (!Gm.land[v]) { b[v] = Gm.seaKm[v] < STRAIN.seaHopKm ? STRAIN.seaSpeed : 0; continue; }
+                // (it moves as its group does — the hearths' spread, by the group's fit — so its varieties go where it goes;
+                // its home's climate decides only which leads and holds a place)
+                fs[v] = fitA[v] * homeMatch(S.hT, S.hW, C.T[v], C.W[v]);
+                let x = (crop ? STRAIN.speed : STRAIN.beastSpeed) * (0.03 + 0.97 * sm(STRAIN.fitSpeed[0], STRAIN.fitSpeed[1], fitA[v]));
+                if (fitA[v] > 0.3 && (Gm.river[v] || Gm.coast[v])) x *= crop ? STRAIN.riverCoast : STRAIN.beastRiverCoast;
+                b[v] = x;
+            }
+            base.push(b); fitS.push(fs);
+        }
+        const best = list.map(() => new Float32Array(N).fill(Infinity)), kms = list.map(() => new Float32Array(N));
+        // (each cell's holders: up to VARIETIES strains, when each came, and how well each does there)
+        const hold = Array.from({ length: VARIETIES }, () => new Int16Array(N).fill(-1)), holdT = Array.from({ length: VARIETIES }, () => new Float32Array(N).fill(Infinity)), holdS = Array.from({ length: VARIETIES }, () => new Float32Array(N));
+        const heap = new Heap(1 << 14);
+        // (times kept in 32 bits: the queue's keys rounded alike, or a step reads as stale and the spread dies)
+        list.forEach((S, k) => { const t0 = Math.fround(S.t0); best[k][S.c1] = t0; heap.push(t0, k * N + S.c1); });
+        while (heap.n) {
+            const pay = heap.pop(), t = heap.top, k = (pay / N) | 0, v = pay - k * N;
+            if (t > best[k][v]) continue;
+            const S = list[k];
+            // (where the group grows: a place for it while there is room; full, it stops — unless it does better than the best
+            // there, when it takes the weakest's place)
+            if (Gm.land[v] && fitA[v] >= STRAIN_GROWS) {
+                const sc = fitS[k][v] * Math.exp(-Math.min(t, 1e6) / lateYears);
+                let free = -1, weak = 0, top = -Infinity;
+                for (let r = 0; r < VARIETIES; r++) {
+                    if (hold[r][v] < 0) { if (free < 0) free = r; continue; }
+                    if (holdS[r][v] > top) top = holdS[r][v];
+                    if (holdS[r][v] < holdS[weak][v] || hold[weak][v] < 0) weak = r;
+                }
+                const at = free >= 0 ? free : sc > top ? weak : -1;
+                if (at < 0) continue;
+                hold[at][v] = S.id; holdT[at][v] = t; holdS[at][v] = sc;
+            }
+            const j = (v / w) | 0, i = v - j * w, bk = base[k], bestK = best[k], kmK = kms[k], fric = Math.exp(-kmK[v] / STRAIN.reachKm);
+            for (let dj = -1; dj <= 1; dj++) {
+                const jj = j + dj;
+                if (jj < 0 || jj >= h) continue;
+                const row = j * 9 + (dj + 1) * 3 + 1;
+                for (let di = -1; di <= 1; di++) {
+                    if (!dj && !di) continue;
+                    const m = jj * w + (i + di + w) % w, b = bk[m];
+                    if (!(b > 0)) continue;
+                    const d = steps[row + di], nt = Math.fround(t + d / ((farm[m] <= t && Gm.land[m] ? b * thr : b) * fric));
+                    if (nt < bestK[m]) { bestK[m] = nt; kmK[m] = kmK[v] + d; heap.push(nt, k * N + m); }
+                }
+            }
+        }
+        const bytes = arr => { const o = new Uint8Array(N); for (let c = 0; c < N; c++) o[c] = arriveByte(arr[c]); return o; };
+        per[a] = { hold, holdT: holdT.map(bytes) };
+    }
+    return { NCROP, strains, per };
 }
 /** A strain's fit at a 1° cell: its group's fit (or its beast's keeping) × its home match. */
 export const strainFit = (Gm, S, NCROP, c) => (S.a < NCROP ? Gm.fit[S.a][c] : Gm.keep[S.a - NCROP + 1][c]) * homeMatch(S.hT, S.hW, Gm.clim.T[c], Gm.clim.W[c]);
+/** At most this many strains of one group at a place: its main variety, then a second and a third. */
+export const VARIETIES = 3;
 /**
- * The strains at a 1° cell that had come by an age (a byte; ARRIVE_NEVER − 1 all that ever came; −1 every strain that grows
- * there, whenever) and grow there, ranked: by their fit × e^(−arrival / lateYears) — the first come leads unless a later one
- * is far better (developer, 2026-10-31: "it wont take over as primary unless it is TRUELY a much better crop"). Returns
- * [{ id, score, fit, t }], crops and beasts apart (`beasts`).
+ * The crop groups (or beasts) at a 1° cell at an age (a byte; ARRIVE_NEVER − 1 all that ever came; −1 the same, for the best
+ * possible), ranked, each with its strains: its holder then (strainSpreads: the first to come, or the one that took it
+ * over by then) and its other varieties that had come (at most VARIETIES in all) — every group that grows there and had
+ * come (developer, 2026-10-31: "if somewhere can grow wheat and root, they should always have both"); the groups ranked by
+ * their holder's fit × e^(−arrival / lateYears). Returns [{ a, score, strains: [{ id, score, fit, t }] }], crops and beasts
+ * apart (`beasts`).
  */
 export function rankStrains(SP, Gm, c, ageByte, beasts, lateYears) {
-    const out = [];
-    for (const S of SP.strains) {
-        if ((S.a >= SP.NCROP) !== beasts) continue;
-        const b = S.arrive[c];
-        if (ageByte >= 0 ? b > ageByte : b >= ARRIVE_NEVER) continue;
-        const fit = strainFit(Gm, S, SP.NCROP, c);
-        if (fit < STRAIN_GROWS) continue;
-        const t = byteYears(b);
-        out.push({ id: S.id, score: fit * Math.exp(-Math.min(t, 1e6) / lateYears), fit, t });
+    const ab = ageByte < 0 ? ARRIVE_NEVER - 1 : ageByte, out = [];
+    const item = (id, b) => { const S = SP.strains[id], fit = strainFit(Gm, S, SP.NCROP, c), t = byteYears(b); return { id, score: fit * Math.exp(-Math.min(t, 1e6) / lateYears), fit, t }; };
+    for (let a = beasts ? SP.NCROP : 0; a < (beasts ? SP.per.length : SP.NCROP); a++) {
+        const P = SP.per[a];
+        if (!P) continue;
+        const list = [];
+        for (let r = 0; r < VARIETIES; r++) { const id = P.hold[r][c], b = P.holdT[r][c]; if (id >= 0 && b <= ab) list.push(item(id, b)); }
+        if (!list.length) continue;
+        list.sort((x, y) => y.score - x.score);
+        out.push({ a, score: list[0].score, strains: list });
     }
     return out.sort((x, y) => y.score - x.score);
 }
 /**
- * The ranks at an age on every 1° cell: `crop` and `beast` (Int16Array × 3: the first, second and third strain; −1 none),
- * and `group` (each archetype's leading strain there: Int16Array per archetype) — once per spreads and age.
+ * The ranks at an age on every 1° cell: `crop` and `beast` (Int16Array × 3: the leading strain of the first, second and
+ * third group there; −1 none), and `group` (each archetype's leading strain there: Int16Array per archetype) — once per
+ * spreads and age.
  */
 export function strainRanks(SP, Gm, ageByte, lateYears, NA) {
     const N = Gm.N, mk = () => [0, 1, 2].map(() => new Int16Array(N).fill(-1)), crop = mk(), beast = mk(), group = Array.from({ length: NA }, () => new Int16Array(N).fill(-1));
     for (let c = 0; c < N; c++) {
         if (!Gm.land[c]) continue;
         for (const [list, out] of [[rankStrains(SP, Gm, c, ageByte, false, lateYears), crop], [rankStrains(SP, Gm, c, ageByte, true, lateYears), beast]]) {
-            for (let r = 0; r < 3 && r < list.length; r++) out[r][c] = list[r].id;
-            for (const x of list) { const a = SP.strains[x.id].a; if (group[a][c] < 0) group[a][c] = x.id; }
+            for (let r = 0; r < 3 && r < list.length; r++) out[r][c] = list[r].strains[0].id;
+            for (const G of list) group[G.a][c] = G.strains[0].id;
         }
     }
     return { crop, beast, group };
@@ -346,7 +445,7 @@ export function strainRanks(SP, Gm, ageByte, lateYears, NA) {
  * What the farmed places grow at an age (a byte of arriveByte; ARRIVE_NEVER: all that ever came; -1 the best possible:
  * every crop this world grows, wherever it fits) — per 1° cell: each kind's count of crops grown (fit ≥ GROWN_FIT and come,
  * on land farming had reached), the leading pulse and spice (the best-fitting come; -1 none), and each crop's share of the
- * land (by area); \`staples\` (a count per cell of the staple crop groups grown) adds to the variety.
+ * land (by area); `staples` (a count per cell of the staple crop groups grown) adds to the variety.
  */
 export function minorAt(Gm, items, built, farm, ageByte, ageYears, staples = null) {
     const N = Gm.N, NK = KINDS.length, count = Array.from({ length: NK }, () => new Uint8Array(N)), variety = new Uint8Array(N);
