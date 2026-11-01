@@ -101,7 +101,7 @@ As they reach higher:
 - **Lean on the theories, knowingly.** Worldbuilders and programmers alike can only build worlds by leaning on
   theories, and simplifying them is a strength: it is what makes a world buildable at all. Use them openly, name them, and
   treat what they give as one possible outcome, never destiny. The closer to people, the more care: some of that science
-  has a troubled past (environmental determinism was once used to rank peoples).
+  has a troubled past.
 - **Clear lines between the layers.** Each layer should stand on its own, with a visible line between what it takes from
   the layers below and what it hands up, so anyone can pick the world up at any layer and start making different
   choices: a worldbuilder who keeps the climate and invents their own peoples, or a tool that takes the farmland and
