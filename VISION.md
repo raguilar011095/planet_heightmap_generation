@@ -96,12 +96,16 @@ peoples simulated in a tool, Orogen's or another's. Its tools today sit low in t
 As they reach higher:
 
 - **Say what the land allows, not what its people are.** Near the people layers (soil, farmland, staple food, how people
-  might live), describe possibilities and tendencies: *could*, not *will*.
-- **No geographic determinism.** Geography sets the odds; it doesn't write the story. Never frame environment as destiny.
-- **Choose the science with care.** Low in the layers, follow the physics. Higher up, the science gets softer, and some
-  of it has a troubled past (environmental determinism was once used to rank peoples). Use what is well established,
-  present it as tendencies, and leave out the rest.
-- **Leave room.** The higher a layer, the more of it should stay open to chance, to choice and to the worldbuilder.
+  might live), describe possibilities and tendencies: *could*, not *will*. Geography sets the odds; it doesn't write the
+  story.
+- **Lean on the theories, knowingly.** Worldbuilders and programmers alike can only build worlds by leaning on
+  theories, and simplifying them is a strength: it is what makes a world buildable at all. Use them openly, name them, and
+  treat what they give as one possible outcome, never destiny. The closer to people, the more care: some of that science
+  has a troubled past (environmental determinism was once used to rank peoples).
+- **Clear lines between the layers.** Each layer should stand on its own, with a visible line between what it takes from
+  the layers below and what it hands up, so anyone can pick the world up at any layer and start making different
+  choices: a worldbuilder who keeps the climate and invents their own peoples, or a tool that takes the farmland and
+  simulates who settles it.
 
 ### Boundaries
 
