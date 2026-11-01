@@ -28,7 +28,7 @@ import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
 import { AGES } from '../geology/ages.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins, farmLinkParams, farmFromLink } from './farming-view.js';
+import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey, farmingPins, farmLinkParams, farmFromLink, farmInputChanged } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
@@ -1240,6 +1240,8 @@ function setLayer(layer) {
 for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
 // (the Food legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
 $('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
+// (the Crops view's finder: a crop typed and chosen, shown alone)
+$('climateLegend').addEventListener('change', e => { if (farmInputChanged(e.target, painted ? finishedShown(painted) : null)) { dirty = true; saveUrl(); } });
 $('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
 $('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
 $('cardAction').addEventListener('click', mainAction);

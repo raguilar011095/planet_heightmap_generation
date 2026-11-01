@@ -19,6 +19,8 @@ import { beastPlace, newBeasts, flyBelt, beastKeepOne, BEAST, BEASTS, ALL_BEASTS
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { historyGround, historyLuck, flyHereAt, ARCHETYPES, beastArchetype, gridPlace, GRID_W, mix } from '../farming/history.js';
 import { CAT, ANIMALS, choosePackages, chooseItem } from '../farming/names.js';
+import { minorGround, minorItems, minorBuild, minorAt, arriveByte, ARRIVE_NEVER, strainSpreads, strainRanks, rankStrains } from '../farming/minor.js';
+import { FARMING } from '../farming/farming-config.js';
 import { landPixel } from './climate-view.js';
 import { hearthRegions, runHearths } from '../farming/hearths.js';
 
@@ -31,13 +33,14 @@ export function partsAt(F, i, p) {
 }
 /** A pixel's farming with the options (into r: farming.js farmPlace's — farmland, harvests, staple — given its parts p and
  *  a scratch e for its crops' harvests); nothing grown on a moment detailed before the harvests were kept. With `came`
- *  (cameAt's: what had come there), only the crops that had come, and the herds as fully as their best come beast is kept. */
+ *  (cameAt's: what had come there), only the crops that had come — the first come its staple unless a later one does far
+ *  better (farming.js farmPlace) — and the herds as fully as their best come beast is kept. */
 export function placeAt(F, i, p, e, opt, r, came = null) {
     partsAt(F, i, p);
     if (!hasHarvests(F)) { r.tech = r.rain = r.harvests = r.harvestsRain = r.water = r.score = 0; r.staple = r.second = Staple.NONE; return r; }
     harvestsAt(F.crops, i, e);
     if (came) cameHarvests(e, came.mask);
-    return farmPlace(p, e, F.pasture[i] / 255 * (came ? came.herd : 1), opt, r);
+    return farmPlace(p, e, F.pasture[i] / 255 * (came ? came.herd : 1), opt, r, undefined, came ? came.t : null);
 }
 /** A finished moment's sea for its gatherers (farming/living.js gatherGround: its fishing grounds), once per moment —
  *  null without the sea's climate (fish then from fresh water alone). */
@@ -175,6 +178,16 @@ export function cameAt(C, lat, lon, out = {}) {
     }
     out.mask = mask;
     out.herd = hw > 0 ? herd / hw : 0;
+    // (each crop group's arrival there, years — its come cells' times on their say — for the staple: the first come leads)
+    const t = out.t ??= new Float64Array(NCROP);
+    for (let g = 0; g < NCROP; g++) {
+        t[g] = Infinity;
+        if (!((mask >> g) & 1)) continue;
+        const f = C.best[g], bit = 1 << g;
+        let st = 0, sw = 0;
+        for (let m = 0; m < n; m++) if (C.ever[cc[m]] & bit) { st += cw[m] * f[cc[m]]; sw += cw[m]; }
+        if (sw > 0) t[g] = st / sw;
+    }
     return out;
 }
 
@@ -184,14 +197,17 @@ const namesCache = new WeakMap();
  * A finished moment's names for its history's strains (farming/names.js), for a re-roll and Fewer gaps — once per run:
  * { sites: each centre's { lat, lon, mass, t, h: its climate — mean °C, wetness (the aridity index), height km, the winter's
  * share of its rain — pkg, pkg2: its Earth likeness and runner-up (names.js KEYS) }, strains: the run's, each with its
- * `label` ("emmer-like") and catalogue `item` }. Its own seeded stream (the world's seed, the moment, the re-roll); the
- * likenesses pulled together regionally. null without a history.
+ * `label` ("emmer-like") and catalogue `item` }. Its own seeded stream (the world's seed, the moment, the re-roll and the
+ * names' own re-roll `nameRoll`); the likenesses pulled together as `pull` says (names.js PULL), the names weighed by the
+ * realism `real` (REAL_NAMES). The last two kept per run; null without a history.
  */
-export function namesOf(fin, roll, fewer) {
+const REAL_NAMES = { earth: { pop: 1.6, nut: 0.8, noise: 0.25, site: 0.2 }, balanced: { pop: 1, nut: 0.5, noise: 0.35, site: 0.3 }, wild: { pop: 0.12, nut: 0.08, noise: 1.2, site: 0.9 } };
+export function namesOf(fin, roll, fewer, pull = 'regional', nameRoll = 0, real = 'balanced') {
     const G = historyOf(fin), run = G && hearthsOf(fin, roll, fewer);
     if (!run) return null;
-    const kept = namesCache.get(run);
+    const nkey = `${pull}|${nameRoll}|${real}`, list = namesCache.get(run) ?? [], kept = list.find(N => N.key === nkey);
     if (kept) return kept;
+    const RW = REAL_NAMES[real] ?? REAL_NAMES.balanced;
     const R = fin.raster, F = R.farming, K = fin.climate.raster, Pm = fin.climate.P, p = {}, L = {};
     const sites = run.centres.map(C => {
         const i = landPixel(K, K.w, Math.floor((C.lon + 180) / 360 * K.w), Math.floor((90 - C.lat) / 180 * K.h));
@@ -200,8 +216,8 @@ export function namesOf(fin, roll, fewer) {
         const jan = Pm?.jan?.[q] ?? 0, jul = Pm?.jul?.[q] ?? 0, ws = (jan + jul) > 0 ? (C.lat >= 0 ? jan : jul) / (jan + jul) : 0.3;
         return { lat: C.lat, lon: C.lon, mass: G.mass[C.cell], t: C.t0, h: { T: L.T, W: L.arid, E: L.elev, ws } };
     });
-    const seed = mix(fin.seed | 0, Math.round((fin.time ?? 0) * 1000), roll | 0, 0x4e41), h01 = (s, stream, id) => (mix(s, stream, id) + 0.5) / 4294967296;
-    const { pkg, second } = choosePackages(sites, 'regional', seed, h01);
+    const seed = mix(fin.seed | 0, Math.round((fin.time ?? 0) * 1000), roll | 0, 0x4e41, nameRoll | 0), h01 = (s, stream, id) => (mix(s, stream, id) + 0.5) / 4294967296;
+    const { pkg, second } = choosePackages(sites, pull, seed, h01, RW.site);
     sites.forEach((s, k) => { s.pkg = pkg[k]; s.pkg2 = second[k]; });
     // (each strain named, the earliest tamed first: the first takes the best-fitting name, each once where it can be)
     const used = new Map(), usedFor = a => { if (!used.has(a)) used.set(a, new Map()); return used.get(a); };
@@ -209,29 +225,146 @@ export function namesOf(fin, roll, fewer) {
     for (const s of [...strains].sort((x, y) => x.t0 - y.t0)) {
         const site = sites[s.centre], list = s.a < NCROP ? CAT.staple[s.a] : ANIMALS[s.a - NCROP + 1];
         if (!site || !list?.length) { s.label = ARCHETYPES[s.a].word.toLowerCase(); continue; }
-        const r = chooseItem(list, site.h, site.pkg, site.pkg2, usedFor(s.a), 'regional', seed, h01, 1 + s.id);
+        const r = chooseItem(list, site.h, site.pkg, site.pkg2, usedFor(s.a), pull, seed, h01, 1 + s.id, RW);
         s.label = r.label; s.item = r.item;
     }
-    const N = { sites, strains };
-    namesCache.set(run, N);
+    const N = { key: nkey, sites, strains, seed };
+    list.unshift(N);
+    if (list.length > 2) list.pop();
+    namesCache.set(run, list);
     return N;
 }
-/** The strain of archetype `a` with the most say round (lat, lon) — of the history's cells it had come to by `age`, each a
- *  Gaussian say (history.js gridPlace), as the Origins views read the grid — or −1 where it had come to none. */
+
+// ── the crops beyond the staples, and the small animals (F5b: farming/minor.js) ──
+const minorGrounds = new WeakMap(), minorItemsCache = new WeakMap(), farm1Cache = new WeakMap(), minorBuilt = new WeakMap(), minorAges = new WeakMap();
+/**
+ * A finished moment's crops beyond the staples, for a re-roll, Fewer gaps, the realism (`real`), the likeness pull (`pull`)
+ * and the names' re-roll — { Gm (the 1° ground), items (the catalogue's, each with its fit), built (per item: grown at all,
+ * its homes, each cell's arrival), farm (each 1° cell's farming's arrival), names (namesOf's), run } — the ground and fits
+ * once per moment, the rest once per run and settings (the last two kept); null without a history.
+ */
+export function minorOf(fin, roll, fewer, real = 'balanced', pull = 'regional', nameRoll = 0) {
+    const G = historyOf(fin), run = G && hearthsOf(fin, roll, fewer), N = run && namesOf(fin, roll, fewer, pull, nameRoll, real);
+    if (!N) return null;
+    if (!minorGrounds.has(G)) minorGrounds.set(G, minorGround(G));
+    const Gm = minorGrounds.get(G);
+    if (!minorItemsCache.has(Gm)) minorItemsCache.set(Gm, minorItems(Gm));
+    const items = minorItemsCache.get(Gm), key = `${real}|${pull}|${nameRoll}`, list = minorBuilt.get(run) ?? [], kept = list.find(M => M.key === key);
+    if (kept) return kept;
+    // (each 1° cell's farming: its 0.5° cells' first)
+    let farm = farm1Cache.get(run);
+    if (!farm) {
+        farm = new Float64Array(Gm.N).fill(Infinity);
+        const f = Math.round(Gm.deg / G.deg);
+        for (let j = 0; j < G.h; j++) for (let i = 0; i < G.w; i++) { const t = run.farmTime[j * G.w + i], c = Math.floor(j / f) * Gm.w + Math.floor(i / f); if (t < farm[c]) farm[c] = t; }
+        farm1Cache.set(run, farm);
+    }
+    // (the sites: every candidate region farming reached, its land within a 1° cell round it, its Earth likeness its nearest
+    // centre's — on its own landmass where it can be)
+    const gc = (la1, lo1, la2, lo2) => { const r = Math.PI / 180, a = Math.sin((la2 - la1) * r / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin((lo2 - lo1) * r / 2) ** 2; return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(a))); };
+    const sites = [], f = Math.round(Gm.deg / G.deg);
+    for (const R of regionsCache.get(G).regions) {
+        const t = run.farmTime[R.cell];
+        if (R.beastOnly || !(t < Infinity)) continue;
+        const j = Math.floor(Math.floor(R.cell / G.w) / f), i = Math.floor((R.cell % G.w) / f), cells = [];
+        for (let dj = -1; dj <= 1; dj++) { const jj = j + dj; if (jj < 0 || jj >= Gm.h) continue; for (let di = -1; di <= 1; di++) { const c = jj * Gm.w + (i + di + Gm.w) % Gm.w; if (Gm.land[c]) cells.push(c); } }
+        let near = null, nd = Infinity;
+        N.sites.forEach(S => { const d = gc(R.lat, R.lon, S.lat, S.lon) + (S.mass === R.mass ? 0 : 3000); if (d < nd) { nd = d; near = S; } });
+        if (near && cells.length) sites.push({ cells, mass: R.mass, pkg: near.pkg, pkg2: near.pkg2, t, lat: R.lat, lon: R.lon });
+    }
+    const built = minorBuild(Gm, items, { farm, sites, seed: mix(N.seed, 0x6d69) }, { real, pull });
+    const M = { key, Gm, items, built, farm, names: N, run, sites };
+    list.unshift(M);
+    if (list.length > 2) list.pop();
+    minorBuilt.set(run, list);
+    return M;
+}
+/** What each 1° cell grows at an age (years after the first farming; Infinity: the full spread; null: the best possible) —
+ *  minor.js minorAt's, the staple crop groups grown there counted into the variety; the last three ages kept. */
+export function minorAgeOf(M, age) {
+    const list = minorAges.get(M) ?? [], key = String(age), kept = list.find(A => A.key === key);
+    if (kept) return kept;
+    const { Gm, run } = M;
+    // (the staples grown in each 1° cell: each crop group that fits it — and, as it came, had reached it)
+    const staples = new Uint8Array(Gm.N), NCROP = Gm.fit.length, f = 2, w0 = Gm.w * f;
+    for (let c = 0; c < Gm.N; c++) {
+        if (!Gm.land[c]) continue;
+        const j = (c / Gm.w) | 0, i = c - j * Gm.w;
+        let n = 0;
+        for (let g = 0; g < NCROP; g++) {
+            if (Gm.fit[g][c] < 0.25) continue;
+            if (age !== null) {
+                let t = Infinity;
+                for (let dj = 0; dj < f; dj++) for (let di = 0; di < f; di++) { const v = run.best[g][(j * f + dj) * w0 + i * f + di]; if (v < t) t = v; }
+                if (!(t <= age)) continue;
+            }
+            n++;
+        }
+        staples[c] = n;
+    }
+    const A = minorAt(Gm, M.items, M.built, M.farm, age === null ? -1 : age === Infinity ? ARRIVE_NEVER - 1 : arriveByte(age), age === null ? Infinity : age, staples);
+    A.key = key;
+    list.unshift(A);
+    if (list.length > 3) list.pop();
+    minorAges.set(M, list);
+    return A;
+}
+// ── the strains spreading by themselves, ranked at each place (minor.js strainSpreads, strainRanks) ──
+const spreadsCache = new WeakMap(), ranksCache = new WeakMap();
+/** Each 1° cell's farming's arrival (its 0.5° cells' first) — once per run. */
+function farmOf1(G, run, Gm) {
+    let farm = farm1Cache.get(run);
+    if (farm) return farm;
+    farm = new Float64Array(Gm.N).fill(Infinity);
+    const f = Math.round(Gm.deg / G.deg);
+    for (let j = 0; j < G.h; j++) for (let i = 0; i < G.w; i++) { const t = run.farmTime[j * G.w + i], c = Math.floor(j / f) * Gm.w + Math.floor(i / f); if (t < farm[c]) farm[c] = t; }
+    farm1Cache.set(run, farm);
+    return farm;
+}
+/** A finished moment's strains, each spread by itself (once per run), and their ranks at an age (years; Infinity all that
+ *  came; null the best possible: every strain wherever it grows) — { SP, Gm, R } or null without a history. The last three
+ *  ages kept. */
+export function strainsOf(fin, roll, fewer, age) {
+    const G = historyOf(fin), run = G && hearthsOf(fin, roll, fewer);
+    if (!run) return null;
+    if (!minorGrounds.has(G)) minorGrounds.set(G, minorGround(G));
+    const Gm = minorGrounds.get(G);
+    let SP = spreadsCache.get(run);
+    if (!SP) { SP = strainSpreads(Gm, run, farmOf1(G, run, Gm), G, NCROP); spreadsCache.set(run, SP); }
+    const key = String(age), list = ranksCache.get(SP) ?? [];
+    let R = list.find(x => x.key === key);
+    if (!R) {
+        R = strainRanks(SP, Gm, age === null ? -1 : age === Infinity ? ARRIVE_NEVER - 1 : arriveByte(age), FARMING.lateYears, NA);
+        R.key = key;
+        list.unshift(R);
+        if (list.length > 3) list.pop();
+        ranksCache.set(SP, list);
+    }
+    return { SP, Gm, R, run };
+}
+/** The strains ranked at the 1° cell under (lat, lon): crops and beasts (minor.js rankStrains). */
+export function strainsHere(S, lat, lon, age) {
+    const Gm = S.Gm, c = Math.min(Gm.h - 1, Math.max(0, Math.floor((90 - lat) / Gm.deg))) * Gm.w + ((Math.floor((lon + 180) / Gm.deg) % Gm.w) + Gm.w) % Gm.w;
+    if (!Gm.land[c]) return { crops: [], beasts: [] };
+    const ab = age === null ? -1 : age === Infinity ? ARRIVE_NEVER - 1 : arriveByte(age);
+    return { crops: rankStrains(S.SP, Gm, c, ab, false, FARMING.lateYears), beasts: rankStrains(S.SP, Gm, c, ab, true, FARMING.lateYears) };
+}
+/** The strain with the most say round (lat, lon) in a ranks map `arr` (an Int16Array per 1° cell: a strain or −1), each land
+ *  cell a Gaussian say (history.js gridPlace) — −1 where none leads. */
 const GPs = {}, MAX_STRAINS = 2048, sSay = new Float64Array(MAX_STRAINS), sStamp = new Int32Array(MAX_STRAINS), sUsed = new Int32Array(16);
 let sStampN = 0;
-export function strainAt(G, run, a, age, lat, lon) {
-    gridPlace(G, lat, lon, GPs);
-    const lab = run.lab[a], best = run.best[a], w = G.w;
+export function strainVote(Gm, arr, lat, lon) {
+    gridPlace(Gm, lat, lon, GPs);
+    const w = Gm.w;
     let n = 0;
     sStampN++;
     for (let dy = 0; dy < 4; dy++) {
         const j = GPs.j0 + dy;
-        if (j < 0 || j >= G.h) continue;
+        if (j < 0 || j >= Gm.h) continue;
         const wy = GRID_W[GPs.qy + dy];
         for (let dx = 0; dx < 4; dx++) {
-            const c = j * w + ((GPs.i0 + dx) % w + w) % w, s = lab[c];
-            if (s < 0 || s >= MAX_STRAINS || !(best[c] <= age)) continue;
+            const c = j * w + ((GPs.i0 + dx) % w + w) % w, s = arr[c];
+            if (s < 0 || s >= MAX_STRAINS || !Gm.land[c]) continue;
             if (sStamp[s] !== sStampN) { sStamp[s] = sStampN; sSay[s] = 0; sUsed[n++] = s; }
             sSay[s] += wy * GRID_W[GPs.qx + dx];
         }
@@ -241,14 +374,14 @@ export function strainAt(G, run, a, age, lat, lon) {
     return top;
 }
 /**
- * Each land pixel's named crop and animal (F5a), in the store's order: `crop` the strain of its staple's crop group and
- * `beast` that of its farmers' or herders' leading beast with the most say round it (strainAt; −1 none) — from the places
- * `P` and ways `Y` (placesOf's, waysOf's: as shown), the run and the age (Infinity: the best possible). The last three
- * kept.
+ * Each land pixel's named crop and animal (F5a), in the store's order: `crop` the leading strain of its staple's crop group
+ * and `beast` that of its farmers' or herders' leading beast, with the most say round it (strainVote over the ranks; −1
+ * none) — from the places `P` and ways `Y` (placesOf's, waysOf's: as shown) and the strains' ranks at the age (strainsOf's
+ * `S`). The last three kept.
  */
-export function variantsOf(fin, P, Y, run, age) {
+export function variantsOf(fin, P, Y, S, age) {
     const E = entry(fin), G = historyOf(fin);
-    if (!G || !run) return null;
+    if (!G || !S) return null;
     const key = `${P.key}|${Y?.key ?? '-'}|${age}`;
     return kept3(E.variants, key, () => {
         const F = fin.raster.farming, K = fin.climate.raster, kef = KOPPEN_ID.EF, N = E.index.count, crop = new Int16Array(N).fill(-1), beast = new Int16Array(N).fill(-1);
@@ -258,9 +391,9 @@ export function variantsOf(fin, P, Y, run, age) {
             for (let x = 0, i = y * F.w; x < F.w; x++, i++) {
                 if (!K.koppen[i] || K.koppen[i] === kef) continue;
                 const lon = (x + 0.5) / F.w * 360 - 180, g = STAPLE_CROP_OF[P.staple[k] & 15];
-                if (g >= 0) crop[k] = strainAt(G, run, g, age, lat, lon);
+                if (g >= 0) crop[k] = strainVote(S.Gm, S.R.group[g], lat, lon);
                 const b = Y && Y.flags[k] & 1 ? Y.beast[k] & 15 : 0;
-                if (b) beast[k] = strainAt(G, run, beastArchetype(b), age, lat, lon);
+                if (b) beast[k] = strainVote(S.Gm, S.R.group[beastArchetype(b)], lat, lon);
                 k++;
             }
         }

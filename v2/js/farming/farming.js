@@ -492,12 +492,14 @@ export const farmIndex = (v, K = FARMING) => v / (v + K.farmHalf);
  *   there), second; and, given out.scores (one a staple: STAPLES.length), each staple's score — given out.foods (as
  *   many), each one's food (herding's as the staple is chosen by: its pasture × K.herdWeight).
  */
-export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
+export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING, arrive = null) {
     const slopeRain = 1 - K.slopeMaxLoss * S(K.slopeLoss, p.slope);
     const ground = tech.terrace ? Math.max(slopeRain, 1 - K.slopeMaxLoss * S(K.terraceLoss, p.slope)) : slopeRain;
     const wetRain = 1 - K.wetlandLoss * p.wetland, wetTech = tech.raised ? 1 : wetRain;
     const water = Math.max(tech.flood ? p.flood : 0, tech.canal ? p.canal : 0), more = S(K.multiSoil, p.soil), scores = out.scores, foods = out.foods;
-    let best = Staple.NONE, bv = K.stapleMin, bw = 1, bh = 0, second = Staple.NONE, sv = K.stapleMin, rv = 0, rh = 0;
+    // (the staple the crop that does best — or, given `arrive` (each crop group's arrival, years: as it came), the one that came
+    // first, a later one only where it does far better: its food × e^(−arrival / lateYears) ranks it; its food still counts)
+    let best = Staple.NONE, bk = -1, bv = K.stapleMin, bw = 1, bh = 0, second = Staple.NONE, sk = -1, sv = K.stapleMin, rv = 0, rh = 0;
     for (let g = 0; g < CROPS.length; g++) {
         const c = K.crops[CROPS[g]], er = e[2 * g], ew = e[2 * g + 1], soilF = 1 - c.soil + c.soil * p.soil, st = CROP_STAPLE[g];
         // (a paddy crop stands in water — and sago and taro grow in swamps (`swamp`): a waterlogged flat costs them nothing)
@@ -508,7 +510,10 @@ export function farmPlace(p, e, pasture, tech, out = {}, K = FARMING) {
         const vr = hr * soilF * (c.level === 1 ? slopeRain : slopeRain ** c.level) * (paddy ? 1 : wetRain) * c.weight;
         if (scores) scores[st] = Math.min(1, v / c.weight);
         if (foods) foods[st] = v;
-        if (v > bv) { second = best; sv = bv; best = st; bv = v; bw = c.weight; bh = ht; } else if (v > sv) { second = st; sv = v; }
+        if (v > K.stapleMin) {
+            const rk = arrive ? v * Math.exp(-Math.min(arrive[g], 1e6) / K.lateYears) : v;
+            if (rk > bk) { second = best; sv = bv; sk = bk; best = st; bk = rk; bv = v; bw = c.weight; bh = ht; } else if (rk > sk) { second = st; sv = v; sk = rk; }
+        }
         if (vr > rv) { rv = vr; rh = hr; }
     }
     out.tech = best ? farmIndex(bv, K) : 0; out.rain = farmIndex(rv, K); out.harvests = bh; out.harvestsRain = rh; out.water = water;

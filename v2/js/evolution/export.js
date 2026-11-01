@@ -44,6 +44,7 @@ const FARM_SCALES = {
     variety:   { unit: 'wild larder variety (crops 1 each, beasts ½: 0 … 8)', lo: 0, hi: 8 },
     odds:      { unit: 'hearth odds (0 low … 1 the highest on the planet)', lo: 0, hi: 1 },
     came:      { unit: 'years after the first farming that farming came (65,535 never)', lo: 0, hi: 65535 },
+    crops:     { unit: 'crops grown at a place, the staples too (0 … 255)', lo: 0, hi: 255 },
 };
 const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
 /** The README's lists of the staple foods, the lifestyles, the ways of life and the beasts (the index files' numbers), when
@@ -75,6 +76,7 @@ export const CATALOGUE = [
         { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
         { id: 'farmLife', label: 'Way of life', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index (farming, herding, gathering)', 'lifestyle', 8), farmData('foodSystem', 'system', 'Way of life index', 'system', 8)], tip: 'How each place’s people would live — paddy farming, irrigated valleys, plough and flocks, mixed farms, hoe farming, forest gardens, highland farming, grain and herds, nomadic herding, settled or mobile foragers — as its legend shows (or Simple: farming, herding or gathering); as data, the lifestyle’s index and the way of life’s (the README lists them)' },
         { id: 'farmAnimals', label: 'Animals', colour: true, needs: 'farming', data: [farmData('beast', 'index', 'Leading beast index', 'beast', 8), farmData('flyBelt', 'fly', 'Fly belt', 'fly')], tip: 'Farmers’ and herders’ leading beast, the fly belt hatched; as data, the beast’s index (the README lists them) and the fly belt' },
+        { id: 'farmCrops', label: 'Crops', colour: true, needs: 'farming', data: [farmData('cropVariety', 'variety', 'How many crops a place grows', 'crops')], tip: 'Every crop beyond the staples and the small animals, as its legend shows them; as data, how many crops each place grows' },
         { id: 'farmOrigins', label: 'Origins', colour: true, needs: 'farming', data: [farmData('larderVariety', 'larder', 'Wild larder variety', 'variety'), farmData('hearthOdds', 'odds', 'Hearth odds', 'odds'), farmData('farmCame', 'came', 'When farming came', 'came')], tip: 'The wild larder, the hearth odds, when farming came or from which hearth, as its legend shows; as data, the larder’s variety, the hearth odds and the years after the first farming that it came' },
         { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [farmData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
         { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [farmData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },

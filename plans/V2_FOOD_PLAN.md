@@ -821,6 +821,35 @@ the long tail repeats names (dromedary-like V); the legend shows strains on ≥ 
 its own home and spread — and minor animals (fowl, ducks, turkeys, guinea pigs, bees, silkworms), Variety, the crop
 finder and cards, the realism and likeness controls, re-roll names.
 
+## 8h. F5b built (2026-10-31): the rest of the crops; ranked core crops
+
+**The owner's two notes during it:**
+- *"only ONE core crop is spreading, when in reality a crop can spread if it can grow and there isnt anything already
+  there. The main one will be whatever shows up first though."*
+- *"anywhere a certain crop can grow, it WILL spread (barring distance) but it wont take over as primary unless it is
+  TRUELY a much better crop for the region. Basically I want to know what all the secondary or tertiary etc primary
+  crop are."*
+
+So:
+- **The staple** (as it came) is the crop group that came first among those that grow, a later one leading only where its
+  food × e^(−years later ÷ 1,500) is more (FARMING.lateYears). On the check planet: rice 7.4 → 6.5 %, wheat 25 → 23 %,
+  maize 19 → 20 %, roots 10 → 11 %.
+- **Every strain spreads by itself** wherever it can grow (its group's fit × its home match), no longer blocked by the
+  first to arrive (the old single search per archetype let one strain flood a continent). Each place's strains are ranked
+  by fit × e^(−arrival ÷ 1,500): the named views' **Main · 2nd · 3rd** chips, and the readout's ranked **Core crops** and
+  **Beasts here**. On the check planet 99 % of the places with a crop have a second.
+
+**The Crops view** (the mock-up's Crops tab and §4.4–4.6, on a 1° ground): ~225 crops in 28 kinds and a new list of 14
+small animals; Variety, each kind's count, the leading pulse or spice, one crop alone with its card and homes pinned, the
+finder, Realism, Earth likeness, Re-roll names. On the check planet (Balanced): 211 of 239 grown, a farming place growing
+~45 crops at 10,000 years (up to ~100).
+
+**Speed:** the strains' spreads ~1.1 s and the crops ~0.8 s, each once per history run (and settings); an age's ranks
+~0.2 s and counts ~20 ms. Both moved from each step's cosines to a per-row table of step lengths, and the strains' speeds
+are worked out once per strain.
+
+**Not yet:** the Earth checks (F4b), Food security from the real crop mix, the culture layer.
+
 ## 9. Phases (each checked in the browser before the next)
 
 **After §0:**

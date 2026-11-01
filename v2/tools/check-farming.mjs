@@ -36,7 +36,9 @@ import { gatherGround, gatherAt, livingPlace, livingPeople, partsOf, Lifestyle, 
 import { beastPlace, newBeasts, Beast, BEAST_WORDS, BEASTS } from '../js/farming/beasts.js';
 import { historyGround, historyLuck, ARCHETYPES, oddsRank } from '../js/farming/history.js';
 import { hearthRegions, runHearths } from '../js/farming/hearths.js';
-import { cameOf, cameAt, placesOf, waysOf, flyAtOf, peopleFromLog, decLog } from '../js/evolution/farming-store.js';
+import { cameOf, cameAt, placesOf, waysOf, flyAtOf, peopleFromLog, decLog, namesOf, strainsOf, minorOf, minorAgeOf } from '../js/evolution/farming-store.js';
+import { strainFit, byteYears, STRAIN_GROWS, ARRIVE_NEVER as NEVER_B, arriveByte } from '../js/farming/minor.js';
+import { FARMING } from '../js/farming/farming-config.js';
 import { KOPPEN_ID } from '../js/climate/koppen.js';
 import { farmPlace, farmClass, harvestsAt, SoilKind, SoilMod, Staple, STAPLES, STAPLE_WORDS, CROPS, MONTH_ALL_YEAR, hasMonths } from '../js/farming/farming.js';
 import { placeMonth, calendarGround, calendarMonth } from '../js/farming/calendar.js';
@@ -451,6 +453,49 @@ section('F4a — as it came');
     check('as it came differs from the land\'s own (a leading beast\'s share by ≥ 2 points)', gap(S10.be, Sb.be) >= 0.02, `largest beast gap ${(100 * gap(S10.be, Sb.be)).toFixed(1)} points`);
     check('as it came, much the same at 160K and 640K (each way of life, food system and leading beast within 5 points)', gap(S10.life, S10c.life) <= 0.05 && gap(S10.sys, S10c.sys) <= 0.05 && gap(S10.be, S10c.be) <= 0.05,
         `lifestyle ${(100 * gap(S10.life, S10c.life)).toFixed(1)} · system ${(100 * gap(S10.sys, S10c.sys)).toFixed(1)} · beast ${(100 * gap(S10.be, S10c.be)).toFixed(1)} points`);
+}
+
+section('F5 — named strains, their ranks, the crops beyond the staples');
+{
+    const finOf = (pic, out) => ({ raster: pic, climate: { ...out.climate.page, raster: pic.climate }, seed: SEED, time: UNTIL });
+    const run = (pic, out) => {
+        const fin = finOf(pic, out), t0 = performance.now(), N = namesOf(fin, 0, false), t1 = performance.now(), S = strainsOf(fin, 0, false, 10000), t2 = performance.now(), M = minorOf(fin, 0, false), A = minorAgeOf(M, 10000), t3 = performance.now();
+        return { fin, N, S, M, A, ms: { names: t1 - t0, strains: t2 - t1, minor: t3 - t2 } };
+    };
+    const Rf = run(pf, fine), Rc = run(pc, coarse);
+    check('every strain named; the names, the strains\' spreads and the crops built quickly (strains ≤ 2.5 s, crops ≤ 2 s)', Rf.N.strains.every(x => x.label) && Rf.ms.strains <= 2500 && Rf.ms.minor <= 2000,
+        `${Rf.N.strains.length} strains · names ${Rf.ms.names.toFixed(0)} ms (with the history) · strains ${Rf.ms.strains.toFixed(0)} ms · crops ${Rf.ms.minor.toFixed(0)} ms`);
+    // (the ranks: the main crop is the first come among those that grow, unless a later one does far better — e^(Δt / lateYears))
+    const { SP, Gm, R } = Rf.S, ab = arriveByte(10000);
+    let cells = 0, bad = 0, seconds = 0;
+    for (let c = 0; c < Gm.N; c++) {
+        const m = R.crop[0][c];
+        if (m < 0) continue;
+        cells++;
+        if (R.crop[1][c] >= 0) seconds++;
+        const M = SP.strains[m], tm = byteYears(M.arrive[c]), fm = strainFit(Gm, M, SP.NCROP, c);
+        for (const S of SP.strains) {
+            if (S.a >= SP.NCROP || S.arrive[c] > ab || S.id === m) continue;
+            const fs = strainFit(Gm, S, SP.NCROP, c), ts = byteYears(S.arrive[c]);
+            if (fs >= STRAIN_GROWS && fs * Math.exp(-ts / FARMING.lateYears) > fm * Math.exp(-tm / FARMING.lateYears) * 1.0001) { bad++; break; }
+        }
+    }
+    check('each place\'s main crop the first come of those that grow there, a later one only where far better', bad === 0, `${cells} cells with a crop · ${bad} not so`);
+    check('every crop spreads wherever it can grow: most places with a crop have a second (≥ 60 %)', seconds >= 0.6 * cells, `${(100 * seconds / Math.max(1, cells)).toFixed(0)} %`);
+    // (the crops beyond the staples: many grown, a farming place growing dozens, much the same at two details)
+    const varietyMean = X => { let s = 0, n = 0; for (let c = 0; c < X.M.Gm.N; c++) if (X.M.Gm.land[c] && X.M.farm[c] <= 10000) { s += X.A.variety[c]; n++; } return s / Math.max(1, n); };
+    const grown = Rf.M.built.filter(b => b.exists).length, vf = varietyMean(Rf), vc = varietyMean(Rc);
+    check('most of the catalogue grown on a world (≥ 60 %), a farming place growing dozens of crops (mean 15–90)', grown >= 0.6 * Rf.M.items.length && vf >= 15 && vf <= 90, `${grown} of ${Rf.M.items.length} grown · ${vf.toFixed(1)} crops a farming place`);
+    check('the crops much the same at 160K and 640K (a place\'s mean variety within 15 %)', Math.abs(vf - vc) <= 0.15 * Math.max(vf, vc), `640K ${vf.toFixed(1)} · 160K ${vc.toFixed(1)}`);
+    // (spices stay near home: none farther than ~900 km — the first home's cell's distance, along the grid, bounded)
+    let far = 0;
+    const gcKm = (c1, c2) => { const la1 = 90 - ((c1 / Gm.w | 0) + 0.5), lo1 = c1 % Gm.w - 179.5, la2 = 90 - ((c2 / Gm.w | 0) + 0.5), lo2 = c2 % Gm.w - 179.5, r = Math.PI / 180; return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(Math.sin((la2 - la1) * r / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin((lo2 - lo1) * r / 2) ** 2))); };
+    for (const I of Rf.M.items) {
+        const B = Rf.M.built[I.id];
+        if (I.kind !== 'spice' || !B.exists) continue;
+        for (let c = 0; c < Gm.N; c++) if (B.arrive[c] < NEVER_B && Math.min(...B.homes.map(h => gcKm(h.cell, c))) > 1100) { far++; break; }
+    }
+    check('spices stay near their homes (none past ~1,100 km)', far === 0, `${far} spices farther`);
 }
 
 section('C1 — quick');

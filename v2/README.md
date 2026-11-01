@@ -741,6 +741,32 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    each kind's named strains on ≥ 0.2 % of the land with a ↗ Wikipedia link (a Special:Search URL), a click shows one
    alone; the readout names the staple's and beast's strain and lists every crop that grows and beast kept well there
    that had come; Origins' hearth list names what each hearth tamed.
+   **Ranked crops and beasts** (developer, 2026-10-31: "anywhere a certain crop can grow, it WILL spread (barring
+   distance) but it wont take over as primary unless it is TRUELY a much better crop"; `minor.js` `strainSpreads`,
+   `strainRanks`, farming-store.js `strainsOf`): every strain spreads by itself over the 1° ground (`minorGround`, from the
+   history's 0.5° with its cells' climate kept) at the hearths' speeds where it grows well — its group's fit (or its beast's
+   keeping) × `homeMatch` (0.55–1: mean °C within ~7, wetness within ~2×, of its centre's) — faster along rivers, coasts and
+   through farmers, across short seas; ~1 s for ~200 strains, once per run. At each 1° cell the strains that had come by
+   the age and grow there (fit ≥ 0.25) are ranked by fit × e^(−arrival / FARMING.lateYears = 1,500): the first come leads
+   unless a later one is far better. The named views read the ranks (Main · 2nd · 3rd chips); the readout lists every core
+   crop and beast in order. The staple crop group follows the same rule (farmPlace's `arrive`, from what had come:
+   `cameAt` gives each group's arrival).
+   **Crops** (F5b; `farming/minor.js`, farming-store.js `minorOf`/`minorAgeOf`; the Food tab's **Crops** view): the catalogue
+   beyond the staples (names.js CAT: ~225 crops in 28 kinds and 14 small animals) on the 1° ground. Each kind a climate
+   niche (the mock-up's `minorNicheAt` on each cell's climate; the pulses ride with their partner staple's fit), narrowed
+   by each crop's own climate (a small animal's the most); each crop grown on a world by a logistic draw on its popularity
+   and nourishment, as the realism weighs them; its home the farmed region (hearthRegions reached by farming, its Earth
+   likeness its nearest centre's) that suits it best and is most like its Earth home, sometimes a second home on another
+   landmass; first grown 300–2,000+ years after farming came there and spread by its own search — ×3 through farmed land
+   (orchards ×5), slow beyond, spices capped at 900 km. Arrivals kept a byte a cell (hundreds of years to 20,000, then
+   thousands). ~0.8 s once per run and settings; each age's counts ~20 ms. The view reads the 1° cells smoothly (each a
+   Gaussian say, as the Origins views): Variety and each kind's count on a ramp to its 95th percentile, the leading pulse
+   or spice by its colour (a vote), one crop alone with its card, its homes pinned (◆), hatched where it would grow but had
+   not come; the finder (a datalist; evolution-main wires its change), the realism, likeness pull and names' re-roll
+   (`foodreal`, `foodpull`, `foodnames` in the link). The readout lists every crop grown at the place by kind. The Crops
+   export adds how many crops a place grows. `check-farming.mjs` F5 holds: every strain named; the main crop the first
+   come unless far better; most places with a crop have a second; most of the catalogue grown, a farming place growing
+   dozens, the same within 15 % at 160K and 640K; spices near home; the speed.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

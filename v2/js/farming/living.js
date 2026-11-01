@@ -202,7 +202,7 @@ export function livingPeople(F, L, ground, tech, G = GATHER, K = FARMING, P = PE
             if (kept) harvestsAt(F.crops, i, e); else e.fill(0);
             const lon = (x + 0.5) / F.w * 360 - 180, c = came ? came(lat, lon) : null;
             if (c) cameHarvests(e, c.mask);
-            farmPlace(p, e, F.pasture[i] / 255 * (c ? c.herd : 1), tech, r, K);
+            farmPlace(p, e, F.pasture[i] / 255 * (c ? c.herd : 1), tech, r, K, c ? c.t : null);
             gatherAt(ground, lat, lon, p, F.pasture[i] / 255, g, G);
             livingPlace(r, p, tech, g, o, G, K);
             people += a * o.people; byLife[o.lifestyle] += a * o.people;

@@ -184,6 +184,9 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
         relief[c] = (hi - lo) / 1000;
     }
     const M = {}, cw = new Float64Array(NC), bw = new Float64Array(BEASTS.length), Pc = C?.P;
+    // (each cell's climate kept, for the crops beyond the staples — farming/minor.js: mean °C, the warm and cold month's, rain
+    // mm, wetness (the aridity index), height km, the winter's share of the rain, its seasonality, the water rivers bring)
+    const f32 = () => new Float32Array(N), clim = { T: f32(), Tw: f32(), Tc: f32(), P: f32(), W: f32(), E: f32(), ws: f32(), sea: f32(), water: f32() };
     for (let c = 0; c < N; c++) {
         if (!nAll[c]) continue;
         land[c] = 1;
@@ -196,6 +199,7 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
         M.ws = pj + pl > 0 ? (lat >= 0 ? pj : pl) / (pj + pl) : 0.5;
         M.maxP = M.P / 12 * (py > 0 ? Math.max(pj, pl) / py : 1);
         landMeasures(M);
+        clim.T[c] = M.T; clim.Tw[c] = M.Tw; clim.Tc[c] = M.Tc; clim.P[c] = M.P; clim.W[c] = M.arid; clim.E[c] = M.elev; clim.ws[c] = M.ws; clim.sea[c] = M.seas; clim.water[c] = Math.max(M.flood, M.canal);
         const fc = flyCould[c] = fly[c] / k;
         cropWild(M, cw);
         beastWild(M, fc, bw);
@@ -301,7 +305,7 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
     sorted.sort((x, y) => x - y);
     // (the cells round the land given its neighbours' values — a coast read between cells does not fade toward the sea)
     for (const f of [variety, odds, ...niche]) spread(f, n, w, h);
-    return { deg, w, h, land, area: Float32Array.from(area), niche, variety, odds, oddsSorted: Float32Array.from(sorted), flyCould, mass, masses, fit, keep, river, coast, richness, seaKm };
+    return { deg, w, h, land, area: Float32Array.from(area), niche, variety, odds, oddsSorted: Float32Array.from(sorted), flyCould, mass, masses, fit, keep, river, coast, richness, seaKm, clim };
 }
 
 /** Each cell without land of its own (weight n 0) next to one with: the mean of its neighbours' (in place). */

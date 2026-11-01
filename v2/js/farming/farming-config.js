@@ -144,6 +144,8 @@ export const FARMING = {
     herdWeight: 0.5,            // …feeding fewer than a crop (so a crop wins where one grows at all well)…
     herdWatered: 0.8,           // …and not where water is brought: the watered strip is farmed (this share of it)
     stapleMin: 0.06,            // nothing grown where the best does less than this
+    lateYears: 1500,            // as it came, the staple is the crop that came first: a later one leads only where its food ×
+                                // e^(−years later / this) is more (owner, 2026-10-31: "the main one will be whatever shows up first")
 };
 
 export const PRIORS = {
