@@ -1,7 +1,7 @@
 {
     "name": "World Orogen",
     "short_name": "Orogen",
-    "description": "Procedural planet generator with tectonic plates, erosion, and climate simulation",
+    "description": "Believable worlds from the ground up: free planet tools in your browser, from tectonic history to climate, rocks and food",
     "start_url": "/",
     "display": "browser",
     "background_color": "#030308",
