@@ -18,7 +18,7 @@ import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
 import { LIFESTYLE_WORDS, GATHER } from '../farming/living.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
-import { cloudFields, cloudPicture, cloudStorms } from '../view/clouds.js';
+import { cloudFields, cloudGrid, cloudPicture, cloudOver, cloudStorms } from '../view/clouds.js';
 import { initExportPanel } from '../view/export-panel.js';
 import { DATA_SCALES as SC, scaled, hillshade8, climateRows, classIndexMap } from '../view/export-raster.js';
 import { GEOLOGY_GROUP, produceGeology, rockTypesList } from './geology-export.js';
@@ -178,15 +178,22 @@ export function satelliteMap(fin, W, season, look, clouds = false) {
     paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true, shaded: look.shaded !== false,
         colorAt: finishedClimateColor('satellite', season, fin.climate, W, look.lut, fin) });
     // (with clouds: theirs — view/clouds.js, one still moment — laid over)
-    if (clouds) {
-        const cl = cloudPicture(cloudFields(fin.climate, season), cloudStorms(look.seed ?? 0, fin.climate, season), W), d = image.data;
-        for (let i = 0; i < W * H; i++) { const a = cl[4 * i + 3] / 255; if (!a) continue; for (let c = 0; c < 3; c++) d[4 * i + c] = Math.round(d[4 * i + c] * (1 - a) + cl[4 * i + c] * a); }
-    }
+    if (clouds) cloudOver(cloudsOf(fin, season, W, look), image.data, W);
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
+}
+/** The clouds of a moment for a season (view/clouds.js cloudGrid: at most 2048 wide, one still moment, the storms the
+ *  world's own — its numeric seed), kept per moment so both cloud rows draw them once. */
+const cloudGrids = new WeakMap();
+function cloudsOf(fin, season, W, look) {
+    let byKey = cloudGrids.get(fin.climate);
+    if (!byKey) cloudGrids.set(fin.climate, byKey = new Map());
+    const key = `${season}|${Math.min(W, 2048)}|${look.cloudSeed ?? 0}`;
+    if (!byKey.has(key)) byKey.set(key, cloudGrid(cloudFields(fin.climate, season), cloudStorms(look.cloudSeed ?? 0, fin.climate, season), W));
+    return byKey.get(key);
 }
 /** The clouds alone (view/clouds.js: one still moment, their faint shadows too), on a transparent ground. */
 export function cloudsMap(fin, W, season, look) {
-    const H = W >> 1, d = cloudPicture(cloudFields(fin.climate, season), cloudStorms(look.seed ?? 0, fin.climate, season), W);
+    const H = W >> 1, d = cloudPicture(cloudsOf(fin, season, W, look), W);
     return { kind: 'rgba', W, H, data: rollRows(d, W, H, 4, rollShift(W, look.centerLon)), alpha: true };
 }
 
@@ -319,7 +326,7 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
                 const data = await fine(fin, ctx.seed, W, p => progress?.(0, `Adding the detail finer than the mesh… ${Math.round(100 * p)} %`));
                 fin = { ...fin, fine: { W, ...data } };
             }
-            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon, frame: ctx.frame, seed: ctx.seed }, fin };
+            return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon, frame: ctx.frame, seed: ctx.seed, cloudSeed: ctx.cloudSeed ?? 0 }, fin };
         },
         end: async () => {},
         names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },

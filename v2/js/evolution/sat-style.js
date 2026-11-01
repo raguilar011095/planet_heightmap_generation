@@ -235,6 +235,47 @@ for (const [n, v] of [['rainforest', 1], ['temperate', 0.9], ['continental', 0.9
 let groundNoise = null;
 
 /**
+ * Stripes that follow a direction over the sphere with no seam and no shear (the dunes, the fold bands, the ice's flow):
+ * phasor noise (Tricard et al. 2019) on a 3-D lattice of kernels 4 stripes apart — each of the 8 around the place
+ * (x, y, z) on the unit sphere a wave across (ax, ay, az) (a unit tangent there) spacingKm long, from its own centre with
+ * its own phase; the sine of the phase of their sum, weighted by nearness, + `shift` (radians), is returned: stripes of
+ * one contrast, with the odd fork where the kernels meet, as dunes and folds have. `seed`: the mechanism's own.
+ * (The place's own term drops out — the direction is a tangent, so (x, y, z) · a = 0 — leaving each kernel's phase
+ * −8π (its centre in lattice units) · a: one complex factor per axis, multiplied, not a sine and cosine per kernel.)
+ */
+const WAVE_RE = new Float64Array(256), WAVE_IM = new Float64Array(256);
+for (let q = 0; q < 256; q++) { WAVE_RE[q] = Math.cos(2 * Math.PI * q / 256); WAVE_IM[q] = Math.sin(2 * Math.PI * q / 256); }
+// (a sine by table, linear between its 4096 steps a turn — off by under 10⁻⁶; the cosine a quarter-turn on)
+const SIN_N = 4096, SIN_T = new Float64Array(SIN_N + 1), SIN_K = SIN_N / (2 * Math.PI);
+for (let q = 0; q <= SIN_N; q++) SIN_T[q] = Math.sin(2 * Math.PI * q / SIN_N);
+const fsin = a => { const t = a * SIN_K, i = Math.floor(t), f = t - i, k = i & (SIN_N - 1); return SIN_T[k] + f * (SIN_T[k + 1] - SIN_T[k]); };
+const fcos = a => fsin(a + Math.PI / 2);
+function stripeWave(x, y, z, ax, ay, az, spacingKm, seed, shift) {
+    const c = 4 * spacingKm / 6371, K = 8 * Math.PI;
+    const gx = x / c - 0.5, gy = y / c - 0.5, gz = z / c - 0.5, ix = Math.floor(gx), iy = Math.floor(gy), iz = Math.floor(gz);
+    let fx = gx - ix, fy = gy - iy, fz = gz - iz;
+    fx = fx * fx * (3 - 2 * fx); fy = fy * fy * (3 - 2 * fy); fz = fz * fz * (3 - 2 * fz);
+    const b = shift - K * ((ix + 0.5) * ax + (iy + 0.5) * ay + (iz + 0.5) * az);
+    const e0r = fcos(b), e0i = fsin(b), exr = fcos(K * ax), exi = -fsin(K * ax), eyr = fcos(K * ay), eyi = -fsin(K * ay), ezr = fcos(K * az), ezi = -fsin(K * az);
+    let re = 0, im = 0;
+    for (let dz = 0; dz < 2; dz++) {
+        const zr = dz ? e0r * ezr - e0i * ezi : e0r, zi = dz ? e0r * ezi + e0i * ezr : e0i, wz = dz ? fz : 1 - fz;
+        for (let dy = 0; dy < 2; dy++) {
+            const yr = dy ? zr * eyr - zi * eyi : zr, yi = dy ? zr * eyi + zi * eyr : zi, wy = wz * (dy ? fy : 1 - fy);
+            for (let dx = 0; dx < 2; dx++) {
+                const w = wy * (dx ? fx : 1 - fx);
+                if (!(w > 0)) continue;
+                const xr = dx ? yr * exr - yi * exi : yr, xi = dx ? yr * exi + yi * exr : yi, jx = ix + dx, jz = iz + dz;
+                const q = (hash(jx * 92821 + jz * 68917 + seed * 7919, (iy + dy) * 31337 - jz * 1009 + seed) * 256) | 0, rr = WAVE_RE[q], ri = WAVE_IM[q];
+                re += w * (xr * rr - xi * ri); im += w * (xr * ri + xi * rr);
+            }
+        }
+    }
+    const m = Math.sqrt(re * re + im * im);
+    return m > 1e-9 ? im / m : 0;
+}
+
+/**
  * The large-scale features (owner, zoomed out: "a bit too noisy … there being little long range/high scale noise/features
  * outside of climate and mountain ranges"; plans/V2_SATELLITE_LOOK_PLAN.md P6) — from the world's own data, broad, each
  * with its own switch; laid on before the terrain's own colour (P1), on a grid of ~0.35°:
@@ -339,14 +380,47 @@ function vnoise(x, y, period) {
 }
 function fbm(x, y, period, oct = 4) { let s = 0, a = 0.5, t = 0; for (let o = 0; o < oct; o++, a *= 0.5) { const k = 2 ** o; s += a * vnoise(x * k, y * k, period * k); t += a; } return s / t; }
 
-/** Box-blur a w × h field in place (rows wrap; columns clamp), radius r cells, `passes` times. */
-function boxBlur(a, w, h, r, passes = 2) {
-    if (r < 1) return;
-    if (r >= w) { boxBlurWide(a, w, h, r, passes); return; }
-    const tmp = new Float32Array(w), R = r + 1, ring = new Float32Array(R * w), S = new Float64Array(w);
+// ── work spread over time: each heavy step is a generator that yields between bands of rows (a few ms of work each), so
+// the page can draw the Satellite picture a slice at a time (prepareSatellite); drain() runs one straight through — the
+// same arithmetic either way ──
+const YIELD_ROWS = 64;
+function drain(g) { for (;;) { const r = g.next(); if (r.done) return r.value; } }
+
+/** Box-blur a w × h field in place, `passes` times: rows wrap, row y by its own radius rowR(y) cells; columns clamp,
+ *  radius ry. `plain`: the rows' sums by modulo, the columns one by one (a radius as wide as the rows, or rows too short
+ *  for the ring); else the columns a row at a time, each row's values kept in a ring until the window leaves them — the
+ *  same sums, in the same order. Yields between bands of rows. (boxBlur: one radius; latBlur: rows wider poleward.) */
+function* blurGen(a, w, h, rowR, ry, passes, plain) {
+    if (plain) {
+        const tmp = new Float32Array(Math.max(w, h));
+        for (let p = 0; p < passes; p++) {
+            for (let y = 0; y < h; y++) {
+                const r = rowR(y), o = y * w; let s = 0;
+                for (let d = -r; d <= r; d++) s += a[o + ((d % w) + w) % w];
+                for (let x = 0; x < w; x++) { tmp[x] = s / (2 * r + 1); s += a[o + (x + r + 1) % w] - a[o + ((x - r) % w + w) % w]; }
+                for (let x = 0; x < w; x++) a[o + x] = tmp[x];
+                if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
+            }
+            for (let x = 0; x < w; x++) {
+                let s = 0, n = 0;
+                for (let d = 0; d <= ry && d < h; d++) { s += a[d * w + x]; n++; }
+                for (let y = 0; y < h; y++) {
+                    tmp[y] = s / n;
+                    const add = y + ry + 1, rem = y - ry;
+                    if (add < h) { s += a[add * w + x]; n++; }
+                    if (rem >= 0) { s -= a[rem * w + x]; n--; }
+                }
+                for (let y = 0; y < h; y++) a[y * w + x] = tmp[y];
+                if (x % YIELD_ROWS === YIELD_ROWS - 1) yield;
+            }
+        }
+        return;
+    }
+    const tmp = new Float32Array(w), RR = Math.min(ry + 1, h + 1), ring = new Float32Array(RR * w), S = new Float64Array(w);
     for (let p = 0; p < passes; p++) {
         for (let y = 0; y < h; y++) {
-            const o = y * w; let s = 0;
+            const r = rowR(y), o = y * w;
+            let s = 0;
             for (let d = -r; d <= r; d++) s += a[o + ((d % w) + w) % w];
             for (let x = 0; x < w; x++) {
                 tmp[x] = s / (2 * r + 1);
@@ -355,14 +429,13 @@ function boxBlur(a, w, h, r, passes = 2) {
                 s += a[o + inn] - a[o + out];
             }
             for (let x = 0; x < w; x++) a[o + x] = tmp[x];
+            if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
-        // (the columns' running sums side by side, a row at a time — memory in order — each row's values kept in a ring
-        // until the window leaves them: the same sums, in the same order, as column by column)
         S.fill(0);
         let n = 0;
-        for (let d = 0; d <= r && d < h; d++) { const o = d * w; for (let x = 0; x < w; x++) S[x] += a[o + x]; n++; }
+        for (let d = 0; d <= ry && d < h; d++) { const o = d * w; for (let x = 0; x < w; x++) S[x] += a[o + x]; n++; }
         for (let y = 0; y < h; y++) {
-            const o = y * w, add = y + r + 1, rem = y - r, ra = add * w, rr = (((rem % R) + R) % R) * w, rs = (y % R) * w, n0 = n;
+            const o = y * w, add = y + ry + 1, rem = y - ry, ra = add * w, rr = rem >= 0 ? (rem % RR) * w : 0, rs = (y % RR) * w, n0 = n;
             for (let x = 0; x < w; x++) {
                 const s = S[x];
                 let t = s;
@@ -374,31 +447,18 @@ function boxBlur(a, w, h, r, passes = 2) {
             }
             if (add < h) n++;
             if (rem >= 0) n--;
+            if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
     }
 }
-/** boxBlur for a radius as wide as the rows (the rows' sums wrap more than once): as it was written first. */
-function boxBlurWide(a, w, h, r, passes) {
-    const tmp = new Float32Array(Math.max(w, h));
-    for (let p = 0; p < passes; p++) {
-        for (let y = 0; y < h; y++) {
-            const o = y * w; let s = 0;
-            for (let d = -r; d <= r; d++) s += a[o + ((d % w) + w) % w];
-            for (let x = 0; x < w; x++) { tmp[x] = s / (2 * r + 1); s += a[o + (x + r + 1) % w] - a[o + ((x - r) % w + w) % w]; }
-            for (let x = 0; x < w; x++) a[o + x] = tmp[x];
-        }
-        for (let x = 0; x < w; x++) {
-            let s = 0, n = 0;
-            for (let d = 0; d <= r && d < h; d++) { s += a[d * w + x]; n++; }
-            for (let y = 0; y < h; y++) {
-                tmp[y] = s / n;
-                const add = y + r + 1, rem = y - r;
-                if (add < h) { s += a[add * w + x]; n++; }
-                if (rem >= 0) { s -= a[rem * w + x]; n--; }
-            }
-            for (let y = 0; y < h; y++) a[y * w + x] = tmp[y];
-        }
-    }
+/** Box-blur a w × h field in place (rows wrap; columns clamp), radius r cells, `passes` times. */
+function* boxBlurGen(a, w, h, r, passes = 2) { if (r >= 1) yield* blurGen(a, w, h, () => r, r, passes, r >= w); }
+function boxBlur(a, w, h, r, passes = 2) { drain(boxBlurGen(a, w, h, r, passes)); }
+/** Box-blur a w × h field in place, `passes` times, over about ±km (each pass ±km/2): rows wrap, each by its own width
+ *  (wider toward the poles, at most a quarter of the way round); columns clamp. `px`: a pixel's km at the equator. */
+function* latBlurGen(a, w, h, km, px, passes = 2) {
+    const rowR = y => { const cl = Math.max(0.05, Math.cos((0.5 - (y + 0.5) / h) * Math.PI)); return Math.min(w >> 2, Math.max(1, Math.round(km / (px * cl) / 2))); };
+    yield* blurGen(a, w, h, rowR, Math.max(1, Math.round(km / px / 2)), passes, w < 4);
 }
 
 /** Each family's lowland colour as the long blend compares them (its coast colour, summer and winter evened; sRGB 0…1). */
@@ -408,27 +468,31 @@ const BLEND_REF = RAMP_FAMILIES.map(f => [0, 1, 2].map(c => (f.summer.low[0][c] 
  * over ±shortKm, then the similarity-guided long blend laid over it (see SAT_BLEND); each cell's shares summing to 1
  * where it has any (the ice sheets' family left out, as everywhere in the shares).
  */
-function blendShares(share, gw, gh) {
+function* blendSharesGen(share, gw, gh) {
     const B = SAT_BLEND, N = gw * gh, pxKm = 2 * Math.PI * 6371 / gw;
-    const norm = (a, n) => { for (let c = 0; c < n; c++) { let t = 0; for (let g = 0; g < NF; g++) t += a[g * n + c]; if (t > 1e-6) for (let g = 0; g < NF; g++) a[g * n + c] /= t; } };
-    if (B.shortKm > 0) for (let g = 0; g < NF; g++) if (g !== ICE) latBlur(share.subarray(g * N, (g + 1) * N), gw, gh, B.shortKm, pxKm, 2);
-    norm(share, N);
+    const norm = function* (a, n) { for (let c = 0; c < n; c++) { let t = 0; for (let g = 0; g < NF; g++) t += a[g * n + c]; if (t > 1e-6) for (let g = 0; g < NF; g++) a[g * n + c] /= t; if ((c & 65535) === 65535) yield; } };
+    if (B.shortKm > 0) for (let g = 0; g < NF; g++) if (g !== ICE) yield* latBlurGen(share.subarray(g * N, (g + 1) * N), gw, gh, B.shortKm, pxKm, 2);
+    yield* norm(share, N);
     if (!(B.longShare > 0 && B.longKm > 0)) return;
     // (the long blend on a grid q times coarser: its cells' shares, and the lowland colour they stand for)
     const q = 4, cw = Math.max(4, (gw / q) | 0), ch = Math.max(2, (gh / q) | 0), M = cw * ch, cpx = 2 * Math.PI * 6371 / cw;
     const cs = new Float32Array(NF * M), guide = new Float32Array(3 * M), has = new Uint8Array(M);
-    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
-        const c = Math.min(ch - 1, (y * ch / gh) | 0) * cw + Math.min(cw - 1, (x * cw / gw) | 0), i = y * gw + x;
-        for (let g = 0; g < NF; g++) cs[g * M + c] += share[g * N + i];
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const c = Math.min(ch - 1, (y * ch / gh) | 0) * cw + Math.min(cw - 1, (x * cw / gw) | 0), i = y * gw + x;
+            for (let g = 0; g < NF; g++) cs[g * M + c] += share[g * N + i];
+        }
+        if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
     }
-    norm(cs, M);
+    yield* norm(cs, M);
     for (let c = 0; c < M; c++) {
         let t = 0;
         for (let g = 0; g < NF; g++) { const s = cs[g * M + c]; if (!(s > 0)) continue; t += s; for (let k = 0; k < 3; k++) guide[3 * c + k] += s * BLEND_REF[g][k]; }
         has[c] = t > 1e-6 ? 1 : 0;
     }
+    yield;
     // (rows, then columns: a Gaussian of half longKm, each neighbour by how alike its colour is to the cell's own)
-    const k2 = 1 / (2 * B.similarity * B.similarity), pass = (src, dst, rows) => {
+    const k2 = 1 / (2 * B.similarity * B.similarity), pass = function* (src, dst, rows) {
         const lines = rows ? ch : cw, len = rows ? cw : ch, acc = new Float64Array(NF);
         for (let l = 0; l < lines; l++) {
             const cl = rows ? Math.max(0.15, Math.cos((0.5 - (l + 0.5) / ch) * Math.PI)) : 1, sig = (B.longKm / 2) / (cpx * cl), r = Math.min(len >> 2, Math.max(1, Math.ceil(2 * sig)));
@@ -449,33 +513,39 @@ function blendShares(share, gw, gh) {
                 }
                 for (let g = 0; g < NF; g++) dst[g * M + c] = acc[g] / wsum;
             }
+            if (l % 4 === 3) yield;
         }
     };
     const tmp = new Float32Array(NF * M), long = new Float32Array(NF * M);
-    pass(cs, tmp, true); pass(tmp, long, false);
+    yield* pass(cs, tmp, true); yield* pass(tmp, long, false);
     // (laid over the short blend: read back at each cell of the fine grid, bilinear over the coarse cells with land)
     const L = B.longShare, sv = new Float64Array(NF), cc = new Int32Array(4), ww = new Float64Array(4);
-    for (let y = 0; y < gh; y++) for (let x = 0; x < gw; x++) {
-        const i = y * gw + x;
-        let t0 = 0;
-        for (let g = 0; g < NF; g++) t0 += share[g * N + i];
-        if (!(t0 > 1e-6)) continue;
-        const X = (x + 0.5) * cw / gw - 0.5, Yc = Math.max(0, Math.min(ch - 1, (y + 0.5) * ch / gh - 0.5)), x0 = Math.floor(X), y0 = Math.floor(Yc), fx = X - x0, fy = Yc - y0;
-        const i0 = ((x0 % cw) + cw) % cw, i1 = i0 + 1 === cw ? 0 : i0 + 1, r0 = y0 * cw, r1 = Math.min(ch - 1, y0 + 1) * cw;
-        cc[0] = r0 + i0; cc[1] = r0 + i1; cc[2] = r1 + i0; cc[3] = r1 + i1; ww[0] = (1 - fx) * (1 - fy); ww[1] = fx * (1 - fy); ww[2] = (1 - fx) * fy; ww[3] = fx * fy;
-        sv.fill(0);
-        let wt = 0;
-        for (let j = 0; j < 4; j++) { if (!has[cc[j]]) continue; wt += ww[j]; for (let g = 0; g < NF; g++) sv[g] += ww[j] * long[g * M + cc[j]]; }
-        if (!(wt > 1e-6)) continue;
-        for (let g = 0; g < NF; g++) share[g * N + i] = (1 - L) * share[g * N + i] + L * sv[g] / wt;
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const i = y * gw + x;
+            let t0 = 0;
+            for (let g = 0; g < NF; g++) t0 += share[g * N + i];
+            if (!(t0 > 1e-6)) continue;
+            const X = (x + 0.5) * cw / gw - 0.5, Yc = Math.max(0, Math.min(ch - 1, (y + 0.5) * ch / gh - 0.5)), x0 = Math.floor(X), y0 = Math.floor(Yc), fx = X - x0, fy = Yc - y0;
+            const i0 = ((x0 % cw) + cw) % cw, i1 = i0 + 1 === cw ? 0 : i0 + 1, r0 = y0 * cw, r1 = Math.min(ch - 1, y0 + 1) * cw;
+            cc[0] = r0 + i0; cc[1] = r0 + i1; cc[2] = r1 + i0; cc[3] = r1 + i1; ww[0] = (1 - fx) * (1 - fy); ww[1] = fx * (1 - fy); ww[2] = (1 - fx) * fy; ww[3] = fx * fy;
+            sv.fill(0);
+            let wt = 0;
+            for (let j = 0; j < 4; j++) { if (!has[cc[j]]) continue; wt += ww[j]; for (let g = 0; g < NF; g++) sv[g] += ww[j] * long[g * M + cc[j]]; }
+            if (!(wt > 1e-6)) continue;
+            for (let g = 0; g < NF; g++) share[g * N + i] = (1 - L) * share[g * N + i] + L * sv[g] / wt;
+        }
+        if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
     }
 }
 
-/** How cold a dry place is for its colours (0 … 1: then the tundra's, not sand's) — COLD_DRY_*. */
-function coldDryAt(R, i, tr) {
-    const tA = R.tAnnual[i] / 100, range = tr ? statValue(tr, 'tRange', i) : NaN, warmest = tA + (range === range ? range / 2 : 8);
+/** How cold a dry place is for its colours (0 … 1: then the tundra's, not sand's), from its year's mean temperature (°C)
+ *  and its range (warmest − coldest month, °C; NaN: unknown) — COLD_DRY_*. */
+function coldDry(tA, range) {
+    const warmest = tA + (range === range ? range / 2 : 8);
     return sm(0, 1, Math.max((COLD_DRY_C[0] - warmest) / (COLD_DRY_C[0] - COLD_DRY_C[1]), (COLD_DRY_YEAR_C[0] - tA) / (COLD_DRY_YEAR_C[0] - COLD_DRY_YEAR_C[1])));
 }
+const coldDryAt = (R, i, tr) => coldDry(R.tAnnual[i] / 100, tr ? statValue(tr, 'tRange', i) : NaN);
 
 /**
  * Each family's share of the land around every pixel, on a grid ≤ 1024 wide, cached per climate picture: the climate's
@@ -483,7 +553,8 @@ function coldDryAt(R, i, tr) {
  * gradients; `fuzzy`), else each pixel's class counted and blurred over RAMP_BLEND_KM (moments detailed before P2).
  */
 const shareCache = new WeakMap();
-function sharesOf(R) {
+function sharesOf(R) { return shareCache.get(R) ?? drain(sharesGen(R)); }
+function* sharesGen(R) {
     let S = shareCache.get(R);
     if (S) return S;
     const tr = R.stats?.tRange;
@@ -492,12 +563,15 @@ function sharesOf(R) {
         // sheets' share left out — an ice sheet keeps its own edge)
         const F = R.families, gw = F.w, gh = F.h, N = gw * gh, f = R.w / gw, share = new Float32Array(NF * N);
         const map = SOFT_FAMILIES.map(n => fam(n));
-        for (let k = 0; k < F.n; k++) { const g = map[k]; if (g < 0 || g === ICE) continue; for (let c = 0; c < N; c++) share[g * N + c] += F.data[k * N + c] / 255; }
+        for (let k = 0; k < F.n; k++) { const g = map[k]; if (g < 0 || g === ICE) continue; for (let c = 0; c < N; c++) share[g * N + c] += F.data[k * N + c] / 255; yield; }
         const coldSum = new Float32Array(N), landN = new Float32Array(N);
-        for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
-            const i = y * R.w + x; if (!R.koppen[i]) continue;
-            const c = Math.min(gh - 1, (y / f) | 0) * gw + Math.min(gw - 1, (x / f) | 0);
-            coldSum[c] += coldDryAt(R, i, tr); landN[c]++;
+        for (let y = 0; y < R.h; y++) {
+            for (let x = 0; x < R.w; x++) {
+                const i = y * R.w + x; if (!R.koppen[i]) continue;
+                const c = Math.min(gh - 1, (y / f) | 0) * gw + Math.min(gw - 1, (x / f) | 0);
+                coldSum[c] += coldDryAt(R, i, tr); landN[c]++;
+            }
+            if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
         for (let c = 0; c < N; c++) {
             if (!(landN[c] > 0)) continue;
@@ -505,26 +579,51 @@ function sharesOf(R) {
             if (!(cold > 0)) continue;
             for (const g of DRY) { const v = share[g * N + c] * cold; share[g * N + c] -= v; share[TUNDRA * N + c] += v; }
         }
-        blendShares(share, gw, gh);
+        yield* blendSharesGen(share, gw, gh);
         S = { f, gw, gh, N, share, pxKm: 2 * Math.PI * 6371 / gw, fuzzy: true };
         shareCache.set(R, S);
         return S;
     }
     const f = Math.max(1, Math.round(R.w / 1024)), gw = Math.ceil(R.w / f), gh = Math.ceil(R.h / f), N = gw * gh;
     const share = new Float32Array(NF * N);
-    for (let y = 0; y < R.h; y++) for (let x = 0; x < R.w; x++) {
-        const i = y * R.w + x, k = R.koppen[i]; if (!k) continue;
-        const g = familyOfClass[k]; if (g < 0 || g === ICE) continue;
-        const c = ((y / f) | 0) * gw + ((x / f) | 0);
-        const cold = DRY.has(g) ? coldDryAt(R, i, tr) : 0;
-        share[g * N + c] += 1 - cold;
-        if (cold > 0) share[TUNDRA * N + c] += cold;
+    for (let y = 0; y < R.h; y++) {
+        for (let x = 0; x < R.w; x++) {
+            const i = y * R.w + x, k = R.koppen[i]; if (!k) continue;
+            const g = familyOfClass[k]; if (g < 0 || g === ICE) continue;
+            const c = ((y / f) | 0) * gw + ((x / f) | 0);
+            const cold = DRY.has(g) ? coldDryAt(R, i, tr) : 0;
+            share[g * N + c] += 1 - cold;
+            if (cold > 0) share[TUNDRA * N + c] += cold;
+        }
+        if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
     }
     const pxKm = 2 * Math.PI * 6371 / gw, r = Math.max(1, Math.round(RAMP_BLEND_KM / pxKm / 2));
-    for (let g = 0; g < NF; g++) if (g !== ICE) boxBlur(share.subarray(g * N, (g + 1) * N), gw, gh, r);
+    for (let g = 0; g < NF; g++) if (g !== ICE) yield* boxBlurGen(share.subarray(g * N, (g + 1) * N), gw, gh, r);
     S = { f, gw, gh, N, share, pxKm, fuzzy: false };
     shareCache.set(R, S);
     return S;
+}
+
+/**
+ * A soft ribbon along a segment into the grid m (w × h, row y south, x east wrapping; land only where `land` is given):
+ * the segment's ends (ax, ay) – (bx, by) in pixel units, each pixel's centre at its integer index; `halfKm` to each side,
+ * a bell from all at its middle to none at its reach (halfKm + `pad` pixels); its strength v (`thin`: a ribbon narrower
+ * than a pixel stamped fainter). The most of what covers a pixel. Shared by the banks (riversideOf) and the floodplains
+ * (macroOf).
+ */
+function stampRibbon(m, w, h, pxKm, land, ax, ay, bx, by, halfKm, v, pad, thin) {
+    const cl = Math.max(0.05, Math.cos((0.5 - (0.5 * (ay + by) + 0.5) / h) * Math.PI)), kx = pxKm * cl, ky = pxKm;
+    const reach = halfKm + pad * pxKm, cover = thin ? v * Math.min(1, (2 * halfKm + 0.3 * pxKm) / pxKm) : v;
+    const x0 = Math.floor(Math.min(ax, bx) - reach / kx), x1 = Math.ceil(Math.max(ax, bx) + reach / kx);
+    const y0 = Math.max(0, Math.floor(Math.min(ay, by) - reach / ky)), y1 = Math.min(h - 1, Math.ceil(Math.max(ay, by) + reach / ky));
+    const dx = (bx - ax) * kx, dy = (by - ay) * ky, L2 = dx * dx + dy * dy;
+    for (let y = y0; y <= y1; y++) for (let xx = x0; xx <= x1; xx++) {
+        const x = ((xx % w) + w) % w, c = y * w + x;
+        if (land && !land[c]) continue;
+        const px = (xx - ax) * kx, py = (y - ay) * ky, t = L2 > 0 ? Math.max(0, Math.min(1, (px * dx + py * dy) / L2)) : 0;
+        const ex = px - t * dx, ey = py - t * dy, a = cover * sm(reach, 0, Math.sqrt(ex * ex + ey * ey));
+        if (a > m[c]) m[c] = a;
+    }
 }
 
 /**
@@ -541,28 +640,15 @@ export const RIPARIAN = { minQ: 15, halfKm: [3.5, 9], strength: [0.5, 1], lowWid
     // patchy along the course: × 1 ± patch per standard deviation of a noise at patchKm, within patchClamp)
     tint: [0.34, 0.58, 0.28], patchKm: 55, patch: 0.4, patchClamp: [0.2, 1.15] };
 const ripCache = new WeakMap();
-function riversideOf(R, rivers, water, heightM, hw) {
+function riversideOf(R, rivers, water, heightM, hw) { return ripCache.get(R) ?? drain(riversideGen(R, rivers, water, heightM, hw)); }
+function* riversideGen(R, rivers, water, heightM, hw) {
     if (!rivers && !water) return null;
     let M = ripCache.get(R);
     if (M) return M;
     const w = R.w, h = R.h, f = Math.max(1, Math.round(hw / w)), pxKm = 2 * Math.PI * 6371 / w, m = new Float32Array(w * h);
-    // (a segment's ribbon: pixels x east (wrapping), y south; distances in km, east–west shrunk by the latitude)
-    const stamp = (ax, ay, bx, by, halfKm, v) => {
-        const cl = Math.max(0.05, Math.cos((0.5 - (0.5 * (ay + by) + 0.5) / h) * Math.PI)), kx = pxKm * cl, ky = pxKm;
-        const reach = halfKm + 0.6 * pxKm, cover = v * Math.min(1, (2 * halfKm + 0.3 * pxKm) / pxKm);
-        const x0 = Math.floor(Math.min(ax, bx) - reach / kx), x1 = Math.ceil(Math.max(ax, bx) + reach / kx);
-        const y0 = Math.max(0, Math.floor(Math.min(ay, by) - reach / ky)), y1 = Math.min(h - 1, Math.ceil(Math.max(ay, by) + reach / ky));
-        const dx = (bx - ax) * kx, dy = (by - ay) * ky, L2 = dx * dx + dy * dy;
-        for (let y = y0; y <= y1; y++) for (let xx = x0; xx <= x1; xx++) {
-            const x = ((xx % w) + w) % w, c = y * w + x;
-            if (!R.koppen[c]) continue;
-            const px = (xx + 0.5 - ax) * kx, py = (y + 0.5 - ay) * ky, t = L2 > 0 ? Math.max(0, Math.min(1, (px * dx + py * dy) / L2)) : 0;
-            const ex = px - t * dx, ey = py - t * dy, a = cover * sm(reach, 0, Math.sqrt(ex * ex + ey * ey));
-            if (a > m[c]) m[c] = a;
-        }
-    };
     if (rivers) {
         const { start, lat, lon, q } = rivers, starts = [...start, lat.length], lq0 = Math.log10(RIPARIAN.minQ);
+        let n = 0;
         for (let s = 0; s < starts.length - 1; s++) for (let i = starts[s]; i < starts[s + 1] - 1; i++) {
             if (!(q[i] >= RIPARIAN.minQ)) continue;
             const x0 = (lon[i] + 180) / 360 * w - 0.5, y0 = (90 - lat[i]) / 180 * h - 0.5, x1 = (lon[i + 1] + 180) / 360 * w - 0.5, y1 = (90 - lat[i + 1]) / 180 * h - 0.5;
@@ -570,96 +656,36 @@ function riversideOf(R, rivers, water, heightM, hw) {
             const mx = ((Math.round(0.5 * (x0 + x1)) % w) + w) % w, my = Math.max(0, Math.min(h - 1, Math.round(0.5 * (y0 + y1))));
             const hm = heightM ? heightM[my * f * hw + mx * f] / 1000 : 0, big = sm(lq0, lq0 + 2.5, Math.log10(q[i]));
             const half = (RIPARIAN.halfKm[0] + (RIPARIAN.halfKm[1] - RIPARIAN.halfKm[0]) * big) * (1 + RIPARIAN.lowWiden * sm(RIPARIAN.lowKm[0], RIPARIAN.lowKm[1], hm));
-            stamp(x0, y0, x1, y1, half, RIPARIAN.strength[0] + (RIPARIAN.strength[1] - RIPARIAN.strength[0]) * big);
+            stampRibbon(m, w, h, pxKm, R.koppen, x0, y0, x1, y1, half, RIPARIAN.strength[0] + (RIPARIAN.strength[1] - RIPARIAN.strength[0]) * big, 0.6, true);
+            if (++n % 2000 === 0) yield;
         }
     }
     if (water) {
         // (a fresh lake's shore: from each of its pixels on its edge)
         const isLake = (x, y) => water[y * f * hw + (((x % w) + w) % w) * f] === 1;
-        for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-            if (!isLake(x, y)) continue;
-            if (isLake(x + 1, y) && isLake(x - 1, y) && (y === 0 || isLake(x, y - 1)) && (y === h - 1 || isLake(x, y + 1))) continue;
-            stamp(x, y, x, y, RIPARIAN.lakeKm, RIPARIAN.lakeStrength);
+        for (let y = 0; y < h; y++) {
+            for (let x = 0; x < w; x++) {
+                if (!isLake(x, y)) continue;
+                if (isLake(x + 1, y) && isLake(x - 1, y) && (y === 0 || isLake(x, y - 1)) && (y === h - 1 || isLake(x, y + 1))) continue;
+                stampRibbon(m, w, h, pxKm, R.koppen, x, y, x, y, RIPARIAN.lakeKm, RIPARIAN.lakeStrength, 0.6, true);
+            }
+            if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
     }
     ripCache.set(R, m);
     return m;
 }
 
-/** Box-blur a w × h field in place, `passes` times, over about ±km (each pass ±km/2): rows wrap, each by its own width
- *  (wider toward the poles, at most a quarter of the way round); columns clamp. `px`: a pixel's km at the equator. */
-function latBlur(a, w, h, km, px, passes = 2) {
-    if (w < 4) { latBlurPlain(a, w, h, km, px, passes); return; }
-    const tmp = new Float32Array(w), ry = Math.max(1, Math.round(km / px / 2)), R = ry + 1, ring = new Float32Array(Math.min(R, h + 1) * w), S = new Float64Array(w);
-    for (let p = 0; p < passes; p++) {
-        for (let y = 0; y < h; y++) {
-            const cl = Math.max(0.05, Math.cos((0.5 - (y + 0.5) / h) * Math.PI)), r = Math.min(w >> 2, Math.max(1, Math.round(km / (px * cl) / 2))), o = y * w;
-            let s = 0;
-            for (let d = -r; d <= r; d++) s += a[o + ((d % w) + w) % w];
-            for (let x = 0; x < w; x++) {
-                tmp[x] = s / (2 * r + 1);
-                let inn = x + r + 1; if (inn >= w) inn -= w;
-                let out = x - r; if (out < 0) out += w;
-                s += a[o + inn] - a[o + out];
-            }
-            for (let x = 0; x < w; x++) a[o + x] = tmp[x];
-        }
-        // (the columns a row at a time, as boxBlur's: the same sums, in the same order — each row's values kept in a ring
-        // until the window leaves them)
-        const RR = Math.min(R, h + 1);
-        S.fill(0);
-        let n = 0;
-        for (let d = 0; d <= ry && d < h; d++) { const o = d * w; for (let x = 0; x < w; x++) S[x] += a[o + x]; n++; }
-        for (let y = 0; y < h; y++) {
-            const o = y * w, add = y + ry + 1, rem = y - ry, ra = add * w, rr = rem >= 0 ? (rem % RR) * w : 0, rs = (y % RR) * w, n0 = n;
-            for (let x = 0; x < w; x++) {
-                const s = S[x];
-                let t = s;
-                if (add < h) t += a[ra + x];
-                if (rem >= 0) t -= ring[rr + x];
-                S[x] = t;
-                ring[rs + x] = a[o + x];
-                a[o + x] = s / n0;
-            }
-            if (add < h) n++;
-            if (rem >= 0) n--;
-        }
-    }
-}
-/** latBlur as it was written first (rows wrapping by modulo, columns one by one) — for a grid narrower than 4. */
-function latBlurPlain(a, w, h, km, px, passes) {
-    const tmp = new Float32Array(Math.max(w, h)), ry = Math.max(1, Math.round(km / px / 2));
-    for (let p = 0; p < passes; p++) {
-        for (let y = 0; y < h; y++) {
-            const cl = Math.max(0.05, Math.cos((0.5 - (y + 0.5) / h) * Math.PI)), r = Math.min(w >> 2, Math.max(1, Math.round(km / (px * cl) / 2))), o = y * w;
-            let s = 0;
-            for (let d = -r; d <= r; d++) s += a[o + ((d % w) + w) % w];
-            for (let x = 0; x < w; x++) { tmp[x] = s / (2 * r + 1); s += a[o + (x + r + 1) % w] - a[o + ((x - r) % w + w) % w]; }
-            for (let x = 0; x < w; x++) a[o + x] = tmp[x];
-        }
-        for (let x = 0; x < w; x++) {
-            let s = 0, n = 0;
-            for (let d = 0; d <= ry && d < h; d++) { s += a[d * w + x]; n++; }
-            for (let y = 0; y < h; y++) {
-                tmp[y] = s / n;
-                const add = y + ry + 1, rem = y - ry;
-                if (add < h) { s += a[add * w + x]; n++; }
-                if (rem >= 0) { s -= a[rem * w + x]; n--; }
-            }
-            for (let y = 0; y < h; y++) a[y * w + x] = tmp[y];
-        }
-    }
-}
-
 /** The land's mean height (km) around each place at the sizes of SAT_TERRAIN.tpKm: each worked out on a grid as coarse
  *  as its size allows (the climate picture's pixels in squares of a power of two), over the land only, then all three
  *  laid on the finest of those grids (so a pixel reads them with one set of weights); cached per climate picture. */
 const meanCache = new WeakMap();
-function landMeans(R, heightM, hw) {
+function landMeans(R, heightM, hw) { return meanCache.get(R) ?? drain(landMeansGen(R, heightM, hw)); }
+function* landMeansGen(R, heightM, hw) {
     let M = meanCache.get(R);
     if (M) return M;
-    const w = R.w, h = R.h, f = Math.max(1, Math.round(hw / w)), pxKm = 2 * Math.PI * 6371 / w;
-    const grids = SAT_TERRAIN.tpKm.map(km => {
+    const w = R.w, h = R.h, f = Math.max(1, Math.round(hw / w)), pxKm = 2 * Math.PI * 6371 / w, grids = [];
+    for (const km of SAT_TERRAIN.tpKm) {
         let fac = 1;
         while (fac * 2 * pxKm * 1.5 <= km && w % (fac * 2) === 0 && h % (fac * 2) === 0) fac *= 2;
         const gw = w / fac, gh = h / fac, S = new Float32Array(gw * gh), N = new Float32Array(gw * gh);
@@ -670,22 +696,26 @@ function landMeans(R, heightM, hw) {
                 const m = heightM[hy + x * f], g = row + ((x / fac) | 0);
                 S[g] += m > 0 ? m / 1000 : 0; N[g]++;
             }
+            if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
-        latBlur(S, gw, gh, km, pxKm * fac); latBlur(N, gw, gh, km, pxKm * fac);
+        yield* latBlurGen(S, gw, gh, km, pxKm * fac); yield* latBlurGen(N, gw, gh, km, pxKm * fac);
         for (let g = 0; g < S.length; g++) S[g] = N[g] > 1e-4 ? S[g] / N[g] : NaN;
-        return { fac, gw, gh, m: S };
-    });
+        grids.push({ fac, gw, gh, m: S });
+    }
     // (the coarser grids read at the finest grid's points; NaN where the finest has no land around)
-    const G0 = grids[0];
-    M = { fac: G0.fac, gw: G0.gw, gh: G0.gh, m: grids.map((G, q) => {
-        if (q === 0) return G.m;
-        const out = new Float32Array(G0.gw * G0.gh);
-        for (let j = 0; j < G0.gh; j++) for (let i = 0; i < G0.gw; i++) {
-            const g = j * G0.gw + i;
-            out[g] = G0.m[g] === G0.m[g] ? bilinearNaN(G, (i + 0.5) * G0.fac, (j + 0.5) * G0.fac) : NaN;
+    const G0 = grids[0], ms = [G0.m];
+    for (let q = 1; q < grids.length; q++) {
+        const G = grids[q], out = new Float32Array(G0.gw * G0.gh);
+        for (let j = 0; j < G0.gh; j++) {
+            for (let i = 0; i < G0.gw; i++) {
+                const g = j * G0.gw + i;
+                out[g] = G0.m[g] === G0.m[g] ? bilinearNaN(G, (i + 0.5) * G0.fac, (j + 0.5) * G0.fac) : NaN;
+            }
+            if (j % YIELD_ROWS === YIELD_ROWS - 1) yield;
         }
-        return out;
-    }) };
+        ms.push(out);
+    }
+    M = { fac: G0.fac, gw: G0.gw, gh: G0.gh, m: ms };
     meanCache.set(R, M);
     return M;
 }
@@ -711,27 +741,34 @@ let lineNoise = null, ripNoise = null;
  * floods' belts (0 … 1) and the glacial ground (0 … 1).
  */
 const macroCache = new WeakMap();
-function macroOf(R, heightM, hw, rivers, ground) {
+function macroOf(R, heightM, hw, rivers, ground) { return macroCache.get(R) ?? drain(macroGen(R, heightM, hw, rivers, ground)); }
+function* macroGen(R, heightM, hw, rivers, ground) {
     let M = macroCache.get(R);
     if (M) return M;
     const A = SAT_MACRO, w = R.w, h = R.h, f = Math.max(1, Math.round(hw / w)), gw = Math.min(1024, w), gh = gw >> 1, N = gw * gh, fac = w / gw, pxKm = 2 * Math.PI * 6371 / gw;
     const rockPx = ground?.geology?.w === w ? ground.geology.rock : null, drv = ground?.drivers ?? null, LNR = SAT_GROUND.rocks.tint.map(t => t.map(Math.log));
     const pr = new Float32Array(N), pg = new Float32Array(N), pb = new Float32Array(N), land = new Float32Array(N), hs = new Float32Array(N), gl = new Float32Array(N);
-    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
-        const i = y * w + x;
-        if (!R.koppen[i]) continue;
-        const g = Math.min(gh - 1, (y / fac) | 0) * gw + Math.min(gw - 1, (x / fac) | 0), hm = heightM[y * f * hw + x * f];
-        land[g]++; hs[g] += hm > 0 ? hm / 1000 : 0;
-        if (rockPx && rockPx[i]) { const t = LNR[rockPx[i]]; pr[g] += t[0]; pg[g] += t[1]; pb[g] += t[2]; }
-        if (drv) { const d = Math.min(drv.h - 1, ((y + 0.5) * drv.h / h) | 0) * drv.w + Math.min(drv.w - 1, ((x + 0.5) * drv.w / w) | 0); if (drv.ice[d]) gl[g] += (drv.ice[d] / 255) * (0.5 + 0.5 * drv.scour[d] / 255); }
+    for (let y = 0; y < h; y++) {
+        for (let x = 0; x < w; x++) {
+            const i = y * w + x;
+            if (!R.koppen[i]) continue;
+            const g = Math.min(gh - 1, (y / fac) | 0) * gw + Math.min(gw - 1, (x / fac) | 0), hm = heightM[y * f * hw + x * f];
+            land[g]++; hs[g] += hm > 0 ? hm / 1000 : 0;
+            if (rockPx && rockPx[i]) { const t = LNR[rockPx[i]]; pr[g] += t[0]; pg[g] += t[1]; pb[g] += t[2]; }
+            if (drv) { const d = Math.min(drv.h - 1, ((y + 0.5) * drv.h / h) | 0) * drv.w + Math.min(drv.w - 1, ((x + 0.5) * drv.w / w) | 0); if (drv.ice[d]) gl[g] += (drv.ice[d] / 255) * (0.5 + 0.5 * drv.scour[d] / 255); }
+        }
+        if (y % YIELD_ROWS === YIELD_ROWS - 1) yield;
     }
     // (each a land-weighted mean over its size: the sums and the land blurred alike, then divided)
-    const mean = (sum, km) => { const s = sum.slice(), n = land.slice(); latBlur(s, gw, gh, km, pxKm); latBlur(n, gw, gh, km, pxKm); for (let g = 0; g < N; g++) s[g] = n[g] > 1e-3 ? s[g] / n[g] : NaN; return s; };
-    const prov = [pr, pg, pb].map(a => mean(a, A.provinces.km)), height = mean(hs, A.basins.km), glac = mean(gl, A.glacial.km);
+    const mean = function* (sum, km) { const s = sum.slice(), n = land.slice(); yield* latBlurGen(s, gw, gh, km, pxKm); yield* latBlurGen(n, gw, gh, km, pxKm); for (let g = 0; g < N; g++) s[g] = n[g] > 1e-3 ? s[g] / n[g] : NaN; return s; };
+    const prov = [];
+    for (const a of [pr, pg, pb]) prov.push(yield* mean(a, A.provinces.km));
+    const height = yield* mean(hs, A.basins.km), glac = yield* mean(gl, A.glacial.km);
     // (the floods' belts: each great river's reach stamped as a soft band on low ground)
     const flood = new Float32Array(N), F = A.floods;
     if (rivers) {
         const { start, lat, lon, q } = rivers, starts = [...start, lat.length], lq0 = Math.log(F.minQ), lq1 = Math.log(F.maxQ);
+        let n = 0;
         for (let s = 0; s < starts.length - 1; s++) for (let i = starts[s]; i < starts[s + 1] - 1; i++) {
             if (!(q[i] >= F.minQ)) continue;
             const ax = (lon[i] + 180) / 360 * gw - 0.5, ay = (90 - lat[i]) / 180 * gh - 0.5, bx = (lon[i + 1] + 180) / 360 * gw - 0.5, by = (90 - lat[i + 1]) / 180 * gh - 0.5;
@@ -740,16 +777,10 @@ function macroOf(R, heightM, hw, rivers, ground) {
             const hm = heightM[my * f * hw + mx * f] / 1000, low = sm(F.lowKm[0], F.lowKm[1], hm);
             if (!(low > 0.01)) continue;
             const big = sm(lq0, lq1, Math.log(q[i])), half = F.halfKm[0] + (F.halfKm[1] - F.halfKm[0]) * big, v = low * (0.5 + 0.5 * big);
-            const cl = Math.max(0.05, Math.cos((0.5 - (0.5 * (ay + by) + 0.5) / gh) * Math.PI)), kx = pxKm * cl, ky = pxKm;
-            const x0 = Math.floor(Math.min(ax, bx) - half / kx), x1 = Math.ceil(Math.max(ax, bx) + half / kx), y0 = Math.max(0, Math.floor(Math.min(ay, by) - half / ky)), y1 = Math.min(gh - 1, Math.ceil(Math.max(ay, by) + half / ky));
-            const dx = (bx - ax) * kx, dy = (by - ay) * ky, L2 = dx * dx + dy * dy;
-            for (let yy = y0; yy <= y1; yy++) for (let xx = x0; xx <= x1; xx++) {
-                const c = yy * gw + ((xx % gw) + gw) % gw, px = (xx + 0.5 - ax) * kx, py = (yy + 0.5 - ay) * ky, t = L2 > 0 ? Math.max(0, Math.min(1, (px * dx + py * dy) / L2)) : 0;
-                const ex = px - t * dx, ey = py - t * dy, a = v * sm(half, 0, Math.sqrt(ex * ex + ey * ey));
-                if (a > flood[c]) flood[c] = a;
-            }
+            stampRibbon(flood, gw, gh, pxKm, null, ax, ay, bx, by, half, v, 0, false);
+            if (++n % 2000 === 0) yield;
         }
-        boxBlur(flood, gw, gh, 1, 1);
+        yield* boxBlurGen(flood, gw, gh, 1, 1);
     }
     M = { gw, gh, fac, prov, height, flood, glac };
     macroCache.set(R, M);
@@ -789,9 +820,9 @@ export function styledSatellite(R, season, heightM, hw, rivers, water = null, gr
 
 /**
  * Draw some of a season's styled picture ahead of time (owner, 2026-11-01: the Satellite view drawn "in the background
- * right after Add detail"), for about `budgetMs` — its shared fields first (each a step: the climates' shares, the
- * banks, the land's means, the large-scale features, the season's own set-up), then its rows. True once it is drawn.
- * The same picture as styledSatellite's, to the byte: the same steps, only spread over time.
+ * right after Add detail"), for about `budgetMs` — its shared fields first (the climates' shares, the banks, the land's
+ * means, the large-scale features, the realistic picture's detail), then its rows; every step yields every few ms. True
+ * once it is drawn. The same picture as styledSatellite's, to the byte: the same steps, only spread over time.
  */
 export function prepareSatellite(R, season, heightM, hw, rivers, water = null, ground = null, budgetMs = 10) {
     const J = styledJob(R, season, heightM, hw, rivers, water, ground);
@@ -801,54 +832,60 @@ export function prepareSatellite(R, season, heightM, hw, rivers, water = null, g
 /** Is a season's styled picture drawn? */
 export function satelliteReady(R, season) { return !!styledJobs.get(R)?.get(season)?.done; }
 
-/** Each climate picture's jobs, by season: a picture drawn a step at a time (the rows a band at a time). */
+/** Each climate picture's jobs, by season: a picture drawn a step at a time. A step that fails drops its job (the next
+ *  call starts it afresh) and passes the error on. */
 const styledJobs = new WeakMap();
 function styledJob(R, season, heightM, hw, rivers, water, ground) {
     let byS = styledJobs.get(R);
     if (!byS) styledJobs.set(R, byS = new Map());
     let J = byS.get(season);
     if (J) return J;
-    let stage = 0, run = null, y = 0, D = null;
-    const stages = [
-        () => sharesOf(R),
-        () => riversideOf(R, rivers, water, heightM, hw),
-        () => landMeans(R, heightM, hw),
-        () => macroOf(R, heightM, hw, rivers, ground),
-        // (the realistic picture's detail: its brightness, and it and the land blurred — each a step of its own)
-        () => { D = detailOf(R, season); },
-        () => blurDetail(R, D.Yb),
-        () => blurDetail(R, D.L),
-        () => { run = styledSetup(R, season, heightM, hw, rivers, water, ground, D); D = null; },
-    ];
+    const it = jobGen(R, season, heightM, hw, rivers, water, ground);
     J = {
         done: false, out: null,
         step(budgetMs) {
             const t0 = performance.now();
-            while (!J.done) {
-                if (stage < stages.length) stages[stage++]();
-                else {
-                    // (rows a few at a time, until the time is up)
-                    const to = Math.min(run.h, y + 8);
-                    run.rows(y, to); y = to;
-                    if (y >= run.h) { J.out = run.out; J.done = true; run = null; break; }
+            try {
+                while (!J.done) {
+                    const r = it.next();
+                    if (r.done) { J.out = r.value; J.done = true; break; }
+                    if (performance.now() - t0 >= budgetMs) break;
                 }
-                if (performance.now() - t0 >= budgetMs) break;
-            }
+            } catch (e) { byS.delete(season); throw e; }
             return J.done;
         },
     };
     byS.set(season, J);
     return J;
 }
+function* jobGen(R, season, heightM, hw, rivers, water, ground) {
+    yield* sharesGen(R);
+    yield* riversideGen(R, rivers, water, heightM, hw);
+    yield* landMeansGen(R, heightM, hw);
+    yield* macroGen(R, heightM, hw, rivers, ground);
+    // (the realistic picture's detail: its brightness, and it and the land blurred)
+    const D = yield* detailGen(R, season);
+    yield* blurDetailGen(R, D.Yb);
+    yield* blurDetailGen(R, D.L);
+    const run = styledSetup(R, season, heightM, hw, rivers, water, ground, D);
+    yield;
+    // (a row or a few at a time: about 4000 pixels, a few ms)
+    const band = Math.max(1, (4096 / R.w) | 0);
+    for (let y = 0; y < run.h; y += band) { run.rows(y, Math.min(run.h, y + band)); yield; }
+    return run.out;
+}
 
 /** The realistic picture's brightness over the land (Y, and Yb to blur), and the land (L, to blur) — for a season. */
-function detailOf(R, season) {
+function* detailGen(R, season) {
     const w = R.w, h = R.h, S = R.sat[season], Y = new Float32Array(w * h), Yb = new Float32Array(w * h), L = new Float32Array(w * h);
-    for (let i = 0; i < w * h; i++) if (R.koppen[i]) { const o = 3 * i; Y[i] = 0.2126 * LIN[S[o]] + 0.7152 * LIN[S[o + 1]] + 0.0722 * LIN[S[o + 2]]; Yb[i] = Y[i]; L[i] = 1; }
+    for (let y = 0; y < h; y++) {
+        for (let i = y * w, e = i + w; i < e; i++) if (R.koppen[i]) { const o = 3 * i; Y[i] = 0.2126 * LIN[S[o]] + 0.7152 * LIN[S[o + 1]] + 0.0722 * LIN[S[o + 2]]; Yb[i] = Y[i]; L[i] = 1; }
+        if (y % (4 * YIELD_ROWS) === 4 * YIELD_ROWS - 1) yield;
+    }
     return { Y, Yb, L };
 }
-/** One of detailOf's fields blurred over ±DETAIL_KM, in place. */
-function blurDetail(R, a) { boxBlur(a, R.w, R.h, Math.max(1, Math.round(DETAIL_KM / (2 * Math.PI * 6371 / R.w) / 2))); }
+/** One of detailGen's fields blurred over ±DETAIL_KM, in place. */
+function* blurDetailGen(R, a) { yield* boxBlurGen(a, R.w, R.h, Math.max(1, Math.round(DETAIL_KM / (2 * Math.PI * 6371 / R.w) / 2))); }
 
 /** The styled picture's set-up for a season (its tables, fields and the realistic picture's detail) and its rows:
  *  rows(from, to) draws those rows into `out`. */
@@ -998,21 +1035,23 @@ function styledSetup(R, season, heightM, hw, rivers, water, ground, D) {
             // (the ground's character — P4: its bedrock, sand seas, fold bands and the plants' patches)
             if (own !== ICE) {
                 const px = cl * cosL[x], py = cl * sinL[x];
-                // (km east and north of the meridian and the equator, for the stripes — locally flat)
-                const Xk = ((x + 0.5) / w - 0.5) * 2 * Math.PI * 6371 * cl, Yk = lat * 6371, dI = drv ? Math.min(drv.h - 1, ((y + 0.5) * drv.h / h) | 0) * drv.w + Math.min(drv.w - 1, ((x + 0.5) * drv.w / w) | 0) : -1;
+                const dI = drv ? Math.min(drv.h - 1, ((y + 0.5) * drv.h / h) | 0) * drv.w + Math.min(drv.w - 1, ((x + 0.5) * drv.w / w) | 0) : -1;
                 if (G.rocks.on && rockPx && bare > 0) { const r = rockPx[i], a = G.rocks.share * bare; if (r) for (let c = 0; c < 3; c++) col[c] *= Math.exp(a * LN_ROCK[r][c]); }
                 if (G.dunes.on && dI >= 0 && drv.erg[dI]) {
                     const erg = drv.erg[dI] / 255, th = drv.wind[dI] * TAU / 256, mode = drv.duneMode[dI] / 255, phi = th + mode * Math.PI / 2, D = G.dunes;
-                    const along = -Xk * Math.sin(phi) + Yk * Math.cos(phi), across = Xk * Math.cos(phi) + Yk * Math.sin(phi);
-                    const wob = D.warpKm * groundNoise.noise3D(along / D.lengthKm, across / (3 * D.spacingKm), 1.7) / 0.3, run = 0.6 + 0.4 * groundNoise.noise3D(along / D.lengthKm + 5.1, across / D.spacingKm, 4.2) / 0.3;
-                    const st = Math.sin(TAU * (across + wob) / D.spacingKm) * Math.max(0, run) * sm(2, 4, D.spacingKm / pxKm);
+                    // (across the crests: cos φ east + sin φ north; wavering by warpKm over lengthKm, broken every half of it)
+                    const ce = Math.cos(phi), cn = Math.sin(phi), fW = 6371 / D.lengthKm;
+                    const wob = D.warpKm * groundNoise.noise3D(fW * px, fW * py + 1.7, fW * sl) / 0.3, run = 0.6 + 0.4 * groundNoise.noise3D(2 * fW * px + 5.1, 2 * fW * py, 2 * fW * sl + 4.2) / 0.3;
+                    const st = stripeWave(px, py, sl, -ce * sinL[x] - cn * sl * cosL[x], ce * cosL[x] - cn * sl * sinL[x], cn * cl, D.spacingKm, 1, TAU * wob / D.spacingKm) * Math.max(0, run) * sm(2, 4, D.spacingKm / pxKm);
                     for (let c = 0; c < 3; c++) col[c] *= Math.exp(erg * LN_DUNE[c]) * (1 + D.contrast * erg * st);
                 }
-                if (G.bands.on && dI >= 0 && drv.fold[dI]) {
-                    const fold = drv.fold[dI] / 255, th = drv.foldDir[dI] * TAU / 256, B = G.bands;
-                    const across = Xk * Math.cos(th) + Yk * Math.sin(th), along = -Xk * Math.sin(th) + Yk * Math.cos(th);
-                    const wob = B.warpKm * groundNoise.noise3D(along / (4 * B.spacingKm) + 9.3, across / (2 * B.spacingKm), 2.9) / 0.3;
-                    const st = Math.sin(TAU * (across + wob) / B.spacingKm) * sm(2, 4, B.spacingKm / pxKm), a = B.contrast * fold * (B.veiled + (1 - B.veiled) * bare) * st;
+                const B = G.bands, bandA = B.on && dI >= 0 && drv.fold[dI] ? B.contrast * drv.fold[dI] / 255 * (B.veiled + (1 - B.veiled) * bare) * sm(2, 4, B.spacingKm / pxKm) : 0;
+                if (bandA > 0.002) {
+                    const th = drv.foldDir[dI] * TAU / 256;
+                    // (across the strike: cos θ east + sin θ north; wavering by warpKm over three bands or so)
+                    const ce = Math.cos(th), cn = Math.sin(th), fW = 6371 / (3 * B.spacingKm);
+                    const wob = B.warpKm * groundNoise.noise3D(fW * px + 9.3, fW * py, fW * sl + 2.9) / 0.3;
+                    const st = stripeWave(px, py, sl, -ce * sinL[x] - cn * sl * cosL[x], ce * cosL[x] - cn * sl * sinL[x], cn * cl, B.spacingKm, 2, TAU * wob / B.spacingKm), a = bandA * st;
                     col[0] *= 1 + a; col[1] *= 1 + 0.85 * a; col[2] *= 1 + 0.7 * a;
                 }
                 if (G.cover.on && canopy > 0.02) {
@@ -1052,10 +1091,12 @@ function styledSetup(R, season, heightM, hw, rivers, water, ground, D) {
                 const I = G.ice;
                 iceA = Math.max(sm(I.marginSlope[0], I.marginSlope[1], slope), sm(I.marginKm[0], I.marginKm[1], hKm));
                 if (slope > 0.5) {
-                    // (along the flow: downhill, the slope's own direction; the streaks long that way)
-                    const ux = -ge / slope, uy = -gn / slope, Xk = ((x + 0.5) / w - 0.5) * 2 * Math.PI * 6371 * cl, Yk = lat * 6371;
-                    const along = Xk * ux + Yk * uy, across = -Xk * uy + Yk * ux;
-                    iceS = 1 + I.streak * iceA * groundNoise.fbm(along / I.streakKm[1] + 3.3, across / I.streakKm[0] - 7.1, 5.5, 2, 0.5) / 0.3;
+                    // (along the flow: downhill, the slope's own direction; streaks streakKm[0] across, coming and going over
+                    // streakKm[1] along it)
+                    const ux = -ge / slope, uy = -gn / slope, px = cl * cosL[x], py = cl * sinL[x], fR = 6371 / I.streakKm[1], sp = 2 * I.streakKm[0];
+                    const run = Math.max(0, 0.6 + 0.4 * groundNoise.noise3D(fR * px + 3.3, fR * py - 7.1, fR * sl + 5.5) / 0.3);
+                    const amp = I.streak * iceA * 1.3 * run * sm(2, 4, sp / pxKm);
+                    if (amp > 0.002) iceS = 1 + amp * stripeWave(px, py, sl, uy * sinL[x] - ux * sl * cosL[x], -uy * cosL[x] - ux * sl * sinL[x], ux * cl, sp, 3, 0);
                 }
                 iceO = iceA * Math.max(0, hollow);
             }
@@ -1094,8 +1135,8 @@ export function satelliteRegionColors(p) {
         cellOf[r] = c;
         let cold = 0;
         if (DRY.has(g)) {
-            const tA = tAnnual[r], range = tRange[r], warmest = tA + (range === range ? range / 2 : 8);
-            if (tA === tA) cold = sm(0, 1, Math.max((COLD_DRY_C[0] - warmest) / (COLD_DRY_C[0] - COLD_DRY_C[1]), (COLD_DRY_YEAR_C[0] - tA) / (COLD_DRY_YEAR_C[0] - COLD_DRY_YEAR_C[1])));
+            const tA = tAnnual[r];
+            if (tA === tA) cold = coldDry(tA, tRange[r]);
         }
         share[g * N + c] += 1 - cold;
         if (cold > 0) share[TUNDRA * N + c] += cold;

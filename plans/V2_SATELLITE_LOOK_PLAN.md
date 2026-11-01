@@ -317,3 +317,32 @@ off 28 ms — the clouds ~88 % of the drawing; the export's cloud picture 14.5 s
   above, 14.5 → 5.9 s at 2048.
 - Look: the same but for fewer stray specks over near-clear skies and slightly different cirrus wisps (alpha mean |Δ|
   9.8/255). Headless checks (desktop, iPhone 13): draws, no console problems.
+
+## Review fixes (2026-11-01, PR #89 review, owner: "lets take on 1-15")
+
+- Clouds: the drift's clock starts when the clouds are shown (and with fresh fields or storms), not at page load (1); the
+  export's storms from the world's numeric seed — a word seed's text gave other storms than the globe's (2); the shadow
+  falls toward the local north-west (`cloudTowardLight`, a step along the sphere) on the globe, the map and the export,
+  not one fixed 3-D offset (4); on a phone the map's composite skips the shadow too, as the globe does (7); the export
+  keeps one cloud grid per moment and season (`cloudGrid`, ≤ 2048 wide) for both cloud rows (13) and lays it over the
+  picture in place (`cloudOver`) — no second full-size picture (12); "Satellite with clouds" equals the Clouds layer laid
+  over the Satellite picture to the byte.
+- Stripes (3): the dunes, the fold bands and the ice's flow streaks were waves across km east of the 0° meridian
+  (lon × cos lat) — sheared away from it (far from it to aliased speckle) with a seam at the date line. Now phasor noise
+  (Tricard et al. 2019) on a 3-D lattice of kernels 4 stripes apart, the waves across the local direction: no seam, no
+  shear, the odd fork where kernels meet; their wavering and breaks from 3-D noise. A kernel's phase needs no sine of its
+  own (the place's term drops out — the direction is a tangent): four complex factors and a sine table; stripes fainter
+  than 0.2 % not worked out. Whole picture +2 % (3.57 → 3.63 s, a 4096 picture).
+- The banks and the floodplains were stamped half a pixel south-east of their rivers and lakes (5): one shared stamp
+  (`stampRibbon`, 14), each pixel's centre at its index.
+- Drawn ahead (6, 8, 9): every shared step is a generator yielding every 64 rows (or a few ms), the rows one at a time at
+  4096 wide — longest slice ~15–25 ms (was 90–160; the first rows' JIT the longest), byte-identical whole or in slices
+  (nine fingerprints); a step that throws drops its job (the next call starts afresh) and the page stops drawing that
+  moment ahead (it says so in the console); the page stops when its moment is let go (another detailed, a retry after
+  running out of memory, a new world). The blurs are one (`blurGen`: a radius per row) and the cold-dry test one
+  (`coldDry`, Generate and Import's too) — byte-identical (14).
+- Legend and Satellite tab: no longer "cloud-free"; the fresh lakes named (10). The climates' shares: the
+  months-above-10 °C line between 3 and 4 (3½ ± softness — a count of 4 had half the continental share); with softness 0
+  still classifyCell's family for 200 000 random climates of 200 000 (11). The render tool finishes a cached moment again
+  when its cache predates that (a version in the cache, 15).
+- Checks: check-save passes; headless desktop globe, map and iPhone 13: draws, no console problems.

@@ -282,7 +282,7 @@ export function drawItcz(ctx, width, season, C) {
 /** The legend of a climate layer. A finished moment's Köppen classes are counted on its climate picture (C.raster). */
 export function drawLegend(el, layer, season, C, terrain) {
     const ramp = { temperature: RAMPS.temperature, rain: RAMPS.rain, pressure: RAMPS.pressure, currents: RAMPS.oceanAnom }[layer];
-    if (layer === 'satellite') { el.innerHTML = `<div class="evo-legend-note">As from space, cloud-free — ${SEASON_WORDS[season]}: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from the climate</div>`; return; }
+    if (layer === 'satellite') { el.innerHTML = `<div class="evo-legend-note">As from space — ${SEASON_WORDS[season]}: each climate's colours climbing with the land to rock and snow, rivers and fresh lakes greening dry country, snow, ice and clouds from the climate</div>`; return; }
     if (layer === 'koppen') {
         // the classes on this planet's land, the largest first (on a picture: each pixel by its area, cos latitude)
         const count = new Float64Array(KOPPEN_CLASSES.length);

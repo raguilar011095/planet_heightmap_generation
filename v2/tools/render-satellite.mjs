@@ -69,10 +69,13 @@ async function momentFrame(seed, time) {
     fs.writeFileSync(file, v8.serialize({ frame }));
     return frame;
 }
+/** What a cached finish holds — bumped when the finish's output for the Satellite view changes (2: the climates' soft
+ *  shares, their months-above-10 °C line at 3½), so an older one is finished again. */
+const FINISH_CACHE = 2;
 /** The moment finished as the page's worker finishes it, at CELLS; cached. */
 async function momentFinish(seed, time) {
     const file = path.join(OUT, 'cache', `${seed}-${time}-${CELLS}.bin`);
-    if (fs.existsSync(file)) return v8.deserialize(fs.readFileSync(file)).fin;
+    if (fs.existsSync(file)) { const c = v8.deserialize(fs.readFileSync(file)); if (c.v === FINISH_CACHE && c.fin?.climate?.raster?.families) return c.fin; }
     const frame = await momentFrame(seed, time), simMesh = buildSimMesh(SIM, MESH_SEED), pool = await TerrainPool.create(simMesh);
     const out = await finishPlanet({ frame, simMesh, seed, cells: CELLS, pool, closePool: true, driversWidth: 2048 });
     const raster = finishRaster(out.mesh, out.z, out.ocean, RASTER_W, null, out.lake, out.lakeLevel, out.climate.cell, out.geology);
@@ -81,7 +84,7 @@ async function momentFinish(seed, time) {
     raster.drivers = out.drivers;
     const fin = { cells: CELLS, raster, rivers: out.rivers, climate, stats: out.stats };
     fs.mkdirSync(path.dirname(file), { recursive: true });
-    fs.writeFileSync(file, v8.serialize({ fin }));
+    fs.writeFileSync(file, v8.serialize({ fin, v: FINISH_CACHE }));
     return fin;
 }
 

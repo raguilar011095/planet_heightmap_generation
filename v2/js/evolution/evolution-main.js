@@ -797,17 +797,28 @@ let satPrep = null;
 // (a slice of ~PREP_MS every PREP_EVERY_MS: the globe draws all the time, so the page is seldom idle — a steady slice, short
 // enough that its frames keep coming)
 const PREP_MS = 7, PREP_EVERY_MS = 16, whenFree = f => setTimeout(f, PREP_EVERY_MS);
+// (the moments whose drawing ahead failed: not tried again in the background — opening the view draws it, and says why not)
+const satPrepFailed = new WeakSet();
 function prepareSatelliteSoon(fin) {
     const R = fin?.climate?.raster;
-    if (!R?.sat || !fin.raster?.heightM) return;
+    if (!R?.sat || !fin.raster?.heightM || satPrepFailed.has(R)) return;
     const want = (view.layer === 'satellite' ? [view.season, ...SEASONS.filter(s => s !== view.season)] : [view.season]).filter(s => SEASONS.includes(s) && !satelliteReady(R, s));
     if (!want.length) return;
     if (satPrep?.R === R) { satPrep.todo = want; return; }      // (already under way for this moment: its list renewed)
     satPrep = { R, todo: want };
     const tick = () => {
         if (satPrep?.R !== R) return;                           // (another moment shown: this one's left)
-        const s = satPrep.todo[0], budget = PREP_MS;
-        if (!s || prepareSatellite(R, s, fin.raster.heightM, fin.raster.w, fin.rivers, fin.raster.water, fin.raster, budget)) satPrep.todo.shift();
+        // (the moment let go — another detailed in its place, memory freed for a retry, a new world: left too, its memory
+        // with it)
+        if (!B || ![...B.finishes.values()].includes(fin)) { satPrep = null; return; }
+        try {
+            const s = satPrep.todo[0];
+            if (!s || prepareSatellite(R, s, fin.raster.heightM, fin.raster.w, fin.rivers, fin.raster.water, fin.raster, PREP_MS)) satPrep.todo.shift();
+        } catch (err) {
+            satPrep = null; satPrepFailed.add(R);
+            console.warn('[evolution] could not draw the Satellite view ahead:', err);
+            return;
+        }
         if (satPrep.todo.length) whenFree(tick); else satPrep = null;
     };
     whenFree(tick);
@@ -1078,7 +1089,7 @@ const planetFile = {
     },
 };
 const exportPanel = initEvolutionExport({
-    moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed }; },
+    moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed, cloudSeed: B.seed }; },
     look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH, planetFile,
     // (an export wider than the picture: the whole planet drawn with the detail finer than the mesh, in bands)

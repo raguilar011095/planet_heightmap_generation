@@ -126,7 +126,7 @@ climate, at its detail**: the grid's climate from the finish's climate stage, ea
 again on the finished surface — the climate tabs (Köppen, temperature, rain, wind, currents, and More…'s layers) and the
 readout use it, drawn per pixel of the finished picture (the land's measures — temperature range, aridity, growing season,
 rain seasonality, from each cell's twelve months by `js/climate/cell-stats.js` — kept a byte each on its climate picture). **Satellite** (finished moments only; plans/V2_SATELLITE_PLAN.md): the planet as
-from space, cloud-free, for the Year, January or July — each cell's cover from its twelve months (`finish-cover.js`: tree,
+from space (its clouds laid over: see Clouds below), for the Year, January or July — each cell's cover from its twelve months (`finish-cover.js`: tree,
 grass and bare shares by wetness and warmth through S-curves, so biomes blend; needle-leaved or broad, evergreen or
 deciduous; grass green or dormant — golden with drought, brown with cold; a snowpack through the cold months (white once a few cm
 lie — the winter tundra and steppe white from space), hidden in part by forest canopy; ice caps), mixed in linear light from reference colours fitted to NASA's Blue Marble over Earth's
@@ -163,7 +163,7 @@ lines follow the height and the smooth shares, never the patches
 (moments detailed before this: the families blended over ~60 km, their edges warped by fractal noise); the ground's
 character (`SAT_GROUND`, P4, each part with its own switch): bare ground tinted by its bedrock (dark lava fields, red
 sandstone, pale limestone, white salt…), the sand seas paler and warmer and streaked by the year's wind (along it where
-the seasons' winds cross, across it where they agree), the fold belts banded along their strike, the plants' own patches
+the seasons' winds cross, across it where they agree), the fold belts banded along their strike (these stripes by phasor noise on the sphere — no seam, no shear), the plants' own patches
 (denser canopy in the hollows, openings on the spurs), an ice sheet's margins bluer, streaked along its flow, its outlet
 glaciers darker; the large-scale features (`SAT_MACRO`, P6, each with its own switch): the bedrock's provinces (its
 colours averaged over ~220 km, faint under plants), lowland basins richer and high plateaus paler at continental size
@@ -178,7 +178,7 @@ banks and fresh lakes' shores (`RIPARIAN`) a tight soft ribbon — ~3.5 km to ea
 wider on floodplains — in the place's own colour made darker and greener, patchy along the course, the more the drier the
 climate and season (none under snow); the picture above's fine detail as brightness, and a quarter
 of it over all for its texture; its snow where the climate has snow in the season shown. The sea ice is drawn with a
-sharp, noise-ragged edge and loose floes where the cover is partial. The Satellite view's picture is drawn ahead, a slice at a
+sharp, noise-ragged edge and loose floes where the cover is partial. The Satellite view's picture is drawn ahead, a slice of a few ms at a
 time beside the page's work, once a detailed moment is shown (its season; the others once the view is open). **Clouds**
 (`js/view/clouds.js`, P9): over the Satellite view of a detailed moment, from its own climate (the **Clouds** toggle
 beside Hillshade, on by default) — in four layers, each with its cover from the season's climate and its own texture: low

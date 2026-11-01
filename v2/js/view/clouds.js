@@ -405,8 +405,6 @@ export function cloudDriftRate(lat) {
 /** The noise's scale on the unit sphere, and the drift in radians a second. */
 export const scaleOf = (K = CLOUDS) => 2 * 6371 / K.sizeKm;
 export const driftRadPerS = (K = CLOUDS) => K.driftDegPerS * Math.PI / 180;
-/** The shadow's offset on the unit sphere (beside its cloud, away from the north-west light), as a small vector. */
-export const shadowOffset = (K = CLOUDS) => { const d = K.shadowKm / 6371; return [0.6 * d, -0.55 * d, 0.58 * d]; };
 /** The settings as the shader's uniforms' values: the edges, and the quantiles flat (low, convective, frontal, cirrus). */
 export const cloudEdges = (K = CLOUDS) => [K.edgeLow, K.edgeConv, K.edgeFront, K.edgeCirrus];
 export const cloudQuantileList = (K = CLOUDS) => [...K.QLow, ...K.QConv, ...K.QFront, ...K.QCirrus];
@@ -563,13 +561,24 @@ export function cloudQuantiles(n = 20000, K = CLOUDS) {
     return raw.map(a => { a.sort((x, y) => x - y); return [0.05, 0.25, 0.5, 0.75, 0.95].map(q => +a[Math.floor(q * (a.length - 1))].toFixed(3)); });
 }
 
+/** A small step from (x, y, z) toward the light (the page's: from the north-west) on the sphere, as cloudTowardLight. */
+function towardLight(x, y, z, stepL, o) {
+    let ex = z + 1e-6, ez = -x; const el = Math.hypot(ex, ez); ex /= el; ez /= el;
+    const nx = y * ez, ny = z * ex - x * ez, nz = -y * ex;                 // (north = p × east)
+    let lx = nx - ex, ly = ny, lz = nz - ez; const ll = Math.hypot(lx, ly, lz); lx /= ll; ly /= ll; lz /= ll;
+    const px = x + stepL * lx, py = y + stepL * ly, pz = z + stepL * lz, l = Math.hypot(px, py, pz);
+    o[0] = px / l; o[1] = py / l; o[2] = pz / l;
+    return o;
+}
+
 /**
- * The clouds on an equirectangular picture W × W/2 (rows north → south, columns from −180°): RGBA bytes — the layers lit
- * and composited, a faint shadow beside them — from the fields (cloudFields') and the storms (cloudStorms') at one still
- * moment. Drawn at most `maxW` wide and enlarged.
+ * The clouds as a grid at most `maxW` wide (rows north → south, columns from −180°): per pixel [alpha, grey, shadow] —
+ * the layers lit and composited; the shadow each place gets from the cloud a step toward the light (shadowKm, the local
+ * north-west), read from the grid itself rather than worked out again — from the fields (cloudFields') and the storms
+ * (cloudStorms') at one still moment.
  */
-export function cloudPicture(F, storms, W, K = CLOUDS, maxW = 2048) {
-    const w = Math.min(W, maxW), h = w >> 1, px = 2 * Math.PI / w, small = new Float32Array(3 * w * h), p = [0, 0, 0], off = shadowOffset(K), o = [0, 0, 0, 0, 0, 1, 0];
+export function cloudGrid(F, storms, W, K = CLOUDS, maxW = 2048) {
+    const w = Math.min(W, maxW), h = w >> 1, px = 2 * Math.PI / w, small = new Float32Array(3 * w * h), p = [0, 0, 0], q = [0, 0, 0], o = [0, 0, 0, 0, 0, 1, 0];
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         const u = (x + 0.5) / w, v = 1 - (y + 0.5) / h, i = 3 * (y * w + x);
         cloudPoint(u, v, p);
@@ -582,25 +591,48 @@ export function cloudPicture(F, storms, W, K = CLOUDS, maxW = 2048) {
         pr = K.greyCirrus * aR + pr * (1 - aR); A = aR + A * (1 - aR);
         small[i] = A; small[i + 1] = A > 0 ? pr / A : 1; small[i + 2] = Math.max(o[1], o[2], 0.7 * o[0]);
     }
-    // (the shadow: the clouds' own grid read where each place's shadow falls from — not the clouds worked out again)
-    const shade = new Float32Array(w * h);
+    const shade = new Float32Array(w * h), st = K.shadowKm / 6371;
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
         cloudPoint((x + 0.5) / w, 1 - (y + 0.5) / h, p);
-        const sx = p[0] - off[0], sy = p[1] - off[1], sz = p[2] - off[2], l = Math.hypot(sx, sy, sz);
-        const su = ((Math.atan2(sz / l, -sx / l) / (2 * Math.PI)) % 1 + 1) % 1, sv = 1 - Math.acos(Math.max(-1, Math.min(1, sy / l))) / Math.PI;
+        towardLight(p[0], p[1], p[2], st, q);
+        const su = ((Math.atan2(q[2], -q[0]) / (2 * Math.PI)) % 1 + 1) % 1, sv = 1 - Math.acos(Math.max(-1, Math.min(1, q[1]))) / Math.PI;
         const gx = su * w - 0.5, gy = Math.max(0, Math.min(h - 1, (1 - sv) * h - 0.5)), x0 = Math.floor(gx), y0 = Math.floor(gy), tx = gx - x0, ty = gy - y0;
         const a0 = ((x0 % w) + w) % w, a1 = (a0 + 1) % w, b1 = Math.min(h - 1, y0 + 1);
         shade[y * w + x] = (small[3 * (y0 * w + a0) + 2] * (1 - tx) + small[3 * (y0 * w + a1) + 2] * tx) * (1 - ty) + (small[3 * (b1 * w + a0) + 2] * (1 - tx) + small[3 * (b1 * w + a1) + 2] * tx) * ty;
     }
     for (let i = 0; i < w * h; i++) small[3 * i + 2] = shade[i];
-    const out = new Uint8Array(4 * W * (W >> 1)), H = W >> 1, k = w / W;
+    return { w, h, small };
+}
+/** The cloud grid at pixel (x, y) of a W-wide picture: [premultiplied grey, alpha] (bilinear where the grid is smaller),
+ *  the shadow folded in — into o. */
+function gridAt(G, W, x, y, K, o) {
+    const { w, h, small } = G, k = w / W;
+    const fx = (x + 0.5) * k - 0.5, fy = Math.max(0, Math.min(h - 1, (y + 0.5) * k - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
+    const a0 = ((x0 % w) + w) % w, a1 = (a0 + 1) % w, b1 = Math.min(h - 1, y0 + 1);
+    const at = n => (small[3 * (y0 * w + a0) + n] * (1 - tx) + small[3 * (y0 * w + a1) + n] * tx) * (1 - ty) + (small[3 * (b1 * w + a0) + n] * (1 - tx) + small[3 * (b1 * w + a1) + n] * tx) * ty;
+    const ac = at(0), as = K.shadow * at(2) * (1 - ac);
+    o[0] = at(1) * ac; o[1] = ac + as;
+    return o;
+}
+/** The clouds alone on a transparent picture W × W/2: RGBA bytes (the shadow faint and dark). */
+export function cloudPicture(G, W, K = CLOUDS) {
+    const H = W >> 1, out = new Uint8Array(4 * W * H), o = [0, 0];
     for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const fx = (x + 0.5) * k - 0.5, fy = Math.max(0, Math.min(h - 1, (y + 0.5) * k - 0.5)), x0 = Math.floor(fx), y0 = Math.floor(fy), tx = fx - x0, ty = fy - y0;
-        const a0 = ((x0 % w) + w) % w, a1 = (a0 + 1) % w, b0 = y0, b1 = Math.min(h - 1, y0 + 1);
-        const at = n => (small[3 * (b0 * w + a0) + n] * (1 - tx) + small[3 * (b0 * w + a1) + n] * tx) * (1 - ty) + (small[3 * (b1 * w + a0) + n] * (1 - tx) + small[3 * (b1 * w + a1) + n] * tx) * ty;
-        const ac = at(0), g = at(1), as = K.shadow * at(2) * (1 - ac), A = ac + as, oo = 4 * (y * W + x);
-        const gg = A > 0 ? Math.round(255 * g * ac / A) : 0;
+        gridAt(G, W, x, y, K, o);
+        const A = o[1], gg = A > 0 ? Math.round(255 * o[0] / A) : 0, oo = 4 * (y * W + x);
         out[oo] = gg; out[oo + 1] = gg; out[oo + 2] = Math.min(255, Math.round(gg * 1.02)); out[oo + 3] = Math.round(255 * A);
     }
     return out;
+}
+/** The clouds laid over an RGBA picture W × W/2 in place — no picture of the clouds' own the picture's size. */
+export function cloudOver(G, data, W, K = CLOUDS) {
+    const H = W >> 1, o = [0, 0];
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+        gridAt(G, W, x, y, K, o);
+        if (!(o[1] > 0)) continue;
+        const A = o[1], gg = 255 * o[0] / A, d = 4 * (y * W + x);
+        // (as the picture's own over: its byte colours, rounded as cloudPicture's bytes would be)
+        const g8 = Math.round(gg), b8 = Math.min(255, Math.round(g8 * 1.02)), a8 = Math.round(255 * A) / 255;
+        data[d] = Math.round(data[d] * (1 - a8) + g8 * a8); data[d + 1] = Math.round(data[d + 1] * (1 - a8) + g8 * a8); data[d + 2] = Math.round(data[d + 2] * (1 - a8) + b8 * a8);
+    }
 }

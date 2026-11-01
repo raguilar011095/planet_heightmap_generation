@@ -12,7 +12,7 @@ export const SOFT_FAMILIES = ['rainforest', 'savanna', 'desert', 'steppe', 'medi
  * How soft each test is — the half-width of its step: aridLn (the rain against the dry line, as a log ratio: 0.18 ≈ ±20 %),
  * tropicC (the coldest month against 18 °C), polarC (the warmest against 10 °C), iceC (…against 0 °C), cdC (the coldest
  * against 0 °C: C or D), summerC (the warmest against 22 °C), month10C (each month against 10 °C, for the months above it),
- * months10 (their count against 4), dryMm (a dry month against 60 / 40 mm), ratioLn (the seasons' rain ratios, as logs),
+ * months10 (their count against 4: the line between 3 and 4), dryMm (a dry month against 60 / 40 mm), ratioLn (the seasons' rain ratios, as logs),
  * rainHalf (a half-year's share of the rain against 70 % / 50 %).
  */
 export const SOFT_KOPPEN = { aridLn: 0.18, tropicC: 1.2, polarC: 1.2, iceC: 1.0, cdC: 1.5, summerC: 1.5, month10C: 1.0, months10: 0.6, dryMm: 12, ratioLn: 0.3, rainHalf: 0.06 };
@@ -60,7 +60,7 @@ export function softFamilies(T, P, out = new Float64Array(SOFT_FAMILIES.length),
     const sDry = (1 - S(Psdry, 40 - K.dryMm, 40 + K.dryMm)) * (Pwwet > 0 ? 1 - S(lnr(3 * Psdry, Pwwet), -K.ratioLn, K.ratioLn) : 0);
     const wDry = Pswet > 0 ? 1 - S(lnr(10 * Pwdry, Pswet), -K.ratioLn, K.ratioLn) : 0;
     const med = sDry * (1 - wDry * S(sShare, 0.5 - K.rainHalf, 0.5 + K.rainHalf));
-    const cont = 1 - (1 - S(Thot, 22 - K.summerC, 22 + K.summerC)) * (1 - S(m10, 4 - K.months10, 4 + K.months10));
+    const cont = 1 - (1 - S(Thot, 22 - K.summerC, 22 + K.summerC)) * (1 - S(m10, 3.5 - K.months10, 3.5 + K.months10));
     // the tree of tests, each share the product along its branch
     const humid = 1 - arid, notTrop = humid * (1 - trop), cd = notTrop * (1 - polar);
     out[0] = humid * trop * rain;

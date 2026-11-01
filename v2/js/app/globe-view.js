@@ -14,7 +14,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { P as PROJ } from '../view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../view/projection-glsl.js';
-import { CLOUDS, CLOUD_GLSL, MAX_STORMS, scaleOf, driftRadPerS, shadowOffset, cloudNoiseTexture, cloudEdges, cloudQuantileList, cloudStormsAt } from '../view/clouds.js';
+import { CLOUDS, CLOUD_GLSL, MAX_STORMS, scaleOf, driftRadPerS, cloudNoiseTexture, cloudEdges, cloudQuantileList, cloudStormsAt } from '../view/clouds.js';
 
 const GLINT = new THREE.Color(0x4488bb).multiplyScalar(0.5 * 0.55);    // (the sea's specular: V1's water sphere's)
 
@@ -187,21 +187,21 @@ export class GlobeView {
             uCloudStreakLat: { value: new THREE.Vector3(...K.streakLat) }, uCloudSeason: { value: new THREE.Vector3() }, uCloudCirrusWarp: { value: K.cirrusWarp }, uCloudCirrusFine: { value: K.cirrusFine }, uCloudWeatherScale: { value: K.weatherScale }, uCloudWeatherAmp: { value: K.weatherAmp }, uCloudStreakVary: { value: K.streakVary }, uCloudBillow: { value: K.billow }, uCloudRelief: { value: K.relief }, uCloudThick: { value: K.thick }, uCloudThinOp: { value: K.thinOp }, uCloudThinGrey: { value: K.thinGrey },
             uCloudStorm: { value: Array.from({ length: MAX_STORMS }, () => new THREE.Vector4()) }, uCloudStormSize: { value: new Array(MAX_STORMS).fill(1) }, uCloudStorms: { value: 0 },
             uCloudOp: { value: new THREE.Vector4(K.opLow, K.opConv, K.opFront, K.opCirrus) }, uCloudGrey: { value: new THREE.Vector2(K.greyLow, K.greyCirrus) },
-            uCloudLight: { value: K.light }, uCloudLit: { value: 1 }, uCloudShadow: { value: K.shadow },
-            uCloudShadowOff: { value: new THREE.Vector3(...shadowOffset(K)) },
+            uCloudLight: { value: K.light }, uCloudLit: { value: 1 }, uCloudShadow: { value: K.shadow }, uCloudShadowOn: { value: 1 },
+            uCloudShadowStep: { value: K.shadowKm / 6371 },
         };
         const shell = (r, isShadow, order) => {
             const m = new THREE.ShaderMaterial({
                 uniforms: { ...this.cloudU, uCloudIsShadow: { value: isShadow ? 1 : 0 } },
                 vertexShader: 'varying vec2 vUv; varying vec3 vPos;\nvoid main() { vUv = uv; vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
                 fragmentShader: `${CLOUD_GLSL}
-uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudLight, uCloudLit, uCloudShadow, uCloudIsShadow; uniform vec3 uCloudShadowOff;
+uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudLight, uCloudLit, uCloudShadow, uCloudIsShadow, uCloudShadowStep;
 varying vec2 vUv; varying vec3 vPos;
 void main() {
 #if __VERSION__ >= 300
     vec3 p = normalize(vPos);
     float px = length(fwidth(p));
-    if (uCloudIsShadow > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, uCloudShadow * cloudShade(normalize(p - uCloudShadowOff), vUv, px)); return; }
+    if (uCloudIsShadow > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, uCloudShadow * cloudShade(cloudTowardLight(p, uCloudShadowStep), vUv, px)); return; }
     gl_FragColor = cloudColour(p, vUv, px, uCloudOp, uCloudGrey, uCloudLight, uCloudLit);
 #else
     discard;
@@ -231,8 +231,14 @@ void main() {
                 wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, wrapR: THREE.RepeatWrapping, unpackAlignment: 1, needsUpdate: true });
             U.uCloudNoise.value = t;
         }
-        if (storms) { this._cloudStorms = storms.slice(0, MAX_STORMS); U.uCloudStorms.value = this._cloudStorms.length; this.cloudStormsNow(); }
+        // (the clouds' clock from nought when they come on or change — new fields, new storms: the storms where they were
+        // placed, the clouds as the export draws them, then on from there)
+        const was = U.uCloudOn.value > 0.5, fresh = (fields && this._cloudFields !== fields) || (storms && this._cloudStormsIn !== storms);
+        if (on && (!was || fresh)) { this._cloudT0 = performance.now(); this._cloudAt = this._cloudT0; U.uCloudTime.value = 0; }
+        if (storms) { this._cloudStormsIn = storms; this._cloudStorms = storms.slice(0, MAX_STORMS); U.uCloudStorms.value = this._cloudStorms.length; }
+        this.cloudStormsNow();
         U.uCloudLit.value = lit ? 1 : 0;
+        U.uCloudShadowOn.value = shadow ? 1 : 0;
         if (fields && this._cloudFields !== fields) {
             this._cloudFields = fields;
             // (rows north → south as given: the texture's first row at v = 0 — the shaders read it at 1 − v)
@@ -435,7 +441,7 @@ void main() {
 ${PATCH_GLSL}
 ${PROJECTION_GLSL}
 ${CLOUD_GLSL}
-uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudOn, uCloudLight, uCloudLit, uCloudShadow; uniform vec3 uCloudShadowOff;
+uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudOn, uCloudLight, uCloudLit, uCloudShadow, uCloudShadowOn, uCloudShadowStep;
 void main() {
     vec2 m = vUv * uView.xy + uView.zw;                            // (the frame's pixel → its place in the map's box, zoomed and panned)
     // (the texture's level for this zoom — from the box's own scale, smooth across the wrap and the projection's edges,
@@ -462,7 +468,8 @@ void main() {
     // (the clouds over the map, as on the globe: their faint shadow, then them — their sRGB grey in the map's linear light)
     if (uCloudOn > 0.5) {
         vec3 p = cloudPoint(tc);
-        float px = length(fwidth(p)), ds = cloudShade(normalize(p - uCloudShadowOff), tc, px);
+        float px = length(fwidth(p)), ds = 0.0;
+        if (uCloudShadowOn > 0.5) ds = cloudShade(cloudTowardLight(p, uCloudShadowStep), tc, px);   // (a branch on a uniform: a phone skips it)
         vec4 cc = cloudColour(p, tc, px, uCloudOp, uCloudGrey, uCloudLight, uCloudLit);
         gl_FragColor.rgb *= 1.0 - uCloudShadow * ds;
         gl_FragColor.rgb = mix(gl_FragColor.rgb, pow(cc.rgb, vec3(2.2)), cc.a);
