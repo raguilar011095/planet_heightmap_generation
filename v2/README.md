@@ -25,7 +25,7 @@ memory. Phase 13 (the supercontinent cycle) is done: a supercontinent breaks up
 in a burst of rifts over the mantle it has insulated, the mantle's flow spreads the pieces and gathers them again ~90°
 away, and the new supercontinent breaks up in its turn (a 1200 Myr lab scene with a chart of it); and a whole planet's
 history can be asked to **end in a stage of the cycle** — a supercontinent, one breaking up, or continents dispersed.
-Next, per plans/V2_ROADMAP_PHASES_9_13.md: the full planet (the render mesh, V1's polish and climate). The phase table is in the design doc (§9). V2 is built **one phase at a time, each confirmed by
+The full planet followed (plans/V2_ROADMAP_PHASES_9_13.md): the Evolution page, whose user guide is `docs/evolution.md`. The phase table is in the design doc (§9). V2 is built **one phase at a time, each confirmed by
 the developer before the next begins.**
 
 ## Running it

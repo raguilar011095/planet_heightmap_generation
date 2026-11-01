@@ -1,51 +1,37 @@
 # CLAUDE.md
 
-## Project Overview
+World Orogen is a studio of free planet tools that run in the browser (Generate, Import Heightmap and Evolution), built with Three.js and native ES modules, with no build step and no server.
 
-World Orogen — a browser-based procedural planet generator using Three.js and ES modules with no build step.
+## The vision
 
-**World Orogen is concept art for planets, not a geophysical simulator.** Every feature should prioritize making the output *look* more believable or helping users iterate faster. Never slow down generation to chase physical accuracy — if a simpler approximation looks just as good, use it. However, the scientific grounding is what makes the output convincing: tectonic models inspired by real geology, pressure-driven wind patterns, and Köppen classification aren't optional polish — they're the reason the output passes the glance test. Preserve and extend this scientific foundation whenever it serves the visuals. The tool's job is to be the fastest path from a blank page to a world worth building on.
+`VISION.md` is the project's foundation: what Orogen is, who it's for, the pillars and how to break ties between them, each tool's profile (speed, control, phones), the scope, and the strengths to protect. It is imported below. Read it before proposing or making a change, and flag any change that would contradict it. If a change trades one protected strength for another, say so explicitly.
 
-## Guiding Principles
+`VISION.md` is the owner's artistic vision. Edit it when the owner asks you to, never on your own initiative. If work shows it is out of date (a new tool needs its column, a tool's profile no longer matches), propose the change and wait for the owner's go-ahead.
 
-All three tenets should be considered simultaneously. When they conflict, break ties in this order:
+@VISION.md
 
-1. **Artistic appeal** — The output should look visually interesting and compelling, informed by real science but not constrained by it. Aesthetics come first.
-2. **Ease of use and efficiency** — The interface should be approachable and intuitive. Generation should be fast. Don't sacrifice usability for realism.
-3. **Scientific plausibility** — Terrain, tectonics, and geology should be grounded in real planetary science. Results don't need to be physically accurate simulations, but they should be believable.
+## Where things live
 
-## What Users Love (Protect These)
-
-User feedback consistently highlights these as World Orogen's core strengths. Any change should preserve or enhance them — never degrade them as a side effect.
-
-1. **Climate simulation depth** — The climate view (wind, ocean currents, precipitation, Köppen) is the single most-cited differentiator. Users call it "the only map generator with this level of detail" and say it's what sets Orogen apart from Azgaar and every other tool. Never simplify or remove climate layers. When adding features, consider whether they can leverage the climate system (e.g. rivers fed by precipitation, settlements placed by climate).
-
-2. **Instant, in-browser, zero-friction** — No install, no account, no build step. Users love that they can open a URL and have a planet in seconds. Never add mandatory sign-up, downloads, or server dependencies. Keep generation fast — if a feature risks slowing generation significantly, make it optional or deferred (like the on-demand climate on phones above 640K regions).
-
-3. **Interactive plate editing** — Users say "haven't seen this functionality anywhere else." The Ctrl-click multi-select → Rebuild workflow is a key differentiator. Don't break this interaction pattern. Extend it (e.g. plate direction editing) rather than replacing it.
-
-4. **True globe with proper wrapping** — Users who came from Azgaar specifically cite the globe as a reason they switched. The globe-first experience, equirectangular map as secondary view, and seamless wrapping matter. Don't make the map view primary or break globe rendering.
-
-5. **Free and open source** — Repeatedly praised. No paywalls, no feature-gating, no "pro" tier. This is a trust signal that drives adoption and contributions.
-
-6. **Works on mobile** — Users are surprised it runs well on phones. Maintain the responsive bottom-sheet layout, touch targets, and pinch-to-zoom. Don't add features that only work on desktop without a mobile equivalent.
-
-7. **Terrain aesthetics** — "Fractal-looking mountains," realistic erosion, organic coastlines. The visual quality of the terrain itself gets specific praise. Protect the artistic output of the erosion and terrain post-processing pipeline.
-
-When proposing a new feature or change, ask: "Does this preserve all seven strengths above?" If it trades one for another, flag the tradeoff explicitly.
+- `index.html`: the Studio home page
+- `generate.html`, `import.html`, `js/`: Generate and Import Heightmap
+- `evolution.html`, `v2/`: Evolution, with its tectonic history engine, finish, geology, food and planet files (see `v2/README.md`)
+- `v2/js/climate/`: the one climate every tool runs (see the climate rule below)
+- `docs/`: each tool's guide and what they share; `README.md`: the front door
+- `tuning/`: the automated Earth checks; `plans/`: design docs and phase plans
 
 ## Key Rules
 
-After any code change, check whether README.md needs updating. The README documents all UI controls, features, algorithms, and project structure. If a change adds, removes, or modifies any of the following, update the README to match:
+After any code change, check whether the docs need updating. The README is the Studio's front door: the vision in short, the tools, quick start, project structure and dependencies. Each tool's guide in `docs/` (`generate.md`, `import.md`, `evolution.md`) documents its controls, interactions, pipeline and algorithms; `docs/shared.md` covers what every tool shares (the navigation, the view, the climate, the export panel, previous versions); `v2/README.md` documents Evolution's engine for developers. If a change adds, removes, or modifies any of the following, update the matching file:
 
-- Sliders, dropdowns, toggles, or other UI controls (names, ranges, defaults)
-- User interactions (keyboard shortcuts, mouse actions, edit behaviors)
-- Generation pipeline steps or algorithms
-- Visual features (rendering, overlays, debug layers)
-- Project file structure (new files, renamed files, removed files)
-- External dependencies
+- Sliders, dropdowns, toggles, or other UI controls (names, ranges, defaults): the tool's guide
+- User interactions (keyboard shortcuts, mouse actions, edit behaviors): the tool's guide
+- Generation pipeline steps or algorithms: the tool's guide (and `v2/README.md` for Evolution's engine)
+- Visual features (rendering, overlays, debug layers): the tool's guide, or `docs/shared.md` if every tool has it
+- Project file structure (new files, renamed files, removed files): the README (Generate's and Import's `js/` files are listed in `docs/generate.md`)
+- External dependencies: the README
+- What a tool is or does (a new tool, a new headline feature): the tool's summary in the README
 
-After any code change, check whether the tutorial modal content (in `generate.html`, inside `#tutorialOverlay`) needs updating. The tutorial steps describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
+After any code change, check whether the tutorial modal content (inside `#tutorialOverlay`: in `generate.html` for Generate and Import, in `evolution.html` for Evolution) needs updating. The tutorial steps describe the app's features and interactions. If a change adds, removes, or modifies any of the following, update the relevant tutorial step to match:
 
 - Core workflow (how to generate a planet, what controls to use)
 - Interactive features (navigation, editing, keyboard/mouse actions)
@@ -53,7 +39,7 @@ After any code change, check whether the tutorial modal content (in `generate.ht
 
 After any code change that adds significant user-facing features, ask the developer if they would like to update the What's New modal (in `generate.html`, inside `#whatsNewOverlay`). The modal is version-gated by the `VERSION` constant in `initWhatsNew()` in `js/main.js` — bumping this string will show the modal again to returning users on their next visit.
 
-After any code change that affects the UI, ensure it works on mobile. The app uses a responsive bottom-sheet layout on screens ≤ 768px (`styles.css` media queries) and has touch-specific behavior throughout. If a change adds, removes, or modifies any of the following, verify and update the mobile experience:
+After any code change that affects the UI, ensure it works on mobile, to the level the tool's profile in `VISION.md` commits to: Generate and Import fully; Evolution so a phone can open links and planet files, explore every view and export (building a history may stay desktop-first). The app uses a responsive bottom-sheet layout on screens ≤ 768px (`styles.css` media queries) and has touch-specific behavior throughout. If a change adds, removes, or modifies any of the following, verify and update the mobile experience:
 
 - New buttons or controls — must have ≥ 44px touch targets on mobile (see `@media (max-width: 768px)` in `styles.css`)
 - New interactions — must have touch equivalents; desktop uses Ctrl-click for plate editing, mobile uses `state.editMode` toggle (`js/edit-mode.js`); desktop uses scroll-to-zoom, mobile uses pinch (`js/scene.js`)

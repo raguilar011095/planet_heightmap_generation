@@ -1,28 +1,20 @@
 # World Orogen
 
-> Procedural planet generator — free, browser-based, no signup required.
+> Believable worlds from the ground up: a free studio of planet tools that gets you from a blank page to a world that makes sense. In the browser, no signup required.
 
-World Orogen generates realistic procedural planets shaped by tectonic plate simulation, erosion, and climate modeling. It runs entirely in the browser using Three.js and requires no installation, account, or payment.
+World Orogen builds planets the way the scientific worldbuilding guides (Worldbuilding Pasta, Madeline James, Artifexian) teach you to by hand: plates and their history first, then the land, its climate, its water and ice, its rock, and what the land could feed. The science behind each layer is real, simplified and named, so someone who knows the guides can follow what it is doing. Its worlds are possible worlds, not predictions: much of a planet is chance, and what its people make of it is up to the worldbuilder. It runs entirely in the browser using Three.js and requires no installation, account, or payment.
 
-## What it does
+## The tools
 
-- Generates unique terrestrial planets with realistic continents, mountains, ocean trenches, and volcanic islands
-- Simulates tectonic plates with convergent, divergent, and transform boundaries
-- Applies glacial, hydraulic, and thermal erosion to carve fjords, river valleys, and talus slopes
-- Simulates seasonal climate: wind patterns, ocean currents, precipitation, and Köppen classification
-- Creates hotspot volcanism with drift-trail island chains (like Hawaii)
-- Allows interactive editing — select multiple tectonic plates for batch reshaping with visual preview before rebuild
-- Import your own equirectangular B&W heightmaps (Earth, Mars, hand-drawn) onto a 3D globe with automatic climate simulation
-- Evolution: simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding) as a timeline to scrub; any moment can be sculpted in detail with rivers, lakes, glaciers, its own climate, a satellite view (realistic colours from its climate and terrain, with clouds drifting over the globe) and a geology view, in beta (a rock-type map built from the simulated history — sedimentary basins, volcanic arcs, flood basalts, granite, metamorphic belts, ancient shields — and ore, fuel and mineral deposits — copper, gold, tin, lead-zinc, iron, nickel, diamonds, oil and gas, coal, bauxite, salt — placed by the history, the climate and the rivers, graded poor, moderate or rich — and one map per technological age (Stone, Copper, Bronze, Iron, Industrial, Fuel) of what a people could reach, with bronze and ironworking potential, plus gems and building stone; the deposit districts named with how each formed, and each landmass's resources) — zoomed in, it shows detail finer than its mesh (ridges and valleys on the mountains cut by their rock, benches in layered rock, ice-scoured knobs, karst hollows, dunes, coves; the geology's rocks with organic contacts — and the rocks shaping the land: hard rock standing, soft rock worn down) at the screen's resolution — and a food view, in beta (what the land could grow by rain or with irrigation, what each place would live on most — grains, roots, livestock, fish or wild foods — and how its people would live: farming, herding or gathering, how many people it could feed, its soil and growing season) — then exported — the geology and farming too: its maps, the rock types and a richness mask per resource as data, the districts as GeoJSON or CSV, and a resource atlas; a planet (its whole history and its detailed moment) saves as one file, to open again later without waiting — the same planet in any browser
+- Generate (orogen.studio/generate): a planet in seconds from sliders, with tectonic plates (convergent, divergent and transform boundaries), glacial, hydraulic and thermal erosion, hotspot island chains (like Hawaii) and the full seasonal climate; reshape plates interactively (select several, preview, then rebuild); a planet code reproduces it exactly
+- Import Heightmap (orogen.studio/import): bring an equirectangular greyscale heightmap (Earth, Mars, hand-drawn, or from another tool) onto a 3D globe and run the full climate on it, with optional erosion and sculpting
+- Evolution (orogen.studio/evolution): simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding and gathering again over up to 1.5 billion years) as a timeline to scrub, with a chosen ending. Any moment can be sculpted in detail: rivers and lakes through the seasons, glaciers and fjords, sand seas, its own climate, a satellite view with clouds from its climate, and detail finer than its mesh when zoomed in. Geology (beta): rock types, and about 35 kinds of ore, fuel, mineral and gem deposits placed by the history, the climate and the rivers, each district with how it formed, plus one map per technological age (Stone, Copper, Bronze, Iron, Industrial) of what a people could reach. Food (beta): what the land could grow by rain or with irrigation, its staple foods, whether its people could farm, herd or gather, and how many it could feed. A whole planet (its history and its detailed moment) saves as one file, to open again later in any browser
 
 ## Who it's for
 
-- Worldbuilders creating fantasy or sci-fi settings
-- Game developers who need heightmaps for Unity, Unreal, or other engines
-- Tabletop RPG players building campaign worlds (D&D, Pathfinder, etc.)
-- Fantasy/sci-fi authors designing believable planets
-- Artists and hobbyists who enjoy procedural generation
-- Educators teaching plate tectonics and planetary science
+- Worldbuilders who want a scientifically grounded world, and anyone curious to watch a planet form
+- Fantasy and sci-fi authors and tabletop game masters (D&D, Pathfinder, etc.) who need a believable map fast
+- Artists and game developers who need heightmaps and data for Gaea, Unity, Unreal, Photoshop or other tools
 
 ## Key capabilities
 
