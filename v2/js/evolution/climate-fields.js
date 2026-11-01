@@ -104,6 +104,7 @@ export function climateTransfers(out) {
     if (out.cell?.stats) for (const a of Object.values(out.cell.stats)) list.push(a.buffer);
     if (out.raster?.stats) for (const a of Object.values(out.raster.stats)) list.push(a.buffer);
     if (out.raster) list.push(out.raster.koppen.buffer, out.raster.tAnnual.buffer, out.raster.pAnnual.buffer);
+    if (out.raster?.families) list.push(out.raster.families.data.buffer);
     if (out.raster?.sat) list.push(out.raster.sat.year.buffer, out.raster.sat.jan.buffer, out.raster.sat.jul.buffer, out.raster.cover.buffer);
     for (const f of [out.T, out.Tsea, out.P, out.slp, out.u, out.v, out.seaIce, out.currentU, out.currentV, out.sstAnom, out.upwelling, out.snow, out.itcz]) list.push(f.year.buffer, f.jan.buffer, f.jul.buffer);
     return [...new Set(list)];

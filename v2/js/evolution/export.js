@@ -18,6 +18,7 @@ import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
 import { LIFESTYLE_WORDS, GATHER } from '../farming/living.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
+import { cloudFields, cloudPicture, cloudStorms } from '../view/clouds.js';
 import { initExportPanel } from '../view/export-panel.js';
 import { DATA_SCALES as SC, scaled, hillshade8, climateRows, classIndexMap } from '../view/export-raster.js';
 import { GEOLOGY_GROUP, produceGeology, rockTypesList } from './geology-export.js';
@@ -48,6 +49,8 @@ export const CATALOGUE = [
     { id: 'maps', label: 'Maps', rows: [
         { id: 'color', label: 'Colour Map', colour: true, tip: 'The Terrain view as shown, in your Terrain Colours, with rivers and lakes if Rivers &amp; Lakes is on' },
         { id: 'satellite', label: 'Satellite', colour: true, seasonal: true, needs: 'satellite', tip: 'The Satellite view for the year, January or July' },
+        { id: 'satelliteClouds', label: 'Satellite with clouds', colour: true, seasonal: true, needs: 'satellite', tip: 'The Satellite view with its clouds over it — one still moment of them, from the climate in the season' },
+        { id: 'clouds', label: 'Clouds', colour: true, seasonal: true, needs: 'satellite', tip: 'The clouds alone, with their faint shadows, on a transparent ground — to lay over another map' },
         { id: 'koppen', label: 'Climate zones (Köppen)', colour: true, needs: 'climate', data: [{ key: 'koppenIndex', suffix: 'index', label: 'Köppen class index', scale: SC.koppenIndex, bits: 8 }], tip: 'The Köppen zones in their own colours, unshaded; as data, each class\'s index (the README lists them)' },
         { id: 'rivers', label: 'Rivers &amp; Lakes', colour: true, needs: 'rivers', tip: 'The rivers and lakes alone on a transparent ground, to lay over another map' },
     ] },
@@ -170,11 +173,21 @@ export function colorMap(fin, W, look) {
 }
 
 /** The Satellite view as shown, for the year, January or July: no grid, no glint (and, as on screen, no rivers' lines). */
-export function satelliteMap(fin, W, season, look) {
+export function satelliteMap(fin, W, season, look, clouds = false) {
     const H = W >> 1, image = new ImageData(W, H);
     paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration * 1.25, lakes: true, shaded: look.shaded !== false,
         colorAt: finishedClimateColor('satellite', season, fin.climate, W, look.lut, fin) });
+    // (with clouds: theirs — view/clouds.js, one still moment — laid over)
+    if (clouds) {
+        const cl = cloudPicture(cloudFields(fin.climate, season), cloudStorms(look.seed ?? 0, fin.climate, season), W), d = image.data;
+        for (let i = 0; i < W * H; i++) { const a = cl[4 * i + 3] / 255; if (!a) continue; for (let c = 0; c < 3; c++) d[4 * i + c] = Math.round(d[4 * i + c] * (1 - a) + cl[4 * i + c] * a); }
+    }
     return { kind: 'rgba', W, H, data: rollRows(image.data, W, H, 4, rollShift(W, look.centerLon)) };
+}
+/** The clouds alone (view/clouds.js: one still moment, their faint shadows too), on a transparent ground. */
+export function cloudsMap(fin, W, season, look) {
+    const H = W >> 1, d = cloudPicture(cloudFields(fin.climate, season), cloudStorms(look.seed ?? 0, fin.climate, season), W);
+    return { kind: 'rgba', W, H, data: rollRows(d, W, H, 4, rollShift(W, look.centerLon)), alpha: true };
 }
 
 /**
@@ -260,6 +273,8 @@ export function produceMap(fin, W, lk, job) {
         if (id === 'color') return colorMap(fin, W, lk);
         if (job.row.needs === 'farming') return farmingMap(fin, W, id, lk);
         if (id === 'satellite') return satelliteMap(fin, W, s, lk);
+        if (id === 'satelliteClouds') return satelliteMap(fin, W, s, lk, true);
+        if (id === 'clouds') return cloudsMap(fin, W, s, lk);
         if (id === 'koppen') return koppenMap(fin, W, c);
         if (id === 'rivers') return riversMap(fin, W, lk);
         return climateMap(fin, W, CLIMATE_LAYER_OF[id] || id, s, lk);

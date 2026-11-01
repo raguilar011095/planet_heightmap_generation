@@ -486,7 +486,7 @@ function satelliteColor(season, C, W, fin = null) {
     // (the land: the climates' colours by height with the realistic picture's texture — sat-style.js — where the finished
     // heights are at hand; else the realistic picture itself)
     const styled = !!fin?.raster?.heightM;
-    const S = styled ? styledSatellite(R, season, fin.raster.heightM, fin.raster.w, fin.rivers) : R.sat[season];
+    const S = styled ? styledSatellite(R, season, fin.raster.heightM, fin.raster.w, fin.rivers, fin.raster.water, fin.raster) : R.sat[season];
     const shadeAmp = styled ? SAT_SHADE : 1, enlarged = R.w < W, blend = [0, 0, 0];
     return (out, o, x, y, wet, kk, k3, v, lake) => {
         // (the land's relief shading deeper than the other layers': the mountains stand out, as on a satellite image)
