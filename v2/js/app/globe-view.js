@@ -178,7 +178,7 @@ export class GlobeView {
             uCloudCover: { value: null }, uCloudWind: { value: null }, uCloudOn: { value: 0 }, uCloudIsShadow: { value: 0 }, uCloudNoise: { value: null },
             uCloudScale: { value: scaleOf(K) }, uCloudStretch: { value: K.stretch }, uCloudWarp1: { value: K.warp1 }, uCloudWarp2: { value: K.warp2 },
             uCloudW0: { value: K.w0 }, uCloudW1: { value: K.w1 }, uCloudW2: { value: K.w2 }, uCloudContrast: { value: K.contrast },
-            uCloudEdge: { value: cloudEdges(K) }, uCloudQ: { value: cloudQuantileList(K) }, uCloudVeil: { value: K.veil }, uCloudVeilWidth: { value: K.veilWidth },
+            uCloudEdge: { value: cloudEdges(K) }, uCloudAA: { value: new THREE.Vector4(...K.aa) }, uCloudQ: { value: cloudQuantileList(K) }, uCloudVeil: { value: K.veil }, uCloudVeilWidth: { value: K.veilWidth },
             uCloudErosion: { value: K.erosion }, uCloudDetail: { value: K.detail }, uCloudSharp: { value: K.sharp },
             uCloudLowScale: { value: K.lowScale }, uCloudConvScale: { value: K.convScale }, uCloudCirrusScale: { value: K.cirrusScale },
             uCloudStreakFront: { value: K.streakFrontKm }, uCloudStreakCirrus: { value: K.streakCirrusKm }, uCloudWindFull: { value: K.windFull },

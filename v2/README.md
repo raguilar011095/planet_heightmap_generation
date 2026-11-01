@@ -188,11 +188,13 @@ storm tracks (fbm through Quilez's warp of a warp, crisp, a veil under it); high
 wind's streaks fade out in the trades: broken cells there, streets toward the jets); whole regions cloudier or clearer and
 streakier or not by a noise far larger than the clouds (weather systems); the convective and frontal clouds
 billowy — cauliflower edges from the inverted cellular detail, thin edges greyer and see-through, dense cores white, the
-billows' relief lit from the north-west — each layer's cover its cut through its own noise by the noise's measured quantiles;
+billows' relief lit from the north-west — each layer's cover its cut through its own noise by the noise's measured quantiles (thinning out to none as its cover goes; every
+edge at least about two pixels wide, however far out);
 storms where the circulation has them: extratropical cyclones at the season's pressure lows in 35–68° and more along the
 tracks (the seed), tropical cyclones over seas of 27 °C and more — spiral turns of the field, cyclonic. On the globe they
 evolve — the warps move through the 3-D noise each its own way, so shapes form, merge and dissolve — and flow along the
-climate's own winds (a flow map: two phases half a period apart, cross-faded), with a gentle drift by latitude; drawn on
+climate's own winds (a flow map: two phases half a period apart, cross-faded smoothly, each period a fresh place in the
+noise so no pattern comes round again), with a gentle drift by latitude; drawn on
 the GPU on a shell just above the globe (and on the map view), a faint shadow beside them (a redraw about 12 times a second
 while they show; on a phone unlit and no shadows); the export's Clouds layer (transparent) and
 Satellite with clouds are one still moment of them, from the same noise in JavaScript. **Rivers and lakes** by the climate

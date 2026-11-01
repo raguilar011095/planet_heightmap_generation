@@ -26,15 +26,18 @@
 /** The settings: see each use. Q*: each layer's noise's quantiles at 5, 25, 50, 75 and 95 % (measured: cloudQuantiles). */
 export const CLOUDS = {
     sizeKm: 5400, stretch: 1.5, warp1: 0.7, warp2: 0.6, w0: 0.7, w1: 0.25, w2: 0.05, contrast: 1.4,
-    edgeLow: 0.05, edgeConv: 0.04, edgeFront: 0.07, edgeCirrus: 0.08, veil: 0.25, veilWidth: 0.1, erosion: 0.45, detail: 7, sharp: 1.2,
+    edgeLow: 0.08, edgeConv: 0.065, edgeFront: 0.09, edgeCirrus: 0.08, veil: 0.25, veilWidth: 0.1, erosion: 0.45, detail: 7, sharp: 1.2,
     opLow: 0.78, opConv: 0.97, opFront: 0.92, opCirrus: 0.38, greyLow: 0.86, greyCirrus: 0.97, light: 0.3,
     billow: 0.7, relief: 0.55, thick: 0.14, thinOp: 0.68, thinGrey: 0.82, streakLat: [0.25, 18, 38],
     lowScale: 3.2, convScale: 2.6, cirrusScale: 1.7, streakFrontKm: 260, streakCirrusKm: 700, windFull: 6,
     shadow: 0.25, shadowKm: 30,
+    // (each layer's noise's steepness — its 90 % quantile, noise units a radian, measured — so an edge is at least this × a
+    // pixel wide: none sharper than about two pixels, however far out; up close each keeps its own width)
+    aa: [22.6, 38.7, 30.8, 63.0],
     storms: 10, stormKm: 1100, stormTwist: 1.1, stormCover: 0.06, tropical: 3, tropicalTwist: 1.0,
     weatherScale: 0.11, weatherAmp: 0.45, streakVary: 0.45, cirrusWarp: 0.45, cirrusFine: 0.3,
-    driftDegPerS: 0.25, evolve: 0.009, flowPeriod: 9, flowKm: 120, flowLat: [0.55, 1.35],
-    QLow: [0.358, 0.437, 0.494, 0.553, 0.638], QConv: [0.372, 0.449, 0.503, 0.557, 0.636], QFront: [0.309, 0.442, 0.533, 0.626, 0.759], QCirrus: [0.362, 0.458, 0.525, 0.594, 0.689],
+    driftDegPerS: 0.25, evolve: 0.009, flowPeriod: 12, flowKm: 160, flowLat: [0.55, 1.35],
+    QLow: [0.358, 0.437, 0.494, 0.553, 0.638], QConv: [0.36, 0.442, 0.5, 0.559, 0.64], QFront: [0.309, 0.442, 0.533, 0.626, 0.759], QCirrus: [0.362, 0.458, 0.525, 0.594, 0.689],
 };
 /** The noise texture's size (texels a side), and the most storms the shader takes. */
 export const NOISE_N = 64, MAX_STORMS = 16;
@@ -137,11 +140,17 @@ function worley(x, y, z, c, s) {
 }
 let noiseTex = null;
 /** The texture (built once, ~1 s): NOISE_N³ RGBA bytes, x fastest — R Perlin fbm (4 → 16 cells, stretched to 0 … 1),
- *  G B A Worley fbm at 4, 8, 16 cells a period. */
+ *  G B A Worley fbm at 4, 8, 16 cells a period (octaves to 32 cells: two texels a cell). */
 export function cloudNoiseTexture() {
     if (noiseTex) return noiseTex;
     const N = NOISE_N, out = new Uint8Array(N * N * N * 4), R = new Float32Array(N * N * N);
-    const wfbm = (u, v, w, c) => 0.625 * worley(u * c, v * c, w * c, c, 11) + 0.25 * worley(u * 2 * c, v * 2 * c, w * 2 * c, 2 * c, 23) + 0.125 * worley(u * 4 * c, v * 4 * c, w * 4 * c, 4 * c, 37);
+    // (each Worley fbm's octaves no finer than two texels a cell — a cell a texel is noise per texel, faceted where it is cut)
+    const wfbm = (u, v, w, c) => {
+        let s = 0.625 * worley(u * c, v * c, w * c, c, 11), t = 0.625;
+        if (2 * c <= N / 2) { s += 0.25 * worley(u * 2 * c, v * 2 * c, w * 2 * c, 2 * c, 23); t += 0.25; }
+        if (4 * c <= N / 2) { s += 0.125 * worley(u * 4 * c, v * 4 * c, w * 4 * c, 4 * c, 37); t += 0.125; }
+        return s / t;
+    };
     let mn = Infinity, mx = -Infinity;
     for (let z = 0, i = 0; z < N; z++) for (let y = 0; y < N; y++) for (let x = 0; x < N; x++, i++) {
         const u = (x + 0.5) / N, v = (y + 0.5) / N, w = (z + 0.5) / N;
@@ -224,7 +233,7 @@ export const CLOUD_GLSL = `
 #if __VERSION__ >= 300
 uniform highp sampler3D uCloudNoise; uniform sampler2D uCloudCover, uCloudWind;
 uniform float uCloudScale, uCloudStretch, uCloudWarp1, uCloudWarp2, uCloudW0, uCloudW1, uCloudW2, uCloudContrast;
-uniform float uCloudEdge[4], uCloudQ[20], uCloudVeil, uCloudVeilWidth, uCloudErosion, uCloudDetail, uCloudSharp;
+uniform vec4 uCloudAA; uniform float uCloudEdge[4], uCloudQ[20], uCloudVeil, uCloudVeilWidth, uCloudErosion, uCloudDetail, uCloudSharp;
 uniform float uCloudLowScale, uCloudConvScale, uCloudCirrusScale, uCloudStreakFront, uCloudStreakCirrus, uCloudWindFull;
 uniform float uCloudTime, uCloudDrift, uCloudEvolve, uCloudFlowPeriod, uCloudFlowKm, uCloudStormKm, uCloudStormTwist, uCloudStormCover, uCloudTropicalTwist;
 uniform vec2 uCloudFlowLat; uniform vec3 uCloudStreakLat, uCloudSeason; uniform float uCloudCirrusWarp, uCloudCirrusFine; uniform float uCloudWeatherScale, uCloudWeatherAmp, uCloudStreakVary; uniform float uCloudBillow, uCloudRelief, uCloudThick, uCloudThinOp, uCloudThinGrey;
@@ -239,11 +248,12 @@ const mat3 cloudM3 = mat3(0.00, 0.80, 0.60, -0.80, 0.36, -0.48, -0.60, -0.48, 0.
 vec4 cloudN(vec3 p) { return texture(uCloudNoise, p); }
 float cloudR(vec3 p) { return texture(uCloudNoise, p).r; }
 vec3 cloudV3(vec3 a, vec3 o) { return vec3(cloudR(a + o), cloudR(a.yzx + o.yzx), cloudR(a.zxy + o.zxy)) - 0.5; }
-/** A layer's cut through its noise for cover c, by the noise's quantiles (5, 25, 50, 75, 95 %): cloud over about c. */
+/** A layer's cut through its noise for cover c, by the noise's quantiles (5, 25, 50, 75, 95 %): cloud over about c;
+ *  under 5 % on past the 95 % quantile, toward none — a layer thins out as its cover goes, never cut off. */
 float cloudCut(int k, float c) {
-    float u = clamp(1.0 - c, 0.05, 0.95);
+    float u = clamp(1.0 - c, 0.05, 1.0);
     float a = uCloudQ[5 * k], b = uCloudQ[5 * k + 1], m = uCloudQ[5 * k + 2], d = uCloudQ[5 * k + 3], e = uCloudQ[5 * k + 4];
-    return u < 0.25 ? mix(a, b, (u - 0.05) / 0.2) : u < 0.5 ? mix(b, m, (u - 0.25) / 0.25) : u < 0.75 ? mix(m, d, (u - 0.5) / 0.25) : mix(d, e, (u - 0.75) / 0.2);
+    return u < 0.25 ? mix(a, b, (u - 0.05) / 0.2) : u < 0.5 ? mix(b, m, (u - 0.25) / 0.25) : u < 0.75 ? mix(m, d, (u - 0.5) / 0.25) : u < 0.95 ? mix(d, e, (u - 0.75) / 0.2) : mix(e, e + 2.0 * (e - d), (u - 0.95) / 0.05);
 }
 float cloudStep(float n, float cut, float e) { float t = clamp((n - (cut - e)) / (2.0 * e), 0.0, 1.0); return t * t * (3.0 - 2.0 * t); }
 /** The unit sphere's point for texture coordinates (u east from −180°, v up from the south pole), as SphereGeometry. */
@@ -287,8 +297,9 @@ vec4 cloudRaw(vec3 q0, vec3 r, vec3 Wq, float ss, float px, float tm, vec4 need,
 }
 /** The four layers' densities (low, convective, frontal, cirrus) at p (the unit sphere, y north), uv its texture
  *  coordinates; px a screen pixel on the unit sphere; veil: the frontal layer's thin cloud. Over time the shapes evolve
- *  and flow along the climate's wind (a flow map: two phases, half a period apart, cross-faded). */
-vec4 cloudLayers(vec3 p, vec2 uv, float px, float fast, out float veil, out vec2 look) {
+ *  and flow along the climate's wind (a flow map: two phases, half a period apart, cross-faded). lit 0 (a phone): the
+ *  billows' relief not worked out (it lights them only). */
+vec4 cloudLayers(vec3 p, vec2 uv, float px, float fast, float lit, out float veil, out vec2 look) {
     vec4 cv = texture(uCloudCover, vec2(uv.x, 1.0 - uv.y)), wd = texture(uCloudWind, vec2(uv.x, 1.0 - uv.y));
     vec3 east = normalize(vec3(p.z + 1e-6, 0.0, -p.x)), north = cross(p, east);
     vec2 uvw = (wd.rg - 0.5) * 80.0;
@@ -302,11 +313,12 @@ vec4 cloudLayers(vec3 p, vec2 uv, float px, float fast, out float veil, out vec2
     for (int i = 0; i < ${MAX_STORMS}; i++) {
         if (i >= uCloudStorms) break;
         // (each storm where the drift has carried it — cloudStormsAt, on the CPU once a frame)
+        // (its reach 2.2 of its sizes — the largest's ~33°: past it, none; its turn and cloud fading to nothing there)
         vec3 C = uCloudStorm[i].xyz; float dt = dot(C, p);
-        if (dt < 0.9) continue;
+        if (dt < 0.83) continue;
         float r = acos(min(1.0, dt)) / (uCloudStormKm * uCloudStormSize[i] / 6371.0);
-        if (r > 3.0) continue;
-        float g = exp(-r * r), th = uCloudStormTwist * uCloudStorm[i].w * g * (uCloudStormSize[i] < 0.6 ? uCloudTropicalTwist : 1.0), co = cos(th), si = sin(th);
+        if (r > 2.2) continue;
+        float g = (exp(-r * r) - 7.907e-3) / (1.0 - 7.907e-3), th = uCloudStormTwist * uCloudStorm[i].w * g * (uCloudStormSize[i] < 0.6 ? uCloudTropicalTwist : 1.0), co = cos(th), si = sin(th);
         p = p * co + cross(C, p) * si + C * dt * (1.0 - co);
         float boost = uCloudStormCover * abs(uCloudStorm[i].w) * g;
         if (uCloudStormSize[i] < 0.6) cv.g = min(1.0, cv.g + 3.0 * boost); else cv.b = min(1.0, cv.b + boost);
@@ -320,12 +332,15 @@ vec4 cloudLayers(vec3 p, vec2 uv, float px, float fast, out float veil, out vec2
     cv = clamp(cv * (1.0 + uCloudWeatherAmp * wk), 0.0, 1.0);
     ss *= 1.0 - uCloudStreakVary * smoothstep(0.4, -0.4, wk2);
     // (the layers with cover here — none: clear sky, nothing more to work out; a shadow's pass without the cirrus)
-    vec4 need = step(vec4(0.01), cv) * vec4(1.0, 1.0, 1.0, 1.0 - fast);
+    vec4 need = step(vec4(0.01), cv) * vec4(1.0, 1.0, 1.0, 1.0 - fast), fadeOut = smoothstep(vec4(0.01), vec4(0.04), cv);
     veil = 0.0; look = vec2(1.0, 0.0);
     if (need.x + need.y + need.z + need.w < 0.5) return vec4(0.0);
     vec3 Wn = vec3(W.x, W.y * uCloudStretch, W.z) * sc, Wq = Wn * ss;
-    // (the flow: each phase's pattern carried along the wind, restarting every period, the two cross-faded)
-    float ph = uCloudTime / uCloudFlowPeriod, fa = fract(ph), fb = fract(ph + 0.5), wa = 1.0 - abs(2.0 * fa - 1.0), wb = 1.0 - wa;
+    // (the flow: each phase's pattern carried along the wind for a period, the two half a period apart and cross-faded —
+    // smoothly, sin²; each period a fresh place in the noise (no pattern comes round again), entered and left unseen)
+    float ph = uCloudTime / uCloudFlowPeriod, ca = floor(ph), cb = floor(ph + 0.5), fa = ph - ca, fb = ph + 0.5 - cb;
+    float wa = sin(3.141592654 * fa); wa *= wa; float wb = 1.0 - wa;
+    vec3 oa = fract(ca * vec3(0.7548776662, 0.5698402910, 0.4142135624)), ob = fract(cb * vec3(0.7548776662, 0.5698402910, 0.4142135624));
     // (the flow's way and distance a period: the climate's wind, and the drift east or west by latitude — reset each
     // period like the wind's, so it never shears the clouds into threads as a turn by latitude did)
     // (the warp of a warp, once — both phases flow through it)
@@ -334,24 +349,31 @@ vec4 cloudLayers(vec3 p, vec2 uv, float px, float fast, out float veil, out vec2
     vec3 wr = cloudV3(q0 * 0.5 + uCloudWarp1 * wq + ev0 * vec3(-0.4, 0.5, 0.25), vec3(0.29, 0.91, 0.37));
     vec3 L = Wn * speed * flowLat * (uCloudFlowKm / 6371.0) + vec3(east.x, east.y * uCloudStretch, east.z) * sc * (uCloudDrift * cloudDriftRate(lat) * cos(lat) * uCloudFlowPeriod), wA = vec3(0.0), wB = vec3(0.0);
     vec4 nA = vec4(0.0), nB = vec4(0.0);
-    if (wa > 0.001) nA = cloudRaw(q0 - L * (fa - 0.5), wr, Wq, ss, px, uCloudTime, need, fast, wA);
-    if (wb > 0.001) nB = cloudRaw(q0 - L * (fb - 0.5), wr, Wq, ss, px, uCloudTime, need, fast, wB);
+    if (wa > 0.001) nA = cloudRaw(q0 + oa - L * (fa - 0.5), wr, Wq, ss, px, uCloudTime, need, fast, wA);
+    if (wb > 0.001) nB = cloudRaw(q0 + ob - L * (fb - 0.5), wr, Wq, ss, px, uCloudTime, need, fast, wB);
     vec4 med = vec4(uCloudQ[2], uCloudQ[7], uCloudQ[12], uCloudQ[17]);
-    vec4 n = med + (wa * nA + wb * nB - med) / sqrt(wa * wa + wb * wb);
-    vec3 w = wa > wb ? wA : wB;
+    float nw = sqrt(wa * wa + wb * wb);
+    vec4 n = med + (wa * nA + wb * nB - med) / nw;
     // (each layer cut by its cover; the frontal one crisp, a veil under it, its edges eroded)
-    float cut = cloudCut(2, cv.b), dF = need.z * cloudStep(n.z, cut, uCloudEdge[2]);
+    // (each edge its own width, or about two pixels where that is sharper)
+    vec4 eW = max(vec4(uCloudEdge[0], uCloudEdge[1], uCloudEdge[2], uCloudEdge[3]), uCloudAA * px);
+    float cut = cloudCut(2, cv.b), dF = need.z * fadeOut.z * cloudStep(n.z, cut, eW.z);
     float tv = clamp((n.z - (cut - uCloudVeilWidth)) / uCloudVeilWidth, 0.0, 1.0);
-    veil = fast > 0.5 ? 0.0 : uCloudVeil * tv * tv * step(0.02, cv.b);
-    float cutC = cloudCut(1, cv.g), dC = need.y * cloudStep(n.y, cutC, uCloudEdge[1]);
-    vec4 dens = vec4(need.x * cloudStep(n.x, cloudCut(0, cv.r), uCloudEdge[0]), dC, pow(dF, uCloudSharp), need.w * cloudStep(n.w, cloudCut(3, cv.a), uCloudEdge[3]));
+    veil = fast > 0.5 ? 0.0 : uCloudVeil * tv * tv * fadeOut.z;
+    float cutC = cloudCut(1, cv.g), dC = need.y * fadeOut.y * cloudStep(n.y, cutC, eW.y);
+    vec4 dens = vec4(need.x * fadeOut.x * cloudStep(n.x, cloudCut(0, cv.r), eW.x), dC, pow(dF, uCloudSharp), need.w * fadeOut.w * cloudStep(n.w, cloudCut(3, cv.a), eW.w));
     // (a shadow's pass: done — its billows are too faint to matter)
     if (fast > 0.5 || dF + dC <= 0.0) return dens;
-    // (the billows: the cellular detail — cauliflower edges where it is low, its relief lit from the north-west)
+    // (the billows: the cellular detail — cauliflower edges where it is low, its relief lit from the north-west — each
+    // phase's own, cross-faded as the shapes are)
     float N = float(textureSize(uCloudNoise, 0).x), D = uCloudDetail * 0.5;
     float fe = clamp(px * sc * N * D - 0.5, 0.0, 1.0);
-    vec4 e = cloudN(w * D), e2 = cloudN((w + normalize(vec3(Lt.x, Lt.y * uCloudStretch, Lt.z)) * (0.25 / (16.0 * D))) * D);
-    float B = mix(e.g * 0.625 + e.b * 0.25 + e.a * 0.125, 0.45, fe), B2 = mix(e2.g * 0.625 + e2.b * 0.25 + e2.a * 0.125, 0.45, fe);
+    vec3 lq = normalize(vec3(Lt.x, Lt.y * uCloudStretch, Lt.z)) * (0.25 / (16.0 * D));
+    vec2 bA = vec2(0.45), bB = vec2(0.45);
+    if (wa > 0.02) { vec4 e = cloudN(wA * D); bA = vec2(e.g * 0.625 + e.b * 0.25 + e.a * 0.125); if (lit > 0.5) { vec4 e2 = cloudN((wA + lq) * D); bA.y = e2.g * 0.625 + e2.b * 0.25 + e2.a * 0.125; } }
+    if (wb > 0.02) { vec4 e = cloudN(wB * D); bB = vec2(e.g * 0.625 + e.b * 0.25 + e.a * 0.125); if (lit > 0.5) { vec4 e2 = cloudN((wB + lq) * D); bB.y = e2.g * 0.625 + e2.b * 0.25 + e2.a * 0.125; } }
+    vec2 bb = clamp(0.45 + (wa * (bA - 0.45) + wb * (bB - 0.45)) / nw, 0.0, 1.0);
+    float B = mix(bb.x, 0.45, fe), B2 = mix(bb.y, 0.45, fe);
     if (dF > 0.0 && dF < 1.0) {
         float k = mix(B, 1.0 - B, uCloudBillow) * uCloudErosion * (1.0 - dF);
         dF = clamp((dF - k) / (1.0 - k + 1e-6), 0.0, 1.0);
@@ -371,7 +393,7 @@ vec3 cloudTowardLight(vec3 p, float stepL) {
  *  the convective and frontal (their thin edges greyer and more see-through, their cores denser and whiter, their billows
  *  lit — lit 0, a phone: not), then the cirrus. */
 vec4 cloudColour(vec3 p, vec2 uv, float px, vec4 op, vec2 grey, float light, float lit) {
-    float veil; vec2 look; vec4 d = cloudLayers(p, uv, px, 0.0, veil, look);
+    float veil; vec2 look; vec4 d = cloudLayers(p, uv, px, 0.0, lit, veil, look);
     float th = look.y, aL = op.x * d.x, aC = op.y * d.y * (uCloudThinOp + (1.0 - uCloudThinOp) * th), aF = min(1.0, op.z * d.z * (uCloudThinOp + (1.0 - uCloudThinOp) * th) + veil * (1.0 - d.z)), aR = op.w * d.w;
     if (aL + aC + aF + aR <= 0.0) return vec4(0.0);
     float aM = max(aC, aF), gM = (uCloudThinGrey + (1.0 - uCloudThinGrey) * th) * (lit > 0.5 ? clamp(look.x, 1.0 - light, 1.0 + 0.5 * light) : 1.0);
@@ -382,7 +404,7 @@ vec4 cloudColour(vec3 p, vec2 uv, float px, vec4 op, vec2 grey, float light, flo
     return vec4(g, g, min(1.0, g * 1.02), A);
 }
 /** How much a cloud shades the ground at p (its layers but the cirrus). */
-float cloudShade(vec3 p, vec2 uv, float px) { float v; vec2 l; vec4 d = cloudLayers(p, uv, px, 1.0, v, l); return max(max(d.y, d.z), 0.7 * d.x); }
+float cloudShade(vec3 p, vec2 uv, float px) { float v; vec2 l; vec4 d = cloudLayers(p, uv, px, 1.0, 0.0, v, l); return max(max(d.y, d.z), 0.7 * d.x); }
 #endif
 `;
 
@@ -415,8 +437,8 @@ const _q = [0, 0, 0], _r = [0, 0, 0], _m = [0, 0, 0];
 const v3 = (T, ax, ay, az, o1, o2, o3, o) => { o[0] = sample(T, ax + o1, ay + o2, az + o3, _a)[0] - 0.5; o[1] = sample(T, ay + o2, az + o3, ax + o1, _a)[0] - 0.5; o[2] = sample(T, az + o3, ax + o1, ay + o2, _a)[0] - 0.5; return o; };
 const R = (T, x, y, z) => sample(T, x, y, z, _a)[0];
 function cut(Q, c) {
-    const u = Math.max(0.05, Math.min(0.95, 1 - c));
-    return u < 0.25 ? lerp(Q[0], Q[1], (u - 0.05) / 0.2) : u < 0.5 ? lerp(Q[1], Q[2], (u - 0.25) / 0.25) : u < 0.75 ? lerp(Q[2], Q[3], (u - 0.5) / 0.25) : lerp(Q[3], Q[4], (u - 0.75) / 0.2);
+    const u = Math.max(0.05, Math.min(1, 1 - c));
+    return u < 0.25 ? lerp(Q[0], Q[1], (u - 0.05) / 0.2) : u < 0.5 ? lerp(Q[1], Q[2], (u - 0.25) / 0.25) : u < 0.75 ? lerp(Q[2], Q[3], (u - 0.5) / 0.25) : u < 0.95 ? lerp(Q[3], Q[4], (u - 0.75) / 0.2) : lerp(Q[4], Q[4] + 2 * (Q[4] - Q[3]), (u - 0.95) / 0.05);
 }
 const step = (n, c, e) => sm(c - e, c + e, n);
 /** A field (cloudFields') read at texture coordinates (u, v): its four covers and its wind (m/s) — into cv, wd. */
@@ -465,7 +487,7 @@ function cloudRaw(T, qx0, qy0, qz0, Wqx, Wqy, Wqz, ss, px, tm, K, o, w, need = A
     }
     return o;
 }
-const ALL = [1, 1, 1, 1], _need = [0, 0, 0, 0], _cv = [0, 0, 0, 0], _wd = [0, 0], _nA = [0, 0, 0, 0], _nB = [0, 0, 0, 0], _wA = [0, 0, 0], _wB = [0, 0, 0];
+const ALL = [1, 1, 1, 1], _need = [0, 0, 0, 0], _fade = [0, 0, 0, 0], _cv = [0, 0, 0, 0], _wd = [0, 0], _nA = [0, 0, 0, 0], _nB = [0, 0, 0, 0], _wA = [0, 0, 0], _wB = [0, 0, 0], _bA = [0, 0], _bB = [0, 0];
 /**
  * The four layers' densities at unit-sphere point (x, y, z) — texture coordinates (u, v), a pixel px (on the unit sphere),
  * the fields F (cloudFields'), the storms S (cloudStorms'), time t (s; an export: 0) — as the GLSL: into o [low,
@@ -487,10 +509,10 @@ export function cloudLayersAt(x, y, z, u, v, px, F, S, t = 0, K = CLOUDS, o = [0
     for (const [cx0, cy, cz0, s, sz] of S) {
         const ac = -t * driftRadPerS(K) * cloudDriftRate(Math.asin(Math.max(-1, Math.min(1, cy)))), cx = Math.cos(ac) * cx0 - Math.sin(ac) * cz0, cz = Math.sin(ac) * cx0 + Math.cos(ac) * cz0;
         const dt = cx * px0 + cy * py0 + cz * pz0;
-        if (dt < 0.9) continue;
+        if (dt < 0.83) continue;
         const r = Math.acos(Math.min(1, dt)) / (K.stormKm * sz / 6371);
-        if (r > 3) continue;
-        const g = Math.exp(-r * r), th = K.stormTwist * s * g * (sz < 0.6 ? K.tropicalTwist : 1), co = Math.cos(th), si = Math.sin(th);
+        if (r > 2.2) continue;
+        const g = (Math.exp(-r * r) - 7.907e-3) / (1 - 7.907e-3), th = K.stormTwist * s * g * (sz < 0.6 ? K.tropicalTwist : 1), co = Math.cos(th), si = Math.sin(th);
         const kx = cy * pz0 - cz * py0, ky = cz * px0 - cx * pz0, kz = cx * py0 - cy * px0;
         const qx = px0 * co + kx * si + cx * dt * (1 - co), qy = py0 * co + ky * si + cy * dt * (1 - co), qz = pz0 * co + kz * si + cz * dt * (1 - co);
         px0 = qx; py0 = qy; pz0 = qz;
@@ -505,39 +527,47 @@ export function cloudLayersAt(x, y, z, u, v, px, F, S, t = 0, K = CLOUDS, o = [0
       for (let k = 0; k < 4; k++) cv[k] = Math.max(0, Math.min(1, cv[k] * (1 + K.weatherAmp * wk)));
       ss *= 1 - K.streakVary * sm(0.4, -0.4, wk2); }
     // (the layers with cover here — none: clear sky, nothing more to work out)
-    const need = _need;
-    for (let k = 0; k < 4; k++) need[k] = cv[k] >= 0.01 ? 1 : 0;
+    const need = _need, fadeOut = _fade;
+    for (let k = 0; k < 4; k++) { need[k] = cv[k] >= 0.01 ? 1 : 0; fadeOut[k] = sm(0.01, 0.04, cv[k]); }
     if (fast) need[3] = 0;
     o[0] = o[1] = o[2] = o[3] = o[4] = 0; o[5] = 1; o[6] = 0;
     if (!(need[0] || need[1] || need[2] || need[3])) return o;
     const Wnx = Wx * sc, Wny = Wy * K.stretch * sc, Wnz = Wz * sc;
-    // (the flow: two phases half a period apart, each carried along the wind and restarting, cross-faded)
-    const ph = t / K.flowPeriod, fa = ph - Math.floor(ph), fb0 = ph + 0.5, fb = fb0 - Math.floor(fb0), wa = 1 - Math.abs(2 * fa - 1), wb = 1 - wa;
+    // (the flow: two phases half a period apart, each carried along the wind for a period, cross-faded smoothly — each
+    // period a fresh place in the noise)
+    const ph = t / K.flowPeriod, ca = Math.floor(ph), cb = Math.floor(ph + 0.5), fa = ph - ca, fb = ph + 0.5 - cb, sa = Math.sin(Math.PI * fa), wa = sa * sa, wb = 1 - wa;
+    const fr = q => q - Math.floor(q), oa = [fr(ca * 0.7548776662), fr(ca * 0.5698402910), fr(ca * 0.4142135624)], ob = [fr(cb * 0.7548776662), fr(cb * 0.5698402910), fr(cb * 0.4142135624)];
     const Lk = speed * flowLat * K.flowKm / 6371, Dk = driftRadPerS(K) * cloudDriftRate(lat) * Math.cos(lat) * K.flowPeriod;
     const LX = Wnx * Lk + ex * sc * Dk, LY = Wny * Lk, LZ = Wnz * Lk + ez * sc * Dk;
     const wr = cloudWarp(T, qx0, qy0, qz0, t, K, _r);
-    if (wa > 0.001) cloudRaw(T, qx0 - LX * (fa - 0.5), qy0 - LY * (fa - 0.5), qz0 - LZ * (fa - 0.5), Wnx * ss, Wny * ss, Wnz * ss, ss, px, t, K, _nA, _wA, need, fast, wr); else _nA.fill(0);
-    if (wb > 0.001) cloudRaw(T, qx0 - LX * (fb - 0.5), qy0 - LY * (fb - 0.5), qz0 - LZ * (fb - 0.5), Wnx * ss, Wny * ss, Wnz * ss, ss, px, t, K, _nB, _wB, need, fast, wr); else _nB.fill(0);
+    if (wa > 0.001) cloudRaw(T, qx0 + oa[0] - LX * (fa - 0.5), qy0 + oa[1] - LY * (fa - 0.5), qz0 + oa[2] - LZ * (fa - 0.5), Wnx * ss, Wny * ss, Wnz * ss, ss, px, t, K, _nA, _wA, need, fast, wr); else _nA.fill(0);
+    if (wb > 0.001) cloudRaw(T, qx0 + ob[0] - LX * (fb - 0.5), qy0 + ob[1] - LY * (fb - 0.5), qz0 + ob[2] - LZ * (fb - 0.5), Wnx * ss, Wny * ss, Wnz * ss, ss, px, t, K, _nB, _wB, need, fast, wr); else _nB.fill(0);
     const norm = Math.sqrt(wa * wa + wb * wb), med = [K.QLow[2], K.QConv[2], K.QFront[2], K.QCirrus[2]], n = [0, 0, 0, 0];
     for (let k = 0; k < 4; k++) n[k] = med[k] + (wa * _nA[k] + wb * _nB[k] - med[k]) / norm;
-    const w = wa > wb ? _wA : _wB;
     const cF = cut(K.QFront, cv[2]);
-    let dF = need[2] * step(n[2], cF, K.edgeFront);
+    // (each edge its own width, or about two pixels where that is sharper)
+    let dF = need[2] * fadeOut[2] * step(n[2], cF, Math.max(K.edgeFront, K.aa[2] * px));
     const tv = Math.max(0, Math.min(1, (n[2] - (cF - K.veilWidth)) / K.veilWidth));
-    o[4] = !fast && cv[2] >= 0.02 ? K.veil * tv * tv : 0;
+    o[4] = !fast ? K.veil * tv * tv * fadeOut[2] : 0;
     const cC = cut(K.QConv, cv[1]);
-    o[0] = need[0] * step(n[0], cut(K.QLow, cv[0]), K.edgeLow);
-    o[1] = need[1] * step(n[1], cC, K.edgeConv);
+    o[0] = need[0] * fadeOut[0] * step(n[0], cut(K.QLow, cv[0]), Math.max(K.edgeLow, K.aa[0] * px));
+    o[1] = need[1] * fadeOut[1] * step(n[1], cC, Math.max(K.edgeConv, K.aa[1] * px));
     o[2] = Math.pow(dF, K.sharp);
-    o[3] = need[3] * step(n[3], cut(K.QCirrus, cv[3]), K.edgeCirrus);
+    o[3] = need[3] * fadeOut[3] * step(n[3], cut(K.QCirrus, cv[3]), Math.max(K.edgeCirrus, K.aa[3] * px));
     // (a shadow's pass: done — its billows are too faint to matter; no frontal or convective cloud: no billows to draw)
     if (fast || dF + o[1] <= 0) return o;
     // (the billows: cauliflower edges where the cellular detail is low; its relief lit from the north-west)
+    // (each phase's billows, cross-faded as the shapes are)
     const D = K.detail * 0.5, fe = Math.max(0, Math.min(1, px * sc * T.N * D - 0.5));
-    sample(T, w[0] * D, w[1] * D, w[2] * D, _b);
-    const B = (1 - fe) * (_b[1] * 0.625 + _b[2] * 0.25 + _b[3] * 0.125) + fe * 0.45;
-    { const lqx = Lx, lqy = Ly * K.stretch, lqz = Lz, l = Math.hypot(lqx, lqy, lqz), st = 0.25 / (16 * D) / l; sample(T, (w[0] + lqx * st) * D, (w[1] + lqy * st) * D, (w[2] + lqz * st) * D, _b); }
-    const B2 = (1 - fe) * (_b[1] * 0.625 + _b[2] * 0.25 + _b[3] * 0.125) + fe * 0.45;
+    const lqx = Lx, lqy = Ly * K.stretch, lqz = Lz, st = 0.25 / (16 * D) / Math.hypot(lqx, lqy, lqz);
+    const bill = (w, o2) => {
+        sample(T, w[0] * D, w[1] * D, w[2] * D, _b); o2[0] = _b[1] * 0.625 + _b[2] * 0.25 + _b[3] * 0.125;
+        sample(T, (w[0] + lqx * st) * D, (w[1] + lqy * st) * D, (w[2] + lqz * st) * D, _b); o2[1] = _b[1] * 0.625 + _b[2] * 0.25 + _b[3] * 0.125;
+        return o2;
+    };
+    const bA = wa > 0.02 ? bill(_wA, _bA) : (_bA[0] = _bA[1] = 0.45, _bA), bB = wb > 0.02 ? bill(_wB, _bB) : (_bB[0] = _bB[1] = 0.45, _bB);
+    const b0 = Math.max(0, Math.min(1, 0.45 + (wa * (bA[0] - 0.45) + wb * (bB[0] - 0.45)) / norm)), b1 = Math.max(0, Math.min(1, 0.45 + (wa * (bA[1] - 0.45) + wb * (bB[1] - 0.45)) / norm));
+    const B = (1 - fe) * b0 + fe * 0.45, B2 = (1 - fe) * b1 + fe * 0.45;
     if (dF > 0 && dF < 1) {
         const k = lerp(B, 1 - B, K.billow) * K.erosion * (1 - dF);
         dF = Math.max(0, Math.min(1, (dF - k) / (1 - k + 1e-6)));

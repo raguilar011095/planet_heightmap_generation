@@ -346,3 +346,23 @@ off 28 ms — the clouds ~88 % of the drawing; the export's cloud picture 14.5 s
   still classifyCell's family for 200 000 random climates of 200 000 (11). The render tool finishes a cached moment again
   when its cache predates that (a version in the cache, 15).
 - Checks: check-save passes; headless desktop globe, map and iPhone 13: draws, no console problems.
+
+## Clouds: soft edges, no loop (2026-11-01, owner: "some of the clouds have very sharp edges" / "the 3d noise loops but you can see it going from the end to the start and it isnt smooth at all")
+
+- Edges, found by rendering the clouds alone and finding the sharpest steps: (1) a layer under 1 % cover was skipped
+  (the efficiency pass), but its cut there still let ~5 % of the sky through — clouds cut off along that cover's contour,
+  the veil likewise at 2 %: the cut now goes on past the 95 % quantile toward none and each layer fades out by 1–4 %
+  cover; (2) the cumulus and low decks' edges a pixel wide on the globe (their noise steeper than its edge): edges wider
+  (low 0.08, convective 0.065, frontal 0.09) and every edge at least its layer's 90 % noise steepness × a pixel
+  (`CLOUDS.aa`, measured: low 22.6, convective 38.7, frontal 30.8, cirrus 63 noise units a radian) — about two pixels
+  however far out, its own width up close; (3) the texture's finest Worley octave was a cell a texel (noise per texel —
+  faceted shards): octaves to two texels a cell (QConv re-measured); (4) a storm's turn was cut at 26° from its centre
+  though the largest reach further — a circular seam: the turn fades to nothing at 2.2 of its sizes. Sharp steps (alpha
+  > 90/255 between neighbours at 2048): 89 000 → 31 000.
+- The loop: each flow phase came back to the same noise every period — the clouds glided forward and then faded back to
+  where they started; the billows switched phase abruptly half-way. Now each period a fresh place in the noise (offsets
+  from a low-discrepancy sequence by the period's number: the first period at none, so the globe at time 0 is the
+  export's moment), the phases faded by sin² (smooth), the billows of both cross-faded; period 12 s, its distance 160 km
+  per m/s (the same speed). Alike one period on: 0.51 → 0.38 (what is left: the cover, the weather, the warps).
+- Cost (SwiftShader, relative): clouds 139 → ~155 ms (the second phase's billows); on a phone (unlit) no billow relief
+  is worked out, so no more texture reads than before.
