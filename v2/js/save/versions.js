@@ -10,8 +10,9 @@ export const FORMAT = 'orogen-evolution';
 export const FORMAT_VERSION = 1;
 /** What a history frame's fields mean (tectonics/snapshot.js captureFrame). */
 export const FRAME_VERSION = 1;
-/** What a detailed moment's arrays mean (finish/finish.js, finish-worker.js: raster, rivers, climate). */
-export const FINISH_VERSION = 1;
+/** What a detailed moment's arrays mean (finish/finish.js, finish-worker.js: raster, rivers, climate). 2: three more kinds of
+ *  deposit (geology/deposits.js DEPOSITS: iron veins, magnetite-apatite, basalt and tuff) before the metals' rows. */
+export const FINISH_VERSION = 2;
 /**
  * How a frame's fields are packed in the file: 1 is frame-pack.js's form of 2026-10 ({type, length, bg?, bits?, values}
  * or {type, length, first, steps, far}). Should frame-pack.js change its form, the loader keeps reading this one.

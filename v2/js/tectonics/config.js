@@ -481,10 +481,18 @@ export const TECTONICS = {
         coolCarbonate: 0.25,        // cool-water carbonate's share, poleward of that (low production)
         aridLat: [12, 18, 32, 38],  // the arid belt: rising over the first two latitudes, falling over the last two
         wetLat: [8, 14, 34, 40, 58, 66],   // ever-wet tropics (gone over the first two); humid mid-latitudes (between the rest)
-        coalShare: 0.12,            // coal in a wet belt's basin fill, at most
+        // (plans/V2_DEPOSITS_LOOK_PLAN.md D2: coal and source rock kept as the share of COAL MEASURES / SOURCE-ROCK interval in
+        // the fill, not of pure coal — the 0–15 steps they are kept in used in full; and laid in more of the settings real
+        // basins have them)
+        coalShare: 0.5,             // coal measures in a wet belt's basin fill, at most
         coalByWetBelts: GEOLOGY.guideRules.coalByWetBelts,   // coal by the wet belts (science) or within 45° (her guide)
         saltShare: 0.4,             // salt in a restricted arid sea's or a young arid rift's
-        organicShare: 0.35,         // organic-rich mud in a restricted sea at a high stand, or a young rift's lake
+        organicShare: 0.35,         // organic-rich mud in a restricted sea, more at a high stand, or a young rift's lake…
+        organicShelf: 0.45,         // …on a shelf at a high stand, × this (upwelling, the oceans' anoxic events)…
+        organicCool: 0.35,          // …in cool water, × this (warm water's more: oil-prone; but cool seas made the Bazhenov)
+        paralicKm: 250,             // coal on the coastal plains behind a shallow sea, out to this far from it (the Illinois
+        paralicMaxKm: 0.35,         // basin's, the Ruhr's), where the land is no higher than this…
+        paralicRateKmPerMyr: 0.008, // …laid this fast at the shore, thinning inland
         crestShare: 0.3,            // of a belt's crests worn away, this share is rock taken off the whole cell
         crustKm: 35,                // the continental crust's ordinary thickness: shortening that thickens it by x thickens its cover by x / this
         // The start world's past (seedGeology): ancient crust already worn deep, part of it under platform sediment
