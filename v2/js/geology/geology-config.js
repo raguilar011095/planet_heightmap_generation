@@ -102,6 +102,33 @@ export const GEOLOGY = {
     // ── deposits (deposits.js; research §2, §4–6) ──
     deposits: {
         gridDeg: 0.25,              // kept on a grid this fine (each cell the richest of its cells): soft districts
+        // (D1, plans/V2_DEPOSITS_LOOK_PLAN.md: the sediment's deposits are beds, cropping out as the Rocks map's do)
+        beds: {
+            coalMeasuresKm: 1.2,    // coal measures: the top this much of the cover as its basin was deepest (0.5–3 km)
+            oilShaleKm: 0.6,        // oil shale: the top this much (a source rock interval)
+            ironHorizonShare: 0.2,  // of the column's contacts, this share are ironstone horizons (condensed beds)…
+            ironHorizonKm: 0.05,    // …cropping out within this of the contact (km of the column)
+            mvtBaseKm: [0.5, 3],    // lead-zinc in limestone: richest where the platform's cover is this thin, least by this
+            trapFloor: 0.35,        // oil off the structure's highs (anticlines, arches): this much of it (stratigraphic traps)
+        },
+        // (D4: building stone — how much of each rock there is × how easily it is got at; its kind is its colour, never its
+        // strength)
+        buildingStone: {
+            hillsRough: [0.03, 0.25],   // hill country: the land's spread of heights over ~50 km (km) from the first, full by the second
+            plainAccess: 0.6,       // on a flat plain, this much of its stone is got at (fewer crags; its silt and loess apart)
+            weatheredLoss: 0.6,     // deep tropical weathering hides up to this much more of a plain's stone
+            scouredGain: 1.25,      // ground the glaciers scoured: its bedrock bare
+            quarry: 0.4,            // a formation at its best — the quarry districts (Carrara, Portland, Aswan): up to this much richer
+            gain: 1,                // the richness × this
+            clayHills: 0.5,         // clay in hill country this much of a plain's (brick where stone is scarce)
+        },
+        // (D1b: the weathering and wetland deposits follow the ground — a place's height over the land within ~40 km, km)
+        ground: {
+            crustRelief: [-0.03, 0.04], // a weathered crust: none below the first (a valley floor), full above the second (an
+            crustOnPlain: 0.1,          // interfluve, a plateau top); on a river's plain this much
+            floorRelief: [0.02, -0.05], // peat and bog iron: on floors this low (or a river's plain)
+            panRelief: [0, -0.08],      // salt flats: in pans this low
+        },
         grades: [0.15, 0.4, 0.7],   // richness 0…1 banded poor · moderate · rich
         shelfKm: -0.25,             // the shelf (oil and gas offshore): sea over continental crust no deeper than this
         liveWearKmPerMyr: 0.1,      // a live arc's top wears this fast as it rises (its porphyries bared in ~10–40 Myr)
@@ -114,15 +141,69 @@ export const GEOLOGY = {
         reefKm: 500,                // the fossil gold reef: one basin about this size
         placerKm: { gold: 25, tin: 20, diamond: 250, gem: 60 },  // placers fade down a river over about this (km)
         placerBandKm: 7,            // …in gravels this far either side of it
-        province: [1000, 0.35],     // a metal's provinces: [their spacing (km), the share of its ground they take]
+        // ── the districts' shapes (district-shapes.js; plans/V2_DEPOSITS_LOOK_PLAN.md D0, developer, 2026-10-31: "more
+        // fundamentally 'interesting' and varied shape noise underlying all of this") ──
+        shapes: {
+            // (developer's picks from the options, 2026-10-31: very lumpy, lenses, soft fault lines, between lobed and
+            // contorted and between small and medium — "ideally not in the middle but varies between" — by association,
+            // fragmented)
+            warpKm: [900, 260],     // the position bent at these two scales (km)…
+            warpAmpKm: [130, 40],   // …by up to about this much (lobed) — or, in other regions, this (contorted): outlines
+            warpAmpMaxKm: [260, 90],    // that wander, lobe and fork
+            districtScale: 1,       // every system's district spacing × this (deposits.district's spacings)…
+            districtScaleRange: [0.6, 1],   // …× from the first (small) to the second (medium), region by region
+            varyKm: 2400,           // the regions that pick lobed or contorted, small or medium, about this size…
+            varyEdge: 0.15,         // …mostly one or the other (the pick's noise from −this to +this crosses between)
+            provinceKm: 1100,       // the province octave every system shares (a province is often of several metals)
+            characterKm: 2200,      // regions differ, over about this: how lumpy their districts are (the cascade's α ×
+            character: 0.7,         // 1 ± this) — here a few rich ones, there many poor
+            octaveRatio: 2.6,       // each system's finer octave this much finer than its spacing: the grade inside a
+            innerGrade: 0.6,        // district (its rich cores × 1 ± this), and its outline a little (× 1 ± this × α)
+            innerOutline: 0.8,
+            crossKm: 650,           // crosscutting lineaments (transverse faults) about this far apart…
+            crossWidth: 0.14,       // …their corridors this wide (of the noise's swing about its zero line)
+            shearSpacing: 3.5,      // shear zones: long lines along the grain, × a system's spacing apart…
+            shearStretch: 6,        // …drawn out this much along it…
+            shearWidth: 0.22,       // …this wide
+            grainBgKm: 1600,        // away from belts and shields the grain turns slowly, over about this…
+            grainBgAmpKm: 800,      // …(its across-coordinate this many km for the noise's whole swing)
+            calibrationPoints: 6000,    // each system's thresholds from its values at this many places on the sphere
+            // the recipes by setting: stretch — districts drawn out along the grain this much; alpha — the cascade's
+            // intermittency (clusters of clusters); prov — how much the shared province octave counts; cross — how much
+            // districts gather on the crosscutting lineaments; shear — how much they keep to shear zones along the grain
+            recipes: {
+                belt: { stretch: 3.2, alpha: 0.95, prov: 0.6, cross: 0.8, shear: 0 },
+                shear: { stretch: 4, alpha: 0.78, prov: 0.6, cross: 0.4, shear: 0.8 },
+                craton: { stretch: 2.5, alpha: 0.91, prov: 0.4, cross: 0.5, shear: 0.35 },
+                basin: { stretch: 1.3, alpha: 0.95, prov: 0.35, cross: 0.3, shear: 0 },
+                surface: { stretch: 1.15, alpha: 0.78, prov: 0.15, cross: 0, shear: 0 },
+                stone: { stretch: 1.2, alpha: 0.72, prov: 0, cross: 0, shear: 0 },
+                // (D1: a bed's outcrop is the shape; its districts only where its seams are thick)
+                bed: { stretch: 1.3, alpha: 0.6, prov: 0.3, cross: 0.2, shear: 0 },
+            },
+            recipeOf: { porphyry: 'belt', epithermal: 'belt', orogenicGold: 'shear', vms: 'belt', skarn: 'belt', mvt: 'basin', sedex: 'basin', tin: 'belt',
+                iocg: 'craton', magmatic: 'craton', layered: 'craton', nativeCopper: 'basin', kimberlite: 'craton', greenstoneGold: 'shear', bif: 'craton', reef: 'craton',
+                bauxite: 'surface', niLaterite: 'surface', ironLaterite: 'surface', peat: 'surface', bogIron: 'surface', opal: 'surface', salt: 'surface',
+                coal: 'bed', ironstone: 'bed', bitumen: 'bed', flint: 'stone', stoneGranite: 'stone', obsidian: 'belt', ironVein: 'belt', ioa: 'belt', jade: 'shear', emerald: 'shear', pegmatite: 'belt', corundum: 'belt', lapis: 'belt', turquoise: 'belt', garnet: 'belt',
+                default: 'basin' },
+            // (developer, 2026-10-31: "all of the deposits are very correlated with one another … worth trying to decouple")
+            coupling: 0.2,          // how much every association's province, lineaments and lumpiness are one field (the
+                                    // correlation between two associations': 1 all one, 0 each its own)
+            // the associations: systems that go together (one mineral system, one province), sharing those fields fully; any
+            // other system its own
+            associationOf: { porphyry: 'cuAu', epithermal: 'cuAu', skarn: 'cuAu', turquoise: 'cuAu', mvt: 'pbZn', sedex: 'pbZn', orogenicGold: 'gold',
+                greenstoneGold: 'gold', tin: 'tin', pegmatite: 'tin', magmatic: 'mafic', layered: 'mafic', nativeCopper: 'mafic', agate: 'flood', amethyst: 'flood',
+                oil: 'petroleum', gas: 'petroleum', bitumen: 'petroleum', bauxite: 'laterite', ironLaterite: 'laterite', niLaterite: 'laterite',
+                peat: 'wetland', bogIron: 'wetland', corundum: 'marble', lapis: 'marble' },
+        },
         // districts: [their spacing (km), the share of a system's permissive ground they take] — small: a deposit is a find;
         // iron's wide (developer, 2026-10-20: "iron is a bit under represented" — the commonest ore: the Iron Age's need was fuel)
         // (developer, 2026-10-20: "orogenic gold covering like 6% of the world just feels crazy for how valuable gold should be")
         district: { default: [220, 0.25], porphyry: [200, 0.18], epithermal: [150, 0.15], orogenicGold: [240, 0.07], vms: [200, 0.25], skarn: [140, 0.07],
-            mvt: [220, 0.2], sedex: [220, 0.2], tin: [260, 0.12], nativeCopper: [200, 0.2], kimberlite: [300, 1], greenstoneGold: [200, 0.35], bif: [300, 0.45], reef: [400, 0.6],
-            oil: [320, 0.35], gas: [320, 0.35], bitumen: [260, 0.3], bauxite: [260, 0.4], ironLaterite: [260, 0.45], salt: [200, 0.4], ironstone: [220, 0.35],
-            coal: [280, 0.4], peat: [180, 0.45], bogIron: [160, 0.6],
-            flint: [200, 0.55], obsidian: [160, 0.35], jade: [200, 0.2], agate: [220, 0.25],
+            mvt: [240, 0.35], sedex: [220, 0.2], tin: [260, 0.12], nativeCopper: [200, 0.2], kimberlite: [300, 1], greenstoneGold: [200, 0.35], bif: [300, 0.45], reef: [400, 0.6],
+            oil: [320, 0.35], gas: [320, 0.35], bitumen: [260, 0.5], bauxite: [260, 0.7], ironLaterite: [260, 0.7], salt: [200, 0.4], ironstone: [220, 0.6],
+            coal: [280, 0.65], peat: [180, 0.75], bogIron: [160, 0.75],
+            flint: [200, 0.8], obsidian: [160, 0.35], ironVein: [160, 0.4], ioa: [200, 0.2], jade: [200, 0.2], agate: [220, 0.25],
             // (G7: gems are finds — small districts, a small share of their ground; emerald and lapis the rarest)
             pegmatite: [220, 0.14], emerald: [180, 0.05], corundum: [180, 0.08], lapis: [160, 0.06], basaltGems: [200, 0.25], amethyst: [220, 0.1],
             opal: [240, 0.06], turquoise: [180, 0.14], garnet: [220, 0.1] },
@@ -132,13 +213,15 @@ export const GEOLOGY = {
         halfLifeMyr: { porphyry: 160, epithermal: 25, orogenicGold: 450, vms: 500, skarn: 200, tin: 300, mvt: 300, sedex: 600, iocg: 800,
             // (G7: pegmatites and marble formed deep, and last; a hotspot's basalt field is young — Cenozoic, mostly — a fold
             // belt's brines as its belt is)
-            pegmatite: 400, marble: 700, basaltGems: 80, foldShale: 150 },
+            pegmatite: 400, marble: 700, basaltGems: 80, foldShale: 150,
+            // (D4: a belt's iron veins as long as its roots; an arc's magnetite as its porphyries, a little longer)
+            ironVein: 700, ioa: 400 },
         prehistoricGold: 0.1,       // the start world's own belts: little gold left in them (most of it long gone)
         // each system's richness × this (calibration: tin far rarer than copper — research §2)
-        scale: { porphyry: 1, epithermal: 0.65, orogenicGold: 0.8, vms: 1, skarn: 1.6, mvt: 1, sedex: 1, tin: 1.6, iocg: 0.9, magmatic: 1, layered: 1,
+        scale: { porphyry: 1, epithermal: 0.65, orogenicGold: 0.8, vms: 1, skarn: 1.6, mvt: 1.25, sedex: 1, tin: 1.6, iocg: 0.9, magmatic: 1, layered: 1,
             nativeCopper: 1, kimberlite: 1, greenstoneGold: 1, bif: 1, reef: 1, oil: 1.4, gas: 1.4, bitumen: 1.2, bauxite: 1.2, niLaterite: 1.2,
             ironLaterite: 1.1, supergene: 1, gossan: 0.4, placerGold: 1.4, placerTin: 2.2, placerDiamond: 1, salt: 1, ironstone: 0.75, bogIron: 1.2,
-            coal: 1.3, peat: 1, wood: 1,
+            coal: 1.3, peat: 1, wood: 1, ironVein: 1, ioa: 1,
             pegmatite: 1, emerald: 0.7, corundum: 1, lapis: 1, basaltGems: 1, amethyst: 1, opal: 1, turquoise: 1, garnet: 1, gemPlacer: 2 },
     },
 };

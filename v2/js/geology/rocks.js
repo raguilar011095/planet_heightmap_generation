@@ -162,6 +162,13 @@ function despeckle(mesh, rock, ocean, counts) {
     }
 }
 
+/** The beds' tops (km above the basement), counted up from it: each about G.bedKm thick (seeded) — rocks and deposits alike. */
+export function bedTops(seed, G = GEOLOGY) {
+    const tops = [];
+    for (let i = 0, b = 0; b < 40; i++) { b += G.bedKm * (0.6 + 0.8 * hash01(seed ^ 0x6b3d, i)); tops.push(b); }
+    return tops;
+}
+
 /** 0…1 from a seed and an id (a craton keeps its own character). */
 export function hash01(seed, id) {
     let h = (seed ^ Math.imul(id + 0x9e37, 0x85ebca6b)) >>> 0;
@@ -217,8 +224,11 @@ function readRecord(mesh, simMesh, S, seed, cfg) {
  *                     the surface drew — an old belt's band, the far field's folds, a shield's grain: synthesize.js
  *                     surfaceRange `cue`), lithoDz (km: what the rock itself raised or lowered the surface by —
  *                     finish-lithology.js; the relief read without it, so a hard ridge it raised keeps its hard rock) }
- * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array, youngKind: Uint8Array}} rec: each
- *          cell's record cell; shares: each kind's share of the land (by cell);
+ * @returns {{rock: Uint8Array, rec: Int32Array, shares: Float64Array, youngBy: Float64Array, youngKind: Uint8Array, colS: Uint16Array,
+ *          colT: Uint16Array}} rec: each cell's record cell; shares: each kind's share of the land (by cell);
+ *          colS, colT (local.column): where the surface meets the rock column (m above the basement, as its beds are counted — 0 where the
+ *          basement shows) and the cover's top there (m): the deposits' beds (coal measures, ironstone) crop out by them;
+ *          colArch: the structure's highs (0…255: a fold belt's anticlines, the far field's arches — oil's traps);
  *          youngBy: the land's share of young sediment laid by rivers, dunes, loess and the ice;
  *          youngKind: where young sediment won, which (1 a river's, 2 dunes, 3 loess, 4 the ice's; 0 none or a speck
  *          the majority filter turned — for the farming's soils)
@@ -265,8 +275,7 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     }
     const cutReg = cut ? coarse.blur(coarse.average(lat, lon, cut, isLand), 50) : null;
     // ── the beds, counted up from the basement: each its thickness (seeded) ──
-    const bedTop = [];
-    for (let i = 0, b = 0; b < 40; i++) { b += G.bedKm * (0.6 + 0.8 * hash01(seed ^ 0x6b3d, i)); bedTop.push(b); }
+    const bedTop = bedTops(seed, G);
     const bedOf = s => { let i = 0; while (i < bedTop.length - 1 && bedTop[i] <= s) i++; return i; };
     // (noise in km, its octaves down to what this mesh can show — the beds' contacts wander at every scale it draws)
     const octaves = (fromKm, n0) => { const out = []; for (let o = 0, lam = fromKm, a = 1; o < n0; o++, lam /= 2, a *= 0.55) { const f = smooth(1.5, 3, lam / mesh.edgeKm); if (f > 0.01) out.push([R / lam, a * f]); } return out; };
@@ -292,6 +301,8 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         if (sample.length >= 50) { sample.sort((a, b) => a - b); keelAt = p => sample[Math.max(0, Math.min(sample.length - 1, Math.round(p * (sample.length - 1))))]; }
     }
     let land = 0;
+    // (where the surface meets the column, for the deposits — when asked: local.column)
+    const colS = local.column ? new Uint16Array(n) : null, colT = local.column ? new Uint16Array(n) : null, colArch = local.column ? new Uint8Array(n) : null;
     const youngBy = new Float64Array(4), youngKind = new Uint8Array(n), ci = new Int32Array(4), cw = new Float64Array(4), ti = new Int32Array(4), tw = new Float64Array(4);
     // the river plains: along the big rivers (floodplains); and deltas and basin floors — the land where the rivers laid
     // the most, about plainsShare of it (how much they lay differs with the detail; where they lay it does not), never where
@@ -355,11 +366,15 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
         // (the far field's folds: a crest bares older beds, a trough keeps younger)
         if (farFold) s -= G.farFoldDepthKm * farFold;
         score.fill(0);
+        if (colT) colT[c] = Math.min(65535, Math.round(1000 * Math.max(0, T)));
+        // (the structure's highs: a fold belt's anticlines, the far field's arches — where oil gathers)
+        if (colArch) colArch[c] = Math.round(255 * Math.min(1, Math.max(0, -syn, farFold)));
         if (s > G.coverShowKm) {
             // the bed here, and its kind: by the cover's make-up (lime where it was laid as carbonate, salt seldom, else
             // sand and mud — mud more where laid in the sea or rich in organic matter; the lowest bed sandier), each bed
             // its own pattern across country
-            const i = bedOf(s + 0.5 * G.bedJitterKm * fbm(bedO, x, y, zz, 7.7));
+            const sb = s + 0.5 * G.bedJitterKm * fbm(bedO, x, y, zz, 7.7), i = bedOf(sb);
+            if (colS) colS[c] = Math.min(65535, Math.max(1, Math.round(1000 * sb)));
             const carb = at(F.carb), salt = G.saltShare * at(F.salt), organic = at(F.organic), marine = at(F.marine);
             const clastic = Math.max(0, 1 - carb - salt), shaleShare = Math.min(0.9, G.shaleLand + (G.shaleMarine - G.shaleLand) * marine + 0.6 * organic);
             // (an old belt's band: sandstone holds up its ridges, shale and limestone floor its troughs)
@@ -429,5 +444,5 @@ export function classifyRocks({ mesh, z, ocean, frame, simMesh, seed, cfg, recCe
     // (a cell alone among others of one kind takes theirs — a speck on a map is noise, at any detail)
     for (let pass = 0; pass < G.despeckle; pass++) despeckle(mesh, rock, ocean, shares);
     if (land) { for (let k = 0; k < ROCK_COUNT; k++) shares[k] /= land; for (let k = 0; k < 4; k++) youngBy[k] /= land; }
-    return { rock, rec, shares, youngBy, youngKind };
+    return { rock, rec, shares, youngBy, youngKind, colS, colT, colArch };
 }

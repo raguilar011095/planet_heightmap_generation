@@ -18,7 +18,7 @@ const BITUMEN = { id: 'bitumen', name: 'Bitumen', rgb: [110, 86, 64], from: [['b
 /** The ages. Each resource: [the kind of deposit (or 'm:' and a metal: all its sources), its weight, its cut-off]. */
 export const AGES = [
     { id: 'stone', name: 'Stone Age', words: 'stone for tools and edges — flint, obsidian, jade, agate — salt, and bitumen to haft them', resources: [
-        { id: 'flint', name: 'Flint', rgb: [92, 140, 214], from: [['flint', 1]] },
+        { id: 'flint', name: 'Flint and chert', rgb: [92, 140, 214], from: [['flint', 1]] },
         { id: 'obsidian', name: 'Obsidian', rgb: [96, 72, 132], from: [['obsidian', 1]] },
         { id: 'jade', name: 'Jade', rgb: [90, 176, 120], from: [['jade', 1]] },
         { id: 'agate', name: 'Agate', rgb: [210, 124, 90], from: [['agate', 1]] },
@@ -37,7 +37,7 @@ export const AGES = [
         SALT],
         potential: { id: 'bronze', name: 'Bronze', rgb: [214, 150, 70], words: 'copper here, tin (or, poorer, arsenic) within ~600 km, wood to burn' } },
     { id: 'iron', name: 'Iron Age', words: 'iron where it lies in bogs, beds and crusts — what an Iron Age needs is fuel; the other metals from deeper workings', resources: [
-        { id: 'iron', name: 'Iron', rgb: [200, 84, 60], from: [['bogIron', 1], ['ironstone', 1, 0.15], ['ironLaterite', 1, 0.15], ['skarn', 0.6, 0.3], ['bif', 0.5, 0.3]] },
+        { id: 'iron', name: 'Iron', rgb: [200, 84, 60], from: [['bogIron', 1], ['ironstone', 1, 0.15], ['ironLaterite', 1, 0.15], ['ironVein', 0.9, 0.2], ['skarn', 0.6, 0.3], ['ioa', 0.7, 0.3], ['bif', 0.5, 0.3]] },
         { id: 'copper', name: 'Copper', rgb: [226, 128, 56], from: [['vms', 1, 0.2], ['supergene', 1, 0.15], ['skarn', 0.8, 0.2], ['porphyry', 0.7, 0.35], ['sedex', 0.5, 0.3], ['iocg', 0.6, 0.35], ['nativeCopper', 0.8]] },
         { id: 'tin', name: 'Tin', rgb: [80, 200, 210], from: [['placerTin', 1], ['tin', 0.9, 0.15]] },
         { id: 'leadZinc', name: 'Lead, zinc and silver', rgb: [140, 148, 214], from: [['mvt', 1, 0.2], ['sedex', 1, 0.2], ['vms', 0.5, 0.3], ['epithermal', 0.5, 0.25]] },
@@ -64,10 +64,11 @@ export const AGES = [
         { id: 'amethyst', name: 'Amethyst', rgb: [160, 90, 210], from: [['amethyst', 1]] },
         { id: 'jade', name: 'Jade', rgb: [150, 196, 140], from: [['jade', 1]] },
         { id: 'garnet', name: 'Garnet', rgb: [128, 28, 36], from: [['garnet', 1], ['gemPlacer', 0.5]] }] },
-    { id: 'building', name: 'Building stone', words: 'stone to build with — limestone (and lime for mortar), sandstone, granite, marble, slate — and clay for brick where stone is scarce', resources: [
+    { id: 'building', name: 'Building stone', words: 'stone to build with — limestone (and lime for mortar), sandstone, granite and gneiss, basalt and tuff, marble, slate — and clay for brick where stone is scarce', resources: [
         { id: 'limestone', name: 'Limestone', rgb: [130, 170, 220], from: [['stoneLimestone', 1]] },
         { id: 'sandstone', name: 'Sandstone', rgb: [222, 182, 112], from: [['stoneSandstone', 1]] },
-        { id: 'granite', name: 'Granite', rgb: [214, 120, 120], from: [['stoneGranite', 1]] },
+        { id: 'granite', name: 'Granite and gneiss', rgb: [214, 120, 120], from: [['stoneGranite', 1]] },
+        { id: 'volcanic', name: 'Basalt and tuff', rgb: [120, 100, 140], from: [['stoneVolcanic', 1]] },
         { id: 'marble', name: 'Marble', rgb: [240, 238, 230], from: [['stoneMarble', 1]] },
         { id: 'slate', name: 'Slate', rgb: [96, 106, 128], from: [['stoneSlate', 1]] },
         { id: 'clay', name: 'Clay', rgb: [190, 100, 70], from: [['clay', 1]] }] },

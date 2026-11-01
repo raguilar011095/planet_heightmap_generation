@@ -52,7 +52,7 @@ export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['be
  *          onStage?: (name: string) => void, F?: Object, cfg?: Object}} o
  * @returns {Promise<{mesh: Object, z: Float32Array, ocean: Uint8Array, ms: Object, stats: Object}>}
  */
-export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024 }) {
+export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null }) {
     const ms = {}, stats = {};
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
@@ -272,7 +272,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     if (geo) {
         onStage('geology');
         Rk = classifyRocks({ mesh, z: C.z, ocean, frame, simMesh, seed, cfg, recCell, on: { grid, lat, lon },
-            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues, lithoDz } });
+            local: { ...geo, erg: W.erg, loess: W.loess, loessShare: 1 / F.loessKm, till: I.till, glaciated: I.ice, lava: basalt, q: Hy.q, cues, lithoDz, column: true } });
         geology = { rock: Rk.rock, rec: Rk.rec, simCells: simMesh.numCells, cues };          // (cues: for the checks; not in the picture)
         stats.rocks = Array.from(Rk.shares, v => +v.toFixed(4)); stats.youngBy = Array.from(Rk.youngBy, v => +v.toFixed(4));
         forgetEdgeKm(mesh);                                           // (the river plains' distances: their cache for this mesh)
@@ -339,8 +339,10 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // the land's cover: its biomes and climate tests)
     if (geo) {
         onStage('deposits');
-        const Dp = depositFields({ mesh, z: C.z, ocean, frame, simMesh, seed, rock: Rk.rock, rec: Rk.rec, on: { grid, lat, lon },
-            local: { glaciated: I.ice, till: I.till, lake: Hy.lake, q: Hy.q, recv: Hy.recv, order: Hy.order, biome: cover, clim, ice } });
+        const depIn = { mesh, z: C.z, ocean, frame, simMesh, seed, rock: Rk.rock, rec: Rk.rec, on: { grid, lat, lon },
+            local: { glaciated: I.ice, till: I.till, lake: Hy.lake, q: Hy.q, recv: Hy.recv, order: Hy.order, biome: cover, clim, ice, colS: Rk.colS, colT: Rk.colT, colArch: Rk.colArch } };
+        inspect?.('deposits', depIn);                                 // (the tools' look at the deposits' inputs: render-deposits.mjs)
+        const Dp = depositFields(depIn);
         geology.deposits = Dp;
         stats.deposits = Object.fromEntries(DEPOSIT_IDS.map((id, k) => [id, [+Dp.shares[3 * k].toFixed(4), +Dp.shares[3 * k + 1].toFixed(4), +Dp.shares[3 * k + 2].toFixed(4)]]));
         stats.metals = Object.fromEntries(METALS.map((m, i) => [m.id, [+Dp.metalShares[3 * i].toFixed(4), +Dp.metalShares[3 * i + 1].toFixed(4), +Dp.metalShares[3 * i + 2].toFixed(4)]]));
