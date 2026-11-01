@@ -14,6 +14,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { P as PROJ } from '../view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../view/projection-glsl.js';
+import { CLOUDS, CLOUD_GLSL, MAX_STORMS, scaleOf, driftRadPerS, cloudNoiseTexture, cloudEdges, cloudQuantileList, cloudStormsAt } from '../view/clouds.js';
 
 const GLINT = new THREE.Color(0x4488bb).multiplyScalar(0.5 * 0.55);    // (the sea's specular: V1's water sphere's)
 
@@ -22,6 +23,7 @@ const GLINT = new THREE.Color(0x4488bb).multiplyScalar(0.5 * 0.55);    // (the s
 const ZOOM_PER_PX = 0.0015, ZOOM_EASE = 0.15;
 const MAP_ZOOM_MIN = 0.5, MAP_ZOOM_MAX = 20;                      // (the map's zoom: 1, the whole map; out to half that, in to 20, as Generate's)
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const CLOUD_STEP_MS = 80;                                        // (the clouds' drift: a redraw about 12 times a second while they show)
 // the patch over the texture (putPatchTile, showPatchLayer): two layers of tiles of a sharper picture — layer 0 over
 // layer 1 — each a texture of slots (uPatchSlot px square: a tile and a pixel of its neighbours' all round, so the blend
 // across a tile's edge reads its neighbour's own pixels) holding the tiles whose column and row are the slot's modulo the
@@ -62,8 +64,12 @@ export class GlobeView {
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, space ? 200 : 50);
         this.camera.position.set(0, 0.9, 3.2);
 
-        // (how a canvas's texture is sampled: sim cells crisp by default — setSmooth; repeating east–west, for the map's turn)
-        this.look = { colorSpace: THREE.SRGBColorSpace, magFilter: THREE.NearestFilter, minFilter: THREE.LinearFilter, generateMipmaps: false, wrapS: THREE.RepeatWrapping };
+        // (how a canvas's texture is sampled: sim cells crisp by default — setSmooth; repeating east–west, for the map's turn;
+        // zoomed out, from its mipmaps, filtered anisotropically toward the limb — each screen pixel the mean of the texels
+        // under it, not one of them: the detail finer than a pixel averages as a photo shrinks, rather than speckling —
+        // owner, the Satellite view zoomed out "a bit too noisy")
+        this.look = { colorSpace: THREE.SRGBColorSpace, magFilter: THREE.NearestFilter, minFilter: THREE.LinearMipmapLinearFilter, generateMipmaps: true, wrapS: THREE.RepeatWrapping,
+            anisotropy: Math.min(8, this.renderer.capabilities.getMaxAnisotropy()) };
         this.texture = Object.assign(new THREE.CanvasTexture(mapCanvas), this.look);
         this.ownTexture = true;                            // (a canvas's: made here; a GPU-painted one belongs to its painter)
         this.globe = new THREE.Mesh(
@@ -85,6 +91,7 @@ export class GlobeView {
     diffuseColor *= sampledDiffuseColor;
 #endif`);
         };
+        this.initClouds();
         if (space) this.addSpace();
 
         this.controls = new OrbitControls(this.camera, glCanvas);
@@ -160,6 +167,111 @@ export class GlobeView {
         return true;
     }
 
+    /**
+     * The clouds (view/clouds.js; plans/V2_SATELLITE_LOOK_PLAN.md P9): a shell just above the globe drawing them, and one
+     * just above the ground their faint shadows — the same GLSL noise, its uniforms shared with the map view's — hidden
+     * until setClouds turns them on.
+     */
+    initClouds() {
+        const K = CLOUDS;
+        this.cloudU = {
+            uCloudCover: { value: null }, uCloudWind: { value: null }, uCloudOn: { value: 0 }, uCloudIsShadow: { value: 0 }, uCloudNoise: { value: null },
+            uCloudScale: { value: scaleOf(K) }, uCloudStretch: { value: K.stretch }, uCloudWarp1: { value: K.warp1 }, uCloudWarp2: { value: K.warp2 },
+            uCloudW0: { value: K.w0 }, uCloudW1: { value: K.w1 }, uCloudW2: { value: K.w2 }, uCloudContrast: { value: K.contrast },
+            uCloudEdge: { value: cloudEdges(K) }, uCloudAA: { value: new THREE.Vector4(...K.aa) }, uCloudQ: { value: cloudQuantileList(K) }, uCloudVeil: { value: K.veil }, uCloudVeilWidth: { value: K.veilWidth },
+            uCloudErosion: { value: K.erosion }, uCloudDetail: { value: K.detail }, uCloudSharp: { value: K.sharp },
+            uCloudLowScale: { value: K.lowScale }, uCloudConvScale: { value: K.convScale }, uCloudCirrusScale: { value: K.cirrusScale },
+            uCloudStreakFront: { value: K.streakFrontKm }, uCloudStreakCirrus: { value: K.streakCirrusKm }, uCloudWindFull: { value: K.windFull },
+            uCloudTime: { value: 0 }, uCloudDrift: { value: driftRadPerS(K) }, uCloudEvolve: { value: K.evolve }, uCloudFlowPeriod: { value: K.flowPeriod }, uCloudFlowKm: { value: K.flowKm },
+            uCloudStormKm: { value: K.stormKm }, uCloudStormTwist: { value: K.stormTwist }, uCloudStormCover: { value: K.stormCover }, uCloudTropicalTwist: { value: K.tropicalTwist }, uCloudFlowLat: { value: new THREE.Vector2(K.flowLat[0], K.flowLat[1]) },
+            uCloudStreakLat: { value: new THREE.Vector3(...K.streakLat) }, uCloudSeason: { value: new THREE.Vector3() }, uCloudCirrusWarp: { value: K.cirrusWarp }, uCloudCirrusFine: { value: K.cirrusFine }, uCloudWeatherScale: { value: K.weatherScale }, uCloudWeatherAmp: { value: K.weatherAmp }, uCloudStreakVary: { value: K.streakVary }, uCloudBillow: { value: K.billow }, uCloudRelief: { value: K.relief }, uCloudThick: { value: K.thick }, uCloudThinOp: { value: K.thinOp }, uCloudThinGrey: { value: K.thinGrey },
+            uCloudStorm: { value: Array.from({ length: MAX_STORMS }, () => new THREE.Vector4()) }, uCloudStormSize: { value: new Array(MAX_STORMS).fill(1) }, uCloudStorms: { value: 0 },
+            uCloudOp: { value: new THREE.Vector4(K.opLow, K.opConv, K.opFront, K.opCirrus) }, uCloudGrey: { value: new THREE.Vector2(K.greyLow, K.greyCirrus) },
+            uCloudLight: { value: K.light }, uCloudLit: { value: 1 }, uCloudShadow: { value: K.shadow }, uCloudShadowOn: { value: 1 },
+            uCloudShadowStep: { value: K.shadowKm / 6371 },
+        };
+        const shell = (r, isShadow, order) => {
+            const m = new THREE.ShaderMaterial({
+                uniforms: { ...this.cloudU, uCloudIsShadow: { value: isShadow ? 1 : 0 } },
+                vertexShader: 'varying vec2 vUv; varying vec3 vPos;\nvoid main() { vUv = uv; vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+                fragmentShader: `${CLOUD_GLSL}
+uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudLight, uCloudLit, uCloudShadow, uCloudIsShadow, uCloudShadowStep;
+varying vec2 vUv; varying vec3 vPos;
+void main() {
+#if __VERSION__ >= 300
+    vec3 p = normalize(vPos);
+    float px = length(fwidth(p));
+    if (uCloudIsShadow > 0.5) { gl_FragColor = vec4(0.0, 0.0, 0.0, uCloudShadow * cloudShade(cloudTowardLight(p, uCloudShadowStep), vUv, px)); return; }
+    gl_FragColor = cloudColour(p, vUv, px, uCloudOp, uCloudGrey, uCloudLight, uCloudLit);
+#else
+    discard;
+#endif
+}`,
+                transparent: true, depthWrite: false,
+            });
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(r, 128, 64), m);
+            mesh.renderOrder = order; mesh.visible = false;
+            this.scene.add(mesh);
+            return mesh;
+        };
+        this.cloudShadow = shell(1.0015, true, 1);
+        this.cloudShell = shell(1.004, false, 2);
+        this.cloudDrift = true; this._cloudT0 = performance.now(); this._cloudAt = 0;
+    }
+
+    /** Show the clouds or not; `fields` (cloudFields': the layers' cover and the wind, 360 × 180, rows north → south);
+     *  storms: the world's (cloudStorms'); `drift` on the globe (an export is a still moment); lit and shadow: lighter on
+     *  a phone. */
+    setClouds({ on, fields = null, storms = null, drift = true, lit = true, shadow = true }) {
+        const U = this.cloudU;
+        // (the noise texture, made once — the first time clouds show)
+        if (on && !U.uCloudNoise.value) {
+            const T = cloudNoiseTexture(), t = new THREE.Data3DTexture(T.data, T.N, T.N, T.N);
+            Object.assign(t, { format: THREE.RGBAFormat, type: THREE.UnsignedByteType, magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter,
+                wrapS: THREE.RepeatWrapping, wrapT: THREE.RepeatWrapping, wrapR: THREE.RepeatWrapping, unpackAlignment: 1, needsUpdate: true });
+            U.uCloudNoise.value = t;
+        }
+        // (the clouds' clock from nought when they come on or change — new fields, new storms: the storms where they were
+        // placed, the clouds as the export draws them, then on from there)
+        const was = U.uCloudOn.value > 0.5, fresh = (fields && this._cloudFields !== fields) || (storms && this._cloudStormsIn !== storms);
+        if (on && (!was || fresh)) { this._cloudT0 = performance.now(); this._cloudAt = this._cloudT0; U.uCloudTime.value = 0; }
+        if (storms) { this._cloudStormsIn = storms; this._cloudStorms = storms.slice(0, MAX_STORMS); U.uCloudStorms.value = this._cloudStorms.length; }
+        this.cloudStormsNow();
+        U.uCloudLit.value = lit ? 1 : 0;
+        U.uCloudShadowOn.value = shadow ? 1 : 0;
+        if (fields && this._cloudFields !== fields) {
+            this._cloudFields = fields;
+            // (rows north → south as given: the texture's first row at v = 0 — the shaders read it at 1 − v)
+            const tex = data => Object.assign(new THREE.DataTexture(data, fields.w, fields.h, THREE.RGBAFormat, THREE.UnsignedByteType),
+                { magFilter: THREE.LinearFilter, minFilter: THREE.LinearFilter, wrapS: THREE.RepeatWrapping, needsUpdate: true });
+            U.uCloudCover.value?.dispose(); U.uCloudWind.value?.dispose();
+            U.uCloudCover.value = tex(fields.cover); U.uCloudWind.value = tex(fields.wind);
+            U.uCloudSeason.value.set(...(fields.offset ?? [0, 0, 0]));
+        }
+        const show = !!on && !!U.uCloudCover.value;
+        U.uCloudOn.value = show ? 1 : 0;
+        this.cloudShell.visible = show; this.cloudShadow.visible = show && shadow;
+        this.cloudDrift = drift;
+        this._dirty = true;
+    }
+
+    /** The storms where the drift has carried them now (once a frame: not per pixel). */
+    cloudStormsNow() {
+        const U = this.cloudU;
+        (this._cloudStorms ? cloudStormsAt(this._cloudStorms, U.uCloudTime.value) : []).forEach((s, i) => { U.uCloudStorm.value[i].set(s[0], s[1], s[2], s[3]); U.uCloudStormSize.value[i] = s[4]; });
+    }
+
+    /** The clouds' clock: while they show and drift, a step about every CLOUD_STEP_MS (a redraw — not 60 a second). */
+    cloudTick() {
+        if (!this.cloudU.uCloudOn.value || !this.cloudDrift) return;
+        const now = performance.now();
+        if (now - this._cloudAt < CLOUD_STEP_MS) return;
+        this._cloudAt = now;
+        this.cloudU.uCloudTime.value = (now - this._cloudT0) / 1000;
+        this.cloudStormsNow();
+        this._dirty = true;
+    }
+
     /** V1's stars, atmosphere and light (js/scene.js). */
     addSpace() {
         const p = [];
@@ -176,7 +288,9 @@ export class GlobeView {
             fragmentShader: 'uniform vec3 c;varying vec3 vN,vP;void main(){float r=1.0-max(0.0,dot(normalize(-vP),vN));gl_FragColor=vec4(c,pow(r,3.5)*0.55);}',
             transparent: true, side: THREE.FrontSide, depthWrite: false,
         });
-        this.scene.add(new THREE.Mesh(new THREE.SphereGeometry(1.12, 64, 64), atmosphere));
+        const halo = new THREE.Mesh(new THREE.SphereGeometry(1.12, 64, 64), atmosphere);
+        halo.renderOrder = 3;                                 // (over the clouds: it is nearer the eye)
+        this.scene.add(halo);
         this.scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
         // the sun, carried with the camera: where V1's (5, 3, 4) stands seen from V1's opening view
         const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
@@ -321,13 +435,21 @@ export class GlobeView {
             const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
                 uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() },
-                    uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) }, ...this.patch },
+                    uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) }, ...this.patch, ...this.cloudU },
                 vertexShader: 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
                 fragmentShader: `uniform sampler2D map; uniform float turn; uniform vec4 uView; uniform vec2 uWrap; varying vec2 vUv;
 ${PATCH_GLSL}
 ${PROJECTION_GLSL}
+${CLOUD_GLSL}
+uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudOn, uCloudLight, uCloudLit, uCloudShadow, uCloudShadowOn, uCloudShadowStep;
 void main() {
     vec2 m = vUv * uView.xy + uView.zw;                            // (the frame's pixel → its place in the map's box, zoomed and panned)
+    // (the texture's level for this zoom — from the box's own scale, smooth across the wrap and the projection's edges,
+    // where the hardware's own choice would jump: the texels a screen pixel spans across the box)
+#if __VERSION__ >= 300
+    vec2 ts = vec2(textureSize(map, 0));
+    float lod = max(0.0, log2(max(length(dFdx(m) * ts), length(dFdy(m) * ts))));
+#endif
     if (uWrap.x > 0.5) {                                           // (one turn of the planet about the frame's middle: zoomed out, no place twice)
         if (m.x < uWrap.y || m.x > uWrap.y + 1.0) discard;
         m.x = fract(m.x);
@@ -337,7 +459,22 @@ void main() {
     vec2 ll;
     if (!projInverse(xy, ll)) discard;
     vec2 tc = vec2(ll.x / (2.0 * PI) + 0.5 + turn, 0.5 + ll.y / PI);
+#if __VERSION__ >= 300
+    gl_FragColor = withPatch(textureLod(map, tc, lod), tc);
+#else
     gl_FragColor = withPatch(texture2D(map, tc), tc);
+#endif
+#if __VERSION__ >= 300
+    // (the clouds over the map, as on the globe: their faint shadow, then them — their sRGB grey in the map's linear light)
+    if (uCloudOn > 0.5) {
+        vec3 p = cloudPoint(tc);
+        float px = length(fwidth(p)), ds = 0.0;
+        if (uCloudShadowOn > 0.5) ds = cloudShade(cloudTowardLight(p, uCloudShadowStep), tc, px);   // (a branch on a uniform: a phone skips it)
+        vec4 cc = cloudColour(p, tc, px, uCloudOp, uCloudGrey, uCloudLight, uCloudLit);
+        gl_FragColor.rgb *= 1.0 - uCloudShadow * ds;
+        gl_FragColor.rgb = mix(gl_FragColor.rgb, pow(cc.rgb, vec3(2.2)), cc.a);
+    }
+#endif
     #include <colorspace_fragment>
 }`,
                 depthTest: false, depthWrite: false,
@@ -462,6 +599,7 @@ void main() {
     }
 
     render() {
+        this.cloudTick();
         if (this.map) { this.easeMapZoom(); this.renderMap(); return; }
         this.easeZoom();
         this.controls.update();
@@ -473,6 +611,7 @@ void main() {
      * redrawn at 60 fps for nothing takes a core from the workers building the history (and a phone's battery).
      */
     renderIfNeeded() {
+        this.cloudTick();
         if (this.map) {
             this.easeMapZoom();
             if (!this._dirty) return false;

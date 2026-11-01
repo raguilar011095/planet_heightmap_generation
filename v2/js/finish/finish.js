@@ -27,6 +27,7 @@ import { cellStatsCollector, STAT_KEYS } from '../climate/cell-stats.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { locate } from '../core/mesh-locate.js';
 import { classifyRocks } from '../geology/rocks.js';
+import { softFamilies, softFamilyGrid } from '../climate/koppen-soft.js';
 import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
 import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests } from '../farming/farming.js';
 
@@ -306,8 +307,11 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // (and the farming's parts the months decide — its growing season, what the climate makes of the soil — from the
     // months and the cover as the land's cover reads them: farming/farming.js)
     const farmC = newFarmClimate(n);
+    // (and the climate as shares, for the Satellite view's transitions — climate/koppen-soft.js: a few places a 0.35° cell)
+    const famGrid = softFamilyGrid(1024), famBuf = new Float64Array(10);
     const cellsClimate = cellClimate(gridClimate, mesh.xyz, C.z, land, {}, (c, T12, P12) => {
         cellStats.add(c, T12, P12);
+        { const g = famGrid.wants(lat[c], lon[c]); if (g >= 0) famGrid.add(g, softFamilies(T12, P12, famBuf)); }
         let T = T12;
         if (relief) {
             corners(climGrid, lat[c], lon[c], bi, bw);
@@ -361,7 +365,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     for (let c = 0; c < n; c++) flow[c] = Math.log10(Math.max(1, Hy.area[c]));
     return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, drivers, ms, stats, geology, farming,
         climate: { page: pageC, cell: { koppen: cellsClimate.koppen, tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, sat, cover, stats: cellStats.stats, mottleSeed: ((seed | 0) * 0x2f71 + 0x6d) >>> 0,
-            flow, young, rivers: Hy.rivers, ripSat } },
+            flow, young, rivers: Hy.rivers, ripSat, families: famGrid.done() } },
         layers: debug ? { ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
 }
 
@@ -623,7 +627,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
     if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
     return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null,
-        farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
+        farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(climate.families ? { families: climate.families } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
 }
 
 /** The widest climate picture a finish makes: the page's sharpest texture (finer would not be seen). */

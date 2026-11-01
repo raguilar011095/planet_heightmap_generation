@@ -69,14 +69,17 @@ export class GpuPainter {
     constructor(renderer, width, seaWidth = width) {
         this.renderer = renderer;
         this.width = width;
-        const target = (w, colorSpace) => {
-            const rt = new THREE.WebGLRenderTarget(w, w >> 1, { depthBuffer: false, stencilBuffer: false, generateMipmaps: false, minFilter: THREE.LinearFilter, magFilter: THREE.LinearFilter });
+        // (the picture with mipmaps, renewed after each paint, and filtered anisotropically — zoomed out each screen pixel
+        // the mean of the texels under it, as the globe's own canvas textures: globe-view.js; the sea mask without)
+        const target = (w, colorSpace, mip) => {
+            const rt = new THREE.WebGLRenderTarget(w, w >> 1, { depthBuffer: false, stencilBuffer: false, generateMipmaps: mip, minFilter: mip ? THREE.LinearMipmapLinearFilter : THREE.LinearFilter, magFilter: THREE.LinearFilter });
             rt.texture.colorSpace = colorSpace;
             rt.texture.wrapS = THREE.RepeatWrapping;           // (the map view turns it to its centre longitude)
+            if (mip) rt.texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
             return rt;
         };
-        this.target = target(width, THREE.SRGBColorSpace);
-        this.seaTarget = target(seaWidth, THREE.NoColorSpace);
+        this.target = target(width, THREE.SRGBColorSpace, true);
+        this.seaTarget = target(seaWidth, THREE.NoColorSpace, false);
         this.camera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         this.scene = new THREE.Scene();
         this.uniforms = {

@@ -126,7 +126,7 @@ climate, at its detail**: the grid's climate from the finish's climate stage, ea
 again on the finished surface — the climate tabs (Köppen, temperature, rain, wind, currents, and More…'s layers) and the
 readout use it, drawn per pixel of the finished picture (the land's measures — temperature range, aridity, growing season,
 rain seasonality, from each cell's twelve months by `js/climate/cell-stats.js` — kept a byte each on its climate picture). **Satellite** (finished moments only; plans/V2_SATELLITE_PLAN.md): the planet as
-from space, cloud-free, for the Year, January or July — each cell's cover from its twelve months (`finish-cover.js`: tree,
+from space (its clouds laid over: see Clouds below), for the Year, January or July — each cell's cover from its twelve months (`finish-cover.js`: tree,
 grass and bare shares by wetness and warmth through S-curves, so biomes blend; needle-leaved or broad, evergreen or
 deciduous; grass green or dormant — golden with drought, brown with cold; a snowpack through the cold months (white once a few cm
 lie — the winter tundra and steppe white from space), hidden in part by forest canopy; ice caps), mixed in linear light from reference colours fitted to NASA's Blue Marble over Earth's
@@ -144,11 +144,60 @@ frozen in a cold month; the readout names the ground's biome. On the page the la
 (`evolution/sat-style.js`): each family of climates (rainforest, savanna, desert, steppe, Mediterranean, temperate,
 continental, taiga, tundra, ice) its lowland colour up to its tree line, then dark grey-red rock with a little of the biome
 under it, grey rock and snow — a summer and a winter version (the lines lower in winter), each place by its latitude in its
-own season and the even mean toward the equator (nothing flips there); the families blended over ~60 km, their edges
-warped by fractal noise; an ice sheet's edge kept sharp; cold dry climates in the tundra's colours; the rivers' banks
-greener the drier the climate and season (none under snow); the picture above's fine detail as brightness, and a quarter
+own season and the even mean toward the equator (nothing flips there); the land in the colour (`SAT_TERRAIN`;
+plans/V2_SATELLITE_LOOK_PLAN.md P1, P6): each place's height against the land around it at ~40, 120 and 350 km — each
+size against the next smaller one's mean, so each carries only its own size's features, most weight on the larger, and
+the smallest only on ground with real relief (a plain's bumps do not each flip the colour) — hollows,
+valleys and basins richer and darker, ridges, spurs and plateau rims paler (dry country the most), and the sky's light
+(hollows a little darker, open crests lighter) — highlands greyer than lowlands, and the tree and snow lines bent by the
+ground (valleys under them longer, spurs above them sooner, higher on slopes facing the equator, a noise wobble), the snow's
+edge crisper; the climates as shares, not one class each (P2): the finish works out each place's share of the families
+from Köppen's own tests with soft thresholds (`climate/koppen-soft.js`: the coldest month by 18° and 0 °C, the warmest by
+10° and 22 °C, the rain by the dry line, the summer's dryness — a 0.35° grid of them kept with the detailed moment), so a
+transition is wide where the climate changes slowly and tight across a rain shadow; the shares then blended in layers
+(`SAT_BLEND`): every climate over ~100 km, and climates that look alike over ~500 km more (a blur guided by their
+colours: temperate into continental into taiga, steppe into desert run together far; desert and rainforest keep a
+shorter handover), and a faint patchwork laid over that (`SAT_MOSAIC`, 30 % of it): the families taking turns along
+one noise, wet to dry, the wetter led up the valleys and the drier along the ridges, soft-edged — while the rock and snow
+lines follow the height and the smooth shares, never the patches
+(moments detailed before this: the families blended over ~60 km, their edges warped by fractal noise); the ground's
+character (`SAT_GROUND`, P4, each part with its own switch): bare ground tinted by its bedrock (dark lava fields, red
+sandstone, pale limestone, white salt…), the sand seas paler and warmer and streaked by the year's wind (along it where
+the seasons' winds cross, across it where they agree), the fold belts banded along their strike (these stripes by phasor noise on the sphere — no seam, no shear), the plants' own patches
+(denser canopy in the hollows, openings on the spurs), an ice sheet's margins bluer, streaked along its flow, its outlet
+glaciers darker; the large-scale features (`SAT_MACRO`, P6, each with its own switch): the bedrock's provinces (its
+colours averaged over ~220 km, faint under plants), lowland basins richer and high plateaus paler at continental size
+(~900 km), the great rivers' floodplain belts (≥ 1500 m³/s, on low ground, ~20–75 km to each side) darker green, and
+the ice age's scoured ground paler and calmer; a baseline colour cube (`SAT_CUBE`, P8) laid over the climates' colours
+at 60 % before the terrain's and the ground's detail — a colour for every year's mean temperature and rain (no classes:
+it follows the climate smoothly, rain and warmth inside every class), toward bare rock with height and slope, in the
+season — its colours from the land's cover model run on a smooth year at each temperature and rain (Blue Marble's duller,
+darker ground, without snow: the snow stays the climate's and the heights') or, `realism` 0, a stylised chart; its
+`share` how far the view leans from the stylised toward the realistic; an ice sheet's edge kept sharp; cold dry climates in the tundra's colours; the rivers'
+banks and fresh lakes' shores (`RIPARIAN`) a tight soft ribbon — ~3.5 km to each side of a small river, ~9 of a great one,
+wider on floodplains — in the place's own colour made darker and greener, patchy along the course, the more the drier the
+climate and season (none under snow); the picture above's fine detail as brightness, and a quarter
 of it over all for its texture; its snow where the climate has snow in the season shown. The sea ice is drawn with a
-sharp, noise-ragged edge and loose floes where the cover is partial. **Rivers and lakes** by the climate
+sharp, noise-ragged edge and loose floes where the cover is partial. The Satellite view's picture is drawn ahead, a slice of a few ms at a
+time beside the page's work, once a detailed moment is shown (its season; the others once the view is open). **Clouds**
+(`js/view/clouds.js`, P9): over the Satellite view of a detailed moment, from its own climate (the **Clouds** toggle
+beside Hillshade, on by default) — in four layers, each with its cover from the season's climate and its own texture: low
+stratocumulus decks (Worley cells) over cool upwelling seas under the subtropical highs and stratus over the polar seas;
+convective towers and clusters in the warm wet tropics and fair-weather cumulus over warm summer land; frontal sheets in the
+storm tracks (fbm through Quilez's warp of a warp, crisp, a veil under it); high cirrus streaked along the wind (the
+wind's streaks fade out in the trades: broken cells there, streets toward the jets); whole regions cloudier or clearer and
+streakier or not by a noise far larger than the clouds (weather systems); the convective and frontal clouds
+billowy — cauliflower edges from the inverted cellular detail, thin edges greyer and see-through, dense cores white, the
+billows' relief lit from the north-west — each layer's cover its cut through its own noise by the noise's measured quantiles (thinning out to none as its cover goes; every
+edge at least about two pixels wide, however far out);
+storms where the circulation has them: extratropical cyclones at the season's pressure lows in 35–68° and more along the
+tracks (the seed), tropical cyclones over seas of 27 °C and more — spiral turns of the field, cyclonic. On the globe they
+evolve — the warps move through the 3-D noise each its own way, so shapes form, merge and dissolve — and flow along the
+climate's own winds (a flow map: two phases half a period apart, cross-faded smoothly, each period a fresh place in the
+noise so no pattern comes round again), with a gentle drift by latitude; drawn on
+the GPU on a shell just above the globe (and on the map view), a faint shadow beside them (a redraw about 12 times a second
+while they show; on a phone unlit and no shadows); the export's Clouds layer (transparent) and
+Satellite with clouds are one still moment of them, from the same noise in JavaScript. **Rivers and lakes** by the climate
 (`finish-hydro.js`): discharge in m³/s from each place's runoff, less what dry river beds lose; each river's year — its
 monthly flows from each month's rain and snowmelt (and groundwater draining back slowly), routed down the rivers — and
 its regime: permanent, permanent with a yearly flood season (the Nile's), seasonal, dry most of the year; every river ends at the sea: a
@@ -260,6 +309,10 @@ node --max-old-space-size=16000 v2/tools/render-deposits.mjs --phase NAME [--reu
                                        # the same moments' Deposits and Ages maps after each change, whole and a close-up (--reuse-finish: only the
                                        # deposits again, ~3 s a moment; --code b9eb7fe: drawn by that version's deposits — today's look) and each
                                        # metal's share by latitude and setting → v2/out/deposits/, and index.html: today and new side by side
+node --max-old-space-size=16000 v2/tools/render-satellite.mjs --phase NAME [--note "…"] [--moments 2024:900,432175:300,542650052:2180]
+                                       # the same moments' Satellite view after each change (the first: --phase today) — the planet, regions
+                                       # (picked by their climates and relief) and close-ups, for the year, January and July, and the styling's
+                                       # cost; the finishes built once and kept → v2/out/satellite/, and index.html: Today and New side by side
 node v2/tools/calibrate-districts.mjs           # the deposits' district thresholds for today's settings → v2/js/geology/district-thresholds.js
                                        # (run after changing geology-config's deposits.district or deposits.shapes; check-geology says when)
 node --max-old-space-size=16000 v2/tools/render-district-options.mjs [--moments 2024-900,542650052-2180] [--views mix,copper,gold,leadZinc]
@@ -396,7 +449,8 @@ js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of a
                    once, by the first worker, and handed to the others over message ports; mesh-worker builds a
                    terrain mesh off the page's thread; shade-worker hillshades the frame shown, so the page's thread
                    only paints
-js/view/           DOM-free painting: equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
+js/view/           DOM-free painting: clouds (the clouds' noise in GLSL for the globe and the map and its JavaScript twin for
+                   the export, and their cover from the climate), equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
@@ -413,7 +467,8 @@ js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (sa
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
                    file read today: the frozen codec 1, the steps between versions, fields it lacks as zeros)
-js/app/            the lab: shell (lab-main), globe, canvas overlays, phases/ (one module per phase + phase-kit),
+js/app/            the lab: shell (lab-main), globe (its texture sampled from mipmaps, anisotropically — zoomed out each
+                   screen pixel the mean of the texels under it; the map view picks its level from the zoom), canvas overlays, phases/ (one module per phase + phase-kit),
                    history-runner / history-worker (a scene's history off the page's thread, frames streamed back),
                    helper-pool / helper-worker (a few workers the history's worker starts: the start world's layout
                    attempts and each rift's junctions, side by side — the same history)

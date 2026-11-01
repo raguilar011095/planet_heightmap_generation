@@ -14,7 +14,7 @@
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://orogen.studio/evolution">
     <meta property="og:title" content="World Orogen — Evolution">
-    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view, the rocks and ores its history left and what its land could grow. Free, in your browser.">
+    <meta property="og:description" content="Watch a planet evolve over a billion years: continents rift, drift and collide. Pause on any moment and sculpt it in detail, with rivers, glaciers, its own climate, a satellite view with drifting clouds, the rocks and ores its history left and what its land could grow. Free, in your browser.">
     <meta property="og:image" content="https://orogen.studio/assets/studio/evolution.jpg">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="750">
@@ -34,7 +34,7 @@
         "@type": "WebApplication",
         "name": "World Orogen — Evolution",
         "url": "https://orogen.studio/evolution",
-        "description": "Simulates a planet's tectonic history in the browser: plates rift, drift and collide over hundreds of millions of years while continents grow. Any moment can be sculpted in detail with rivers, lakes, glaciers, a seasonal climate and a satellite view, with the rocks and ore deposits its history left and what its land could grow, and exported as heightmaps and maps.",
+        "description": "Simulates a planet's tectonic history in the browser: plates rift, drift and collide over hundreds of millions of years while continents grow. Any moment can be sculpted in detail with rivers, lakes, glaciers, a seasonal climate and a satellite view with clouds from its climate, with the rocks and ore deposits its history left and what its land could grow, and exported as heightmaps and maps.",
         "applicationCategory": "DesignApplication",
         "operatingSystem": "Any (browser-based)",
         "browserRequirements": "Requires a modern browser with WebGL support",
@@ -44,9 +44,10 @@
             "Timeline of the whole history to scrub and replay",
             "Detailed moments with rivers, lakes, glaciers and a seasonal climate",
             "Satellite and Köppen climate views of a detailed moment",
+            "Clouds over the globe from the planet's own climate, drifting with the winds (a toggle)",
             "Geology of a detailed moment, read off its history: a rock-type map, ore, fuel, mineral and gem deposits graded poor to rich, what each technological age could reach, and each deposit district with the story of how it formed — exported as maps, richness masks, GeoJSON and CSV, and a resource atlas",
             "Food of a detailed moment, from its soil, ground and growing season: farmland by rain or with water brought, each place's staple food, its way of life (farming, herding or gathering) and how many people the land could feed",
-            "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July), Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
+            "Export of a detailed moment, every map as colour or as 16-bit data: colour map, satellite view (year, January, July; with or without its clouds), a transparent clouds layer, Köppen climate zones and class index, each climate layer, 16-bit heightmaps, land mask, hillshade and a transparent rivers-and-lakes layer, in ten map projections, one PNG or a ZIP with a README, up to 16384 px wide",
             "Planet files: the whole history and its detailed moment saved as one file and opened again later, without building either again — the same planet in any browser"
         ],
         "screenshot": "https://orogen.studio/assets/studio/evolution.jpg",
@@ -269,6 +270,7 @@
             </optgroup>
             </select></span>
             <label class="toggle-label" title="Shade the planet by its relief, lit from the north-west. Off, every view is flat colour, the mountains shown by their colours alone and no sun glinting on the sea (a texture to light in a 3D program; the export has its own Hillshade switch)"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade</label>
+            <label class="toggle-label" title="Clouds over the planet, from its climate — more where it rains, fewer under the dry highs — drifting slowly with the winds. On the Satellite view; the export has a Clouds layer and Satellite with clouds"><input type="checkbox" id="chkClouds" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Clouds</label>
             <span class="vs-item" id="waterGroup">
                 <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; Lakes</label>
                 <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By Regime</label>
@@ -283,7 +285,7 @@
             <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, grid lines, colours, hillshade, rivers"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
             <div class="map-tabs" id="mapTabs">
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
-                <button class="map-tab" data-layer="satellite" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, rivers greening dry country, snow and ice from its climate, for the year, January or July. Comes with Add detail">Satellite</button>
+                <button class="map-tab" data-layer="satellite" title="The planet as from space: each climate's colours climbing with the land to rock and snow, rivers and fresh lakes greening dry country, snow and ice from its climate, its clouds from its climate too (the Clouds toggle hides them), for the year, January or July. Comes with Add detail">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
                 <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. Comes with Add detail. In beta">Geology</button>
                 <button class="map-tab" data-layer="farming" title="What the land could feed, and how its people would live: farmland — soil × ground × growing season, by rain alone or with water brought by flood farming and canals, terraces and raised fields — each place's staple food, whether its people would farm, herd or gather, and how many it could feed. Comes with Add detail. In beta">Food</button>
@@ -489,7 +491,7 @@
             </div>
             <div class="tutorial-step" data-step="3">
                 <h3>Look Around</h3>
-                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet.</p>
+                <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Clouds drift over the Satellite view, from the planet&rsquo;s own climate; turn them off with <strong>Clouds</strong> beside Hillshade.</p>
                 <p><strong>Climate</strong> shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. It also works on a paused preview.</p>
                 <p>The arrow at the tabs' left opens the view options: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (<span data-touch="pinch">scroll</span> to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
             </div>
@@ -509,7 +511,7 @@
             </div>
             <div class="tutorial-step" data-step="6">
                 <h3>Export</h3>
-                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July), its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate and food view can go too, each as colour or as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales.</p>
+                <p><strong>Export</strong> saves the detailed moment as map files: a colour map, the Satellite view (the year, January or July, with or without its clouds), the clouds alone, its climate zones, heightmaps with and without the sea floor, a land mask, and its rivers and lakes on their own. Every climate and food view can go too, each as colour or as <strong>Data</strong> &mdash; 16-bit greyscales on fixed scales.</p>
                 <p>From Geology: its rocks, its deposits and each age's map, a richness mask for every resource, the districts as GeoJSON or CSV, and a resource atlas in words.</p>
                 <p>Several maps save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
