@@ -57,14 +57,29 @@ export const HEARTHS = {
     contactKm: 700,             // news of a new hearth: regions this near become receivers…
     contactYears: 400,          // …this long after
     speed: 0.4,                 // km a year over land a crop grows on (with rivers, coasts and farmers ~1 km a year: Fort 2026)…
-    beastSpeed: 1.0,            // …a beast is kept on
+    beastSpeed: 1.6,            // …a beast is kept on (developer, 2026-11-01: "animals also spread more" — with herders and farmers alike)
     fitSpeed: [0.08, 0.45],     // (the speed as its fit there runs from this to this: 3 % of it where it barely grows)
-    riverCoast: 2.5,            // × along rivers and coasts (the beasts' 1.8)
+    riverCoast: 3,              // × along coasts (the beasts' 1.8)…
+    river: 4,                   // …and along a river's way — a big river's plain, or a river's strip through dry land (developer,
+                                // 2026-11-01: along rivers in deserts "super quick": the valley the only way on, carried by boat;
+                                // the Danube's first farmers ~4 km a year); a smaller stream's land the coasts' 2.5
     through: 2,                 // × through farmers (the beasts' 1.4)
     richSlow: [0.25, 1.4],      // slower past foragers as rich as this to this (people a km²): √(1 − 0.8 × …)
     seaSpeed: 6,                // km a year across the sea…
-    seaHopKm: 280,              // …within this of land
+    seaHopKm: 280,              // …within this of land…
+    laneSpeed: 15,              // …and along the coast by boat, within laneKm of it (developer, 2026-11-01: "growth along ocean
+    laneKm: 120,                // coasts can be further" — the Mediterranean's first farmers, the Austronesians: coasts the fast way)
     farmFit: 0.25,              // farming has come to a place when a crop that fits it this well has
+    likeT: 6, likeW: 1.6,       // a crop's strain spreads slower where the climate is unlike its hearth's — e^(−(ΔT / likeT)² − (ln(W / W₀) /
+    likeFloor: 0.05,            // likeW)²), down to likeFloor of its pace, at sea the coast's (developer, 2026-11-01: cool-season grains "shut out" — a
+                                // tropical yam hearth's roots crossed into temperate Europe ahead of the Fertile Crescent's wheat
+                                // and, first come, led there; Earth's packages crossed climates slowly: Diamond's east–west axis)
+    adoptKm: 700,               // a region whose crop or beast had already come near adopts it rather than taming its own: likelier
+                                // the nearer it came, e^(−(km / this)²) (developer, 2026-11-01: "we generally dont need multiple
+                                // variants of the same crop species" — a rice tamed in every rice-growing region gave ~18 a world)…
+    adoptBeastKm: 2000,         // …a beast from much farther (developer: animals "should have less types of domestication per animal
+                                // group": Earth's from one to three centres each — cattle, buffalo two — then spread far)…
+    adoptBeastMass: 0.75,       // …and, once tamed anywhere on its landmass, a region there adopts it at least this often
     capYears: 80000,            // the search stops this long after the first farming
 };
 // (the herders' beasts; and the fly's toll on each beast's keeping — beasts.js beastKeep's last factor)
@@ -161,6 +176,7 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
     const nF = Math.max(Hh.founders[0], Math.min(Hh.founders[1], Math.round(landKm2 / Hh.foundersKm2) + 1));
     // (the hearths' spacing: a share of the even spacing their aim would have over the land crops fit)
     let farmKm2 = 0;
+    const FIT = G.fitRun ?? G.fit;
     for (let c = 0; c < N; c++) if (land[c]) { let f = 0; for (let q = 0; q < NC; q++) if (G.fit[q][c] > f) f = G.fit[q][c]; if (f >= Hh.farmFit) farmKm2 += G.area[c]; }
     const hearthKm = Hh.hearthSpread * Math.sqrt(farmKm2 / Hh.hearthsAim);
     const leadOf = R => { let b = 0; for (let a = 1; a < NC; a++) if (R.niche[a] > R.niche[b]) b = a; return b; };
@@ -211,16 +227,29 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
     const beastsCame = (R, t) => { if (regBeast[R.r] <= t) return; regBeast[R.r] = t; directed(R, t, Hh.directYears, 100); };
     // ── the spread's speed into a cell (km a year) ──
     const speed = (a, v, t) => {
-        if (!land[v]) return G.seaKm[v] < Hh.seaHopKm ? Hh.seaSpeed : 0;
+        if (!land[v]) { const k = G.seaKm[v]; return k <= Hh.laneKm ? Hh.laneSpeed : k < Hh.seaHopKm ? Hh.seaSpeed : 0; }
         const crop = a < NC, b = crop ? 0 : a - NC + 1;
-        const f = crop ? G.fit[a][v] : G.keep[b][v] * (1 - FLY_TOLL[b] * flyAt(v));
+        const f = crop ? FIT[a][v] : G.keep[b][v] * (1 - FLY_TOLL[b] * flyAt(v));
         let s = (crop ? Hh.speed : Hh.beastSpeed) * (0.03 + 0.97 * S(Hh.fitSpeed, f));
-        if (f > 0.3 && (G.river[v] || G.coast[v])) s *= crop ? Hh.riverCoast : 1.8;
+        if (f > 0.3 && (G.river[v] || G.coast[v])) s *= crop ? (G.riverWay?.[v] ? Hh.river : Hh.riverCoast) : 1.8;
         s *= Math.sqrt(Math.max(0.05, 1 - 0.8 * S(Hh.richSlow, G.richness[v])));
         if (farmTime[v] <= t) s *= crop ? Hh.through : 1.4;
         return s;
     };
-    const fitAt = (a, v) => (a < NC ? G.fit[a][v] : G.keep[a - NC + 1][v] * (1 - FLY_TOLL[a - NC + 1] * flyAt(v)));
+    // (how near archetype a had come to a region by t: the nearest cell it had reached within ~2.5 × adoptKm, km)
+    const tamedOn = Array.from({ length: NA }, () => new Set());              // (each archetype's landmasses it was tamed on)
+    const nearRows = Math.max(1, Math.ceil(2.5 * Hh.adoptKm / kmLat(deg))), nearRowsB = Math.max(1, Math.ceil(2.5 * Hh.adoptBeastKm / kmLat(deg)));
+    const nearestCome = (a, R, t) => {
+        let dn = Infinity;
+        const f = best[a];
+        eachNear(G, R.cell, a < NC ? nearRows : nearRowsB, q => {
+            if (!(f[q] <= t)) return;
+            const d = gcKm(R.lat, R.lon, 90 - (Math.floor(q / w) + 0.5) * deg, -180 + (q % w + 0.5) * deg);
+            if (d < dn) dn = d;
+        });
+        return dn;
+    };
+    const fitAt = (a, v) => (a < NC ? FIT[a][v] : G.keep[a - NC + 1][v] * (1 - FLY_TOLL[a - NC + 1] * flyAt(v)));
     const kmY = kmLat(deg), kmX = new Float64Array(h);
     for (let j = 0; j < h; j++) kmX[j] = kmY * Math.max(0.02, Math.cos((90 - (j + 0.5) * deg) * Math.PI / 180));
     let tFirst = Infinity, events = 0;
@@ -234,6 +263,11 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
             if (domT[a][idx] !== t) continue;                       // (stale: re-dated)
             if (done[a][R.cell] && best[a][R.cell] <= t) continue;   // (it came already: adopted, not tamed)
             if (a >= NC && !has(R.mass, a - NC + 1)) continue;
+            // (come near already: adopted, likelier the nearer — a hearth's first crop excepted)
+            if (regCentre[idx] >= 0 || regFarm[idx] <= t) {
+                const dn = nearestCome(a, R, t), p = Math.max(dn < Infinity ? Math.exp(-((dn / (a < NC ? Hh.adoptKm : Hh.adoptBeastKm)) ** 2)) : 0, a >= NC && tamedOn[a].has(R.mass) ? Hh.adoptBeastMass : 0);
+                if (p > 0 && draw(900 + a, R.cell) < p) continue;
+            }
             // (a hearth of its own: not past the planet's cap, nor near one begun — it waits for farming, its date cleared so
             // the know-how can date it again when farming comes)
             if (a < NC && regFarm[idx] > t && (primaries.length >= Hh.maxHearths || primaries.some(C => gcKm(C.lat, C.lon, R.lat, R.lon) < hearthKm))) { domT[a][idx] = Infinity; continue; }
@@ -245,7 +279,8 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
             const C = centres[regCentre[idx]];
             C.items.push({ a, t });
             const s = strains.length;
-            strains.push({ a, centre: C.id, t0: t });
+            strains.push({ a, centre: C.id, t0: t, hT: G.clim.T[R.cell], hW: Math.max(0.02, G.clim.W[R.cell]) });
+            tamedOn[a].add(R.mass);
             if (a < NC) {
                 const fresh = regFarm[idx] > t;
                 if (tFirst === Infinity) { tFirst = t; for (const R2 of regions) directed(R2, t, Hh.worldYears, 200); }
@@ -265,7 +300,7 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
             const r = regionOf[v];
             if (r >= 0) { if (a < NC && f >= Hh.farmFit) farmingCame(regions[r], t); if (a >= NC) beastsCame(regions[r], t); }
         }
-        const j = (v / w) | 0, i = v - j * w, s = lab[a][v];
+        const j = (v / w) | 0, i = v - j * w, s = lab[a][v], hT = a < NC ? strains[s].hT : 0, hW = a < NC ? strains[s].hW : 1;
         for (let dj = -1; dj <= 1; dj++) {
             const jj = j + dj;
             if (jj < 0 || jj >= h) continue;
@@ -274,8 +309,10 @@ export function runHearths(G, H, luck, seed, time, roll = 0, Hh = HEARTHS) {
                 if (!dj && !di) continue;
                 const m = jj * w + (i + di + w) % w;
                 if (done[a][m]) continue;
-                const sp = speed(a, m, t);
+                let sp = speed(a, m, t);
                 if (!(sp > 0)) continue;
+                // (a crop: slower into a climate unlike its strain's hearth's)
+                if (a < NC && G.clim.W[m] > 0) { const dT = (G.clim.T[m] - hT) / Hh.likeT, dW = Math.log(G.clim.W[m] / hW) / Hh.likeW; sp *= Hh.likeFloor + (1 - Hh.likeFloor) * Math.exp(-(dT * dT + dW * dW)); }
                 const nt = t + Math.hypot(di * kx, dj * kmY) / sp;
                 if (nt < best[a][m]) { best[a][m] = nt; lab[a][m] = s; heap.push(nt, enc(STEP, a, m)); }
             }

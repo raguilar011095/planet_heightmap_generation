@@ -8,9 +8,12 @@
 //     has habitat enough, ~96 % with Fewer gaps; less with a little habitat; ox-sized beasts only on big land: Burness et al. 2001) and whether the
 //     tsetse-like fly does (on Earth only Africa's: ~35 % of landmasses with its habitat, ~15 % with Fewer gaps);
 //   · HEARTH ODDS — a region's odds of starting farming (§4.2): its larder's variety within ~330 km (Vavilov), its
-//     seasonality (Matranga 2024: the planet's most seasonal land), how productive it is (Kavanagh: surplus, not need),
-//     hilly flanks, water near, foragers not too rich, not poleward of ~45°;
-//   · what the SPREAD reads (farming/hearths.js): each crop group's fit (how well it grows, every technique on) and each
+//     seasonality (Matranga 2024: the planet's most seasonal land — less needed where the larder is roots and trees, the
+//     wet tropics' margins), how productive it is (Kavanagh: surplus, not need), hilly flanks not too cold, water near,
+//     foragers within ~150 km not too rich, not poleward of ~45° — graded to the top, so the likeliest stand out (tuned on
+//     Earth: tuning/farming/earth-history.mjs);
+//   · what the SPREAD reads (farming/hearths.js): each crop group's fit (how well it grows, every technique on — along a
+//     river through dry land, its watered strip's: fitRun) and each
 //     beast's keeping (the fly's toll applied by the luck at run time), rivers and coasts, the foragers' richness, each sea
 //     cell's distance from land (hops across the sea).
 // Read off the picture on a fixed sampling (~1,024 pixels round the world, at every detail) and its relief over the
@@ -46,15 +49,20 @@ export const HISTORY = {
     // ── hearth odds ──
     reachKm: 330,               // the larder read this far round a place (its region)
     varietyNiche: [0.12, 0.4],  // an archetype counts in a region's variety as its niche within reach (a soft maximum) runs from this to this
-    variety: [0.3, 2.4],        // the odds rise with the variety from this to this (crops 1 each, beasts ½)…
-    seasons: [0.55, 0.93],      // …with its seasonality's rank among the land (the more seasonal of temperature and rain)…
+    variety: [0.5, 6],          // the odds rise with the variety from this to this (crops 1 each, beasts ½)…
+    seasons: [0.5, 1],          // …with its seasonality's rank among the land (the more seasonal of temperature and rain)…
     prod: [250, 900],           // …with its productivity (g a m² a year)…
     relief: [0.1, 0.6],         // …with hilly flanks: the range of the mean heights of it and its neighbours (km, ~165 km across)…
-    highland: [3, 1.8],         // …not too high (km)…
-    rich: [0.4, 1.6],           // …less where foragers' own food is rich (people a km²)…
+    highlandT: [4, 9],          // …not too cold (mean °C — the tropics' highlands farmed to ~4 km: the Andes', Ethiopia's)…
+    vegNiche: [0.3, 0.7],       // (where the larder is roots and trees — the tubers', the bananas' — within reach this good…
+    vegSeasons: [0.2, 0.6],     // …the seasonality's rank need be only this: the wet tropics' margins, the yam belt's, the
+                                // Llanos de Mojos', tamed their roots and trees without the seed crops' long dry season)
+    rich: [0.8, 2],             // …less where foragers' own food is rich (people a km²: a coast's settled fishers — the
+    richKm: 150,                // Northwest Coast's, California's, the Jomon's — hold the land within about this of them)…
     poleward: [52, 44],         // …and none poleward of this (°)
     // ── what the spread reads ──
     fit: [0.05, 0.4],           // a crop group's fit as its food (÷ its weight: its harvests' worth) runs from this to this
+    stripFit: 0.6,              // where no crop group fits a cell this well on the whole, its rivers' watered strips are read pixel by pixel
     seaKmMax: 1000,             // the sea's distance from land worked out this far (km)
 };
 
@@ -208,9 +216,8 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
         // (the hearth odds' parts)
         tSeas[c] = tempSeasons(M.Tw, M.Tc); pSeas[c] = M.seas;
         prodF[c] = S(H.prod, npp(M.T, M.P));
-        hillF[c] = 0.5 + 0.5 * S(H.relief, M.relief) * S(H.highland, M.elev);
+        hillF[c] = 0.5 + 0.5 * S(H.relief, M.relief) * S(H.highlandT, M.T);
         water[c] = 0.55 + 0.45 * Math.max(M.flood, M.canal, nSea[c] ? 0.6 : 0);
-        richF[c] = 1 - 0.6 * S(H.rich, rich[c] / k);
         latF[c] = S(H.poleward, Math.abs(lat));
     }
     // ── what the spread reads: fit, keeping, rivers, coasts, the foragers, the sea's distance from land ──
@@ -220,6 +227,42 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
         for (let q = 0; q < CROPS.length; q++) fit[q][c] = fitSum[q][c] / n[c];
         for (let b = 1; b < BEASTS.length; b++) keep[b][c] = keepSum[b][c] / n[c];
         river[c] = Math.max(flood[c], canal[c]) >= 0.3 ? 1 : 0; richness[c] = rich[c] / n[c];
+    }
+    // ── the rivers' strips through dry land (developer, 2026-11-01: rivers "not spreading crops down them fast enough …
+    // especially along rivers in deserts"): the sampling reads a pixel every ~40 km and a cell's fit is its mean — a valley a
+    // few km wide through a desert is missed or drowned in it. So where no crop fits a cell well on the whole, every watered
+    // pixel of the picture (flood or canal water ≥ 0.3) is read: the crops' fit along its strip gives the spread its way
+    // through (fitRun: the better of the cell's and the strip's), and the cell is a river's. And every cell a big river's plain
+    // crosses (flood water ≥ 0.3 on any of its pixels), or such a strip, is a river's way (riverWay: the spread runs fastest
+    // along it — the canals' reach of every stream, ~70 % of the land, is not) ──
+    const fitRun = fit.map(f => Float32Array.from(f)), riverWay = new Uint8Array(N);
+    for (let c = 0; c < N; c++) if (n[c] && flood[c] >= 0.3) riverWay[c] = 1;
+    if (harvests) {
+        const low = new Uint8Array(N), fw = CROPS.map(() => new Float64Array(N)), nw = new Float64Array(N), wmax = new Float32Array(N), W8 = Math.round(0.3 * 255);
+        for (let c = 0; c < N; c++) if (n[c]) { let m = 0; for (let q = 0; q < NC; q++) if (fit[q][c] > m) m = fit[q][c]; low[c] = m < H.stripFit ? 1 : 0; }
+        for (let y = 0; y < K.h; y++) {
+            const lat = 90 - (y + 0.5) / K.h * 180, j = Math.min(h - 1, Math.floor((90 - lat) / deg)), row = y * K.w;
+            for (let x = 0; x < K.w; x++) {
+                const i = row + x;
+                if (F.flood[i] < W8 && F.canal[i] < W8) continue;
+                const kp = K.koppen[i], c = j * w + Math.min(w - 1, Math.floor((x + 0.5) / K.w * 360 / deg));
+                if (!kp || kp === kef) continue;
+                if (F.flood[i] >= W8) riverWay[c] = 1;
+                if (!low[c]) continue;
+                partsOf(F, i, p);
+                farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, ALL, r);
+                for (let q = 0; q < NC; q++) fw[q][c] += S(H.fit, r.foods[CROP_STAPLE[q]] / weight[q]);
+                nw[c]++;
+                const wv = Math.max(p.flood, p.canal);
+                if (wv > wmax[c]) wmax[c] = wv;
+            }
+        }
+        for (let c = 0; c < N; c++) {
+            if (!nw[c]) continue;
+            for (let q = 0; q < NC; q++) fitRun[q][c] = Math.max(fit[q][c], fw[q][c] / nw[c]);
+            river[c] = 1; riverWay[c] = 1;
+            if (wmax[c] > clim.water[c]) clim.water[c] = wmax[c];
+        }
     }
     const seaKm = new Float32Array(N).fill(Infinity), queue = [];
     for (let c = 0; c < N; c++) if (land[c]) seaKm[c] = 0;
@@ -247,6 +290,19 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
                 if (d < seaKm[q] && d <= H.seaKmMax) { seaKm[q] = d; heap.push(d, q); }
             }
         }
+    }
+    // (the coastal sea's climate — its shore's: each sea cell within ~2 cells of land the mean of its neighbours' — so a crop
+    // carried along the coast by boat meets the climate of the coast it follows: hearths.js's likeness)
+    for (let pass = 0; pass < 3; pass++) {
+        const add = [];
+        for (let c = 0; c < N; c++) {
+            if (land[c] || clim.W[c] > 0) continue;
+            const j = (c / w) | 0, i = c - j * w;
+            let t = 0, wv = 0, k = 0;
+            for (let dj = -1; dj <= 1; dj++) { const jj = j + dj; if (jj < 0 || jj >= h) continue; for (let di = -1; di <= 1; di++) { const q = jj * w + (i + di + w) % w; if (clim.W[q] > 0) { t += clim.T[q]; wv += clim.W[q]; k++; } } }
+            if (k) add.push(c, t / k, wv / k);
+        }
+        for (let a = 0; a < add.length; a += 3) { clim.T[add[a]] = add[a + 1]; clim.W[add[a]] = add[a + 2]; }
     }
     // ── landmasses: land joined across shallow sea ──
     const mass = new Int32Array(N).fill(-1), masses = [], stack = [];
@@ -282,6 +338,11 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
     // Gaussian on a grid in km — so a strong wild range near counts, fading smoothly, not in a window's rectangles)
     const grid = new LatLonGrid(deg), variety = new Float32Array(N), used = ARCHETYPES.map((A, a) => a).filter(a => ARCHETYPES[a].beast !== Beast.DEER);
     const p4 = used.map(a => { const f = new Float32Array(N); for (let c = 0; c < N; c++) f[c] = n[c] ? niche[a][c] ** 4 : NaN; return f; });
+    // (and the foragers' richness within ~richKm — the same soft maximum)
+    const r4 = new Float32Array(N);
+    for (let c = 0; c < N; c++) r4[c] = n[c] ? (rich[c] / n[c]) ** 4 : NaN;
+    const [richSoft] = grid.blurMany([r4], H.richKm / 2);
+    for (let c = 0; c < N; c++) if (n[c]) { const v = richSoft[c]; richF[c] = 1 - 0.6 * S(H.rich, v > 0 ? v ** 0.25 : 0); }
     const soft = grid.blurMany(p4, H.reachKm / 2);
     used.forEach((a, k) => {
         const wt = ARCHETYPES[a].crop !== undefined ? 1 : 0.5, f = soft[k];
@@ -293,11 +354,15 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
         const out = new Float32Array(N); idx.forEach((c, k) => { out[c] = k / Math.max(1, idx.length - 1); });
         return out;
     };
-    const rT = rank(tSeas), rP = rank(pSeas), odds = new Float32Array(N);
+    const rT = rank(tSeas), rP = rank(pSeas), odds = new Float32Array(N), seasF = new Float32Array(N), seasR = new Float32Array(N);
+    // (the roots' and trees' larder within reach: their soft maxima)
+    const vegK = used.map((a, k) => (ARCHETYPES[a].key === 'roots' || ARCHETYPES[a].key === 'trees' ? k : -1)).filter(k => k >= 0), veg = new Float32Array(N);
+    for (let c = 0; c < N; c++) { let v = 0; for (const k of vegK) { const x = soft[k][c]; if (x > 0) v = Math.max(v, x ** 0.25); } veg[c] = S(H.vegNiche, v); }
     let top = 0;
     for (let c = 0; c < N; c++) {
         if (!n[c]) continue;
-        odds[c] = (0.3 + 0.7 * S(H.variety, variety[c])) * S(H.seasons, Math.max(rT[c], rP[c])) * prodF[c] * hillF[c] * water[c] * richF[c] * latF[c];
+        seasR[c] = Math.max(rT[c], rP[c]); seasF[c] = Math.max(S(H.seasons, seasR[c]), veg[c] * S(H.vegSeasons, seasR[c]));
+        odds[c] = (0.3 + 0.7 * S(H.variety, variety[c])) * seasF[c] * prodF[c] * hillF[c] * water[c] * richF[c] * latF[c];
         if (odds[c] > top) top = odds[c];
     }
     const sorted = [];
@@ -305,7 +370,9 @@ export function historyGround(R, K, F, C, ground, H = HISTORY) {
     sorted.sort((x, y) => x - y);
     // (the cells round the land given its neighbours' values — a coast read between cells does not fade toward the sea)
     for (const f of [variety, odds, ...niche]) spread(f, n, w, h);
-    return { deg, w, h, land, area: Float32Array.from(area), niche, variety, odds, oddsSorted: Float32Array.from(sorted), flyCould, mass, masses, fit, keep, river, coast, richness, seaKm, clim };
+    // (and the odds' parts, for the tools' look: tuning/farming/earth-history.mjs)
+    const parts = { seasons: seasF, seasRank: seasR, tRank: rT, pRank: rP, prod: prodF, hill: hillF, water, rich: richF, lat: latF };
+    return { deg, w, h, land, area: Float32Array.from(area), niche, variety, odds, oddsSorted: Float32Array.from(sorted), flyCould, mass, masses, fit, fitRun, keep, river, riverWay, coast, richness, seaKm, clim, parts };
 }
 
 /** Each cell without land of its own (weight n 0) next to one with: the mean of its neighbours' (in place). */

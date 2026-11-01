@@ -762,11 +762,14 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
     const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
     if (legend.dataset.key !== legendKey) {
+        // (its scroll kept: a chip clicked stays under the pointer)
+        const card = $('legendCard'), top = card.scrollTop;
         if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
         else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
         else if (C) drawLegend(legend, view.layer, view.season, C, null);
         else legend.innerHTML = '';
         legend.dataset.key = legendKey;
+        card.scrollTop = top;
     }
     updateClimateUi();
     ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;

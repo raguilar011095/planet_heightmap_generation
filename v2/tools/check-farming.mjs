@@ -34,8 +34,8 @@ import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { landPeople } from '../js/farming/people.js';
 import { gatherGround, gatherAt, livingPlace, livingPeople, partsOf, Lifestyle, LIFESTYLE_WORDS, GATHER, foodSystem, FoodSystem, FOOD_SYSTEM_WORDS, measuresAt, hasMeasures, paddyOf } from '../js/farming/living.js';
 import { beastPlace, newBeasts, Beast, BEAST_WORDS, BEASTS } from '../js/farming/beasts.js';
-import { historyGround, historyLuck, ARCHETYPES, oddsRank } from '../js/farming/history.js';
-import { hearthRegions, runHearths } from '../js/farming/hearths.js';
+import { historyGround, historyLuck, ARCHETYPES, oddsRank, HISTORY } from '../js/farming/history.js';
+import { hearthRegions, runHearths, HEARTHS } from '../js/farming/hearths.js';
 import { cameOf, cameAt, placesOf, waysOf, flyAtOf, peopleFromLog, decLog, namesOf, strainsOf, minorOf, minorAgeOf } from '../js/evolution/farming-store.js';
 import { ARRIVE_NEVER as NEVER_B, arriveByte, rankStrains } from '../js/farming/minor.js';
 import { FARMING } from '../js/farming/farming-config.js';
@@ -402,6 +402,17 @@ section('F3b — hearths and the spread');
     check('farming over most of the land it can grow on by 10,000 years (median ≥ 85 %), not at once (by 1,000: ≤ 60 %)', med(reach10) >= 0.85 && med(reach1) <= 0.6,
         `10,000: ${reach10.map(v => (100 * v).toFixed(0)).join(',')} % · 1,000: ${reach1.map(v => (100 * v).toFixed(0)).join(',')} %`);
     check('much the same number of hearths at 160K and 640K (medians within 4)', Math.abs(med(counts) - med(countsC)) <= 4, `640K ${med(counts)} · 160K ${med(countsC)}`);
+    // (rivers through dry land carry farming — developer, 2026-11-01: "rivers that are not spreading crops down them fast enough
+    // … especially along rivers in deserts": the dry cells a river's watered strip crosses (a crop fits the strip, better than the
+    // cell on the whole) farmed
+    // by the full spread, and sooner than the old way — the cell's mean fit, the coasts' speed along every river)
+    const strips = [];
+    for (let c = 0; c < Gf.w * Gf.h; c++) if (Gf.land[c] && Gf.fitRun.some((f, q) => f[c] >= HEARTHS.farmFit && f[c] > Gf.fit[q][c] + 0.05)) strips.push(c);
+    const Gold = historyGround(pf, pf.climate, pf.farming, fine.climate.page, gatherGround(pf, fine.climate.page), { ...HISTORY, stripFit: 0 });
+    const runOld = runHearths(Gold, hearthRegions(Gold), historyLuck(Gold, SEED, UNTIL, 0), SEED, UNTIL, 0, { ...HEARTHS, river: HEARTHS.riverCoast });
+    const farmedOf = run => strips.filter(c => run.farmTime[c] < Infinity).length / Math.max(1, strips.length), medT = run => med(strips.map(c => run.farmTime[c]).filter(Number.isFinite));
+    check('rivers through dry land carry farming: the dry cells a river\'s strip crosses farmed (≥ 90 %), sooner than by their mean fit alone', farmedOf(run0) >= 0.9 && farmedOf(run0) >= farmedOf(runOld) && !(medT(run0) > medT(runOld)),
+        `${strips.length} cells · farmed ${(100 * farmedOf(run0)).toFixed(0)} % (by their mean fit ${(100 * farmedOf(runOld)).toFixed(0)} %) · median arrival ${Math.round(medT(run0))} years (was ${Math.round(medT(runOld))})`);
 }
 
 section('F4a — as it came');
@@ -491,15 +502,24 @@ section('F5 — named strains, their ranks, the crops beyond the staples');
     const grown = Rf.M.built.filter(b => b.exists).length, vf = varietyMean(Rf), vc = varietyMean(Rc);
     check('most of the catalogue grown on a world (≥ 60 %), a farming place growing dozens of crops (mean 15–90)', grown >= 0.6 * Rf.M.items.length && vf >= 15 && vf <= 90, `${grown} of ${Rf.M.items.length} grown · ${vf.toFixed(1)} crops a farming place`);
     check('the crops much the same at 160K and 640K (a place\'s mean variety within 15 %)', Math.abs(vf - vc) <= 0.15 * Math.max(vf, vc), `640K ${vf.toFixed(1)} · 160K ${vc.toFixed(1)}`);
-    // (spices stay near home: none farther than ~900 km — the first home's cell's distance, along the grid, bounded)
+    // (the tree, vine and resin spices stay near home: none farther than ~900 km — the first home's cell's distance, along the
+    // grid, bounded; the seed and root spices and the herbs travel as gardens do — minor.js MINOR's move)
     let far = 0;
     const gcKm = (c1, c2) => { const la1 = 90 - ((c1 / Gm.w | 0) + 0.5), lo1 = c1 % Gm.w - 179.5, la2 = 90 - ((c2 / Gm.w | 0) + 0.5), lo2 = c2 % Gm.w - 179.5, r = Math.PI / 180; return 2 * 6371 * Math.asin(Math.min(1, Math.sqrt(Math.sin((la2 - la1) * r / 2) ** 2 + Math.cos(la1 * r) * Math.cos(la2 * r) * Math.sin((lo2 - lo1) * r / 2) ** 2))); };
     for (const I of Rf.M.items) {
         const B = Rf.M.built[I.id];
-        if (I.kind !== 'spice' || !B.exists) continue;
+        if (I.move !== 'spice' || !B.exists) continue;
         for (let c = 0; c < Gm.N; c++) if (B.arrive[c] < NEVER_B && Math.min(...B.homes.map(h => gcKm(h.cell, c))) > 1100) { far++; break; }
     }
-    check('spices stay near their homes (none past ~1,100 km)', far === 0, `${far} spices farther`);
+    check('the tree, vine and resin spices stay near their homes (none past ~1,100 km)', far === 0, `${far} spices farther`);
+    // (and each kind of niche's crops on a share of the farmed land in keeping with how they travel: the tree spices few, the
+    // garden spices and herbs, the pulses and the vegetables many — no kind of niche all on one place, nor everywhere)
+    const shareOf = (X, I) => X.A.share[I.id];
+    const med = (arr) => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[s.length >> 1] : 0; };
+    const byMove = mv => med(Rf.M.items.filter(I => Rf.M.built[I.id].exists && I.move === mv).map(I => shareOf(Rf, I)));
+    const tree = byMove('spice'), garden = byMove('garden'), widest = Math.max(...Rf.M.items.filter(I => Rf.M.built[I.id].exists).map(I => shareOf(Rf, I)));
+    check('the crops\' reach in keeping with how they travel: the garden crops (herbs and seed spices among them) median ≥ 3 × the tree spices\', none on over 40 % of the land at 10,000 years', garden >= 3 * tree && widest <= 0.4,
+        `garden ${(100 * garden).toFixed(1)} % · tree spices ${(100 * tree).toFixed(1)} % · the widest ${(100 * widest).toFixed(0)} %`);
 }
 
 section('C1 — quick');

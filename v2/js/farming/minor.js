@@ -17,6 +17,7 @@
 
 import { CAT, nearItem, sameWorld, itemClim } from './names.js';
 import { Heap, mix } from './history.js';
+import { HEARTHS } from './hearths.js';
 
 const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
 
@@ -24,44 +25,51 @@ const sm = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
 export const KINDS = [
     { key: 'pulse', word: 'Pulses', rgb: [176, 112, 70] },
     { key: 'orchard', word: 'Fruit & nuts', rgb: [186, 70, 84] },
-    { key: 'garden', word: 'Vegetables & herbs', rgb: [64, 146, 78] },
-    { key: 'spice', word: 'Spices', rgb: [204, 120, 40] },
+    { key: 'garden', word: 'Vegetables', rgb: [64, 146, 78] },
+    { key: 'spice', word: 'Spices & herbs', rgb: [204, 120, 40] },
     { key: 'stimulant', word: 'Drinks & stimulants', rgb: [124, 82, 58] },
     { key: 'fibre', word: 'Oil & fibre', rgb: [92, 126, 186] },
     { key: 'fowl', word: 'Small animals', rgb: [176, 140, 60] },
 ];
 export const KIND = Object.fromEntries(KINDS.map((K, k) => [K.key, k]));
-/** The crops' kinds of niche (names.js CAT's lists beyond the staples), each with its colour. */
+/** The crops' kinds of niche (names.js CAT's lists beyond the staples), each with its colour, what its climate needs (the
+ *  legend's words where a world grows none) — and `move`, how its crops
+ *  travel where it differs from its kind's (developer, 2026-11-01: "some spices and herbs overlap, and some are very
+ *  restrained and some are very commonly spread"): the seed and root spices and the herbs are garden plants, sown or
+ *  planted by every household and carried as gardens are (cumin and coriander from Egypt to China, ginger and turmeric
+ *  across the monsoon lands and the Pacific); only the tree, vine and resin spices stay near home. */
 export const MINOR = [
-    { key: 'pulseCool', kind: 'pulse', word: 'Cool-season pulses', like: 'lentil- and pea-like', rgb: [176, 150, 70] },
-    { key: 'pulseWarm', kind: 'pulse', word: 'Warm-season beans', like: 'common-bean-like', rgb: [170, 72, 60] },
-    { key: 'pulseMonsoon', kind: 'pulse', word: 'Monsoon beans', like: 'soy- and mung-like', rgb: [92, 150, 80] },
-    { key: 'pulseSavanna', kind: 'pulse', word: 'Savanna peas', like: 'cowpea-like', rgb: [196, 132, 150] },
-    { key: 'olive', kind: 'orchard', word: 'Oil trees', like: 'olive-like', rgb: [128, 140, 64] },
-    { key: 'vine', kind: 'orchard', word: 'Vines', like: 'grape-like', rgb: [128, 64, 120] },
-    { key: 'date', kind: 'orchard', word: 'Oasis palms', like: 'date-like', rgb: [196, 140, 60] },
-    { key: 'pome', kind: 'orchard', word: 'Chill fruit', like: 'apple- and pear-like', rgb: [200, 70, 70] },
-    { key: 'nut', kind: 'orchard', word: 'Nut trees', like: 'chestnut- and walnut-like', rgb: [130, 92, 60] },
-    { key: 'citrus', kind: 'orchard', word: 'Grove fruit', like: 'citrus-like', rgb: [236, 168, 40] },
-    { key: 'bark', kind: 'spice', word: 'Bark spices', like: 'cinnamon-like', rgb: [190, 100, 50] },
-    { key: 'berry', kind: 'spice', word: 'Pepper vines', like: 'black-pepper-like', rgb: [88, 84, 96] },
-    { key: 'bud', kind: 'spice', word: 'Bud spices', like: 'clove- and nutmeg-like', rgb: [170, 60, 90] },
-    { key: 'rhizome', kind: 'spice', word: 'Root spices', like: 'ginger- and turmeric-like', rgb: [230, 170, 30] },
-    { key: 'seed', kind: 'spice', word: 'Seed spices', like: 'cumin- and coriander-like', rgb: [150, 120, 70] },
-    { key: 'resin', kind: 'spice', word: 'Incense trees', like: 'frankincense-like', rgb: [196, 184, 140] },
-    { key: 'allium', kind: 'garden', word: 'Bulbs', like: 'onion- and garlic-like', rgb: [196, 170, 200] },
-    { key: 'brassica', kind: 'garden', word: 'Cole crops', like: 'cabbage-like', rgb: [96, 160, 96] },
-    { key: 'gourd', kind: 'garden', word: 'Gourds', like: 'squash-like', rgb: [220, 150, 60] },
-    { key: 'chili', kind: 'garden', word: 'Hot pods', like: 'chili-like', rgb: [200, 60, 50] },
-    { key: 'melon', kind: 'garden', word: 'Melons', like: 'melon- and cucumber-like', rgb: [150, 196, 90] },
-    { key: 'greens', kind: 'garden', word: 'Greens', like: 'leafy greens', rgb: [70, 140, 70] },
-    { key: 'nightshade', kind: 'garden', word: 'Fruiting vegetables', like: 'eggplant- and tomato-like', rgb: [180, 70, 100] },
-    { key: 'herbs', kind: 'garden', word: 'Herbs', like: 'thyme- and oregano-like', rgb: [110, 150, 110] },
-    { key: 'rootveg', kind: 'garden', word: 'Root vegetables', like: 'carrot- and turnip-like', rgb: [220, 120, 50] },
-    { key: 'brew', kind: 'stimulant', word: 'Leaf & bean drinks', like: 'tea- and coffee-like', rgb: [92, 128, 70] },
-    { key: 'shade', kind: 'stimulant', word: 'Shade-tree stimulants', like: 'cacao- and kola-like', rgb: [128, 76, 52] },
-    { key: 'fibre', kind: 'fibre', word: 'Oil & fibre crops', like: 'flax- and cotton-like', rgb: [96, 132, 190] },
-    { key: 'fowl', kind: 'fowl', word: 'Small animals', like: 'chicken- and duck-like', rgb: [176, 140, 60] },
+    { key: 'pulseCool', kind: 'pulse', word: 'Cool-season pulses', like: 'lentil- and pea-like', needs: 'cool-season grain land, not too wet', rgb: [176, 150, 70] },
+    { key: 'pulseWarm', kind: 'pulse', word: 'Warm-season beans', like: 'common-bean-like', needs: 'warm summers, where warm-season grains grow', rgb: [170, 72, 60] },
+    { key: 'pulseMonsoon', kind: 'pulse', word: 'Monsoon beans', like: 'soy- and mung-like', needs: 'hot, wet summers — a monsoon', rgb: [92, 150, 80] },
+    { key: 'pulseSavanna', kind: 'pulse', word: 'Savanna peas', like: 'cowpea-like', needs: 'hot savanna with a long dry season', rgb: [196, 132, 150] },
+    { key: 'olive', kind: 'orchard', word: 'Oil trees', like: 'olive-like', needs: 'mild winters and dry summers — a Mediterranean climate', rgb: [128, 140, 64] },
+    { key: 'vine', kind: 'orchard', word: 'Vines', like: 'grape-like', needs: 'warm summers, winters not too hard, not too wet', rgb: [128, 64, 120] },
+    { key: 'date', kind: 'orchard', word: 'Dryland fruit', like: 'jujube- and fig-like', needs: 'hot summers on dry land, with water near in the deserts', rgb: [196, 140, 60] },
+    { key: 'pome', kind: 'orchard', word: 'Chill fruit', like: 'apple- and pear-like', needs: 'a winter chill to fruit, and mild summers', rgb: [200, 70, 70] },
+    { key: 'nut', kind: 'orchard', word: 'Nut trees', like: 'chestnut- and walnut-like', needs: 'cool winters and mild, moist summers', rgb: [130, 92, 60] },
+    { key: 'citrus', kind: 'orchard', word: 'Grove fruit', like: 'citrus-like', needs: 'nearly frost-free subtropics, moist or watered', rgb: [236, 168, 40] },
+    { key: 'bark', kind: 'spice', word: 'Bark spices', like: 'cinnamon-like', needs: 'the hot, ever-wet tropics near the coast', rgb: [190, 100, 50] },
+    { key: 'berry', kind: 'spice', word: 'Pepper vines', like: 'black-pepper-like', needs: 'hot, very wet tropical hills', rgb: [88, 84, 96] },
+    { key: 'bud', kind: 'spice', word: 'Bud spices', like: 'clove- and nutmeg-like', needs: 'the hottest, wettest tropical coasts and islands', rgb: [170, 60, 90] },
+    { key: 'rhizome', kind: 'spice', move: 'garden', word: 'Root spices', like: 'ginger- and turmeric-like', needs: 'hot, wet, seasonal tropics', rgb: [230, 170, 30] },
+    { key: 'seed', kind: 'spice', move: 'garden', word: 'Seed spices', like: 'cumin- and coriander-like', needs: 'warm to temperate land, not too wet', rgb: [150, 120, 70] },
+    { key: 'resin', kind: 'spice', word: 'Incense trees', like: 'frankincense-like', needs: 'hot, very dry hills', rgb: [196, 184, 140] },
+    { key: 'allium', kind: 'garden', word: 'Bulbs', like: 'onion- and garlic-like', needs: 'temperate to subtropical land, not too wet', rgb: [196, 170, 200] },
+    { key: 'brassica', kind: 'garden', word: 'Cole crops', like: 'cabbage-like', needs: 'cool to mild, moist land', rgb: [96, 160, 96] },
+    { key: 'gourd', kind: 'garden', word: 'Gourds', like: 'squash-like', needs: 'warm summers, moist or watered', rgb: [220, 150, 60] },
+    { key: 'chili', kind: 'garden', word: 'Hot pods', like: 'chili-like', needs: 'warm, moist land', rgb: [200, 60, 50] },
+    { key: 'melon', kind: 'garden', word: 'Melons', like: 'melon- and cucumber-like', needs: 'hot summers, moist or watered', rgb: [150, 196, 90] },
+    { key: 'greens', kind: 'garden', word: 'Greens', like: 'leafy greens', needs: 'farmed land not too hot or dry', rgb: [70, 140, 70] },
+    { key: 'nightshade', kind: 'garden', word: 'Fruiting vegetables', like: 'eggplant- and tomato-like', needs: 'warm, moist land', rgb: [180, 70, 100] },
+    { key: 'herbs', kind: 'spice', move: 'garden', word: 'Herbs', like: 'thyme- and basil-like', needs: 'almost any farmed land', rgb: [110, 150, 110] },
+    { key: 'rootveg', kind: 'garden', word: 'Root vegetables', like: 'carrot- and turnip-like', needs: 'cool to mild land, moist enough', rgb: [220, 120, 50] },
+    { key: 'brew', kind: 'stimulant', word: 'Leaf & bean drinks', like: 'tea- and coffee-like', needs: 'warm, wet uplands', rgb: [92, 128, 70] },
+    { key: 'shade', kind: 'stimulant', word: 'Shade-tree stimulants', like: 'cacao- and kola-like', needs: 'the hot, ever-wet tropics', rgb: [128, 76, 52] },
+    { key: 'fibre', kind: 'fibre', word: 'Oil & fibre crops', like: 'flax- and cotton-like', needs: 'farmed land not too cold or dry', rgb: [96, 132, 190] },
+    { key: 'fowl', kind: 'fowl', word: 'Small animals', like: 'chicken- and duck-like', needs: 'farmed land not too cold', rgb: [176, 140, 60] },
+    // (the lowland tropics' fruit — its own niche, out of the grove fruit's subtropics: mango, papaya, durian…)
+    { key: 'tropfruit', kind: 'orchard', word: 'Tropical fruit', like: 'mango-like', needs: 'the frost-free, hot, moist or watered tropics', rgb: [244, 120, 64] },
 ];
 const NMIN = MINOR.length;
 // (the staples' crop groups, as the history's ground keeps their fit: farming.js CROPS)
@@ -76,17 +84,17 @@ function minorNiche(M, out) {
     out[1] = sm(0.12, 0.45, Math.max(fit[MAIZE], 0.7 * fit[WHEAT] * sm(15, 19, Tw)));
     out[2] = sm(0.12, 0.45, Math.max(fit[RICE], fit[MAIZE] * sm(0.7, 1.1, w) * sm(0.4, 0.8, sea))) * sm(16, 22, Tw);
     out[3] = sm(0.12, 0.45, Math.max(fit[MAIZE], fit[ROOTS])) * sm(21, 25, T) * sm(1.7, 1.1, w);
-    out[4] = sm(1, 4, Tc) * sm(14, 10, Tc) * sm(19, 22, Tw) * sm(0.42, 0.58, ws) * sm(200, 300, P) * sm(1150, 800, P);
+    out[4] = sm(1, 4, Tc) * sm(14, 10, Tc) * sm(19, 22, Tw) * sm(0.35, 0.55, ws) * sm(200, 300, P) * sm(1300, 900, P);
     out[5] = sm(11, 13, gs) * sm(24, 20.5, gs) * sm(-9, -3, Tc) * sm(1.5, 1.0, w) * sm(0.15, 0.3, w + water);
-    out[6] = sm(24, 28, Tw) * sm(0.3, 0.12, w) * Math.max(sm(0.1, 0.35, water), 0.7 * coast);
+    out[6] = sm(20, 24, Tw) * sm(0.85, 0.5, w) * sm(-12, -4, Tc) * Math.max(sm(0.1, 0.25, w), sm(0.1, 0.35, water), 0.7 * coast);
     out[7] = sm(9, 4, Tc) * sm(-26, -16, Tc) * sm(15, 18, Tw) * sm(0.4, 0.6, w);
     out[8] = sm(4, 8, T) * sm(19, 15, T) * sm(0.6, 0.9, w) * sm(-22, -12, Tc);
-    out[9] = sm(4, 9, Tc) * sm(15, 18, T) * sm(0.75, 1.05, w) * sm(25, 22, T);
+    out[9] = sm(4, 9, Tc) * sm(15, 18, T) * sm(0.55, 0.95, w + water) * sm(25, 22, T);
     out[10] = sm(20, 22.5, Tc) * sm(1600, 2200, P) * coast;
     out[11] = sm(21.5, 23.5, T) * sm(1800, 2400, P) * sm(0.1, 0.35, e) * sm(1.8, 1.1, e);
     out[12] = sm(22.5, 24.5, T) * sm(1700, 2300, P) * sm(0.5, 1, coast);
     out[13] = sm(20, 23, T) * sm(1200, 1600, P) * sm(0.45, 0.7, sea);
-    out[14] = sm(13, 17, T) * sm(25, 21, T) * sm(0.14, 0.24, w) * sm(0.6, 0.4, w);
+    out[14] = sm(3, 8, T) * sm(28, 24, T) * sm(0.12, 0.28, w + water) * sm(2, 1.2, w);
     out[15] = sm(0.03, 0.08, w) * sm(0.35, 0.2, w) * sm(19, 23, T) * sm(0.05, 0.3, e) * sm(0.5, 0.85, sea);
     out[16] = sm(4, 8, T) * sm(25, 20, T) * sm(0.22, 0.38, w);
     out[17] = sm(2, 6, T) * sm(21, 16, T) * sm(0.45, 0.7, w);
@@ -95,13 +103,15 @@ function minorNiche(M, out) {
     out[20] = sm(20, 24, Tw) * sm(0.15, 0.3, w + water) * sm(1.6, 1.1, w);
     out[21] = sm(-2, 4, T) * sm(26, 22, T) * sm(0.35, 0.6, w);
     out[22] = sm(18, 22, T) * sm(0.6, 0.9, w);
-    out[23] = sm(0.42, 0.58, ws) * sm(11, 14, T) * sm(0.22, 0.38, w);
+    out[23] = sm(-1, 5, T) * sm(0.2, 0.38, w + water);
     out[24] = sm(0, 4, T) * sm(20, 15, T) * sm(0.4, 0.6, w);
     out[25] = sm(13, 16, T) * sm(27, 23.5, T) * sm(0.75, 1.1, w) * (0.35 + 0.65 * sm(0.15, 0.8, e)) * sm(-4, 2, Tc);
     out[26] = sm(20, 23, Tc) * sm(1300, 1800, P) * sm(1.4, 0.7, e);
     out[27] = sm(2, 7, T) * sm(0.18, 0.35, w + water);
     // (small animals: wherever farmers live — each animal's own climate narrows it)
     out[28] = sm(-4, 4, T) * sm(0.12, 0.3, w + water);
+    // (tropical fruit: frost-free, hot, wet enough or watered)
+    out[29] = sm(13, 17, Tc) * sm(21, 24, T) * sm(0.5, 0.85, w + 0.5 * water);
 }
 
 /** The 1° ground for the crops beyond the staples, from the history's (0.5°: history.js historyGround, with its cells'
@@ -111,7 +121,7 @@ export function minorGround(G) {
     const w = 360, h = 180, deg = 1, N = w * h, f = Math.max(1, Math.round(deg / G.deg));
     const land = new Uint8Array(N), mass = new Int32Array(N).fill(-1), coast = new Uint8Array(N), river = new Uint8Array(N), seaKm = new Float32Array(N).fill(Infinity), area = new Float64Array(N);
     const f32 = () => new Float32Array(N), keys = ['T', 'Tw', 'Tc', 'P', 'W', 'E', 'ws', 'sea', 'water'], clim = Object.fromEntries(keys.map(k => [k, f32()]));
-    const NCROP = G.fit.length, fit = G.fit.map(() => f32()), keep = G.keep.map(() => f32()), cnt = new Float32Array(N);
+    const NCROP = G.fit.length, GF = G.fitRun ?? G.fit, fit = G.fit.map(() => f32()), keep = G.keep.map(() => f32()), cnt = new Float32Array(N);
     for (let j = 0; j < G.h; j++) for (let i = 0; i < G.w; i++) {
         const q = j * G.w + i, c = Math.min(h - 1, Math.floor(j / f)) * w + Math.min(w - 1, Math.floor(i / f));
         if (!G.land[q]) { if (G.seaKm[q] < seaKm[c]) seaKm[c] = G.seaKm[q]; continue; }
@@ -122,7 +132,7 @@ export function minorGround(G) {
         if (!(G.clim.W[q] > 0)) continue;                        // (ice: no climate kept)
         cnt[c]++;
         for (const k of keys) clim[k][c] += G.clim[k][q];
-        for (let g = 0; g < NCROP; g++) fit[g][c] += G.fit[g][q];
+        for (let g = 0; g < NCROP; g++) fit[g][c] += GF[g][q];                // (a river's strip through dry land: its own fit)
         for (let b = 1; b < keep.length; b++) keep[b][c] += G.keep[b][q];
     }
     for (let c = 0; c < N; c++) {
@@ -155,8 +165,10 @@ export function minorGround(G) {
 export function minorItems(Gm) {
     const items = [];
     MINOR.forEach((Mk, m) => (CAT[Mk.key] || []).forEach(it => {
-        // (its own climate narrows its kind's niche — a small animal's the most: guinea pigs in cool highlands, stingless bees in the tropics)
-        const c0 = itemClim(it), own = it.T != null || it.W != null || it.E != null || Mk.kind === 'fowl', floor = Mk.kind === 'fowl' ? 0.12 : 0.4, fit8 = new Uint8Array(Gm.N), fm = Gm.niche[m], C = Gm.clim;
+        // (its own climate — its Earth home's where it gives none — narrows its kind's niche: basil the tropics', thyme the
+        // Mediterranean's, rapeseed the cool's; a small animal's the most: guinea pigs in cool highlands, stingless bees in
+        // the tropics)
+        const c0 = itemClim(it), own = true, floor = Mk.kind === 'fowl' ? 0.12 : 0.25, fit8 = new Uint8Array(Gm.N), fm = Gm.niche[m], C = Gm.clim;
         for (let c = 0; c < Gm.N; c++) {
             const f = fm[c];
             if (!(f > 0.04)) continue;
@@ -164,7 +176,7 @@ export function minorItems(Gm) {
             if (own) { const dT = (C.T[c] - c0.T) / 6, dW = Math.log(Math.max(0.03, C.W[c]) / Math.max(0.03, c0.W)) / 0.6, dE = (C.E[c] - c0.E) / 1.4; a = floor + (1 - floor) * Math.exp(-0.5 * (dT * dT + dW * dW + dE * dE)); }
             fit8[c] = Math.min(255, Math.round(255 * f * a));
         }
-        items.push({ id: items.length, m, kind: Mk.kind, k: KIND[Mk.kind], it, name: it.n, label: `${it.n}-like`, pop: it.pop ?? 0.5, nut: it.nut ?? 0.5, fit8 });
+        items.push({ id: items.length, m, kind: Mk.kind, move: Mk.move ?? Mk.kind, drift: !!it.drift, k: KIND[Mk.kind], it, name: it.n, label: `${it.n}-like`, pop: it.pop ?? 0.5, nut: it.nut ?? 0.5, fit8 });
     }));
     return items;
 }
@@ -184,6 +196,16 @@ const SPEED = { pulse: 0.6, garden: 1.0, orchard: 0.7, spice: 0.3, stimulant: 0.
 // pulses and fruit far, the gardens and drinks regional; spices also capped at 900 km. And the crowding: each kind of niche
 // (minor.js MINOR) holds at most this many crops at a place, the first come; a later one does not move into a full place)
 export const REACH = { pulse: 3000, garden: 2000, orchard: 3000, spice: 900, stimulant: 1600, fibre: 2500, fowl: 2200 };
+// (a crop that drifts — the coconut, its nuts floating from shore to shore: along tropical coasts fast, across warm seas of any
+// width, never crowded out, its reach the world's)
+const DRIFT = { sea: 20, coast: 10, lat: 26, reach: 20000 };
+// (and how far a crop is carried across land it does not grow on — the gap since it last grew (developer, 2026-11-01: the crops
+// "spreading across big wide gaps… the crowding out is not working as expected"): its speed there × e^(−(gap / (GAP_KM × (0.5 +
+// its popularity)))²) — a few hundred km of desert or mountain crossed, a thousand hardly ever; the drifting crops' the world's.
+// Along the coast by boat (the sea within LANE_KM of land) it travels faster and only a quarter of the way counts toward the gap:
+// coasts carried crops far — developer, 2026-11-01: "growth along ocean coasts can be further")
+export const GAP_KM = 350;
+const LANE_KM = 120, LANE_SPEED = 12, LANE_GAP = 0.25, COAST = 3;
 export const SLOTS = { pulse: 4, garden: 6, orchard: 4, spice: 2, stimulant: 3, fibre: 4, fowl: 5 };
 const PEN = { free: 0, regional: 0.35, strict: 2 };
 /** The fit (a byte) a crop must have at a place for a region to be its home; and to count it grown at a place. */
@@ -252,20 +274,21 @@ export function minorBuild(Gm, items, ctx, opts) {
         cands.sort((a, b) => b.sc - a.sc);
         const picks = [cands[0]], twin = cands.find(c => c.S.mass !== cands[0].S.mass && c.sc > cands[0].sc - 0.9);
         if (twin && h01(53, I.id) < R.twice) picks.push(twin);
-        const [d0, dm] = DELAY[I.kind];
+        const [d0, dm] = DELAY[I.move];
         out.homes = picks.map((c, j) => ({ cell: c.at, site: c.si, t: c.S.t + d0 + -Math.log(h01(59, I.id * 4 + j)) * dm }));
         return out;
     });
-    // (the spread: each kind of niche's crops together — carried between farmers across land they would not grow on, all but
-    // the spices; a popular crop a little faster and farther; slower the farther from home; where a crop grows, the first
-    // SLOTS of its kind to come hold the place and the rest stop there)
+    // (the spread: each kind of niche's crops together, as they travel (MINOR's move) — carried between farmers across land they
+    // would not grow on, all but the tree and vine spices; a popular crop a little faster and farther; slower the farther from
+    // home; where a crop grows, the first SLOTS of its kind to come hold the place and the rest stop there)
     const { N, w, h } = Gm, steps = Gm.steps ??= (() => { const st = new Float64Array(h * 9); for (let j = 0; j < h; j++) for (let dj = -1; dj <= 1; dj++) { const jj = Math.min(h - 1, Math.max(0, j + dj)), kx = kmLat * Math.max(0.02, Math.cos((90 - (Math.min(j, jj) + 0.5 + (dj ? 0.5 : 0)) * Gm.deg) * Math.PI / 180)); for (let di = -1; di <= 1; di++) st[j * 9 + (dj + 1) * 3 + di + 1] = Math.hypot(di * kx, dj * kmLat); } return st; })();
     for (let m = 0; m < MINOR.length; m++) {
         const list = items.filter(I => I.m === m && outs[I.id].exists);
         if (!list.length) continue;
-        const kind = MINOR[m].kind, spice = kind === 'spice', slots = SLOTS[kind];
+        const kind = MINOR[m].move ?? MINOR[m].kind, spice = kind === 'spice', slots = SLOTS[kind];
         const best = list.map(() => new Float32Array(N).fill(Infinity)), kms = list.map(() => new Float32Array(N)), held = new Uint8Array(N), heap = new Heap(1 << 14);
-        const base = list.map(I => SPEED[kind] * (1 + 0.6 * Math.min(1, R.pop) * (I.pop - 0.5))), reach = list.map(I => REACH[kind] * (0.5 + I.pop));
+        const base = list.map(I => SPEED[kind] * (1 + 0.6 * Math.min(1, R.pop) * (I.pop - 0.5))), reach = list.map(I => (I.drift ? DRIFT.reach : REACH[kind] * (0.5 + I.pop))), drift = list.map(I => I.drift);
+        const gapKm = list.map(I => (I.drift ? DRIFT.reach : GAP_KM * (0.5 + I.pop))), gaps = list.map(() => new Float32Array(N));
         const arrive = list.map(() => new Uint8Array(N).fill(ARRIVE_NEVER));
         list.forEach((I, k) => { for (const hm of outs[I.id].homes) { const t0 = Math.fround(hm.t); if (t0 < best[k][hm.cell]) { best[k][hm.cell] = t0; heap.push(t0, k * N + hm.cell); } } });
         while (heap.n) {
@@ -273,10 +296,10 @@ export function minorBuild(Gm, items, ctx, opts) {
             if (t > best[k][v]) continue;
             const f8 = list[k].fit8;
             if (land[v] && f8[v] >= GROWN_FIT) {
-                if (held[v] >= slots) continue;                 // (full: it does not move in)
+                if (held[v] >= slots && !drift[k]) continue;    // (full: it does not move in — a drifting crop takes the shore anyway)
                 held[v]++; arrive[k][v] = arriveByte(t);
             }
-            const j = (v / w) | 0, i = v - j * w, fric = Math.exp(-kms[k][v] / reach[k]), bk = best[k], kk = kms[k];
+            const j = (v / w) | 0, i = v - j * w, fric = Math.exp(-kms[k][v] / reach[k]), bk = best[k], kk = kms[k], gk = gaps[k], g0 = gapKm[k];
             for (let dj = -1; dj <= 1; dj++) {
                 const jj = j + dj;
                 if (jj < 0 || jj >= h) continue;
@@ -286,16 +309,20 @@ export function minorBuild(Gm, items, ctx, opts) {
                     const q = jj * w + (i + di + w) % w, d = steps[row + di];
                     if (spice && kk[v] + d > 900) continue;
                     let x;
-                    if (!land[q]) x = seaKm[q] < 280 ? 5 : 0;
+                    const lane = !land[q] && seaKm[q] <= LANE_KM;
+                    if (!land[q]) x = drift[k] ? (Math.abs(90 - (jj + 0.5) * Gm.deg) < DRIFT.lat ? DRIFT.sea : 0) : lane ? LANE_SPEED : seaKm[q] < 280 ? 5 : 0;
                     else {
                         const f = f8[q] / 255, farmed = farm[q] <= t;
-                        if (farmed && !spice) { x = base[k] * (kind === 'orchard' ? 5 : 3) * (0.35 + 0.65 * sm(0.15, 0.55, f)); if (river[q] || coast[q]) x *= 2; }
+                        if (farmed && !spice) { x = base[k] * (kind === 'orchard' ? 5 : 3) * (0.35 + 0.65 * sm(0.15, 0.55, f)); x *= coast[q] ? COAST : river[q] ? 2 : 1; }
                         else if (f < 0.15) x = farm[q] === Infinity ? 0 : (kind === 'pulse' && farmed ? 0.05 : 0.02);
-                        else { x = base[k] * sm(0.15, 0.55, f) * (farmed ? 3 : kind === 'pulse' ? 0.8 : 0.12); if (river[q] || coast[q]) x *= 2; }
+                        else { x = base[k] * sm(0.15, 0.55, f) * (farmed ? 3 : kind === 'pulse' ? 0.8 : 0.12); x *= coast[q] ? COAST : river[q] ? 2 : 1; }
+                        if (drift[k] && coast[q] && f >= 0.15) x = Math.max(x, DRIFT.coast);
                     }
-                    if (!(x > 0)) continue;
-                    const nt = Math.fround(t + d / (x * fric));
-                    if (nt < bk[q]) { bk[q] = nt; kk[q] = kk[v] + d; heap.push(nt, k * N + q); }
+                    // (the gap since it last grew: reset where it grows, longer across land and sea it does not)
+                    const gq = land[q] && f8[q] >= GROWN_FIT ? 0 : gk[v] + d * (lane ? LANE_GAP : 1), gf = Math.exp(-((gq / g0) ** 2));
+                    if (!(x > 0) || gf < 1e-3) continue;
+                    const nt = Math.fround(t + d / (x * fric * gf));
+                    if (nt < bk[q]) { bk[q] = nt; kk[q] = kk[v] + d; gk[q] = gq; heap.push(nt, k * N + q); }
                 }
             }
         }
@@ -314,7 +341,7 @@ export const homeMatch = (hT, hW, T, W) => { const dT = (T - hT) / 7, dW = Math.
 export const STRAIN_GROWS = 0.25;
 // (reachKm: the speed falls off with the distance from home, e^(−km / reachKm) — pre-state peoples carried their crops
 // and beasts far, but not everywhere (developer, 2026-10-31: "things shouldnt spread everywhere that easily"))
-export const STRAIN = { speed: 0.4, beastSpeed: 1.0, fitSpeed: [0.08, 0.45], riverCoast: 2.5, beastRiverCoast: 1.8, through: 2, beastThrough: 1.4, seaSpeed: 6, seaHopKm: 280, reachKm: 8000 };
+export const STRAIN = { speed: 0.4, beastSpeed: 1.6, fitSpeed: [0.08, 0.45], riverCoast: 3, beastRiverCoast: 1.8, through: 2, beastThrough: 1.4, seaSpeed: 6, seaHopKm: 280, laneSpeed: 15, laneKm: 120, reachKm: 8000 };
 /**
  * The strains of the history's run (hearths.js: an archetype tamed at a centre), spread over the 1° ground `Gm` — each
  * group's (archetype's) together, crowding one another (developer, 2026-10-31: "if some crops (particularly those in a
@@ -345,12 +372,14 @@ export function strainSpreads(Gm, run, farm, G, NCROP, lateYears) {
         for (const S of list) {
             const b = new Float32Array(N), fs = new Float32Array(N);
             for (let v = 0; v < N; v++) {
-                if (!Gm.land[v]) { b[v] = Gm.seaKm[v] < STRAIN.seaHopKm ? STRAIN.seaSpeed : 0; continue; }
+                if (!Gm.land[v]) { const k = Gm.seaKm[v]; b[v] = k <= STRAIN.laneKm ? STRAIN.laneSpeed : k < STRAIN.seaHopKm ? STRAIN.seaSpeed : 0; continue; }
                 // (it moves as its group does — the hearths' spread, by the group's fit — so its varieties go where it goes;
                 // its home's climate decides only which leads and holds a place)
                 fs[v] = fitA[v] * homeMatch(S.hT, S.hW, C.T[v], C.W[v]);
                 let x = (crop ? STRAIN.speed : STRAIN.beastSpeed) * (0.03 + 0.97 * sm(STRAIN.fitSpeed[0], STRAIN.fitSpeed[1], fitA[v]));
                 if (fitA[v] > 0.3 && (Gm.river[v] || Gm.coast[v])) x *= crop ? STRAIN.riverCoast : STRAIN.beastRiverCoast;
+                // (a crop's strain slower into a climate unlike its hearth's — as the history's spread: hearths.js likeT…)
+                if (crop) { const dT = (C.T[v] - S.hT) / HEARTHS.likeT, dW = Math.log(Math.max(0.02, C.W[v]) / Math.max(0.02, S.hW)) / HEARTHS.likeW; x *= HEARTHS.likeFloor + (1 - HEARTHS.likeFloor) * Math.exp(-(dT * dT + dW * dW)); }
                 b[v] = x;
             }
             base.push(b); fitS.push(fs);

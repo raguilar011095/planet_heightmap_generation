@@ -41,7 +41,8 @@ import { LIFESTYLES, LIFESTYLE_WORDS, Lifestyle, GATHER, livingPeople,
 import { BEASTS, BEAST_WORDS, newBeasts } from '../farming/beasts.js';
 import { partsAt, placeAt, groundOf, livingAt, systemAt, keepsBeasts, placesOf, waysOf, onlyOf, lifeAloneOf, beastAloneOf, slotOf, dec, decLog, peopleFromLog, historyOf, luckOf, flyAtOf, hearthsOf, cameOf, cameAt, namesOf, variantsOf, strainsOf, strainsHere, strainVote, minorOf, minorAgeOf } from './farming-store.js';
 import { wiki, earthHome } from '../farming/names.js';
-import { KINDS, MINOR, GROWN_FIT, arriveByte, ARRIVE_NEVER } from '../farming/minor.js';
+import { KINDS, MINOR, GROWN_FIT, arriveByte, ARRIVE_NEVER, rankStrains } from '../farming/minor.js';
+import { FARMING } from '../farming/farming-config.js';
 import { ARCHETYPES, fieldAt, massAt, oddsRank, cellAt, gridPlace, GRID_W, GRID_DW, beastArchetype } from '../farming/history.js';
 import { placeMonth, calendarGround, calendarMonth } from '../farming/calendar.js';
 import { landPixel } from './climate-view.js';
@@ -53,30 +54,34 @@ export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staple food', 
  *  Staple food view's one food shown alone (a Staple, or 0 for all); `life` the Way of life view's lifestyle alone in Simple
  *  (a Lifestyle), `way` its food system alone (a FoodSystem), `simple` the three lifestyles instead; `beast` the Animals
  *  view's one beast alone (a Beast); `origin` the Origins view's look ('larder', 'odds', 'came' or 'from'), `wild` its one archetype alone
- *  (history.js ARCHETYPES, or -1 for all); `roll` the luck's re-roll and `fewer` Fewer gaps (every view's luck); `age` what
+ *  (history.js ARCHETYPES, or -1 for all); `foodSeed` the food's seed (FOOD_SEED_MAX: every chance in its history and names; 0
+ *  the planet's own) and `fewer` Fewer gaps (every view's luck); `age` what
  *  Staple food, Way of life, Animals and People show: 'k10' what had come 10,000 years after the first farming, 'full' its
  *  full spread, 'best' the best possible (AGES); `named` Staple food and Animals by each place's named crop and beast, `variant`
- *  one of them alone (a strain of the history: farming-store.js namesOf; -1 all), `rank` which of each place's ranked crops or
- *  beasts the named views show (1 the main, 2 the second, 3 the third); `cropLook` the Crops view's look ('variety' or a
+ *  one of them alone (a strain of the history: farming-store.js namesOf; -1 all; its rungs shown); `cropLook` the Crops view's look ('variety' or a
  *  kind: minor.js KINDS), `crop` one crop alone (an item: farming-store.js minorOf; -1 none), `real` the realism ('earth',
- *  'balanced', 'wild'), `pull` how hard neighbours' Earth likenesses pull ('free', 'regional', 'strict'), `nameRoll` the
- *  names' re-roll. */
-export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, life: 0, simple: false, way: 0, beast: 0, origin: 'larder', wild: -1, roll: 0, fewer: false, age: 'k10', named: true, variant: -1, rank: 1, cropLook: 'variety', crop: -1, real: 'balanced', pull: 'regional', nameRoll: 0 };
-/** The Food options a link keeps, so a shared link shows the same history (F4b): the re-roll, Fewer gaps and the age — only
- *  those off their defaults (`foodroll`, `fewer`, `foodage`). */
-export const farmLinkParams = () => (farmOptions.roll ? `&foodroll=${farmOptions.roll}` : '') + (farmOptions.fewer ? '&fewer=1' : '') + (farmOptions.age !== 'k10' ? `&foodage=${farmOptions.age}` : '') +
-    (farmOptions.real !== 'balanced' ? `&foodreal=${farmOptions.real}` : '') + (farmOptions.pull !== 'regional' ? `&foodpull=${farmOptions.pull}` : '') + (farmOptions.nameRoll ? `&foodnames=${farmOptions.nameRoll}` : '');
+ *  'balanced', 'wild'), `pull` how hard neighbours' Earth likenesses pull ('free', 'regional', 'strict'). */
+export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, life: 0, simple: false, way: 0, beast: 0, origin: 'larder', wild: -1, foodSeed: 0, fewer: false, age: 'k10', named: true, variant: -1, cropLook: 'variety', crop: -1, real: 'balanced', pull: 'regional' };
+/** The Food options a link keeps, so a shared link shows the same history (F4b): the food's seed, Fewer gaps, the age, the
+ *  realism and the pull — only those off their defaults (`food`, `fewer`, `foodage`, `foodreal`, `foodpull`; an older link's
+ *  `foodroll` read as the food's seed). */
+export const farmLinkParams = () => (farmOptions.foodSeed ? `&food=${farmOptions.foodSeed}` : '') + (farmOptions.fewer ? '&fewer=1' : '') + (farmOptions.age !== 'k10' ? `&foodage=${farmOptions.age}` : '') +
+    (farmOptions.real !== 'balanced' ? `&foodreal=${farmOptions.real}` : '') + (farmOptions.pull !== 'regional' ? `&foodpull=${farmOptions.pull}` : '');
+/** The food's seed (developer, 2026-11-01: "food roll and names should be just 1 food seed and not just incrementing"): every
+ *  chance in the food's history — where and when farming began, each landmass's beasts, which crops grow where, every name —
+ *  drawn from the planet's seed and this; 0 the planet's own draw, Re-roll a random one, any typed in the settings. */
+export const FOOD_SEED_MAX = 999999;
+const randomFoodSeed = () => 1 + Math.floor(Math.random() * FOOD_SEED_MAX);
 /** The Food options from a page's link (URLSearchParams). */
 export function farmFromLink(url) {
-    const r = Number(url.get('foodroll'));
-    if (Number.isInteger(r) && r > 0 && r < 1e6) farmOptions.roll = r;
+    const r = Number(url.get('food') ?? url.get('foodroll'));
+    if (Number.isInteger(r) && r > 0 && r <= FOOD_SEED_MAX) farmOptions.foodSeed = r;
     if (url.get('fewer') === '1') farmOptions.fewer = true;
     const a = url.get('foodage');
     if (a === 'k10' || a === 'full' || a === 'best') farmOptions.age = a;
-    const re = url.get('foodreal'), pu = url.get('foodpull'), nr = Number(url.get('foodnames'));
+    const re = url.get('foodreal'), pu = url.get('foodpull');
     if (re === 'earth' || re === 'balanced' || re === 'wild') farmOptions.real = re;
     if (pu === 'free' || pu === 'regional' || pu === 'strict') farmOptions.pull = pu;
-    if (Number.isInteger(nr) && nr > 0 && nr < 1e6) farmOptions.nameRoll = nr;
 }
 /** The views shown as it came, and the ages: years after the first farming (Infinity: all that would ever come) — the
  *  owner's, 2026-10-31: "10,000 years by default", and the full spread too. */
@@ -84,14 +89,14 @@ export const AS_CAME = new Set(['farmStaple', 'farmLife', 'farmAnimals', 'farmPe
 const AGES = { k10: 10000, full: Infinity };
 /** What a view shows had come (farming-store.js cameOf), or null — the land's own: the best possible, a view not shown as it
  *  came, or a moment without a history. */
-const cameView = (fin, layer, opt = farmOptions) => (AS_CAME.has(layer) && opt.age !== 'best' ? cameOf(fin, opt.roll, opt.fewer, AGES[opt.age] ?? AGES.k10) : null);
+const cameView = (fin, layer, opt = farmOptions) => (AS_CAME.has(layer) && opt.age !== 'best' ? cameOf(fin, opt.foodSeed, opt.fewer, AGES[opt.age] ?? AGES.k10) : null);
 /** The options as a key (a picture or a legend made with other options is made again). */
 export const farmOptionsKey = () => Object.entries(farmOptions).map(([k, v]) => `${k}=${typeof v === 'string' ? v : +v}`).join(',');
 /** The techniques alone as a key: what the farming, the ways of life, the people and the harvest months depend on — the
  *  looks (one alone, Simple, classes) only colour them, so a cache keyed on this survives a look's chip. */
 const techKey = () => `${+farmOptions.flood}${+farmOptions.canal}${+farmOptions.terrace}${+farmOptions.raised}`;
 /** …and with the luck (the fly's: the ways of life and the beasts depend on it). */
-const waysKey = (o = farmOptions) => `${+o.flood}${+o.canal}${+o.terrace}${+o.raised}|${o.roll}|${+o.fewer}`;
+const waysKey = (o = farmOptions) => `${+o.flood}${+o.canal}${+o.terrace}${+o.raised}|${o.foodSeed}|${+o.fewer}`;
 export const TECHNIQUE_WORDS = { flood: ['Flood farming', 'Sowing the silt a big river’s flood leaves on its plain (Egypt)'], canal: ['Canals', 'Water led off rivers and lakes onto the land beside them — farther from a bigger river (Mesopotamia)'],
     terrace: ['Terraces', 'Hillsides cut into steps: slopes farmed (the Andes, the rice terraces of Asia)'], raised: ['Raised fields', 'Waterlogged flats drained or built up (the Aztecs’ chinampas)'] };
 
@@ -335,53 +340,89 @@ function namedColour(h, t, c) {
  *  variantsOf, from the places P and ways Y as shown) — null when not named, or without a history. */
 function namedView(fin, layer, opt, P, Y) {
     if (!opt.named || (layer !== 'farmStaple' && layer !== 'farmAnimals') || !P) return null;
-    const run = hearthsOf(fin, opt.roll, opt.fewer), N = run && namesOf(fin, opt.roll, opt.fewer, opt.pull, opt.nameRoll, opt.real);
+    const run = hearthsOf(fin, opt.foodSeed, opt.fewer), N = run && namesOf(fin, opt.foodSeed, opt.fewer, opt.pull, 0, opt.real);
     if (!N) return null;
-    const age = opt.age === 'k10' ? AGES.k10 : opt.age === 'full' ? Infinity : null, S = strainsOf(fin, opt.roll, opt.fewer, age);
+    const age = opt.age === 'k10' ? AGES.k10 : opt.age === 'full' ? Infinity : null, S = strainsOf(fin, opt.foodSeed, opt.fewer, age);
     if (!S) return null;
-    return { run, N, S, rgb: strainColours(N), age, rank: opt.rank, V: variantsOf(fin, P, layer === 'farmAnimals' ? Y : null, S, age) };
+    return { run, N, S, rgb: strainColours(N), age, V: variantsOf(fin, P, layer === 'farmAnimals' ? Y : null, S, age) };
 }
-/** The strain a named view's rank (2, 3) shows at a pixel whose main group is `mainA` (its staple's crop group, its leading
- *  beast's archetype; −1 none): of each 1° cell round it, the rank-th group other than the main among its ranked three —
- *  the one with the most say. */
-const GPr = {}, rSay = new Float64Array(2048), rStamp = new Int32Array(2048), rUsed = new Int32Array(16);
-let rStampN = 0;
-function rankAt(nv, kind, x, y, W, mainA) {
-    const Gm = nv.S.Gm, R = nv.S.R[kind], SP = nv.S.SP, want = nv.rank - 1;
-    gridPlace(Gm, 90 - (y + 0.5) / (W >> 1) * 180, (x + 0.5) / W * 360 - 180, GPr);
-    let n = 0;
-    rStampN++;
-    for (let dy = 0; dy < 4; dy++) {
-        const j = GPr.j0 + dy;
-        if (j < 0 || j >= Gm.h) continue;
-        const wy = GRID_W[GPr.qy + dy];
-        for (let dx = 0; dx < 4; dx++) {
-            const c = j * Gm.w + ((GPr.i0 + dx) % Gm.w + Gm.w) % Gm.w;
-            if (!Gm.land[c]) continue;
-            // (its ranked groups, the main left out: the want-th of the rest)
-            let k = 0, s = -1;
-            for (let r = 0; r < 3; r++) { const id = R[r][c]; if (id < 0 || SP.strains[id].a === mainA) continue; if (k++ === want - 1 + (mainA < 0 ? 1 : 0)) { s = id; break; } }
-            if (s < 0 || s >= 2048) continue;
-            if (rStamp[s] !== rStampN) { rStamp[s] = rStampN; rSay[s] = 0; rUsed[n++] = s; }
-            rSay[s] += wy * GRID_W[GPr.qx + dx];
+/** The strain picked in a named view (farmOptions.variant) when it is of the view's kind — a crop's on Staple food, a beast's
+ *  on Animals; −1 none. */
+const pickedOf = (nv, layer, v = farmOptions.variant) => (nv && v >= 0 && nv.N.strains[v] && (nv.N.strains[v].a < CROPS.length) === (layer === 'farmStaple') ? v : -1);
+/** Each 1° cell's crop groups (or beasts) at a named view's age, for a strain's rungs: `grank` (each group's rank there, 0 the
+ *  best; −1 none) and `ids` (its varieties there, the main first; −1 none), NG groups a cell; and each strain's share of the
+ *  land where it is grown at all (`grown`) — once per ranks and kind. A group come on the frontier before any variety of it
+ *  (strainsOf's) ranks after the rest, by the variety that comes to hold it. */
+const groupTables = new WeakMap();
+function groupTable(nv, kind) {
+    const R = nv.S.R, beasts = kind === 'beast';
+    let per = groupTables.get(R);
+    if (!per) { per = {}; groupTables.set(R, per); }
+    if (per[kind]) return per[kind];
+    const { SP, Gm } = nv.S, N = Gm.N, NC = CROPS.length, a0 = beasts ? NC : 0, NG = beasts ? ARCHETYPES.length - NC : NC;
+    const ab = nv.age === null ? -1 : nv.age === Infinity ? ARRIVE_NEVER - 1 : arriveByte(nv.age);
+    const grank = new Int8Array(N * NG).fill(-1), ids = new Int16Array(3 * N * NG).fill(-1), grown = new Float64Array(nv.N.strains.length);
+    let land = 0;
+    for (let c = 0; c < N; c++) {
+        if (!Gm.land[c]) continue;
+        land += Gm.area[c];
+        const list = rankStrains(SP, Gm, c, ab, beasts, FARMING.lateYears);
+        let r = 0;
+        for (const G of list) {
+            const o = c * NG + G.a - a0;
+            grank[o] = r++;
+            for (let k = 0; k < 3 && k < G.strains.length; k++) { const id = G.strains[k].id; ids[3 * o + k] = id; grown[id] += Gm.area[c]; }
+        }
+        for (let g = 0; g < NG; g++) {
+            const o = c * NG + g, id = R.group[a0 + g][c];
+            if (grank[o] >= 0 || id < 0) continue;
+            grank[o] = r++; ids[3 * o] = id; grown[id] += Gm.area[c];
         }
     }
-    let top = -1;
-    for (let m = 0; m < n; m++) if (top < 0 || rSay[rUsed[m]] > rSay[top]) top = rUsed[m];
+    for (let k = 0; k < grown.length; k++) grown[k] /= Math.max(1, land);
+    return (per[kind] = { NG, a0, grank, ids, grown });
+}
+/** A picked strain's rung at a pixel (developer, 2026-11-01: a crop's "full spread/where is it primary, secondary or tertiary
+ *  in rungs"): 1 the place's main crop (or beast), 2 and 3 the next groups' main varieties, 4 grown there otherwise (a lesser
+ *  variety, or its group ranked lower); 0 not grown — the rung with the most say among the 1° cells round it (history.js
+ *  gridPlace: a Gaussian say, every edge a rounded curve), the pixel's own main group `mainG` (its index among the kind's
+ *  groups; −1 none) left out of the count. `T` groupTable's, `g` the strain's group. */
+const GPu = {}, uSay = new Float64Array(5);
+function rungAt(T, Gm, s, g, x, y, W, mainG) {
+    gridPlace(Gm, 90 - (y + 0.5) / (W >> 1) * 180, (x + 0.5) / W * 360 - 180, GPu);
+    uSay.fill(0);
+    const { NG, grank, ids } = T;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GPu.j0 + dy;
+        if (j < 0 || j >= Gm.h) continue;
+        const wy = GRID_W[GPu.qy + dy];
+        for (let dx = 0; dx < 4; dx++) {
+            const c = j * Gm.w + ((GPu.i0 + dx) % Gm.w + Gm.w) % Gm.w;
+            if (!Gm.land[c]) continue;
+            const o = c * NG + g, gr = grank[o];
+            let r = 0;
+            if (gr >= 0) {
+                const k = ids[3 * o] === s ? 0 : ids[3 * o + 1] === s || ids[3 * o + 2] === s ? 1 : -1;
+                if (k > 0) r = 4;
+                else if (k === 0) {
+                    if (g === mainG) r = 1;
+                    else { const mr = mainG >= 0 ? grank[c * NG + mainG] : -1; r = Math.min(4, 2 + gr - (mr >= 0 && mr < gr ? 1 : 0)); }
+                }
+            }
+            uSay[r] += wy * GRID_W[GPu.qx + dx];
+        }
+    }
+    let top = 0;
+    for (let r = 1; r < 5; r++) if (uSay[r] > uSay[top]) top = r;
     return top;
 }
-/** Each strain's share of the land (by area) at a rank (2, 3): its 1° cells' — kept per ranks' map. */
-const rankTallies = new WeakMap();
-function rankTally(nv, kind) {
-    const arr = nv.S.R[kind][nv.rank - 1];
-    let T = rankTallies.get(arr);
-    if (T) return T;
-    const Gm = nv.S.Gm, out = new Float64Array(nv.N.strains.length);
-    let land = 0;
-    for (let c = 0; c < Gm.N; c++) { if (!Gm.land[c]) continue; land += Gm.area[c]; if (arr[c] >= 0) out[arr[c]] += Gm.area[c]; }
-    for (let s = 0; s < out.length; s++) out[s] /= Math.max(1, land);
-    rankTallies.set(arr, out);
-    return out;
+/** A rung's colour (into c, and c2 the stripe's): the main crop full, the 2nd and 3rd paler in turn, grown otherwise striped
+ *  faintly, pale where not grown — true where striped. */
+const RUNG_T = [0, 0.92, 0.56, 0.3];
+function rungColour(h, r, c, c2) {
+    if (r === 4) { namedColour(h, 0, c); namedColour(h, 0.42, c2); return true; }
+    namedColour(h, RUNG_T[r] ?? 0, c);
+    return false;
 }
 /** Each strain's share of the land (by area) as its places' crop or beast — kept per named view's store. */
 const variantTallies = new WeakMap();
@@ -413,11 +454,33 @@ function strainTitle(nv, s) {
     const when = S.t0 < 50 ? 'the first farming' : `~${(Math.round(S.t0 / 100) * 100).toLocaleString()} years after the first farming`;
     return `${ARCHETYPES[S.a].word}${it ? ` like ${it.n} (on Earth from ${earthHome(it)})` : ''} — first tamed at ${where}${C.hearth ? ` (hearth ${C.hearth})` : ''}, ${when}`;
 }
-/** A strain's legend chip (its colour, name and share; a click shows it alone) and its Wikipedia link. */
+/** A strain's legend chip (its colour, name and the share of the land it is grown on; a click picks it — its Wikipedia link
+ *  then in the pick row: a link on every chip made the list one a line). */
 function variantChip(nv, s, share) {
     const S = nv.N.strains[s], on = farmOptions.variant === s;
-    const link = S.item ? `<a class="evo-farm-wiki" href="${wiki(S.item)}" target="_blank" rel="noopener" title="${S.item.n} on Wikipedia">↗</a>` : '';
-    return `<span class="evo-farm-var"><button type="button" class="evo-farm-chip evo-farm-staple${on ? ' on' : ''}" data-farm-variant="${s}" aria-pressed="${on}" title="${on ? 'Show them all again' : `${strainTitle(nv, s)} — show it alone`}"><i style="background:${css(nv.rgb[s])}"></i>${S.label} <em>${pct(share)}</em></button>${link}</span>`;
+    return `<span class="evo-farm-var"><button type="button" class="evo-farm-chip evo-farm-staple${on ? ' on' : ''}" data-farm-variant="${s}" aria-pressed="${on}" title="${on ? 'Show them all again' : `${strainTitle(nv, s)} — grown on ${pct(share)} of the land: show where, and where it is the main one`}"><i style="background:${css(nv.rgb[s])}"></i>${S.label} <em>${pct(share)}</em></button></span>`;
+}
+/** The legend's pick row (developer, 2026-11-01: clicking the chips "moves around so its so hard to quickly toggle"): ‹ and ›
+ *  step through the chips listed, in their order, × shows them all again — always in the same place — and a fixed few
+ *  lines saying what is shown, so the legend keeps its height whatever is picked (it hangs from the bottom of the screen:
+ *  any change of height moved every chip). `key` the option stepped ('variant', 'crop'), `ids` the chips' order. */
+function pickRow(key, ids, cur, text, { title = '', lines = 2 } = {}) {
+    const btn = (d, w, t, off) => `<button type="button" class="evo-farm-chip evo-farm-step" data-farm-step="${key}" data-step="${d}" data-ids="${ids.join(',')}" title="${t}" aria-label="${t}"${off ? ' disabled' : ''}>${w}</button>`;
+    return `<div class="evo-farm-pick">${btn(-1, '‹', 'The one before', !ids.length)}${btn(1, '›', 'The next one', !ids.length)}${btn(0, '×', 'Show them all again', cur < 0)}` +
+        `<span class="evo-farm-picked${lines === 3 ? ' three' : ''}" title="${title}">${text}</span></div>`;
+}
+/** A picked strain's name in the pick row: its colour, its name and its Wikipedia link. */
+const pickedName = (nv, s) => { const S = nv.N.strains[s]; return `<i class="evo-farm-sw" style="background:${css(nv.rgb[s])}"></i><b>${S.label}</b>${S.item ? ` <a class="evo-farm-wiki" href="${wiki(S.item)}" target="_blank" rel="noopener" title="${S.item.n} on Wikipedia">↗</a>` : ''}`; };
+/** A picked strain's key: its rungs' colours (the main crop or beast, the 2nd, the 3rd, grown otherwise) — or, none picked,
+ *  `none` — in a box of one height. */
+function rungKey(nv, pick, words, none) {
+    if (pick < 0) return `<div class="evo-farm-key">${none}</div>`;
+    const h = nv.rgb[pick], c = [0, 0, 0], c2 = [0, 0, 0], sw = (r, w) => {
+        const st = rungColour(h, r, c, c2);
+        const bg = st ? `repeating-linear-gradient(135deg, ${css(c2)} 0 3px, ${css(c)} 3px 7px)` : css(c);
+        return `<span><i style="background:${bg}"></i>${w}</span>`;
+    };
+    return `<div class="evo-farm-key"><div class="evo-koppen">${[1, 2, 3, 4].map(r => sw(r, words[r - 1])).join('')}</div></div>`;
 }
 /** A staple's colour (into c) at a strength (0…1): pale where it barely grows, its hue where it grows well. */
 function stapleColour(st, score, c) {
@@ -443,7 +506,7 @@ function farmColour(v, vr, classes, cls, c, tmp) {
 // ── the crops beyond the staples and the small animals (F5b: farming/minor.js) ──
 /** The crops as the options say (re-roll, Fewer gaps, realism, likeness pull, names' re-roll), and the age they are read at
  *  (years after the first farming; Infinity the full spread; null the best possible). */
-const minorNow = (fin, opt = farmOptions) => minorOf(fin, opt.roll, opt.fewer, opt.real, opt.pull, opt.nameRoll);
+const minorNow = (fin, opt = farmOptions) => minorOf(fin, opt.foodSeed, opt.fewer, opt.real, opt.pull, 0);
 const cropAge = (opt = farmOptions) => (opt.age === 'best' ? null : opt.age === 'full' ? Infinity : AGES.k10);
 const CROP_LOOK_WORDS = { variety: 'Variety', ...Object.fromEntries(KINDS.map(K => [K.key, K.word])) };
 /** Each crop's colour, once per catalogue: its kind of niche's (minor.js MINOR) turned round the hue wheel by its place in
@@ -477,6 +540,20 @@ function readLand(Gm, f, lat, lon) {
         for (let dx = 0; dx < 4; dx++) { const c = j * Gm.w + ((GPm.i0 + dx) % Gm.w + Gm.w) % Gm.w; if (!Gm.land[c]) continue; const w = wy * GRID_W[GPm.qx + dx]; s += w * f[c]; wt += w; }
     }
     return wt > 0 ? s / wt : NaN;
+}
+/** Two fields read as readLand reads one, in one pass (the same weights): into RL2 [first, second] — NaN where none is land. */
+const RL2 = [0, 0];
+function readLand2(Gm, f, g, lat, lon) {
+    gridPlace(Gm, lat, lon, GPm);
+    let s = 0, s2 = 0, wt = 0;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GPm.j0 + dy;
+        if (j < 0 || j >= Gm.h) continue;
+        const wy = GRID_W[GPm.qy + dy];
+        for (let dx = 0; dx < 4; dx++) { const c = j * Gm.w + ((GPm.i0 + dx) % Gm.w + Gm.w) % Gm.w; if (!Gm.land[c]) continue; const w = wy * GRID_W[GPm.qx + dx]; s += w * f[c]; s2 += w * g[c]; wt += w; }
+    }
+    RL2[0] = wt > 0 ? s / wt : NaN; RL2[1] = wt > 0 ? s2 / wt : NaN;
+    return RL2;
 }
 /** The class with the most say round (lat, lon) among the crops' land cells (`arr`: −1 none counts as a class of its own)
  *  — into MV: a, b (the runner-up) and their says; false where none is land. */
@@ -541,16 +618,16 @@ const countRamp = (look, top) => {
 function farmPixelColour(layer, fin, W) {
     const F = fin?.raster?.farming, K = fin?.climate?.raster;
     const c = [0, 0, 0], tmp = [0, 0, 0], p = {}, opt = { ...farmOptions }, key = techKey(), kef = KOPPEN_ID.EF, H = W >> 1;
-    const C = cameView(fin, layer, opt), flyAt = flyAtOf(fin, opt.roll, opt.fewer), wk = waysKey(opt);
+    const C = cameView(fin, layer, opt), flyAt = flyAtOf(fin, opt.foodSeed, opt.fewer), wk = waysKey(opt);
     const Y = layer === 'farmAnimals' || (layer === 'farmLife' && !opt.simple) ? waysOf(fin, opt, wk, flyAt, C, key) : null;
     const P = layer === 'farmSoil' || layer === 'farmSeason' || layer === 'farmOrigins' ? null : placesOf(fin, opt, key, C), ix = P?.index;
     // (Origins: the history's ground and each landmass's luck)
-    const G = layer === 'farmOrigins' ? historyOf(fin) : null, luck = G ? luckOf(fin, opt.roll, opt.fewer) : null;
-    const run = G && (opt.origin === 'came' || opt.origin === 'from') ? hearthsOf(fin, opt.roll, opt.fewer) : null;
+    const G = layer === 'farmOrigins' ? historyOf(fin) : null, luck = G ? luckOf(fin, opt.foodSeed, opt.fewer) : null;
+    const run = G && (opt.origin === 'came' || opt.origin === 'from') ? hearthsOf(fin, opt.foodSeed, opt.fewer) : null;
     // (Crops: the crops beyond the staples at the age shown; one alone where chosen — where it had come, and where it would
     // grow but had not)
     const MN = layer === 'farmCrops' ? minorNow(fin, opt) : null, cAge = cropAge(opt), MA = MN ? minorAgeOf(MN, cAge) : null;
-    const one = MN && opt.crop >= 0 && MN.built[opt.crop]?.exists ? MN.items[opt.crop] : null, oneCome = one ? comeOf(MN, one.id, cAge) : null;
+    const one = MN && opt.crop >= 0 && MN.items[opt.crop] ? MN.items[opt.crop] : null, oneCome = one ? comeOf(MN, one.id, cAge) : null;
     const look = opt.cropLook, lead = MA ? (look === 'pulse' ? MA.leadPulse : look === 'spice' ? MA.leadSpice : null) : null;
     const counts = MA && !one && !lead ? (look === 'variety' ? MA.variety : MA.count[KINDS.findIndex(K => K.key === look)] ?? MA.variety) : null;
     const cRamp = counts ? countRamp(KINDS.some(K => K.key === look) ? look : 'variety', countTop(counts)) : null, iRGB = MN ? itemColours(MN.items) : null;
@@ -564,10 +641,11 @@ function farmPixelColour(layer, fin, W) {
     const pale = () => { c[0] = STAPLE_PALE[0]; c[1] = STAPLE_PALE[1]; c[2] = STAPLE_PALE[2]; };
     const c2 = [0, 0, 0], px = { c, c2, hd: 1 };
     // (named: each place's strain of its staple's crop or its leading beast, and its colour; one alone where chosen)
-    const nv = A ? null : namedView(fin, layer, opt, P, Y), alone = nv ? opt.variant : -1;
+    const nv = A ? null : namedView(fin, layer, opt, P, Y), alone = pickedOf(nv, layer, opt.variant), kindT = alone >= 0 ? groupTable(nv, layer === 'farmAnimals' ? 'beast' : 'crop') : null;
+    const aloneG = alone >= 0 ? nv.N.strains[alone].a - kindT.a0 : -1;
     return (i, x, y) => {
         let two = false;
-        px.hd = 1;
+        px.hd = 1; px.rung = -1;
         if (K.koppen[i] === kef) { c[0] = ICE[0]; c[1] = ICE[1]; c[2] = ICE[2]; }
         else if (layer === 'farmSoil') ramp(SOIL, partsAt(F, i, p).soil, c);
         else if (layer === 'farmSeason') { partsAt(F, i, p); ramp(SEASON, opt.watered ? p.warm : p.rain, c); }
@@ -577,7 +655,7 @@ function farmPixelColour(layer, fin, W) {
                 const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180, Gm = MN.Gm;
                 if (one) {
                     // (one crop: its colour as it grows well, where it had come; hatched where it would grow but had not)
-                    const f = readLand(Gm, one.fit8, lat, lon), cm = readLand(Gm, oneCome, lat, lon);
+                    const [f, cm] = readLand2(Gm, one.fit8, oneCome, lat, lon);
                     if (!(f >= GROWN_FIT)) pale();
                     else if (cm >= 0.5) namedColour(iRGB[one.id], 0.35 + 0.55 * smooth(GROWN_FIT, 200, f), c);
                     else { pale(); if (hatch(x, y, W)) { c[0] *= 0.8; c[1] *= 0.8; c[2] *= 0.8; } }
@@ -630,11 +708,20 @@ function farmPixelColour(layer, fin, W) {
             if (layer === 'farmStaple') {
                 if (A) stapleColour(opt.only, dec(A[q]), c);
                 else {
-                    const st = P.staple[q], nd = st >> 4, s = nv ? (nv.rank > 1 ? rankAt(nv, 'crop', x, y, W, STAPLE_CROP[st & 15]) : nv.V.crop[q]) : -1;
-                    if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else pale(); }
-                    else {
+                    const st = P.staple[q], nd = st >> 4, s = nv ? nv.V.crop[q] : -1;
+                    if (alone >= 0) {
+                        // (one crop picked: its rung here — the main crop, the 2nd, the 3rd, grown otherwise, or not)
+                        let r = s === alone ? 1 : rungAt(kindT, nv.S.Gm, alone, aloneG, x, y, W, STAPLE_CROP[st & 15]);
+                        if (r === 1 && s !== alone) r = 4;
+                        px.rung = r; two = rungColour(nv.rgb[alone], r, c, c2);
+                    } else {
+                        // (the main crop; striped where a second does nearly as well — by its own variety where it is a crop)
                         if (s >= 0) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else stapleColour(st & 15, dec(P.score[q]), c);
-                        if (nd) { stapleColour(nd, dec(P.score2[q]), c2); two = true; }
+                        if (nd) {
+                            const g2 = STAPLE_CROP[nd], s2 = nv && g2 >= 0 ? strainVote(nv.S.Gm, nv.S.R.group[g2], 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180) : -1;
+                            if (s2 >= 0) namedColour(nv.rgb[s2], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score2[q])) ** 0.8, c2); else stapleColour(nd, dec(P.score2[q]), c2);
+                            two = true;
+                        }
                     }
                 }
             } else if (layer === 'farmLife' && !Y) {
@@ -649,13 +736,20 @@ function farmPixelColour(layer, fin, W) {
                 else {
                     const b = Y.beast[q], b1 = b & 15, b2 = b >> 4;
                     if (A) { const kp = dec(A[q]); beastColour(kp >= 0.15 ? opt.beast : 0, kp, c); }
-                    else if (!(Y.flags[q] & 1)) pale();
+                    else if (!(Y.flags[q] & 1)) { pale(); if (alone >= 0) px.rung = 0; }
                     else {
-                        const s = nv ? (nv.rank > 1 ? rankAt(nv, 'beast', x, y, W, b1 ? beastArchetype(b1) : -1) : nv.V.beast[q]) : -1, t = 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep1[q]));
-                        if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], t, c); else pale(); }
-                        else {
+                        const s = nv ? nv.V.beast[q] : -1, t = 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep1[q]));
+                        if (alone >= 0) {
+                            let r = s === alone ? 1 : rungAt(kindT, nv.S.Gm, alone, aloneG, x, y, W, b1 ? b1 - 1 : -1);
+                            if (r === 1 && s !== alone) r = 4;
+                            px.rung = r; two = rungColour(nv.rgb[alone], r, c, c2);
+                        } else {
                             if (s >= 0) namedColour(nv.rgb[s], t, c); else beastColour(b1, dec(Y.keep1[q]), c);
-                            if (b2) { beastColour(b2, dec(Y.keep2[q]), c2); two = true; }
+                            if (b2) {
+                                const s2 = nv ? strainVote(nv.S.Gm, nv.S.R.group[beastArchetype(b2)], 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180) : -1;
+                                if (s2 >= 0) namedColour(nv.rgb[s2], 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep2[q])), c2); else beastColour(b2, dec(Y.keep2[q]), c2);
+                                two = true;
+                            }
                         }
                     }
                     const fly = dec(Y.fly[q]);
@@ -681,14 +775,20 @@ const buffers = new WeakMap();
 function farmColourBuffer(layer, fin) {
     const F = fin.raster.farming, K = fin.climate.raster, key = `${layer}|${farmOptionsKey()}`, kept = buffers.get(F);
     if (kept?.key === key) return kept.buf;
-    const pix = farmPixelColour(layer, fin, F.w), n = F.w * F.h, buf = { pri: new Uint8ClampedArray(3 * n), sec: new Uint8ClampedArray(3 * n), hd: new Uint8ClampedArray(n) };
-    for (let y = 0; y < F.h; y++) for (let x = 0, i = y * F.w; x < F.w; x++, i++) {
+    const pix = farmPixelColour(layer, fin, F.w), n = F.w * F.h, buf = { pri: new Uint8ClampedArray(3 * n), sec: new Uint8ClampedArray(3 * n), hd: new Uint8ClampedArray(n), rungs: null };
+    // (and a picked crop's or beast's share of the land at each rung: farmPixelColour's px.rung)
+    const rungs = new Float64Array(5);
+    let land = 0;
+    for (let y = 0; y < F.h; y++) for (let x = 0, i = y * F.w, a = Math.cos((90 - (y + 0.5) / F.h * 180) * Math.PI / 180); x < F.w; x++, i++) {
         if (!K.koppen[i]) continue;
-        const { c, c2, hd } = pix(i, x, y);
+        const { c, c2, hd, rung } = pix(i, x, y);
+        land += a;
+        if (rung >= 0) rungs[rung] += a;
         buf.pri[3 * i] = c[0]; buf.pri[3 * i + 1] = c[1]; buf.pri[3 * i + 2] = c[2];
         buf.sec[3 * i] = c2[0]; buf.sec[3 * i + 1] = c2[1]; buf.sec[3 * i + 2] = c2[2];
         buf.hd[i] = Math.round(255 * hd);
     }
+    if (rungs.some(v => v > 0)) buf.rungs = rungs.map(v => v / Math.max(1e-9, land));
     buffers.set(F, { key, buf });
     return buf;
 }
@@ -790,12 +890,12 @@ export function finishedFarmingValue(key, fin, W) {
     }
     if (key === 'farmCame') {
         // (as the view reads it: where farming came has the most say, its time; else never)
-        const run = G && hearthsOf(fin, farmOptions.roll, farmOptions.fewer), Kc = run && klassOf(G, run).came;
+        const run = G && hearthsOf(fin, farmOptions.foodSeed, farmOptions.fewer), Kc = run && klassOf(G, run).came;
         return run ? (x, y) => { if (landPixel(K, W, x, y) < 0) return NaN; const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180; if (!gridVote(G, Kc, run.farmTime, lat, lon)) { const t = timeAt(G, run.farmTime, lat, lon); return t < Infinity ? t : 65535; } return VS.a === 1 && VS.t < Infinity ? VS.t : 65535; } : () => NaN;
     }
     if (hist) return G ? (x, y) => (landPixel(K, W, x, y) < 0 ? NaN : fieldAt(G, key === 'hearthOdds' ? G.odds : G.variety, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180)) : () => NaN;
     const C = key === 'farmTech' || key === 'farmRain' ? null : cameView(fin, 'farmStaple', opt);
-    const Y = sys ? waysOf(fin, opt, waysKey(opt), flyAtOf(fin, opt.roll, opt.fewer), C, tk) : null, P = parts ? null : placesOf(fin, opt, tk, C), ix = P?.index;
+    const Y = sys ? waysOf(fin, opt, waysKey(opt), flyAtOf(fin, opt.foodSeed, opt.fewer), C, tk) : null, P = parts ? null : placesOf(fin, opt, tk, C), ix = P?.index;
     if (sys && !Y) return () => NaN;
     return (x, y) => {
         const i = landPixel(K, W, x, y);
@@ -855,7 +955,7 @@ const waysTallies = new WeakMap();
 function waysTally(fin, C = null) {
     const F = fin.raster.farming, K = fin.climate.raster, key = `${waysKey()}${C ? `|${C.key}` : ''}`, kept = waysTallies.get(F);
     if (kept?.key === key) return kept;
-    const system = new Float64Array(FOOD_SYSTEMS.length), beast = new Float64Array(BEASTS.length), kef = KOPPEN_ID.EF, Y = waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.roll, farmOptions.fewer), C, techKey());
+    const system = new Float64Array(FOOD_SYSTEMS.length), beast = new Float64Array(BEASTS.length), kef = KOPPEN_ID.EF, Y = waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.foodSeed, farmOptions.fewer), C, techKey());
     let land = 0, fly = 0, q = 0;
     for (let y = 0; y < F.h; y++) {
         const lat = 90 - (y + 0.5) / F.h * 180, a = Math.cos(lat * Math.PI / 180);
@@ -876,19 +976,65 @@ function waysTally(fin, C = null) {
 
 const chip = (key, label, title, on) => `<button type="button" class="evo-farm-chip${on ? ' on' : ''}" data-farm="${key}" title="${title}" aria-pressed="${on}">${label}</button>`;
 const bar = (stops, label) => `<div class="evo-farm-bar"><i style="background:${gradient(stops)}"></i><span>${label}</span></div>`;
-const pct = v => `${Math.round(100 * v)}%`;
+const pct = v => (v > 0 && v < 0.005 ? '<1%' : `${Math.round(100 * v)}%`);
+
+// ── the Food tab's settings (developer, 2026-11-01: "make it more obvious what the settings are and what they mean, also make
+// it easy to reroll (not just the names but EVERYTHING … with food)"): one block atop every view's legend, the same in each —
+// Re-roll, drawing all the food's chance again (where and when farming began, each landmass's beasts and fly, which crops the
+// world grows and where, every name; never the planet), and a line saying what is set; opened, each setting with what it does,
+// dimmed where this view does not use it. Opened or closed stays as it was (the page's, not the link's) ──
+let settingsOpen = false;
+const SET_USE = {
+    age: ['farmStaple', 'farmLife', 'farmAnimals', 'farmPeople', 'farmCrops'],
+    tools: ['farmLand', 'farmStaple', 'farmLife', 'farmAnimals', 'farmPeople'],
+    fewer: ['farmLife', 'farmAnimals', 'farmPeople', 'farmOrigins'],
+    real: ['farmStaple', 'farmAnimals', 'farmCrops', 'farmOrigins'],
+    pull: ['farmStaple', 'farmAnimals', 'farmCrops', 'farmOrigins'],
+    named: ['farmStaple', 'farmAnimals'],
+    roll: ['farmStaple', 'farmLife', 'farmAnimals', 'farmPeople', 'farmCrops', 'farmOrigins'],
+};
+const AGE_WORDS = { k10: '10,000 years', full: 'Full spread', best: 'Best possible' }, REAL_WORDS = { earth: 'Earth-like', balanced: 'Balanced', wild: 'Anything goes' };
+const PULL_WORDS = { free: 'Mix freely', regional: 'Regional', strict: 'Keep worlds apart' };
+function foodSettings(layer, fin) {
+    const hist = !!historyOf(fin), used = key => SET_USE[key].includes(layer) && (hist || key === 'tools');
+    const opt = (key, v, w, t) => `<button type="button" class="evo-farm-chip${farmOptions[key] === v ? ' on' : ''}" data-farm-${key}="${v}" aria-pressed="${farmOptions[key] === v}" title="${t}">${w}</button>`;
+    const row = (key, name, what, body) => `<div class="evo-farm-row${used(key) ? '' : ' dim'}"><div class="evo-farm-rowhead"><b>${name}</b> — ${what}${used(key) ? '' : ' <em>(not used in this view)</em>'}</div><div class="evo-farm-chips">${body}</div></div>`;
+    const nTools = Object.keys(TECHNIQUE_WORDS).filter(k => farmOptions[k]).length;
+    const sum = [used('age') ? AGE_WORDS[farmOptions.age] : '', used('tools') ? (nTools === 4 ? 'all farming tools' : nTools ? `${nTools} of 4 farming tools` : 'rain alone') : '',
+        used('fewer') ? (farmOptions.fewer ? 'fewer gaps' : 'Earth-like gaps') : '', used('real') ? `${REAL_WORDS[farmOptions.real]} crops` : '', used('pull') ? `${PULL_WORDS[farmOptions.pull]} likenesses` : '',
+        used('named') ? (farmOptions.named ? 'by name' : 'by kind') : '', used('roll') ? (farmOptions.foodSeed ? `food seed ${farmOptions.foodSeed}` : 'the planet\'s own food seed') : ''].filter(Boolean).join(' · ');
+    const body = row('roll', 'Food seed', 'every chance in the food\'s history — where and when farming began, each landmass\'s beasts, which crops grow where, every name — drawn from it and the planet\'s seed; Re-roll draws a new one, or type one in to come back to a draw',
+        `<input class="evo-farm-find evo-farm-seed" type="number" min="0" max="${FOOD_SEED_MAX}" step="1" inputmode="numeric" data-farm-seed value="${farmOptions.foodSeed}" aria-label="Food seed" title="0: the planet's own draw">`) +
+        row('age', 'When', 'how far the crops and animals had travelled from where each was first tamed',
+        opt('age', 'k10', AGE_WORDS.k10, 'What had reached each place 10,000 years after the first farming anywhere') + opt('age', 'full', AGE_WORDS.full, 'Everything that would ever reach each place, in time') +
+        opt('age', 'best', AGE_WORDS.best, 'What the land alone would support, as if every crop and animal had reached everywhere')) +
+        row('tools', 'Farming tools', 'what farmers know how to do: sow a big river\'s flood silt, lead canals off rivers, terrace hillsides, raise beds in wet ground — all off, the land by rain alone',
+            Object.entries(TECHNIQUE_WORDS).map(([k, [label, title]]) => chip(k, label, title, farmOptions[k])).join('')) +
+        row('fewer', 'Animals to tame', 'as on Earth, some landmasses have no wild beast fit to tame, and a tsetse-like fly keeps cattle and horses from some tropics; Fewer gaps makes both rarer',
+            chip('fewer', 'Fewer gaps', 'Each landmass likelier to have each beast\'s wild ancestor, and the fly rarer', farmOptions.fewer)) +
+        row('real', 'Which crops', 'how much Earth\'s popular, nourishing crops win out over chance — in which crops this world grows, and which Earth crops its own are like',
+            opt('real', 'earth', REAL_WORDS.earth, 'Popular, nourishing crops, near their Earth homes\' likenesses: few surprises') + opt('real', 'balanced', REAL_WORDS.balanced, 'Popularity and chance both count') + opt('real', 'wild', REAL_WORDS.wild, 'Chance decides which crops a world grows and where')) +
+        row('pull', 'Earth likenesses', 'each hearth is like one of Earth\'s farming regions, which names its crops and animals: neighbouring hearths like neighbouring regions, any mix, or never the Old and New World side by side',
+            opt('pull', 'free', PULL_WORDS.free, 'Neighbouring hearths may be like any of Earth\'s regions') + opt('pull', 'regional', PULL_WORDS.regional, 'Neighbouring hearths lean toward Earth regions near one another') +
+            opt('pull', 'strict', PULL_WORDS.strict, 'Neighbouring hearths keep to one side of Earth\'s oceans')) +
+        row('named', 'Names', 'each place\'s own crop and animal by its Earth-like name, or by its kind (grains, roots, cattle-like…)',
+            chip('named', 'Named', 'Each place\'s own crop or animal, by name — off: the kinds', farmOptions.named));
+    const reroll = used('roll') ? `<button type="button" class="evo-farm-chip evo-farm-reroll" data-farm-reroll title="Draw all the food's chance again: where and when farming began, which beasts each landmass has and whether the fly does, which crops this world grows and where, and every name — the planet stays the same">⟳ Re-roll</button>` : '';
+    return `<div class="evo-farm-set${settingsOpen ? ' open' : ''}"><div class="evo-farm-sethead">${reroll}<button type="button" class="evo-farm-setsum" data-farm-settoggle aria-expanded="${settingsOpen}" title="What each setting means">` +
+        `<span>Settings: ${sum || 'none for this view'}</span><i aria-hidden="true">▸</i></button></div><div class="evo-farm-setbody">${body}</div></div>`;
+}
 
 export function farmingLegendHTML(layer, fin) {
-    const head = t => `<div class="evo-legend-head">${t}</div>`, note = t => `<div class="evo-legend-note">${t}</div>`;
+    const note = t => `<div class="evo-legend-note">${t}</div>`;
+    // (each view's head, the settings under it — not Soil's or Growing season's, which none change)
+    const head = t => `<div class="evo-legend-head">${t}</div>${layer === 'farmSoil' || layer === 'farmSeason' || !fin?.raster?.farming ? '' : foodSettings(layer, fin)}`;
     if (!fin?.raster?.farming) return head('Food — add detail again to see it (this moment was detailed before these views were added)');
     // (as it came: what the view shows — the age chips, its words for the head and the note; none without a history)
     const C = cameView(fin, layer), canCame = AS_CAME.has(layer) && !!historyOf(fin), ageOn = canCame ? farmOptions.age : 'best';
-    const ageChip = (k, label, title) => `<button type="button" class="evo-farm-chip${ageOn === k ? ' on' : ''}" data-farm-age="${k}" aria-pressed="${ageOn === k}" title="${title}">${label}</button>`;
-    const ages = canCame ? `<div class="evo-farm-chips">${ageChip('k10', '10,000 years', 'What had come to each place 10,000 years after the first farming anywhere: only the crops and beasts that had reached it (Origins shows when and from where)')}${ageChip('full', 'Full spread', 'Everything that would ever come to each place — the crops and beasts that could reach it, in time')}${ageChip('best', 'Best possible', 'What the land alone would support, as if every crop and beast had come everywhere')}</div>` : '';
     const when = C ? (farmOptions.age === 'full' ? ', once everything had come' : ', 10,000 years after farming began') : '';
     const cameNote = C ? note(`As it came: only the crops and beasts that had reached each place${farmOptions.age === 'full' ? ' in the end' : ' by 10,000 years after the first farming'} — farming spreads from its hearths ~1 km a year, a beast's ancestor lives on some landmasses and not others (Origins shows when and from where). Where no crop had come, people herd or gather; where no plough beast had, they farm by hand`) : '';
     // (a view of the ways: its store made first — the places' filled in the same pass)
-    if ((layer === 'farmAnimals' || (layer === 'farmLife' && !farmOptions.simple)) && hasMeasures(fin.raster, fin.climate.raster)) waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.roll, farmOptions.fewer), C, techKey());
+    if ((layer === 'farmAnimals' || (layer === 'farmLife' && !farmOptions.simple)) && hasMeasures(fin.raster, fin.climate.raster)) waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.foodSeed, farmOptions.fewer), C, techKey());
     const T = tally(fin, C), sw = (c, label, share) => `<span><i style="background:${css(c)}"></i>${label} <em>${pct(share)}</em></span>`, c = [0, 0, 0];
     if (layer === 'farmSoil') return head('Soil — how fertile the ground is (on flat ground)') + bar(SOIL, 'poor → rich') +
         `<div class="evo-koppen">${['Barren', 'Poor', 'Middling', 'Good', 'Rich'].map((w, k) => sw(ramp(SOIL, [0.05, 0.2, 0.4, 0.62, 0.88][k], c).slice(), w, T.soil[k])).reverse().join('')}</div>` +
@@ -897,7 +1043,6 @@ export function farmingLegendHTML(layer, fin) {
         `<div class="evo-farm-chips">${chip('watered', 'Watered', 'The months warm enough, were water brought — what irrigation could make of the season', farmOptions.watered)}</div>` +
         `<div class="evo-koppen">${['None', '1–3 months', '3–5', '5–8', '8+'].map((w, k) => sw(ramp(SEASON, [0, 2, 4, 6.5, 10][k], c).slice(), w, T.season[k])).reverse().join('')}</div>` +
         note('A month grows crops where it is warm enough (over ~5 °C, fully from 15) and wet enough — its rain, melt and the soil’s water past half what it could evaporate (the FAO’s growing period)');
-    const chips = Object.entries(TECHNIQUE_WORDS).map(([k, [label, title]]) => chip(k, label, title, farmOptions[k])).join('');
     if (layer === 'farmStaple') {
         if (!hasHarvests(fin.raster.farming)) return head('Staple food — add detail again to see it (this moment was detailed before the harvests were counted)');
         // (each food a chip with its colour and its share of the land: a click shows it alone, again shows them all)
@@ -905,76 +1050,74 @@ export function farmingLegendHTML(layer, fin) {
             `title="${only === k ? 'Show every food again' : `Show where ${STAPLE_WORDS[k].toLowerCase()} would feed people, and how well — alone`}"><i style="background:${css(STAPLE_RGB[k])}"></i>${STAPLE_WORDS[k]} <em>${pct(T.staple[k])}</em></button>`;
         // (named: each crop group's named crops under it — those on ≥ 0.2 % of the land, the most first — with Wikipedia links)
         const nv = only ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), null);
-        const namedChip = chip('named', 'Named', 'Each place\'s own crop — its hearth\'s strain, by its Earth-like name — instead of the archetypes', farmOptions.named);
-        const rankChips = nv ? `<div class="evo-farm-chips">${[[1, 'Main crop', 'Each place\'s main crop: the first come of those that grow there — unless a later one does far better'], [2, '2nd', 'Each place\'s second crop: the next crop group that grows there and had come (another grain, a root, a tree crop…), by its own variety'], [3, '3rd', 'Each place\'s third crop group']].map(([r, w, t]) => `<button type="button" class="evo-farm-chip${farmOptions.rank === r ? ' on' : ''}" data-farm-rank="${r}" aria-pressed="${farmOptions.rank === r}" title="${t}">${w}</button>`).join('')}</div>` : '';
-        if (nv && nv.rank > 1) {
-            // (the second or third crop: every staple crop strain at that rank, the most land first)
-            const RT = rankTally(nv, 'crop'), vs = nv.N.strains.filter(S => S.a < CROPS.length && RT[S.id] >= 0.002).sort((x, y) => RT[y.id] - RT[x.id]).slice(0, 24);
-            return head(`Staple food — each place's ${nv.rank === 2 ? 'second' : 'third'} crop${when}`) + `<div class="evo-farm-chips">${vs.map(S => variantChip(nv, S.id, RT[S.id])).join('')}</div>` + rankChips + ages +
-                `<div class="evo-farm-chips">${namedChip}${chips}</div>` +
-                note('Every crop group a place can grow and that had come is there — its main, second and third crops are different groups (grains, roots, tree crops…), each by its own variety; a group\'s other varieties show in the readout. Ranked by how well each grows there, the first come leading unless a later one does far better. Pale: no crop group at that rank') + cameNote;
-        }
         if (nv) {
-            const VT = variantTally(fin, nv), list = st => {
-                const g = STAPLE_CROP[st];
-                if (g < 0) return food(st);
-                const vs = nv.N.strains.filter(S => S.a === g && VT.crop[S.id] >= 0.002).sort((x, y) => VT.crop[y.id] - VT.crop[x.id]).slice(0, 8);
-                return `<div class="evo-farm-group"><span class="evo-farm-groupname"><i style="background:${css(STAPLE_RGB[st])}"></i>${STAPLE_WORDS[st]} <em>${pct(T.staple[st])}</em></span>${vs.map(S => variantChip(nv, S.id, VT.crop[S.id])).join('')}</div>`;
+            // (each crop group's named crops under it, by where each is grown at all — the most first, the order the same
+            // whichever is picked; the foods that are not crops as a key)
+            const GT = groupTable(nv, 'crop'), VT = variantTally(fin, nv), pick = pickedOf(nv, layer), order = [];
+            const list = st => {
+                const g = STAPLE_CROP[st], vs = nv.N.strains.filter(S => S.a === g && (GT.grown[S.id] >= 0.002 || VT.crop[S.id] >= 0.002)).sort((x, y) => GT.grown[y.id] - GT.grown[x.id] || x.id - y.id).slice(0, 10);
+                order.push(...vs.map(S => S.id));
+                return `<div class="evo-farm-group"><span class="evo-farm-groupname" title="The main crop on ${pct(T.staple[st])} of the land; each of its crops by the land it is grown on"><i style="background:${css(STAPLE_RGB[st])}"></i>${STAPLE_WORDS[st]} <em>· main on ${pct(T.staple[st])}</em></span>${vs.map(S => variantChip(nv, S.id, GT.grown[S.id])).join('')}</div>`;
             };
-            const crops = STAPLES.map((_, k) => k).filter(k => STAPLE_CROP[k] >= 0 && T.staple[k] >= 0.002), rest = STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE && STAPLE_CROP[k] < 0);
-            return head(farmOptions.variant >= 0 && nv.N.strains[farmOptions.variant] ? `Staple food — ${nv.N.strains[farmOptions.variant].label} alone: where it is the staple${when}` : `Staple food — each place's own crop, by name${when}`) +
-                crops.map(list).join('') + `<div class="evo-farm-chips">${rest.map(food).join('')}</div>` + rankChips + ages +
-                `<div class="evo-farm-chips">${namedChip}${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it feeds less well; striped where a second does nearly as well') +
-                note('Each crop group\'s strains: the one each hearth first tamed, named for the Earth crop it is most like — by its hearth\'s climate and what its neighbours\' hearths are like. Every one spreads wherever it can grow, barring distance — best where the climate is like its home\'s — and a place\'s main crop is the first come, unless a later one does far better; 2nd and 3rd show the rest. ↗ opens the crop on Wikipedia. Likenesses, not claims: a different world') + cameNote;
+            const crops = STAPLES.map((_, k) => k).filter(k => STAPLE_CROP[k] >= 0 && (T.staple[k] >= 0.002 || nv.N.strains.some(S => S.a === STAPLE_CROP[k] && GT.grown[S.id] >= 0.002))).map(list).join('');
+            const rest = STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE && STAPLE_CROP[k] < 0 && T.staple[k] >= 0.001);
+            const RS = pick >= 0 ? farmColourBuffer(layer, fin).rungs : null, P = v => pct(RS?.[v] ?? 0);
+            const text = pick >= 0 ? `${pickedName(nv, pick)} — the main crop on ${P(1)} of the land, the 2nd on ${P(2)}, the 3rd on ${P(3)}; grown otherwise on ${P(4)}`
+                : 'Pick a crop: where it is the main crop, the 2nd or the 3rd';
+            return head(`Staple food — each place's main crop, by name${when}`) + pickRow('variant', order, pick, text, { title: pick >= 0 ? strainTitle(nv, pick) : '' }) +
+                crops + `<div class="evo-koppen">${rest.map(k => sw(STAPLE_RGB[k], STAPLE_WORDS[k], T.staple[k])).join('')}</div>` +
+                rungKey(nv, pick, ['main crop', '2nd', '3rd', 'grown otherwise'], bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it feeds less well; striped where a second does nearly as well')) +
+                note('Each crop group\'s strains: the one each hearth first tamed, named for the Earth crop it is most like — by its hearth\'s climate and what its neighbours\' hearths are like. Every one spreads wherever it can grow, barring distance — best where the climate is like its home\'s. A place grows every crop group that grows there and had come, each by its own variety; its main crop is the first come, unless a later one does far better. ↗ opens the crop on Wikipedia. Likenesses, not claims: a different world') + cameNote;
         }
         return head(only ? `Staple food — ${STAPLE_WORDS[only].toLowerCase()} alone: where it would feed people, and how well${when}` : `Staple food — what each place would live on most${when}`) +
-            `<div class="evo-farm-chips">${STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE).map(food).join('')}</div>` + ages +
-            `<div class="evo-farm-chips">${historyOf(fin) ? namedChip : ''}${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], `paler where it feeds less well${only ? '' : '; striped where a second does nearly as well'}`) +
+            `<div class="evo-farm-chips">${STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE).map(food).join('')}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], `paler where it feeds less well${only ? '' : '; striped where a second does nearly as well'}`) +
             note('What would feed each place best with these techniques — archetypes, not any one crop. Paddy grains feed the most on rich, level, wet ground; cool-season grains take ' +
                 'the winters and the cool summers; warm-season grains the hot and the dry; roots the leached tropics and cold highlands; livestock the dry grass; ' +
                 'tree and palm crops the ever-wet tropics and the hot oases; fish the coasts of cold, upwelling seas and the big rivers; wild foods the land no farmer or herder would hold') + cameNote;
     }
-    const luckChips = `${chip('fewer', 'Fewer gaps', 'Make each landmass likelier to have each beast\'s wild ancestor, and the fly rarer', farmOptions.fewer)}<button type="button" class="evo-farm-chip" data-farm-roll title="Draw each landmass's luck again — which beasts' wild ancestors live on it, whether the fly does">Re-roll</button>`;
     if (layer === 'farmCrops') {
         const MN = historyOf(fin) && hasHarvests(fin.raster.farming) ? minorNow(fin) : null;
         if (!MN) return head('Crops — add detail again to see them (this moment was detailed before these views were added)');
         const age = cropAge(), MA = minorAgeOf(MN, age), cols = itemColours(MN.items), look = farmOptions.cropLook;
-        const crAges = `<div class="evo-farm-chips">${['k10', 'full', 'best'].map(k => `<button type="button" class="evo-farm-chip${farmOptions.age === k ? ' on' : ''}" data-farm-age="${k}" aria-pressed="${farmOptions.age === k}">${{ k10: '10,000 years', full: 'Full spread', best: 'Best possible' }[k]}</button>`).join('')}</div>`;
         const whenC = age === null ? ' — wherever it would grow' : age === Infinity ? ', once everything had come' : ', 10,000 years after farming began';
         const looks = `<div class="evo-farm-chips">${Object.entries(CROP_LOOK_WORDS).map(([k, w]) => `<button type="button" class="evo-farm-chip${look === k && farmOptions.crop < 0 ? ' on' : ''}" data-farm-croplook="${k}" aria-pressed="${look === k}">${w}</button>`).join('')}</div>`;
-        const cropChip = (I, share) => `<span class="evo-farm-var"><button type="button" class="evo-farm-chip evo-farm-staple${farmOptions.crop === I.id ? ' on' : ''}" data-farm-crop="${I.id}" aria-pressed="${farmOptions.crop === I.id}" title="${MINOR[I.m].word}: like ${I.it.n} (on Earth from ${earthHome(I.it)}) — show it alone"><i style="background:${css(cols[I.id])}"></i>${I.label} <em>${pct(share)}</em></button><a class="evo-farm-wiki" href="${wiki(I.it)}" target="_blank" rel="noopener" title="${I.it.n} on Wikipedia">↗</a></span>`;
+        const cropChip = (I, share) => `<span class="evo-farm-var"><button type="button" class="evo-farm-chip evo-farm-staple${farmOptions.crop === I.id ? ' on' : ''}" data-farm-crop="${I.id}" aria-pressed="${farmOptions.crop === I.id}" title="${MINOR[I.m].word}: like ${I.it.n} (on Earth from ${earthHome(I.it)}) — show it alone"><i style="background:${css(cols[I.id])}"></i>${I.label} <em>${pct(share)}</em></button></span>`;
         const grown = MN.items.filter(I => MN.built[I.id].exists);
-        const finder = `<div class="evo-farm-chips"><input class="evo-farm-find" type="search" list="farmCropList" data-farm-find placeholder="Find a crop or animal (${grown.length} grown)…" aria-label="Find a crop or animal"><datalist id="farmCropList">${grown.map(I => `<option value="${I.label}">`).join('')}</datalist></div>`;
-        const choice = (key, opts) => `<div class="evo-farm-chips">${opts.map(([v, w, t]) => `<button type="button" class="evo-farm-chip${farmOptions[key] === v ? ' on' : ''}" data-farm-${key}="${v}" aria-pressed="${farmOptions[key] === v}" title="${t}">${w}</button>`).join('')}</div>`;
-        const controls = choice('real', [['earth', 'Earth-like', 'Popular, nourishing crops near their Earth homes\' likenesses: few surprises'], ['balanced', 'Balanced', 'Popularity and chance both count'], ['wild', 'Anything goes', 'Chance decides which crops a world grows and where']]) +
-            choice('pull', [['free', 'Mix freely', 'Neighbouring hearths may be like any of Earth\'s regions: Old and New World crops side by side'], ['regional', 'Regional', 'Neighbouring hearths lean toward Earth regions near one another'], ['strict', 'Keep worlds apart', 'Neighbouring hearths keep to one side of Earth\'s oceans: no Old and New World mixing']]) +
-            `<div class="evo-farm-chips"><button type="button" class="evo-farm-chip" data-farm-nameroll title="Draw the Earth likenesses and names again — the history stays">Re-roll names</button></div>`;
-        const note2 = 'Each crop beyond the staples is its own: whether this world grows it (likelier the more popular and nourishing it is on Earth, as the realism weighs it), its home — the farmed region that suits it best and is most like its Earth home — and its own spread, carried between farmers; spices stay within ~900 km of home, orchards come millennia after farming. Likenesses, not claims: a different world';
-        if (farmOptions.crop >= 0 && MN.built[farmOptions.crop]?.exists) {
-            // (one crop's card: its kind, its likeness and Earth home, where and when first grown, its share, popularity and nourishment)
-            const I = MN.items[farmOptions.crop], B = MN.built[I.id], dots = v => '●●●●●'.slice(0, Math.max(1, Math.round(v * 5))) + '○○○○○'.slice(0, 5 - Math.max(1, Math.round(v * 5)));
+        // (the finder: every crop in the catalogue — one this world does not grow says why)
+        const finder = `<div class="evo-farm-chips"><input class="evo-farm-find" type="search" list="farmCropList" data-farm-find placeholder="Find any crop or animal (${grown.length} of ${MN.items.length} grown)…" aria-label="Find a crop or animal"><datalist id="farmCropList">${MN.items.map(I => `<option value="${I.label}">${MN.built[I.id].exists ? '' : 'not grown here'}</option>`).join('')}</datalist></div>`;
+        const note2 = 'Each crop beyond the staples is its own: whether this world grows it (likelier the more popular and nourishing it is on Earth, as the realism weighs it), its home — the farmed region that suits it best and is most like its Earth home — and its own spread, carried between farmers — herbs and seed and root spices as gardens are, the tree and vine spices (pepper, cloves, cinnamon) kept near home; orchards come millennia after farming. Likenesses, not claims: a different world';
+        const pickC = farmOptions.crop >= 0 && MN.items[farmOptions.crop] ? farmOptions.crop : -1;
+        let info = 'Pick a crop or animal below — or find one by name — to see where it is grown', infoTitle = '';
+        if (pickC >= 0 && !MN.built[pickC].exists) {
+            // (a crop this world does not grow: why, and where it could)
+            const I = MN.items[pickC], B = MN.built[I.id];
+            info = `<i class="evo-farm-sw" style="background:${css(cols[I.id])}"></i><b>${I.label}</b> <a class="evo-farm-wiki" href="${wiki(I.it)}" target="_blank" rel="noopener" title="${I.it.n} on Wikipedia">↗</a> — not grown on this world: ${B.noland ? `no farmed land has what it needs — ${MINOR[I.m].needs}` : 'left out by chance (Which crops in the settings: Earth-like grows more of Earth’s favourites; or Re-roll)'} · hatched where it could grow`;
+            infoTitle = `${MINOR[I.m].word}, like ${I.it.n} (on Earth from ${earthHome(I.it)})`;
+        } else if (pickC >= 0) {
+            // (one crop's card: its kind, its likeness and Earth home, where and when first grown, its share — popularity and
+            // nourishment in its title)
+            const I = MN.items[pickC], B = MN.built[I.id], dots = v => '●●●●●'.slice(0, Math.max(1, Math.round(v * 5))) + '○○○○○'.slice(0, 5 - Math.max(1, Math.round(v * 5)));
             const homes = B.homes.map(h => { const S = MN.sites[h.site]; return `${Math.abs(S.lat).toFixed(0)}°${S.lat >= 0 ? 'N' : 'S'} ${Math.abs(S.lon).toFixed(0)}°${S.lon >= 0 ? 'E' : 'W'}, ~${(Math.round(h.t / 100) * 100).toLocaleString()} years after the first farming`; }).join('; and ');
-            return head(`Crops — ${I.label} alone${whenC}`) + `<div class="evo-farm-chips">${cropChip(I, MA.share[I.id])}</div>` +
-                note(`<b>${MINOR[I.m].word}</b> · like ${I.it.n}, on Earth from ${earthHome(I.it)} · first grown at ${homes} (◆ on the planet) · grown on ${pct(MA.share[I.id])} of the land · popular ${dots(I.pop)} · nourishing ${dots(I.nut)}`) +
-                bar([[0, STAPLE_PALE], [1, cols[I.id]]], 'where it grows, paler where it does less well; hatched where it would grow but had not come') + looks + finder + crAges + controls + note(note2);
+            info = `<i class="evo-farm-sw" style="background:${css(cols[I.id])}"></i><b>${I.label}</b> <a class="evo-farm-wiki" href="${wiki(I.it)}" target="_blank" rel="noopener" title="${I.it.n} on Wikipedia">↗</a> — ${MINOR[I.m].word.toLowerCase()}, like ${I.it.n} (on Earth from ${earthHome(I.it)}) · on ${pct(MA.share[I.id])} of the land · first grown at ${homes} (◆) · paler where it grows less well, hatched where it would grow but had not come`;
+            infoTitle = `Popular ${dots(I.pop)} · nourishing ${dots(I.nut)}`;
         }
         const kIdx = KINDS.findIndex(K => K.key === look), stat = arr => { let s = 0, n = 0, mx = 0; for (let c = 0; c < arr.length; c++) if (MN.Gm.land[c] && (age === null || MN.farm[c] <= age) && MN.farm[c] < Infinity) { s += arr[c]; n++; if (arr[c] > mx) mx = arr[c]; } return { mean: s / Math.max(1, n), max: mx }; };
-        const top = list => list.map(I => [I, MA.share[I.id]]).filter(([, v]) => v > 0.001).sort((a, b) => b[1] - a[1]).slice(0, 18).map(([I, v]) => cropChip(I, v)).join('');
+        const listed = [], top = list => list.map(I => [I, MA.share[I.id]]).filter(([, v]) => v > 0.001).sort((a, b) => b[1] - a[1] || a[0].id - b[0].id).slice(0, 18).map(([I, v]) => { listed.push(I.id); return cropChip(I, v); }).join('');
         let body;
         if (look === 'variety') {
             const S = stat(MA.variety), kinds = KINDS.map((K, k) => `${K.word.toLowerCase()} ${stat(MA.count[k]).mean.toFixed(1)}`).join(', ');
             body = bar(countRamp('variety', countTop(MA.variety)), `0 → ${countTop(MA.variety)}+ crops a place`) + note(`A farming place grows ~${Math.round(S.mean)} crops (up to ${S.max}), the staples too: on average ${kinds}`) + `<div class="evo-farm-chips">${top(grown)}</div>`;
         } else {
             const list = grown.filter(I => I.kind === look), S = stat(MA.count[kIdx]);
-            body = (look === 'pulse' || look === 'spice' ? note(`Each place by its leading ${look === 'pulse' ? 'pulse' : 'spice'} — the best-suited that had come`) : bar(countRamp(look, countTop(MA.count[kIdx])), `0 → ${countTop(MA.count[kIdx])}+ a place`)) +
+            body = (look === 'pulse' || look === 'spice' ? note(`Each place by its leading ${look === 'pulse' ? 'pulse' : 'spice or herb'} — the best-suited that had come`) : bar(countRamp(look, countTop(MA.count[kIdx])), `0 → ${countTop(MA.count[kIdx])}+ a place`)) +
                 note(`${KINDS[kIdx].word}: ~${S.mean.toFixed(1)} a farming place, up to ${S.max}; ${list.length} grown on this world`) + `<div class="evo-farm-chips">${top(list)}</div>`;
         }
-        return head(`Crops — ${CROP_LOOK_WORDS[look] ?? 'Variety'}${whenC}`) + looks + body + finder + crAges + controls + note(note2);
+        return head(`Crops — ${CROP_LOOK_WORDS[look] ?? 'Variety'}${whenC}`) + looks + pickRow('crop', listed, pickC, info, { title: infoTitle, lines: 3 }) + body + finder + note(note2);
     }
     if (layer === 'farmOrigins') {
         const G = historyOf(fin);
         if (!G) return head('Origins — add detail again to see them (this moment was detailed before these views were added)');
-        const luck = luckOf(fin, farmOptions.roll, farmOptions.fewer), odds = farmOptions.origin === 'odds', one = farmOptions.wild;
+        const luck = luckOf(fin, farmOptions.foodSeed, farmOptions.fewer), odds = farmOptions.origin === 'odds', one = farmOptions.wild;
         const look = (k, label, title) => `<button type="button" class="evo-farm-chip${farmOptions.origin === k ? ' on' : ''}" data-farm-origin="${k}" aria-pressed="${farmOptions.origin === k}" title="${title}">${label}</button>`;
         const looks = `<div class="evo-farm-chips">${look('larder', 'Wild larder', 'Where the crops\' and beasts\' wild ancestors grow — how many within reach, or one alone')}${look('odds', 'Hearth odds', 'Where farming would most likely begin')}${look('came', 'When farming came', 'Years after the first farming anywhere, a line each thousand — the hearths numbered in the order they began')}${look('from', 'From which hearth', 'Each hearth\'s lands in its colour: where its farming spread first')}</div>`;
         // (each landmass over half a million km²: its beasts and the fly, by its luck)
@@ -1002,16 +1145,15 @@ export function farmingLegendHTML(layer, fin) {
                 return `<span><i style="background:${css(h)}"></i><b>${C.hearth}${C.founder ? ' ★' : ''}</b> ${place2(C)}: ${crops}${came ? '' : ` <em>${pct(share[C.hearth] / Math.max(1e-9, landA))}</em>`}</span>`;
             }).join('');
             return head(came ? 'Origins — when farming came: years after the first farming anywhere' : 'Origins — from which hearth each place\'s farming came') + looks +
-                (came ? bar(ARRIVE, '0 → 10,000+ years; a line each thousand') : '') + `<div class="evo-koppen evo-hearths">${list}</div>` + `<div class="evo-farm-chips">${luckChips}</div>` +
+                (came ? bar(ARRIVE, '0 → 10,000+ years; a line each thousand') : '') + `<div class="evo-koppen evo-hearths">${list}</div>` +
                 note(`${run.hearths.length} hearths began farming on their own (★ the founders: early, far apart, leading with different crops); every other place adopted it as it spread — ~1 km a year, faster along rivers and coasts and through farmers, slower past rich foragers, across short seas — and tamed what grew wild there. Within 10,000 years it reached ${pct(reached / Math.max(1e-9, farmable))} of the land it could grow on${came ? '' : '; paler, the later it came'}`) + landmasses;
         }
-        if (odds) return head('Origins — hearth odds: where farming would most likely begin') + looks + bar(ODDS, 'low → high') + `<div class="evo-farm-chips">${luckChips}</div>` +
+        if (odds) return head('Origins — hearth odds: where farming would most likely begin') + looks + bar(ODDS, 'low → high') +
             note('Higher where many crops\' and beasts\' wild ancestors grow within ~330 km, the seasons are strong (a dry or cold season to store food through), the land is productive, hills meet plains, water is near and the foragers\' own food is not too rich; none poleward of ~45°. Earth\'s centres — the Fertile Crescent, the Yellow and Yangtze rivers, Mesoamerica, the Andes, New Guinea, the Sahel and Ethiopia — sat in such places') + landmasses;
         const arch = k => { const A = ARCHETYPES[k], rgb = A.beast ? BEAST_RGB[A.beast] : STAPLE_RGB[CROP_STAPLE[A.crop]];
             return `<button type="button" class="evo-farm-chip evo-farm-staple${one === k ? ' on' : ''}" data-farm-wild="${k}" aria-pressed="${one === k}" title="${one === k ? 'Show the whole larder again' : `Show where wild ${A.word.toLowerCase()}${A.like ? ` (${A.like})` : ''} grow — alone`}"><i style="background:${css(rgb)}"></i>${A.word}</button>`; };
         return head(one >= 0 ? `Origins — wild ${ARCHETYPES[one].word.toLowerCase()}: where its wild ancestor grows${ARCHETYPES[one].beast ? ' (hatched: its habitat, but none lives on that landmass)' : ''}` : 'Origins — the wild larder: how many crops\' and beasts\' wild ancestors grow within reach') + looks +
             `<div class="evo-farm-chips">${ARCHETYPES.map((_, k) => arch(k)).join('')}</div>` + (one >= 0 ? bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it grows less well') : bar(VARIETY, '0 → 6: crops 1 each, beasts ½')) +
-            `<div class="evo-farm-chips">${luckChips}</div>` +
             note('The wild ancestors\' homes, not where the crops later grow: cool-season grains on winter-rain hills, paddy grains in hot seasonal wetlands, warm-season grains on summer rain and in dry tropical hills, roots on the forest\'s edge and in cold tropical highlands, tree crops in the ever-wet tropics and by desert oases') + landmasses;
     }
     if (layer === 'farmLife' && !farmOptions.simple && T.meas) {
@@ -1022,8 +1164,8 @@ export function farmingLegendHTML(layer, fin) {
             `title="${one === k ? 'Show every way of life again' : `${FOOD_SYSTEMS[k].why[0].toUpperCase()}${FOOD_SYSTEMS[k].why.slice(1)} — show it alone`}"><i style="background:${css(SYSTEM_RGB[k])}"></i>${FOOD_SYSTEM_WORDS[k]} <em>${pct(Y.system[k])}</em></button>`;
         const simple = chip('simple', 'Simple', 'Farming, herding or gathering only — and how many each could feed, alone', false);
         return head(one ? `Way of life — ${FOOD_SYSTEM_WORDS[one].toLowerCase()} alone (striped where it is a close second)${when}` : `Way of life — how each place’s people would live${when}`) +
-            `<div class="evo-farm-chips">${FOOD_SYSTEMS.map((_, k) => k).filter(k => k && Y.system[k] >= 0.0005).map(way).join('')}</div>` + ages +
-            `<div class="evo-farm-chips">${simple}${chips}</div>` +
+            `<div class="evo-farm-chips">${FOOD_SYSTEMS.map((_, k) => k).filter(k => k && Y.system[k] >= 0.0005).map(way).join('')}</div>` +
+            `<div class="evo-farm-chips">${simple}</div>` +
             bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where few could live; striped where a second does nearly as well') +
             note('Farming where crops feed most: paddies where paddy grains lead; irrigated valleys where only water brought makes farmland; plough and flocks on dry summers and dry margins, mixed farms on humid land; ' +
                 'hoe farming where no plough beast lives (the fly belt: see Animals); forest gardens in the wet tropics; highland farming on the tropics’ highlands; grain and herds on the dry margin. ' +
@@ -1037,28 +1179,26 @@ export function farmingLegendHTML(layer, fin) {
         const one = farmOptions.beast, beast = k => `<button type="button" class="evo-farm-chip evo-farm-staple${one === k ? ' on' : ''}" data-farm-beast="${k}" aria-pressed="${one === k}" ` +
             `title="${one === k ? 'Show the leading beasts again' : `${BEASTS[k].like}: ${BEASTS[k].roles} — show where it could be kept`}"><i style="background:${css(BEAST_RGB[k])}"></i>${BEAST_WORDS[k]} <em>${pct(Y.beast[k])}</em></button>`;
         const fly = `<span><i style="background:repeating-linear-gradient(135deg, rgba(0,0,0,0.42) 0 2px, transparent 2px 6px), ${css(STAPLE_PALE)}"></i>fly belt <em>${pct(Y.fly)}</em></span>`;
-        const namedChip = chip('named', 'Named', 'Each place\'s own beast — its hearth\'s strain, by its Earth-like name — instead of the archetypes', farmOptions.named);
-        const nv = one ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.roll, farmOptions.fewer), C, techKey()));
-        const rankChipsB = nv ? `<div class="evo-farm-chips">${[[1, 'Main beast'], [2, '2nd'], [3, '3rd']].map(([r, w]) => `<button type="button" class="evo-farm-chip${farmOptions.rank === r ? ' on' : ''}" data-farm-rank="${r}" aria-pressed="${farmOptions.rank === r}">${w}</button>`).join('')}</div>` : '';
-        if (nv && nv.rank > 1) {
-            const RT = rankTally(nv, 'beast'), vs = nv.N.strains.filter(S => S.a >= CROPS.length && RT[S.id] >= 0.002).sort((x, y) => RT[y.id] - RT[x.id]).slice(0, 24);
-            return head(`Animals — each place's ${nv.rank === 2 ? 'second' : 'third'} beast${when}`) + `<div class="evo-farm-chips">${vs.map(S => variantChip(nv, S.id, RT[S.id])).join('')}</div>` + rankChipsB + ages +
-                `<div class="evo-farm-chips">${namedChip}${luckChips}</div>` + note('Every beast spreads wherever it can be kept, barring distance; each place\'s beasts ranked by how well each is kept there, the first come leading unless a later one does far better') + cameNote;
-        }
+        const nv = one ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.foodSeed, farmOptions.fewer), C, techKey()));
         if (nv) {
-            const VT = variantTally(fin, nv), list = b => {
-                const a = beastArchetype(b), vs = nv.N.strains.filter(S => S.a === a && VT.beast[S.id] >= 0.002).sort((x, y) => VT.beast[y.id] - VT.beast[x.id]).slice(0, 8);
-                return `<div class="evo-farm-group"><span class="evo-farm-groupname" title="${BEASTS[b].like}: ${BEASTS[b].roles}"><i style="background:${css(BEAST_RGB[b])}"></i>${BEAST_WORDS[b]} <em>${pct(Y.beast[b])}</em></span>${vs.map(S => variantChip(nv, S.id, VT.beast[S.id])).join('')}</div>`;
+            const GT = groupTable(nv, 'beast'), VT = variantTally(fin, nv), pick = pickedOf(nv, layer), order = [];
+            const list = b => {
+                const a = beastArchetype(b), vs = nv.N.strains.filter(S => S.a === a && (GT.grown[S.id] >= 0.002 || VT.beast[S.id] >= 0.002)).sort((x, y) => GT.grown[y.id] - GT.grown[x.id] || x.id - y.id).slice(0, 10);
+                order.push(...vs.map(S => S.id));
+                return `<div class="evo-farm-group"><span class="evo-farm-groupname" title="${BEASTS[b].like}: ${BEASTS[b].roles} — leading on ${pct(Y.beast[b])} of the land; each of its strains by the land it is kept on"><i style="background:${css(BEAST_RGB[b])}"></i>${BEAST_WORDS[b]} <em>· leads on ${pct(Y.beast[b])}</em></span>${vs.map(S => variantChip(nv, S.id, GT.grown[S.id])).join('')}</div>`;
             };
-            return head(farmOptions.variant >= 0 && nv.N.strains[farmOptions.variant] ? `Animals — ${nv.N.strains[farmOptions.variant].label} alone: where it leads${when}` : `Animals — each place's own beasts, by name${when}`) +
-                BEASTS.map((_, k) => k).filter(k => k && Y.beast[k] >= 0.002).map(list).join('') + rankChipsB + ages +
-                `<div class="evo-koppen">${fly}</div><div class="evo-farm-chips">${namedChip}${luckChips}</div>` +
-                bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it is kept less well; striped where a second ranks nearly as well') +
-                note('Each beast\'s strains: the one each hearth first tamed, named for the Earth animal it is most like — by its hearth\'s climate and what its neighbours\' hearths are like — and spread from there; a place keeps the strain that reached it first. ↗ opens the animal on Wikipedia. Hatched: the fly belt, where cattle, horses and buffalo fail') + cameNote;
+            const groups = BEASTS.map((_, k) => k).filter(k => k && (Y.beast[k] >= 0.002 || nv.N.strains.some(S => S.a === beastArchetype(k) && GT.grown[S.id] >= 0.002))).map(list).join('');
+            const RS = pick >= 0 ? farmColourBuffer(layer, fin).rungs : null, P = v => pct(RS?.[v] ?? 0);
+            const text = pick >= 0 ? `${pickedName(nv, pick)} — the leading beast on ${P(1)} of the land, the 2nd on ${P(2)}, the 3rd on ${P(3)}; kept otherwise on ${P(4)}`
+                : 'Pick an animal: where it is the leading beast, the 2nd or the 3rd';
+            return head(`Animals — each place's leading beast, by name${when}`) + pickRow('variant', order, pick, text, { title: pick >= 0 ? strainTitle(nv, pick) : '' }) +
+                groups + `<div class="evo-koppen">${fly}</div>` +
+                rungKey(nv, pick, ['leading beast', '2nd', '3rd', 'kept otherwise'], bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it is kept less well; striped where a second ranks nearly as well')) +
+                note('Each beast\'s strains: the one each hearth first tamed, named for the Earth animal it is most like — by its hearth\'s climate and what its neighbours\' hearths are like — and spread from there, wherever it can be kept, barring distance. ↗ opens the animal on Wikipedia. Hatched: the fly belt, where cattle, horses and buffalo fail') + cameNote;
         }
         return head(one ? `${BEAST_WORDS[one]} (${BEASTS[one].like}: ${BEASTS[one].roles}) — where it could be kept, and how well${when}` : `Animals — farmers’ and herders’ leading beast${when}`) +
-            `<div class="evo-farm-chips">${BEASTS.map((_, k) => k).filter(k => k).map(beast).join('')}</div>` + ages +
-            `<div class="evo-koppen">${fly}</div><div class="evo-farm-chips">${historyOf(fin) && !one ? namedChip : ''}${luckChips}</div>` +
+            `<div class="evo-farm-chips">${BEASTS.map((_, k) => k).filter(k => k).map(beast).join('')}</div>` +
+            `<div class="evo-koppen">${fly}</div>` +
             bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], one ? 'paler where it is kept less well' : 'paler where it is kept less well; striped where a second ranks nearly as well') +
             note('Each place’s beast most at home there — its wild ancestor’s home first, how well it is kept second: cattle-like grazers on open lowland, sheep and goats on rugged hills, the horse on cold steppe, camels in the deserts, ' +
                 'yak- or llama-like beasts above ~3,000 m, reindeer where the summers are short and the winters hard, pigs in warm wet woods where no plough beast is, buffalo in the paddies and wetlands. ' +
@@ -1070,8 +1210,8 @@ export function farmingLegendHTML(layer, fin) {
         const one = farmOptions.life, way = k => `<button type="button" class="evo-farm-chip evo-farm-staple${one === k ? ' on' : ''}" data-farm-life="${k}" aria-pressed="${one === k}" ` +
             `title="${one === k ? 'Show every way of life again' : `Show how many ${LIFESTYLE_WORDS[k].toLowerCase()} could feed — alone`}"><i style="background:${css(LIFE_RGB[k])}"></i>${LIFESTYLE_WORDS[k]} <em>${pct(T.life[k])}</em></button>`;
         return head(one ? `Way of life — ${LIFESTYLE_WORDS[one].toLowerCase()} alone: how many it could feed${when}` : `Way of life — farming, herding or gathering${when}`) +
-            `<div class="evo-farm-chips">${[Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].map(way).join('')}</div>` + ages +
-            `<div class="evo-farm-chips">${T.meas ? chip('simple', 'Simple', 'Back to each place’s food system: paddies, plough and flocks, hoe farming, nomadic herding, settled foragers…', farmOptions.simple) : ''}${chips}</div>` +
+            `<div class="evo-farm-chips">${[Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].map(way).join('')}</div>` +
+            (T.meas ? `<div class="evo-farm-chips">${chip('simple', 'Simple', 'Back to each place’s food system: paddies, plough and flocks, hoe farming, nomadic herding, settled foragers…', farmOptions.simple)}</div>` : '') +
             bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], one ? 'paler where it feeds fewer' : 'paler where few could live; striped where a second does nearly as well') +
             note(`Gathering is hunting, fishing and gathering: the coasts of cold, upwelling seas, big rivers and lakes, and the land’s own plants and game. Gatherers keep to their way unless farming or herding would feed ${GATHER.hold} times as many — ` +
                 'so rich coasts can stay theirs, as the Pacific Northwest’s did; farming where crops feed most, herding where only grass grows well') + cameNote +
@@ -1082,7 +1222,7 @@ export function farmingLegendHTML(layer, fin) {
         if (!count) return head('People — add detail again to see them (this moment was detailed before the harvests were counted)');
         const millions = v => (v >= 1e9 ? `${(v / 1e9).toFixed(1)} billion` : v >= 1e6 ? `${Math.round(v / 1e6).toLocaleString()} million` : `${Math.round(v / 1e3).toLocaleString()} thousand`);
         const by = [Lifestyle.FARMING, Lifestyle.HERDING, Lifestyle.GATHERING].filter(k => count.byLife[k] > 0).map(k => `${LIFESTYLE_WORDS[k].toLowerCase()} ${millions(count.byLife[k])}`).join(', ');
-        return head(`People — how many the land could feed, pre-industrial, with these techniques${when}`) + ages + `<div class="evo-farm-chips">${chips}</div>` +
+        return head(`People — how many the land could feed, pre-industrial, with these techniques${when}`) +
             bar(PEOPLE_LOG, '1 · 5 · 20 · 60 · 150+ a km²') +
             note(`The whole land could feed about ${millions(count.people)} — ${Math.round(count.people / Math.max(1, count.land))} a km² on average (${by}); its richest river plains well over 100. ` +
                 'Each place by its way of life (the Lifestyle view): poor ground farmed in long fallows — a rainforest’s fields cropped a year or two in ten, so it feeds a few a km² — ' +
@@ -1096,7 +1236,7 @@ export function farmingLegendHTML(layer, fin) {
         : bar(FARM_RAIN, 'by rain: little → much') + (any ? bar(FARM_WATER, 'only with water brought') : '');
     const good = t => t[3] + t[4];
     if (!hasHarvests(fin.raster.farming)) return head('Farmland — add detail again to see it (this moment was detailed before the harvests were counted)');
-    return head('Farmland — what the land could grow') + `<div class="evo-farm-chips">${chips}${look}</div>` + scale +
+    return head('Farmland — what the land could grow') + `<div class="evo-farm-chips">${look}</div>` + scale +
         note(`Good: one sure harvest a year · excellent: two or three, off renewed ground (${pct(T.tech[4])} of the land). Good or excellent: ${pct(good(T.tech))} with these techniques, ` +
             `${pct(good(T.rain))} by rain alone. Harvests × soil × ground — what the land could grow, not who would live there`);
 }
@@ -1105,17 +1245,24 @@ export function farmingLegendHTML(layer, fin) {
  *  finder. */
 let finderFin = null;
 export function farmInputChanged(target, fin = finderFin) {
+    if (target?.matches?.('[data-farm-seed]')) {
+        const k = Math.round(Number(target.value));
+        if (!Number.isFinite(k) || k < 0 || k > FOOD_SEED_MAX || k === farmOptions.foodSeed) return false;
+        farmOptions.foodSeed = k; farmOptions.variant = -1; farmOptions.crop = -1;
+        return true;
+    }
     if (!target?.matches?.('[data-farm-find]')) return false;
     const MN = fin && minorNow(fin), q = target.value.trim().toLowerCase().replace(/-like.*$/, '');
     if (!MN || !q) return false;
-    const I = MN.items.find(x => MN.built[x.id].exists && x.name.toLowerCase() === q) ?? MN.items.find(x => MN.built[x.id].exists && x.name.toLowerCase().startsWith(q));
+    // (any crop of the catalogue — the grown first where names start alike)
+    const I = MN.items.find(x => x.name.toLowerCase() === q) ?? MN.items.find(x => MN.built[x.id].exists && x.name.toLowerCase().startsWith(q)) ?? MN.items.find(x => x.name.toLowerCase().startsWith(q));
     if (!I) return false;
     farmOptions.crop = I.id;
     return true;
 }
 /** A click on a legend chip: its option flipped; true if it was one. */
 /** The Origins view's history run, with the options shown (farming-store.js hearthsOf) — null without a history. */
-const farmingOrigins = fin => hearthsOf(fin, farmOptions.roll, farmOptions.fewer);
+const farmingOrigins = fin => hearthsOf(fin, farmOptions.foodSeed, farmOptions.fewer);
 const farmingOptionsOrigin = () => farmOptions.origin;
 /** The pins over the planet (evolution-main placePins): the primary hearths, numbered in the order they began — on the
  *  Origins view; [] on the others. */
@@ -1129,6 +1276,9 @@ export function farmingPins(layer, fin) {
     return run ? run.hearths.map(C => ({ lat: C.lat, lon: C.lon, label: String(C.hearth), fill: css(hearthRGB(C.hearth)), ring: C.founder ? '#f5d76e' : 'rgba(255, 252, 244, 0.95)', ink: '#fff' })) : [];
 }
 export function farmChipClicked(target) {
+    const set = target.closest?.('[data-farm-settoggle]');
+    if (set) { settingsOpen = !settingsOpen; set.closest('.evo-farm-set')?.classList.toggle('open', settingsOpen); set.setAttribute('aria-expanded', String(settingsOpen)); return false; }
+    if (target.closest?.('[data-farm-reroll]')) { let k; do k = randomFoodSeed(); while (k === farmOptions.foodSeed); farmOptions.foodSeed = k; farmOptions.variant = -1; farmOptions.crop = -1; return true; }
     const one = target.closest?.('[data-farm-only]');
     if (one) { const k = Number(one.dataset.farmOnly); farmOptions.only = farmOptions.only === k ? 0 : k; return true; }
     const life = target.closest?.('[data-farm-life]');
@@ -1139,7 +1289,6 @@ export function farmChipClicked(target) {
     if (origin) { farmOptions.origin = origin.dataset.farmOrigin; return true; }
     const wild = target.closest?.('[data-farm-wild]');
     if (wild) { const k = Number(wild.dataset.farmWild); farmOptions.wild = farmOptions.wild === k ? -1 : k; return true; }
-    if (target.closest?.('[data-farm-roll]')) { farmOptions.roll++; farmOptions.variant = -1; return true; }
     const look = target.closest?.('[data-farm-croplook]');
     if (look) { farmOptions.cropLook = look.dataset.farmCroplook; farmOptions.crop = -1; return true; }
     const crop = target.closest?.('[data-farm-crop]');
@@ -1148,9 +1297,17 @@ export function farmChipClicked(target) {
     if (real) { farmOptions.real = real.dataset.farmReal; farmOptions.variant = -1; return true; }
     const pull = target.closest?.('[data-farm-pull]');
     if (pull) { farmOptions.pull = pull.dataset.farmPull; farmOptions.variant = -1; return true; }
-    if (target.closest?.('[data-farm-nameroll]')) { farmOptions.nameRoll++; farmOptions.variant = -1; return true; }
-    const rank = target.closest?.('[data-farm-rank]');
-    if (rank) { farmOptions.rank = Number(rank.dataset.farmRank) || 1; farmOptions.variant = -1; return true; }
+    // (the pick row's ‹ › ×: the one before or after the picked in the chips' order — from either end where none is — or none)
+    const step = target.closest?.('[data-farm-step]');
+    if (step) {
+        if (step.disabled) return false;
+        const key = step.dataset.farmStep, d = Number(step.dataset.step), ids = step.dataset.ids ? step.dataset.ids.split(',').map(Number) : [];
+        if (!d) { farmOptions[key] = -1; return true; }
+        if (!ids.length) return false;
+        const k = ids.indexOf(farmOptions[key]);
+        farmOptions[key] = ids[k < 0 ? (d > 0 ? 0 : ids.length - 1) : (k + d + ids.length) % ids.length];
+        return true;
+    }
     const variant = target.closest?.('[data-farm-variant]');
     if (variant) { const k = Number(variant.dataset.farmVariant); farmOptions.variant = farmOptions.variant === k ? -1 : k; return true; }
     const age = target.closest?.('[data-farm-age]');
@@ -1164,7 +1321,7 @@ export function farmChipClicked(target) {
 }
 // ── names in words (F5a) ──
 /** The names as the options say (the realism, the likeness pull, the names' re-roll). */
-const namesNow = fin => namesOf(fin, farmOptions.roll, farmOptions.fewer, farmOptions.pull, farmOptions.nameRoll, farmOptions.real);
+const namesNow = fin => namesOf(fin, farmOptions.foodSeed, farmOptions.fewer, farmOptions.pull, 0, farmOptions.real);
 /** A centre's strain of archetype `a`, by name — or the archetype's word (no history names). */
 function strainName(fin, centre, a) {
     const N = namesNow(fin), S = N?.strains.find(s => s.centre === centre && s.a === a);
@@ -1175,7 +1332,7 @@ const namesAge = layer => (!AS_CAME.has(layer) || farmOptions.age === 'full' ? I
 /** The name of the leading strain of archetype `a` at (lat, lon), as the views read it — '' where none had come. */
 function hereName(fin, a, lat, lon, layer) {
     if (!farmOptions.named) return '';
-    const N = namesNow(fin), S = N && strainsOf(fin, farmOptions.roll, farmOptions.fewer, namesAge(layer));
+    const N = namesNow(fin), S = N && strainsOf(fin, farmOptions.foodSeed, farmOptions.fewer, namesAge(layer));
     if (!S) return '';
     const s = strainVote(S.Gm, S.R.group[a], lat, lon);
     return s >= 0 ? N.strains[s].label : '';
@@ -1183,7 +1340,7 @@ function hereName(fin, a, lat, lon, layer) {
 /** Every crop group that grows here and beast kept here that had come, ranked (the main first), each by its leading
  *  strain's name and its other varieties in brackets ("emmer-like (main; also einkorn-like)"). */
 function hereNames(fin, lat, lon, layer, cropA = -1, beastA = -1) {
-    const N = namesNow(fin), S = N && strainsOf(fin, farmOptions.roll, farmOptions.fewer, namesAge(layer));
+    const N = namesNow(fin), S = N && strainsOf(fin, farmOptions.foodSeed, farmOptions.fewer, namesAge(layer));
     if (!S) return null;
     const H = strainsHere(S, lat, lon, namesAge(layer)), name = x => N.strains[x.id].label;
     // (the place's staple's group and its leading beast first: its main crop and beast, as Staple food and Animals show)
@@ -1215,7 +1372,7 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     // (its way of life — its food system and why, a second where it does nearly as well — its beasts, and its staple food)
     const R = fin.raster;
     if (hasMeasures(R, K)) {
-        const M = {}, bp = newBeasts(), sy = systemAt(R, K, i, p, r, lv, g0, plat, M, bp, {}, flyAtOf(fin, opt.roll, opt.fewer)(plat, plon), came);
+        const M = {}, bp = newBeasts(), sy = systemAt(R, K, i, p, r, lv, g0, plat, M, bp, {}, flyAtOf(fin, opt.foodSeed, opt.fewer)(plat, plon), came);
         const life = lv.lifestyle ? ` (${LIFESTYLE_WORDS[lv.lifestyle].toLowerCase()}${lv.lifestyle === Lifestyle.GATHERING ? `, ${foragerWord(M, g0)}` : ''})` : '';
         lines.push(L('Way of life', sy.system ? `<b>${FOOD_SYSTEM_WORDS[sy.system]}</b>${life} — ${FOOD_SYSTEMS[sy.system].why}${sy.second ? ` · and ${FOOD_SYSTEM_WORDS[sy.second].toLowerCase()}` : ''}` : 'uninhabited'));
         const flyWords = bp.fly >= 0.5 ? ' · in the fly belt: no cattle, horses or buffalo, no plough' : bp.fly >= 0.25 ? ' · on the fly belt’s edge' : '';
@@ -1239,13 +1396,13 @@ export function farmingLines(fin, u, v, sea, layer = null) {
     // (Origins: the wild larder here, the hearth odds, the landmass and its luck)
     const G = layer === 'farmOrigins' ? historyOf(fin) : null;
     if (G) {
-        const luck = luckOf(fin, opt.roll, opt.fewer), m = massAt(G, plat, plon), NB = BEASTS.length;
+        const luck = luckOf(fin, opt.foodSeed, opt.fewer), m = massAt(G, plat, plon), NB = BEASTS.length;
         const wild = ARCHETYPES.map((A, k) => [A, fieldAt(G, G.niche[k], plat, plon)]).filter(([, v]) => v >= 0.3).sort((a, b) => b[1] - a[1])
             .map(([A]) => (A.beast ? `${A.like.replace(/^like /, '')}${m >= 0 && luck.has[m * NB + A.beast] ? '' : ' (none on this landmass)'}` : A.word.toLowerCase()));
         lines.unshift(L('Wild larder', wild.length ? wild.join(', ') : 'nothing to tame or sow'));
         const rank = oddsRank(G, fieldAt(G, G.odds, plat, plon));
         // (the history: when farming came, from which hearth; a hearth near)
-        const run = hearthsOf(fin, opt.roll, opt.fewer);
+        const run = hearthsOf(fin, opt.foodSeed, opt.fewer);
         if (run) {
             const q = cellAt(G, plat, plon), t = run.farmTime[q], from = run.farmFrom[q], root = from >= 0 ? run.centres[run.centres[from].root] : null;
             lines.unshift(L('Farming came', t < Infinity ? `${t < 50 ? 'first, here' : `~${(Math.round(t / 100) * 100).toLocaleString()} years after the first`}${root?.hearth ? ` · from hearth ${root.hearth}` : ''}` : 'never: nothing fit to farm reached it'));

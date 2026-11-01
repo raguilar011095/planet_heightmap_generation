@@ -867,6 +867,71 @@ are worked out once per strain.
 
 **Not yet:** the Earth checks (F4b), Food security from the real crop mix, the culture layer.
 
+## 8i. Earth step 1, the views' pick row, the catalogue's kinds (2026-11-01)
+
+**A farmed Earth** (`tuning/farming/earth-world.mjs`, `earth-history.mjs`, `earth-crops.mjs`, `render-earth.mjs`): Earth's
+heights (assets/earth.png), its observed 1° climate on a 0.25° grid (bilinear, lapse-corrected), rivers routed to the sea
+(a priority flood over the heights tilted by their ~150 km mean; Fu's runoff) and the gatherers' sea (observed SST, sea ice,
+Ekman upwelling from the observed winds), put through the finish's own farming parts — a finished moment the history runs
+on unchanged. Earth's own luck (every beast in Afro-Eurasia, the llama alone in the Americas, none in Sahul or Madagascar;
+the fly in Africa). Known gaps: the Euphrates joins the Tigris too far north (the picture's 28 m steps); the Niger's inland
+delta is not reached.
+
+**The hearth odds against Earth's centres** (14 centres — SW Asia, the Yangtze and Yellow River, the Balsas, eastern North
+America, the Andes, SW Amazonia, New Guinea, the Sahel, Sudan, Ethiopia, the yam belt, the Ganges, South India — and 15
+places farming came to): at first AUC 0.68, New Guinea 0 % (its seasonality), the Andes cut as too high, the rich coasts
+(California, the Northwest, Japan) not cut, and ~30 candidate regions tied at the top — the founders a draw among them;
+hearths within 1,200 km of a centre 39 % (a random draw on farmable land: 41 %). Changed, each a rule for any world: the
+hilly-flanks bonus by cold (mean 4–9 °C), not height; the roots' and trees' larder needing less seasonality (the wet
+tropics' margins); the foragers' richness read within ~150 km; the variety and seasonality graded to the top. Now AUC
+0.755, New Guinea 70 %, 2.8 centres a run with a hearth within 700 km (was 1.9), 46 % of hearths within 1,200 km. Rain's
+seasonality predicts the centres (AUC 0.62), temperature's alone does not (0.48); landscape variety little (0.55). The
+hearths still land in Earth's belts more than on its points: what more would tell them apart is Earth's contingency.
+
+**The named views** (developer: "I didnt want separate views for primary, secondary, tertiary… when you click on each you
+see that crops full spread… in rungs"; "when you click it moves around so its so hard to quickly toggle"): one view — each
+place's main, striped by the runner-up's own variety; a pick shows a crop's rungs (main, 2nd, 3rd, grown otherwise). The
+legend's pick row (‹ › ×, its words in a fixed two or three lines) and key keep the legend one height — it hangs from the
+screen's bottom, so every change of height had moved every chip; the chips list the land each is grown on, one Wikipedia
+link (the picked one's). The Crops view's card lives in the same row; its one-crop picture reads its two fields in one pass
+(~0.65 s a step, was ~1.5 s).
+
+**The catalogue** (developer: "some spices and herbs overlap, and some are very restrained and some are very commonly
+spread"; "group spices and herbs together"): herbs grouped with the spices; the herbs and the seed and root spices travel as
+gardens do, the tree, vine and resin spices stay within ~900 km; tropical fruit its own niche; dryland fruit (fig,
+pomegranate, jujubes) instead of oasis palms; a crop in one list only; every crop narrowed by its Earth home's climate (a
+quarter of its kind's niche away from it). On Earth at 10,000 years (share of the farmed land, median): herbs 2.7 → 15 %,
+seed spices 0.2 → 8 %, root spices 3 %, tree spices ~0.2 %, fruit 3.5 %, tropical fruit 10 %, pulses 13 → 9 %, vegetables
+9 → 7 %, oil and fibre 17 → 14 %; the widest 29 → 21 %; a farming place ~17 crops (~45 at the full spread).
+
+**Later 2026-11-01** (developer: rivers "not spreading crops down them fast enough … especially along rivers in deserts";
+"make it more obvious what the settings are … easy to reroll … EVERYTHING with food"; "where are olives?"; "coconuts … spread
+across the whole world by floating"; the Crops' crops "spreading across big wide gaps"):
+- rivers through dry land read pixel by pixel (history.js `fitRun`, `riverWay`; hearths.js `river` × 4): the check planet's
+  dry river strips all farmed (61 % before), ~600 years sooner;
+- one settings block atop every Food legend (farming-view.js `foodSettings`): Re-roll everything with food (the history's
+  roll and the names' together), a line saying what is set, each setting opened with what it does, dimmed where unused;
+- the finder lists every crop, one not grown saying why (MINOR's `needs`), hatched where it could grow; the olive's niche a
+  little wider (winter rain's share from 0.35);
+- the coconut an extra crop of its own (tropical fruit), drifting: across warm seas of any width, along tropical coasts,
+  never crowded out — ~28 % of the farmed Earth at 10,000 years;
+- a crop carried only so far across land it does not grow on (minor.js `GAP_KM`): on the farmed Earth at the full spread a
+  crop's patches ~49 → ~10, its land in patches with no home 68 % → 15 %; a farming place ~20 crops at the full spread (~45
+  before), ~16 at 10,000 years.
+- then "growth along ocean coasts can be further": coasts × 3 (was 2.5) and a coastal sea lane (within 120 km of land) at
+  15 km a year for the hearths' spread and the strains, 12 for the crops (a quarter of the lane counted toward the gap): by
+  1,000 years farming covers ~5–20 % of its land (was ~3–8 %); a farming place ~23 crops at the full spread.
+- then "we generally dont need multiple variants of the same crop species… only when there is no other option" and "same for
+  animals" / animals "should have less types of domestication per animal group" and "spread more": the cause was the history —
+  a region tamed its own rice whenever farming reached it before rice did (~18 rices a world, 5 in the catalogue). Now a
+  region adopts what had come near (crops within ~700 km, beasts ~2,000 km and mostly once a landmass), beasts spread at 1.6
+  km a year, and a strain takes a species of its own while one fits its hearth's climate (catalogue: Amazonian rice, red river
+  hog, Sulawesi warty pig, bearded pig added). Farmed Earth: strains ~88 → ~44 a world, names repeated 30 % → 7 %.
+- then cool-season grains "shut out a bit too much": a tropical roots strain (West Africa's) sailed the new coast lanes into
+  Europe ahead of the Fertile Crescent's wheat and, first come, led there. A crop strain now spreads slower into climates
+  unlike its hearth's (hearths.js likeT/likeW/likeFloor; the coastal sea its shore's climate; the named strains alike): wheat
+  leads Europe in every roll on the farmed Earth, cool-season grains 15 → 22 % of the land at the full spread.
+
 ## 9. Phases (each checked in the browser before the next)
 
 **After §0:**
