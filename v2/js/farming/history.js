@@ -100,6 +100,28 @@ export const cellAt = (G, lat, lon) => {
     const j = Math.min(G.h - 1, Math.max(0, Math.floor((90 - lat) / G.deg))), i = ((Math.floor((lon + 180) / G.deg) % G.w) + G.w) % G.w;
     return j * G.w + i;
 };
+/** The history's grid read smoothly (developer, 2026-10-31: "When farming came and From which hearth are still blocky" —
+ *  bilinear between 0.5° cells steps and kinks at their edges): each of the 4 × 4 cells round a point has a Gaussian say,
+ *  GRID_SIGMA cells wide — a lone cell's own patch voted away, every edge a rounded curve. */
+export const GRID_SIGMA = 0.7;
+const GAUSS_STEPS = 256, GAUSS = (() => {
+    const w = new Float64Array(4 * (GAUSS_STEPS + 1)), dw = new Float64Array(4 * (GAUSS_STEPS + 1)), s2i = 1 / (2 * GRID_SIGMA * GRID_SIGMA);
+    for (let q = 0; q <= GAUSS_STEPS; q++) for (let d = 0; d < 4; d++) {
+        const e = d - 1 - q / GAUSS_STEPS, v = Math.exp(-e * e * s2i);
+        w[4 * q + d] = v; dw[4 * q + d] = 2 * s2i * e * v;      // (its rate as the point moves a cell on: toward the cell, more)
+    }
+    return { w, dw };
+})();
+/** A point's place among the grid's cells for gridSay: its first cell (i0, j0 — one before the cell it is past) and the
+ *  table rows of its Gaussian weights along x and y (into P). */
+export function gridPlace(G, lat, lon, P) {
+    const gy = Math.min(G.h - 1, Math.max(0, (90 - lat) / G.deg - 0.5)), gx = (lon + 180) / G.deg - 0.5, i = Math.floor(gx), j = Math.floor(gy);
+    P.i0 = i - 1; P.j0 = j - 1;
+    P.qx = 4 * Math.round((gx - i) * GAUSS_STEPS); P.qy = 4 * Math.round((gy - j) * GAUSS_STEPS);
+    return P;
+}
+/** The weights (GRID_SIGMA's Gaussian) and their rates along x and y for gridPlace's rows. */
+export const GRID_W = GAUSS.w, GRID_DW = GAUSS.dw;
 /** A grid field read at (lat, lon), bilinear between cell centres (a wrap in longitude). */
 export function fieldAt(G, f, lat, lon) {
     const gy = Math.min(G.h - 1.0001, Math.max(0, (90 - lat) / G.deg - 0.5)), gx = (lon + 180) / G.deg - 0.5;

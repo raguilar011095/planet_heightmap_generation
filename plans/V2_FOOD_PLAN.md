@@ -783,6 +783,11 @@ places together). In the browser at 4,096 px a new age takes ~2.3 s (Way of life
 the last three of each store are kept (the land's own and two ages, ~20 bytes a land pixel each), so the chips switch
 freely once each has been seen.
 
+**Owner's check:** "When farming came and From which hearth are still blocky": they read the 0.5° grid as the nearest
+cell (jittered) or bilinear with "never" only where all four corners were. Now a Gaussian vote by class over the 4 × 4
+cells round each point (σ 0.7 cells): reached against never, or hearth against hearth, the time blended in the winner's
+cells, the lines each thousand drawn from its gradient (~1 px at any zoom). What had come (cameAt) reads the same way.
+
 **Not yet (F4b):** the re-roll and age in links, the Earth checks.
 
 ## 9. Phases (each checked in the browser before the next)

@@ -710,7 +710,9 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    farmable land reached by 10,000 years but little by 1,000, the same count at two details, and the speed.
    **As it came** (F4a; farming-store.js `cameOf`/`cameAt`; the legend's **10,000 years · Full spread · Best possible**
    chips on Staple food, Way of life, Animals and People — `farmOptions.age`, 10,000 years by default): what had come to
-   each place by an age of the history. Per cell of the ground, once per run and age: the archetypes come by then and those
+   each place by an age of the history (read smoothly, as Origins' When farming came and From which hearth are: history.js
+   `gridPlace` — each of the 4 × 4 cells round a point a Gaussian say, σ 0.7 cells, so territories and fronts are rounded
+   curves, not 0.5° squares; the thousand-year lines from the time's gradient, ~1 px at any zoom). Per cell of the ground, once per run and age: the archetypes come by then and those
    ever come (a bit each) and how fully the come herds could graze it (the best come herd beast's keeping, smooth from 0.1
    to 0.35). At a place each archetype's arrival is read between the cells as When farming came reads them (the corners
    it ever reaches, weighted — so the fronts are smooth, not 0.5° squares). The store then works each place out with only

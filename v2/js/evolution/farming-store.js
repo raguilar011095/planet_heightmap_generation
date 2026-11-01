@@ -17,7 +17,7 @@ import { farmPlace, farmClass, harvestsAt, hasHarvests, cameHarvests, Staple, ST
 import { gatherGround, gatherAt, livingPlace, foodScore, lifestylePeople, Lifestyle, foodSystem, measuresAt, hasMeasures, paddyOf } from '../farming/living.js';
 import { beastPlace, newBeasts, flyBelt, beastKeepOne, BEAST, BEASTS, ALL_BEASTS } from '../farming/beasts.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
-import { historyGround, historyLuck, flyHereAt, ARCHETYPES, beastArchetype } from '../farming/history.js';
+import { historyGround, historyLuck, flyHereAt, ARCHETYPES, beastArchetype, gridPlace, GRID_W } from '../farming/history.js';
 import { hearthRegions, runHearths } from '../farming/hearths.js';
 
 // ── a place, worked out in full (the store's, the hover's, the harvest months') ──
@@ -142,31 +142,37 @@ export function cameOf(fin, roll, fewer, age) {
     cames.set(run, list);
     return C;
 }
-/** What had come to a place (lat, lon) (into out: { mask, herd }) from cameOf's C — each archetype's arrival read between
- *  the history's cells as When farming came reads it (the corners it ever reaches, weighted: come where their times' mean
- *  is by the age), and how fully its herds could graze it (bilinear). */
+/** What had come to a place (lat, lon) (into out: { mask, herd }) from cameOf's C — read smoothly over the history's cells
+ *  as When farming came is (history.js gridPlace: the 4 × 4 round it, a Gaussian say each): an archetype come where the
+ *  cells it ever reaches have it by the age on their say's mean — every one, none, or between by their times — and how
+ *  fully its herds could graze it (the land cells' say). */
+const GPc = {}, cw = new Float64Array(16), cc = new Int32Array(16);
 export function cameAt(C, lat, lon, out = {}) {
-    const G = C.G, w = G.w, gy = Math.min(G.h - 1.0001, Math.max(0, (90 - lat) / G.deg - 0.5)), gx = (lon + 180) / G.deg - 0.5;
-    const j = Math.floor(gy), i = Math.floor(gx), ty = gy - j, tx = gx - i, a = ((i % w) + w) % w, b = (a + 1) % w, j1 = Math.min(G.h - 1, j + 1);
-    const c0 = j * w + a, c1 = j * w + b, c2 = j1 * w + a, c3 = j1 * w + b, w0 = (1 - tx) * (1 - ty), w1 = tx * (1 - ty), w2 = (1 - tx) * ty, w3 = tx * ty;
-    // (the corners that count — weighted, and reached by it: come where every one has it by the age, not where none does,
-    // and between, where their times' weighted mean is by the age)
-    const e0 = w0 > 0 ? C.ever[c0] : 0, e1 = w1 > 0 ? C.ever[c1] : 0, e2 = w2 > 0 ? C.ever[c2] : 0, e3 = w3 > 0 ? C.ever[c3] : 0;
-    const any = e0 | e1 | e2 | e3, some = (C.by[c0] & e0) | (C.by[c1] & e1) | (C.by[c2] & e2) | (C.by[c3] & e3);
-    const sure = any & (C.by[c0] | ~e0) & (C.by[c1] | ~e1) & (C.by[c2] | ~e2) & (C.by[c3] | ~e3);
+    const G = C.G, w = G.w;
+    gridPlace(G, lat, lon, GPc);
+    let n = 0, any = 0, some = 0, sure = -1, herd = 0, hw = 0;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GPc.j0 + dy;
+        if (j < 0 || j >= G.h) continue;
+        const wy = GRID_W[GPc.qy + dy];
+        for (let dx = 0; dx < 4; dx++) {
+            const c = j * w + ((GPc.i0 + dx) % w + w) % w, s = wy * GRID_W[GPc.qx + dx], e = C.ever[c], b = C.by[c];
+            cc[n] = c; cw[n++] = s;
+            any |= e; some |= b & e; sure &= b | ~e;
+            if (G.land[c]) { herd += s * C.herd[c]; hw += s; }
+        }
+    }
+    sure &= any;
     let mask = sure, open = some & ~sure;
     for (let k = 0; open; k++, open >>>= 1) {
         if (!(open & 1)) continue;
         const f = C.best[k], bit = 1 << k;
-        let s = 0, wt = 0;
-        if (e0 & bit) { s += w0 * f[c0]; wt += w0; }
-        if (e1 & bit) { s += w1 * f[c1]; wt += w1; }
-        if (e2 & bit) { s += w2 * f[c2]; wt += w2; }
-        if (e3 & bit) { s += w3 * f[c3]; wt += w3; }
-        if (s <= C.age * wt) mask |= bit;
+        let st = 0, sw = 0;
+        for (let m = 0; m < n; m++) if (C.ever[cc[m]] & bit) { st += cw[m] * f[cc[m]]; sw += cw[m]; }
+        if (st <= C.age * sw) mask |= bit;
     }
     out.mask = mask;
-    out.herd = w0 * C.herd[c0] + w1 * C.herd[c1] + w2 * C.herd[c2] + w3 * C.herd[c3];
+    out.herd = hw > 0 ? herd / hw : 0;
     return out;
 }
 

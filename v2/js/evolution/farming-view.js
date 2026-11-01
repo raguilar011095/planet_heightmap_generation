@@ -38,7 +38,7 @@ import { LIFESTYLES, LIFESTYLE_WORDS, Lifestyle, GATHER, livingPeople,
     FOOD_SYSTEMS, FOOD_SYSTEM_WORDS, foragerWord, hasMeasures } from '../farming/living.js';
 import { BEASTS, BEAST_WORDS, newBeasts } from '../farming/beasts.js';
 import { partsAt, placeAt, groundOf, livingAt, systemAt, keepsBeasts, placesOf, waysOf, onlyOf, lifeAloneOf, beastAloneOf, slotOf, dec, decLog, peopleFromLog, historyOf, luckOf, flyAtOf, hearthsOf, cameOf, cameAt } from './farming-store.js';
-import { ARCHETYPES, fieldAt, massAt, oddsRank, cellAt } from '../farming/history.js';
+import { ARCHETYPES, fieldAt, massAt, oddsRank, cellAt, gridPlace, GRID_W, GRID_DW } from '../farming/history.js';
 import { placeMonth, calendarGround, calendarMonth } from '../farming/calendar.js';
 import { landPixel } from './climate-view.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
@@ -113,8 +113,72 @@ function timeAt(G, f, lat, lon) {
     add(j * G.w + a, (1 - tx) * (1 - ty)); add(j * G.w + b, tx * (1 - ty)); add(j1 * G.w + a, (1 - tx) * ty); add(j1 * G.w + b, tx * ty);
     return wt > 0 ? s / wt : Infinity;
 }
-/** A hash-dithered nudge (degrees, ±0.3 of a cell) so the hearths' borders on the grid fray rather than step. */
-const nudge = (x, y, k) => { let h = Math.imul(x * 73856093 ^ y * 19349663 ^ k * 83492791, 0x9e3779b1); h ^= h >>> 15; return ((h >>> 0) / 4294967296 - 0.5) * 0.6; };
+// ── the history's grid read smoothly (history.js GRID_SIGMA: each of the 4 × 4 cells round a point a Gaussian say) ──
+const GP = {}, VS = { a: -1, b: -1, sayA: 0, sayB: 0, say: 0, t: Infinity, tb: Infinity, gx: 0, gy: 0 };
+const vSay = new Float64Array(64), vSt = new Float64Array(64), vSw = new Float64Array(64), vXt = new Float64Array(64), vXw = new Float64Array(64), vYt = new Float64Array(64), vYw = new Float64Array(64);
+const vStamp = new Int32Array(64), vUsed = new Int32Array(16);
+let stamp = 0;
+/** The class with the most say round (lat, lon) on the history's grid G — each cell's class from `klass` (0…63; −1 not
+ *  counted: the sea) — into VS: the winner `a` and the runner-up `b` with their says, the time of each (`time` blended over
+ *  its cells by their say, Infinity skipped) and the winner's time's rate east and south (gx, gy: years a cell); false where
+ *  no cell round it counts. */
+function gridVote(G, klass, time, lat, lon) {
+    gridPlace(G, lat, lon, GP);
+    const w = G.w;
+    let n = 0, tot = 0;
+    stamp++;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GP.j0 + dy;
+        if (j < 0 || j >= G.h) continue;
+        const wy = GRID_W[GP.qy + dy], dwy = GRID_DW[GP.qy + dy];
+        for (let dx = 0; dx < 4; dx++) {
+            const c = j * w + ((GP.i0 + dx) % w + w) % w, k = klass[c];
+            if (k < 0) continue;
+            if (vStamp[k] !== stamp) { vStamp[k] = stamp; vUsed[n++] = k; vSay[k] = vSt[k] = vSw[k] = vXt[k] = vXw[k] = vYt[k] = vYw[k] = 0; }
+            const wx = GRID_W[GP.qx + dx], s = wx * wy, t = time[c];
+            vSay[k] += s; tot += s;
+            if (t < Infinity) { const sx = GRID_DW[GP.qx + dx] * wy, sy = wx * dwy; vSt[k] += s * t; vSw[k] += s; vXt[k] += sx * t; vXw[k] += sx; vYt[k] += sy * t; vYw[k] += sy; }
+        }
+    }
+    if (!n) return false;
+    let a = vUsed[0], b = -1;
+    for (let m = 1; m < n; m++) { const k = vUsed[m]; if (vSay[k] > vSay[a]) { b = a; a = k; } else if (b < 0 || vSay[k] > vSay[b]) b = k; }
+    const sw = vSw[a];
+    VS.a = a; VS.b = b; VS.sayA = vSay[a]; VS.sayB = b >= 0 ? vSay[b] : 0; VS.say = tot;
+    VS.t = sw > 0 ? vSt[a] / sw : Infinity; VS.tb = b >= 0 && vSw[b] > 0 ? vSt[b] / vSw[b] : Infinity;
+    VS.gx = sw > 0 ? (vXt[a] * sw - vSt[a] * vXw[a]) / (sw * sw) : 0; VS.gy = sw > 0 ? (vYt[a] * sw - vSt[a] * vYw[a]) / (sw * sw) : 0;
+    return true;
+}
+/** Each cell's class for the history's looks, once per run: `came` 1 where farming came, 0 never; `from` its primary hearth's
+ *  number (1…62), 63 a centre of its own that no hearth's farming reached first, 0 never — the sea −1. */
+const klasses = new WeakMap();
+function klassOf(G, run) {
+    let K = klasses.get(run);
+    if (K) return K;
+    const N = G.w * G.h, came = new Int8Array(N), from = new Int8Array(N);
+    for (let c = 0; c < N; c++) {
+        if (!G.land[c]) { came[c] = from[c] = -1; continue; }
+        came[c] = run.farmTime[c] < Infinity ? 1 : 0;
+        const f = run.farmFrom[c], root = f >= 0 ? run.centres[run.centres[f].root] : null;
+        from[c] = !root ? 0 : root.hearth ? Math.min(62, root.hearth) : 63;
+    }
+    K = { came, from };
+    klasses.set(run, K);
+    return K;
+}
+/** When farming came's colour (into c) for a class and time; From which hearth's. */
+function cameColour(k, t, c) {
+    if (k === 1 && t < Infinity) return ramp(ARRIVE, t, c);
+    c[0] = NEVER[0]; c[1] = NEVER[1]; c[2] = NEVER[2];
+    return c;
+}
+const OWN = [196, 186, 168];
+function fromColour(k, t, c) {
+    if (k >= 1 && k <= 62) { const h = hearthRGB(k), f = 0.9 - 0.45 * smooth(0, 10000, t < Infinity ? t : 10000); for (let s = 0; s < 3; s++) c[s] = STAPLE_PALE[s] + (h[s] - STAPLE_PALE[s]) * f; return c; }
+    const n = k === 63 ? OWN : NEVER;
+    c[0] = n[0]; c[1] = n[1]; c[2] = n[2];
+    return c;
+}
 const ODDS = [[0, [226, 218, 202]], [0.12, [236, 216, 166]], [0.3, [230, 176, 102]], [0.55, [206, 112, 66]], [0.8, [156, 52, 54]], [1, [104, 24, 52]]];
 const BEAST_RGB = [STAPLE_PALE, [150, 92, 62], [200, 180, 110], [130, 88, 156], [222, 156, 72], [92, 118, 176], [86, 150, 146], [214, 122, 142], [88, 88, 98]];
 // people a km² (on a log scale): pale where few could live, through straw and amber to a deep crimson where the land
@@ -242,6 +306,8 @@ function farmPixelColour(layer, fin, W) {
     // (Origins: the history's ground and each landmass's luck)
     const G = layer === 'farmOrigins' ? historyOf(fin) : null, luck = G ? luckOf(fin, opt.roll, opt.fewer) : null;
     const run = G && (opt.origin === 'came' || opt.origin === 'from') ? hearthsOf(fin, opt.roll, opt.fewer) : null;
+    // (the history's grid cells a drawn pixel spans, and the edge's easing: over about a drawn pixel)
+    const cellsPerPx = G ? 360 / (W * G.deg) : 1, edgeSoft = Math.min(1, 1.2 * cellsPerPx);
     // (a chip's one alone: its values, worked out the first time)
     const A = layer === 'farmStaple' && opt.only ? onlyOf(fin, opt, key, opt.only, C)
         : layer === 'farmLife' && !Y && opt.life ? lifeAloneOf(fin, opt, key, opt.life, C)
@@ -260,21 +326,23 @@ function farmPixelColour(layer, fin, W) {
             if (!G) pale();
             else {
                 const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180;
-                if (opt.origin === 'came' && run) {
-                    // (years after the first farming, a line each thousand: where the band differs a texel east or south)
-                    const t = timeAt(G, run.farmTime, lat, lon);
-                    if (!(t < Infinity)) { c[0] = NEVER[0]; c[1] = NEVER[1]; c[2] = NEVER[2]; }
+                if ((opt.origin === 'came' || opt.origin === 'from') && run) {
+                    // (read smoothly: the class with the most say round it — farming came or never; or whose hearth — its time
+                    // blended over its cells, eased into the next class over about a drawn pixel; When farming came's lines each
+                    // thousand where the time is within about half a drawn pixel of one — from its rate, ~1 px wide at any zoom)
+                    const came = opt.origin === 'came', K = klassOf(G, run), col = came ? cameColour : fromColour;
+                    if (!gridVote(G, came ? K.came : K.from, run.farmTime, lat, lon)) col(0, Infinity, c);
                     else {
-                        ramp(ARRIVE, t, c);
-                        const step = 360 / W, te = timeAt(G, run.farmTime, lat, lon + step), ts = timeAt(G, run.farmTime, lat - step, lon), band = Math.floor(t / 1000);
-                        if ((te < Infinity && Math.floor(te / 1000) !== band) || (ts < Infinity && Math.floor(ts / 1000) !== band)) { c[0] *= 0.78; c[1] *= 0.78; c[2] *= 0.78; }
+                        col(VS.a, VS.t, c);
+                        if (VS.b >= 0) {
+                            const m = 0.5 + 0.5 * smooth(0, VS.say * edgeSoft, VS.sayA - VS.sayB);
+                            if (m < 1) { col(VS.b, VS.tb, tmp); for (let s = 0; s < 3; s++) c[s] = c[s] * m + tmp[s] * (1 - m); }
+                        }
+                        if (came && VS.a === 1 && VS.t < Infinity) {
+                            const k = Math.round(VS.t / 1000), perPx = Math.hypot(VS.gx, VS.gy) * cellsPerPx;
+                            if (k >= 1 && perPx > 0) { const ink = 1 - smooth(0.35, 0.85, Math.abs(VS.t - 1000 * k) / perPx); if (ink > 0) { const d = 1 - 0.22 * ink; c[0] *= d; c[1] *= d; c[2] *= d; } }
+                        }
                     }
-                } else if (opt.origin === 'from' && run) {
-                    // (each primary hearth's lands in its colour, paler the later its farming came; a centre of its own, or never, pale)
-                    const q = cellAt(G, lat + nudge(x, y, 1) * G.deg, lon + nudge(x, y, 2) * G.deg), from = run.farmFrom[q];
-                    const root = from >= 0 ? run.centres[run.centres[from].root] : null;
-                    if (!root?.hearth) { const n = root ? [196, 186, 168] : NEVER; c[0] = n[0]; c[1] = n[1]; c[2] = n[2]; }
-                    else { const h = hearthRGB(root.hearth), k = 0.9 - 0.45 * smooth(0, 10000, run.farmTime[q]); for (let s = 0; s < 3; s++) c[s] = STAPLE_PALE[s] + (h[s] - STAPLE_PALE[s]) * k; }
                 } else if (opt.origin === 'odds') ramp(ODDS, fieldAt(G, G.odds, lat, lon), c);
                 else if (opt.wild >= 0) {
                     const A = ARCHETYPES[opt.wild], v = fieldAt(G, G.niche[opt.wild], lat, lon), m = A.beast ? massAt(G, lat, lon) : 0;
@@ -431,7 +499,11 @@ export function finishedFarmingValue(key, fin, W) {
     if (!F || !K) return () => NaN;
     const p = {}, opt = { ...farmOptions }, tk = techKey(), parts = key === 'soil' || key === 'seasonRain' || key === 'seasonWatered', sys = key === 'foodSystem' || key === 'beast' || key === 'flyBelt';
     const hist = key === 'larderVariety' || key === 'hearthOdds' || key === 'farmCame', G = hist ? historyOf(fin) : null, H = W >> 1;
-    if (key === 'farmCame') { const run = G && hearthsOf(fin, farmOptions.roll, farmOptions.fewer); return run ? (x, y) => { if (landPixel(K, W, x, y) < 0) return NaN; const t = timeAt(G, run.farmTime, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180); return t < Infinity ? t : 65535; } : () => NaN; }
+    if (key === 'farmCame') {
+        // (as the view reads it: where farming came has the most say, its time; else never)
+        const run = G && hearthsOf(fin, farmOptions.roll, farmOptions.fewer), Kc = run && klassOf(G, run).came;
+        return run ? (x, y) => { if (landPixel(K, W, x, y) < 0) return NaN; const lat = 90 - (y + 0.5) / H * 180, lon = (x + 0.5) / W * 360 - 180; if (!gridVote(G, Kc, run.farmTime, lat, lon)) { const t = timeAt(G, run.farmTime, lat, lon); return t < Infinity ? t : 65535; } return VS.a === 1 && VS.t < Infinity ? VS.t : 65535; } : () => NaN;
+    }
     if (hist) return G ? (x, y) => (landPixel(K, W, x, y) < 0 ? NaN : fieldAt(G, key === 'hearthOdds' ? G.odds : G.variety, 90 - (y + 0.5) / H * 180, (x + 0.5) / W * 360 - 180)) : () => NaN;
     const C = key === 'farmTech' || key === 'farmRain' ? null : cameView(fin, 'farmStaple', opt);
     const Y = sys ? waysOf(fin, opt, waysKey(opt), flyAtOf(fin, opt.roll, opt.fewer), C, tk) : null, P = parts ? null : placesOf(fin, opt, tk, C), ix = P?.index;
