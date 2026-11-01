@@ -724,7 +724,23 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    4,096 px); the ways store fills the places store in the same pass. ~15 ms an age; the
    stores as quick as the land's own. `check-farming.mjs` F4a holds: never many more people than the land's own; no crop
    staple where no crop came, no ploughing where no plough beast came, no leading beast that had not come; the beasts'
-   shares differ from the land's own; the same at 160K and 640K.
+   shares differ from the land's own; the same at 160K and 640K. The re-roll, Fewer gaps and the age go in the page's
+   link (`foodroll`, `fewer`, `foodage`: only off their defaults; F4b).
+   **Named crops and animals** (F5a; `farming/names.js`, farming-store.js `namesOf`/`strainAt`/`variantsOf`; Staple
+   food's and Animals' **Named** chip, on by default): each centre of the history (hearth or secondary) is a site with its
+   climate (mean °C, the aridity index, height, January's or July's share of the rain) and is "like" one of 20 of Earth's
+   farming regions — climate fit (×2.6), a seeded nudge, and a regional pull toward its neighbours' likenesses, settled
+   over six sweeps, earliest first (the mock-up's `choosePackages`, its climate weighed more for the page's hundred-odd
+   sites). Each strain (the run's: an archetype tamed at a centre) is named from the catalogue — ~65 staple crops and
+   ~40 animals, each with its Earth homes, climate, popularity and nourishment — by nearness to its site's likeness,
+   climate, the side of the oceans and a nudge, each name once per kind and then II, III ("emmer-like", "zebu-like").
+   Its own seeded stream; once per run (~10 ms after the history). Each place's strain of its staple's crop group and of
+   its leading beast is the one with the most say round it (`strainAt`: the cells it had come to by the age, each a
+   Gaussian say, as the Origins views read the grid) — the strain that reached it first; kept per store and age (the
+   last three). Its colour turns round its archetype's hue (±16° steps to ±48°, then lighter or darker); the legend lists
+   each kind's named strains on ≥ 0.2 % of the land with a ↗ Wikipedia link (a Special:Search URL), a click shows one
+   alone; the readout names the staple's and beast's strain and lists every crop that grows and beast kept well there
+   that had come; Origins' hearth list names what each hearth tamed.
 
 ### Rules for event stages and ops (break these and histories go subtly wrong)
 

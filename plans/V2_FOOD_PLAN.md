@@ -790,6 +790,37 @@ cells, the lines each thousand drawn from its gradient (~1 px at any zoom). What
 
 **Not yet (F4b):** the re-roll and age in links, the Earth checks.
 
+## 8g. F4b links, F5a built (2026-10-31): named crops and animals
+
+**F4b (part):** the re-roll, Fewer gaps and the age are in the page's link (`foodroll`, `fewer`, `foodage`, only off their
+defaults). The Earth checks (the hearth odds' AUC at Earth's centres, Europe's dates) need the history ground on a finished
+Earth — the harness checks places on the 1° observed climate, not a whole ground — and are left for later.
+
+**F5a**, after the owner: *"I want to start seeing actual crops and animals over the world"*:
+- **Names** (`farming/names.js`, ported from the mock-up's): 20 Earth regions (the mock-up's 18, plus the Tibetan plateau
+  and the northern taiga for yak and reindeer), the staple catalogue (~65 crops in the five groups) and a new **animal
+  catalogue** (~40: cattle, zebu, sanga, Bali cattle, gayal, bison, eland; sheep, goats, fat-tailed sheep, cashmere goats,
+  mouflon, bighorn; horse, donkey, onager, kiang, Przewalski's horse; dromedary, Bactrian camel, guanaco; yak, llama,
+  alpaca, takin; reindeer, caribou, moose; pigs, Chinese pigs, peccary, babirusa, bushpig; river and swamp buffalo,
+  African buffalo, anoa).
+- **Sites:** every centre of the run, its climate from the finished picture (the aridity index for wetness; the
+  winter's share from January's and July's rain, a rough one, so matched widely). With the page's ~140 sites (the
+  mock-up had a few dozen) the pull and nudge drowned the climate (a hot, wet hearth came out "like temperate Europe"):
+  the climate weighs 2.6 (was 1.4), the nudge 0.3 (was 0.45).
+- **Each place's strain** is the one with the most say round it of the cells it had come to (the first to reach them),
+  read as the Origins views read the grid. The variant-shares model of §4.4 (home climate × lateness) is not built yet.
+- **Views:** Staple food and Animals, Named on by default: each strain a hue round its kind's; the legend groups the
+  named strains by kind with their shares and a Wikipedia link; one alone on a click; the readout names the staple's and
+  beast's strain and lists the crops and beasts of the place; Origins' hearth list names what each hearth tamed.
+
+**On the check planet:** ~140 sites, ~190 strains; at 10,000 years e.g. bread wheat-like 9 %, emmer-like 7 % of the land
+as staple, Guinea yam-like 4 %, sanga cattle-like 19 % and goat-like 6 % leading. Every centre's tamings get a name, so
+the long tail repeats names (dromedary-like V); the legend shows strains on ≥ 0.2 % of the land.
+
+**Next (F5b):** the rest of the catalogue — pulses, fruit and nuts, vegetables and herbs, spices, drinks and fibres, each
+its own home and spread — and minor animals (fowl, ducks, turkeys, guinea pigs, bees, silkworms), Variety, the crop
+finder and cards, the realism and likeness controls, re-roll names.
+
 ## 9. Phases (each checked in the browser before the next)
 
 **After §0:**

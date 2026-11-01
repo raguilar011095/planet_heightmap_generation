@@ -17,7 +17,9 @@ import { farmPlace, farmClass, harvestsAt, hasHarvests, cameHarvests, Staple, ST
 import { gatherGround, gatherAt, livingPlace, foodScore, lifestylePeople, Lifestyle, foodSystem, measuresAt, hasMeasures, paddyOf } from '../farming/living.js';
 import { beastPlace, newBeasts, flyBelt, beastKeepOne, BEAST, BEASTS, ALL_BEASTS } from '../farming/beasts.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
-import { historyGround, historyLuck, flyHereAt, ARCHETYPES, beastArchetype, gridPlace, GRID_W } from '../farming/history.js';
+import { historyGround, historyLuck, flyHereAt, ARCHETYPES, beastArchetype, gridPlace, GRID_W, mix } from '../farming/history.js';
+import { CAT, ANIMALS, choosePackages, chooseItem } from '../farming/names.js';
+import { landPixel } from './climate-view.js';
 import { hearthRegions, runHearths } from '../farming/hearths.js';
 
 // ── a place, worked out in full (the store's, the hover's, the harvest months') ──
@@ -176,6 +178,97 @@ export function cameAt(C, lat, lon, out = {}) {
     return out;
 }
 
+// ── names (F5a): each place crops or beasts were first tamed is "like" one of Earth's regions; each strain named ──
+const namesCache = new WeakMap();
+/**
+ * A finished moment's names for its history's strains (farming/names.js), for a re-roll and Fewer gaps — once per run:
+ * { sites: each centre's { lat, lon, mass, t, h: its climate — mean °C, wetness (the aridity index), height km, the winter's
+ * share of its rain — pkg, pkg2: its Earth likeness and runner-up (names.js KEYS) }, strains: the run's, each with its
+ * `label` ("emmer-like") and catalogue `item` }. Its own seeded stream (the world's seed, the moment, the re-roll); the
+ * likenesses pulled together regionally. null without a history.
+ */
+export function namesOf(fin, roll, fewer) {
+    const G = historyOf(fin), run = G && hearthsOf(fin, roll, fewer);
+    if (!run) return null;
+    const kept = namesCache.get(run);
+    if (kept) return kept;
+    const R = fin.raster, F = R.farming, K = fin.climate.raster, Pm = fin.climate.P, p = {}, L = {};
+    const sites = run.centres.map(C => {
+        const i = landPixel(K, K.w, Math.floor((C.lon + 180) / 360 * K.w), Math.floor((90 - C.lat) / 180 * K.h));
+        if (i >= 0) { partsAt(F, i, p); measuresAt(R, K, i, p, C.lat, L); } else { L.T = 15; L.arid = 0.7; L.elev = 0.3; }
+        const q = Math.min(179, Math.max(0, Math.floor(90 - C.lat))) * 360 + ((Math.floor(C.lon + 180) % 360) + 360) % 360;
+        const jan = Pm?.jan?.[q] ?? 0, jul = Pm?.jul?.[q] ?? 0, ws = (jan + jul) > 0 ? (C.lat >= 0 ? jan : jul) / (jan + jul) : 0.3;
+        return { lat: C.lat, lon: C.lon, mass: G.mass[C.cell], t: C.t0, h: { T: L.T, W: L.arid, E: L.elev, ws } };
+    });
+    const seed = mix(fin.seed | 0, Math.round((fin.time ?? 0) * 1000), roll | 0, 0x4e41), h01 = (s, stream, id) => (mix(s, stream, id) + 0.5) / 4294967296;
+    const { pkg, second } = choosePackages(sites, 'regional', seed, h01);
+    sites.forEach((s, k) => { s.pkg = pkg[k]; s.pkg2 = second[k]; });
+    // (each strain named, the earliest tamed first: the first takes the best-fitting name, each once where it can be)
+    const used = new Map(), usedFor = a => { if (!used.has(a)) used.set(a, new Map()); return used.get(a); };
+    const strains = run.strains.map((s, id) => ({ a: s.a, centre: s.centre, t0: s.t0, id, label: '', item: null }));
+    for (const s of [...strains].sort((x, y) => x.t0 - y.t0)) {
+        const site = sites[s.centre], list = s.a < NCROP ? CAT.staple[s.a] : ANIMALS[s.a - NCROP + 1];
+        if (!site || !list?.length) { s.label = ARCHETYPES[s.a].word.toLowerCase(); continue; }
+        const r = chooseItem(list, site.h, site.pkg, site.pkg2, usedFor(s.a), 'regional', seed, h01, 1 + s.id);
+        s.label = r.label; s.item = r.item;
+    }
+    const N = { sites, strains };
+    namesCache.set(run, N);
+    return N;
+}
+/** The strain of archetype `a` with the most say round (lat, lon) — of the history's cells it had come to by `age`, each a
+ *  Gaussian say (history.js gridPlace), as the Origins views read the grid — or −1 where it had come to none. */
+const GPs = {}, MAX_STRAINS = 2048, sSay = new Float64Array(MAX_STRAINS), sStamp = new Int32Array(MAX_STRAINS), sUsed = new Int32Array(16);
+let sStampN = 0;
+export function strainAt(G, run, a, age, lat, lon) {
+    gridPlace(G, lat, lon, GPs);
+    const lab = run.lab[a], best = run.best[a], w = G.w;
+    let n = 0;
+    sStampN++;
+    for (let dy = 0; dy < 4; dy++) {
+        const j = GPs.j0 + dy;
+        if (j < 0 || j >= G.h) continue;
+        const wy = GRID_W[GPs.qy + dy];
+        for (let dx = 0; dx < 4; dx++) {
+            const c = j * w + ((GPs.i0 + dx) % w + w) % w, s = lab[c];
+            if (s < 0 || s >= MAX_STRAINS || !(best[c] <= age)) continue;
+            if (sStamp[s] !== sStampN) { sStamp[s] = sStampN; sSay[s] = 0; sUsed[n++] = s; }
+            sSay[s] += wy * GRID_W[GPs.qx + dx];
+        }
+    }
+    let top = -1;
+    for (let m = 0; m < n; m++) if (top < 0 || sSay[sUsed[m]] > sSay[top]) top = sUsed[m];
+    return top;
+}
+/**
+ * Each land pixel's named crop and animal (F5a), in the store's order: `crop` the strain of its staple's crop group and
+ * `beast` that of its farmers' or herders' leading beast with the most say round it (strainAt; −1 none) — from the places
+ * `P` and ways `Y` (placesOf's, waysOf's: as shown), the run and the age (Infinity: the best possible). The last three
+ * kept.
+ */
+export function variantsOf(fin, P, Y, run, age) {
+    const E = entry(fin), G = historyOf(fin);
+    if (!G || !run) return null;
+    const key = `${P.key}|${Y?.key ?? '-'}|${age}`;
+    return kept3(E.variants, key, () => {
+        const F = fin.raster.farming, K = fin.climate.raster, kef = KOPPEN_ID.EF, N = E.index.count, crop = new Int16Array(N).fill(-1), beast = new Int16Array(N).fill(-1);
+        let k = 0;
+        for (let y = 0; y < F.h; y++) {
+            const lat = 90 - (y + 0.5) / F.h * 180;
+            for (let x = 0, i = y * F.w; x < F.w; x++, i++) {
+                if (!K.koppen[i] || K.koppen[i] === kef) continue;
+                const lon = (x + 0.5) / F.w * 360 - 180, g = STAPLE_CROP_OF[P.staple[k] & 15];
+                if (g >= 0) crop[k] = strainAt(G, run, g, age, lat, lon);
+                const b = Y && Y.flags[k] & 1 ? Y.beast[k] & 15 : 0;
+                if (b) beast[k] = strainAt(G, run, beastArchetype(b), age, lat, lon);
+                k++;
+            }
+        }
+        return { key, crop, beast };
+    });
+}
+const STAPLE_CROP_OF = STAPLES.map(s => (s.crop ? CROPS.indexOf(s.crop) : -1));
+
 // ── half precision ──
 const Q16 = 65535, LOG16 = 16384;
 const enc = v => Math.round(Math.max(0, Math.min(1, v)) * Q16);
@@ -214,7 +307,7 @@ const stores = new WeakMap();
 function entry(fin) {
     const F = fin.raster.farming;
     let E = stores.get(F);
-    if (!E) { E = { index: landIndex(F, fin.climate.raster), places: [], ways: [], only: null, life: null, beast: null }; stores.set(F, E); }
+    if (!E) { E = { index: landIndex(F, fin.climate.raster), places: [], ways: [], variants: [], only: null, life: null, beast: null }; stores.set(F, E); }
     return E;
 }
 /** A store's key: the options' (`key`) and, as it came, the age's (cameOf's C). */

@@ -31,14 +31,17 @@
 // As it came (F4): Staple food, Way of life, Animals and People show by default what had come to each place 10,000 years
 // after the first farming (the history's arrivals: farming-store.js cameOf) — or its full spread, or the best possible
 // (what the land alone would support, every crop and beast everywhere); Farmland, Soil and Growing season are the land's.
+// Named (F5a): Staple food and Animals show each place's own crop and beast — the strain of its hearth, by its Earth-like
+// name ("emmer-like", "zebu-like"; farming/names.js), a hue each round its archetype's colour.
 
-import { farmClass, hasHarvests, CROP_STAPLE, hasMonths, MONTH_ALL_YEAR, Staple, STAPLES, STAPLE_WORDS, CROPS, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
+import { farmClass, hasHarvests, CROP_STAPLE, STAPLE_CROP, hasMonths, MONTH_ALL_YEAR, Staple, STAPLES, STAPLE_WORDS, CROPS, SOIL_WORDS, MOD_WORDS, SoilKind } from '../farming/farming.js';
 import { croppedShare } from '../farming/people.js';
 import { LIFESTYLES, LIFESTYLE_WORDS, Lifestyle, GATHER, livingPeople,
     FOOD_SYSTEMS, FOOD_SYSTEM_WORDS, foragerWord, hasMeasures } from '../farming/living.js';
 import { BEASTS, BEAST_WORDS, newBeasts } from '../farming/beasts.js';
-import { partsAt, placeAt, groundOf, livingAt, systemAt, keepsBeasts, placesOf, waysOf, onlyOf, lifeAloneOf, beastAloneOf, slotOf, dec, decLog, peopleFromLog, historyOf, luckOf, flyAtOf, hearthsOf, cameOf, cameAt } from './farming-store.js';
-import { ARCHETYPES, fieldAt, massAt, oddsRank, cellAt, gridPlace, GRID_W, GRID_DW } from '../farming/history.js';
+import { partsAt, placeAt, groundOf, livingAt, systemAt, keepsBeasts, placesOf, waysOf, onlyOf, lifeAloneOf, beastAloneOf, slotOf, dec, decLog, peopleFromLog, historyOf, luckOf, flyAtOf, hearthsOf, cameOf, cameAt, namesOf, variantsOf, strainAt } from './farming-store.js';
+import { wiki, earthHome } from '../farming/names.js';
+import { ARCHETYPES, fieldAt, massAt, oddsRank, cellAt, gridPlace, GRID_W, GRID_DW, beastArchetype } from '../farming/history.js';
 import { placeMonth, calendarGround, calendarMonth } from '../farming/calendar.js';
 import { landPixel } from './climate-view.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
@@ -51,8 +54,20 @@ export const FARMING_NAMES = { farmLand: 'Farmland', farmStaple: 'Staple food', 
  *  view's one beast alone (a Beast); `origin` the Origins view's look ('larder', 'odds', 'came' or 'from'), `wild` its one archetype alone
  *  (history.js ARCHETYPES, or -1 for all); `roll` the luck's re-roll and `fewer` Fewer gaps (every view's luck); `age` what
  *  Staple food, Way of life, Animals and People show: 'k10' what had come 10,000 years after the first farming, 'full' its
- *  full spread, 'best' the best possible (AGES). */
-export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, life: 0, simple: false, way: 0, beast: 0, origin: 'larder', wild: -1, roll: 0, fewer: false, age: 'k10' };
+ *  full spread, 'best' the best possible (AGES); `named` Staple food and Animals by each place's named crop and beast, `variant`
+ *  one of them alone (a strain of the history: farming-store.js namesOf; -1 all). */
+export const farmOptions = { flood: true, canal: true, terrace: true, raised: true, classes: false, watered: false, only: 0, life: 0, simple: false, way: 0, beast: 0, origin: 'larder', wild: -1, roll: 0, fewer: false, age: 'k10', named: true, variant: -1 };
+/** The Food options a link keeps, so a shared link shows the same history (F4b): the re-roll, Fewer gaps and the age — only
+ *  those off their defaults (`foodroll`, `fewer`, `foodage`). */
+export const farmLinkParams = () => (farmOptions.roll ? `&foodroll=${farmOptions.roll}` : '') + (farmOptions.fewer ? '&fewer=1' : '') + (farmOptions.age !== 'k10' ? `&foodage=${farmOptions.age}` : '');
+/** The Food options from a page's link (URLSearchParams). */
+export function farmFromLink(url) {
+    const r = Number(url.get('foodroll'));
+    if (Number.isInteger(r) && r > 0 && r < 1e6) farmOptions.roll = r;
+    if (url.get('fewer') === '1') farmOptions.fewer = true;
+    const a = url.get('foodage');
+    if (a === 'k10' || a === 'full' || a === 'best') farmOptions.age = a;
+}
 /** The views shown as it came, and the ages: years after the first farming (Infinity: all that would ever come) — the
  *  owner's, 2026-10-31: "10,000 years by default", and the full spread too. */
 export const AS_CAME = new Set(['farmStaple', 'farmLife', 'farmAnimals', 'farmPeople']);
@@ -272,6 +287,85 @@ function lifeAloneColour(life, people, c) {
     for (let i = 0; i < 3; i++) c[i] = STAPLE_PALE[i] + (h[i] - STAPLE_PALE[i]) * t;
     return c;
 }
+// ── named crops and animals (F5a) ──
+const rgbHsl = ([r, g, b]) => {
+    r /= 255; g /= 255; b /= 255;
+    const mx = Math.max(r, g, b), mn = Math.min(r, g, b), l = (mx + mn) / 2, d = mx - mn;
+    if (!d) return [0, 0, l];
+    const s = d / (1 - Math.abs(2 * l - 1)), h = mx === r ? ((g - b) / d + 6) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+    return [60 * h, s, l];
+};
+const hslRgb = (h, s, l) => { const k = n => (n + h / 30) % 12, a = s * Math.min(l, 1 - l), f = n => l - a * Math.max(-1, Math.min(k(n) - 3, Math.min(9 - k(n), 1))); return [255 * f(0), 255 * f(8), 255 * f(4)]; };
+/** Each strain's colour (names: farming-store.js namesOf), once per names: its archetype's — a crop group's staple colour, a
+ *  beast's — turned round the hue wheel by its rank among its kind's strains, the first tamed keeping its archetype's own,
+ *  then ±16°, ±32°, ±48° (a little lighter and darker in turn), and past seven the same hues lighter or darker. */
+const strainColourCache = new WeakMap();
+function strainColours(N) {
+    let out = strainColourCache.get(N);
+    if (out) return out;
+    out = new Array(N.strains.length);
+    const rank = new Map();
+    for (const s of [...N.strains].sort((x, y) => x.t0 - y.t0)) {
+        const k = rank.get(s.a) ?? 0;
+        rank.set(s.a, k + 1);
+        const A = ARCHETYPES[s.a], base = A.beast ? BEAST_RGB[A.beast] : STAPLE_RGB[CROP_STAPLE[A.crop]], [h, sat, l] = rgbHsl(base);
+        // (the hue kept within ±48° of its archetype's, so a crop still reads as its kind; past seven, lighter and darker turns)
+        const j = k % 7, round = Math.floor(k / 7), step = Math.ceil(j / 2), sign = j % 2 ? 1 : -1, dl = round === 0 ? 0 : round % 2 ? 0.11 : -0.11;
+        out[s.id] = hslRgb((h + sign * 16 * step + 720) % 360, Math.min(0.85, sat + (k ? 0.05 : 0)), Math.min(0.74, Math.max(0.28, l + dl + (j ? (j % 4 < 2 ? 0.04 : -0.04) : 0))));
+    }
+    strainColourCache.set(N, out);
+    return out;
+}
+/** A named crop's or animal's colour (into c) at a strength (0…1): its own hue, pale where it does poorly. */
+function namedColour(h, t, c) {
+    for (let i = 0; i < 3; i++) c[i] = STAPLE_PALE[i] + (h[i] - STAPLE_PALE[i]) * t;
+    return c;
+}
+/** The named view of Staple food or Animals: its strains' names, colours and each place's strain (farming-store.js
+ *  variantsOf, from the places P and ways Y as shown) — null when not named, or without a history. */
+function namedView(fin, layer, opt, P, Y) {
+    if (!opt.named || (layer !== 'farmStaple' && layer !== 'farmAnimals') || !P) return null;
+    const run = hearthsOf(fin, opt.roll, opt.fewer), N = run && namesOf(fin, opt.roll, opt.fewer);
+    if (!N) return null;
+    const age = opt.age === 'k10' ? AGES.k10 : Infinity;
+    return { run, N, rgb: strainColours(N), age, V: variantsOf(fin, P, layer === 'farmAnimals' ? Y : null, run, age) };
+}
+/** Each strain's share of the land (by area) as its places' crop or beast — kept per named view's store. */
+const variantTallies = new WeakMap();
+function variantTally(fin, nv) {
+    let T = variantTallies.get(nv.V);
+    if (T) return T;
+    const F = fin.raster.farming, K = fin.climate.raster, kef = KOPPEN_ID.EF, n = nv.N.strains.length, crop = new Float64Array(n), beast = new Float64Array(n);
+    let land = 0, q = 0;
+    for (let y = 0; y < F.h; y++) {
+        const a = Math.cos((90 - (y + 0.5) / F.h * 180) * Math.PI / 180);
+        for (let x = 0, i = y * F.w; x < F.w; x++, i++) {
+            if (!K.koppen[i]) continue;
+            land += a;
+            if (K.koppen[i] === kef) continue;
+            const sc = nv.V.crop[q], sb = nv.V.beast[q];
+            if (sc >= 0) crop[sc] += a;
+            if (sb >= 0) beast[sb] += a;
+            q++;
+        }
+    }
+    for (let s = 0; s < n; s++) { crop[s] /= Math.max(1e-9, land); beast[s] /= Math.max(1e-9, land); }
+    T = { crop, beast };
+    variantTallies.set(nv.V, T);
+    return T;
+}
+/** A strain's words: where it was first tamed and when, its Earth likeness. */
+function strainTitle(nv, s) {
+    const S = nv.N.strains[s], C = nv.run.centres[S.centre], it = S.item, where = `${Math.abs(C.lat).toFixed(0)}°${C.lat >= 0 ? 'N' : 'S'} ${Math.abs(C.lon).toFixed(0)}°${C.lon >= 0 ? 'E' : 'W'}`;
+    const when = S.t0 < 50 ? 'the first farming' : `~${(Math.round(S.t0 / 100) * 100).toLocaleString()} years after the first farming`;
+    return `${ARCHETYPES[S.a].word}${it ? ` like ${it.n} (on Earth from ${earthHome(it)})` : ''} — first tamed at ${where}${C.hearth ? ` (hearth ${C.hearth})` : ''}, ${when}`;
+}
+/** A strain's legend chip (its colour, name and share; a click shows it alone) and its Wikipedia link. */
+function variantChip(nv, s, share) {
+    const S = nv.N.strains[s], on = farmOptions.variant === s;
+    const link = S.item ? `<a class="evo-farm-wiki" href="${wiki(S.item)}" target="_blank" rel="noopener" title="${S.item.n} on Wikipedia">↗</a>` : '';
+    return `<span class="evo-farm-var"><button type="button" class="evo-farm-chip evo-farm-staple${on ? ' on' : ''}" data-farm-variant="${s}" aria-pressed="${on}" title="${on ? 'Show them all again' : `${strainTitle(nv, s)} — show it alone`}"><i style="background:${css(nv.rgb[s])}"></i>${S.label} <em>${pct(share)}</em></button>${link}</span>`;
+}
 /** A staple's colour (into c) at a strength (0…1): pale where it barely grows, its hue where it grows well. */
 function stapleColour(st, score, c) {
     const t = STAPLE_FULL * smooth(0.04, 0.8, score) ** 0.8, h = STAPLE_RGB[st];
@@ -314,6 +408,8 @@ function farmPixelColour(layer, fin, W) {
             : layer === 'farmAnimals' && Y && opt.beast ? beastAloneOf(fin, opt, wk, opt.beast, flyAt, C) : null;
     const pale = () => { c[0] = STAPLE_PALE[0]; c[1] = STAPLE_PALE[1]; c[2] = STAPLE_PALE[2]; };
     const c2 = [0, 0, 0], px = { c, c2, hd: 1 };
+    // (named: each place's strain of its staple's crop or its leading beast, and its colour; one alone where chosen)
+    const nv = A ? null : namedView(fin, layer, opt, P, Y), alone = nv ? opt.variant : -1;
     return (i, x, y) => {
         let two = false;
         px.hd = 1;
@@ -359,7 +455,14 @@ function farmPixelColour(layer, fin, W) {
             // hatched; People: a km²; Farmland: green by rain, toward aqua as more of it comes from water brought)
             if (layer === 'farmStaple') {
                 if (A) stapleColour(opt.only, dec(A[q]), c);
-                else { const st = P.staple[q], nd = st >> 4; stapleColour(st & 15, dec(P.score[q]), c); if (nd) { stapleColour(nd, dec(P.score2[q]), c2); two = true; } }
+                else {
+                    const st = P.staple[q], nd = st >> 4, s = nv ? nv.V.crop[q] : -1;
+                    if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else pale(); }
+                    else {
+                        if (s >= 0) namedColour(nv.rgb[s], STAPLE_FULL * smooth(0.04, 0.8, dec(P.score[q])) ** 0.8, c); else stapleColour(st & 15, dec(P.score[q]), c);
+                        if (nd) { stapleColour(nd, dec(P.score2[q]), c2); two = true; }
+                    }
+                }
             } else if (layer === 'farmLife' && !Y) {
                 if (A) lifeAloneColour(opt.life, peopleFromLog(decLog(A[q])), c);
                 else { const l = P.life[q], nd = l >> 4, lg = decLog(P.people[q]); lifeColour(l & 15, lg, c); if (nd) { lifeColour(nd, lg, c2); two = true; } }
@@ -373,7 +476,14 @@ function farmPixelColour(layer, fin, W) {
                     const b = Y.beast[q], b1 = b & 15, b2 = b >> 4;
                     if (A) { const kp = dec(A[q]); beastColour(kp >= 0.15 ? opt.beast : 0, kp, c); }
                     else if (!(Y.flags[q] & 1)) pale();
-                    else { beastColour(b1, dec(Y.keep1[q]), c); if (b2) { beastColour(b2, dec(Y.keep2[q]), c2); two = true; } }
+                    else {
+                        const s = nv ? nv.V.beast[q] : -1, t = 0.3 + 0.6 * smooth(0.15, 0.8, dec(Y.keep1[q]));
+                        if (alone >= 0) { if (s === alone) namedColour(nv.rgb[s], t, c); else pale(); }
+                        else {
+                            if (s >= 0) namedColour(nv.rgb[s], t, c); else beastColour(b1, dec(Y.keep1[q]), c);
+                            if (b2) { beastColour(b2, dec(Y.keep2[q]), c2); two = true; }
+                        }
+                    }
                     const fly = dec(Y.fly[q]);
                     if (fly > 0.3) px.hd = 1 - 0.42 * smooth(0.3, 0.7, fly);
                 }
@@ -614,9 +724,25 @@ export function farmingLegendHTML(layer, fin) {
         // (each food a chip with its colour and its share of the land: a click shows it alone, again shows them all)
         const only = farmOptions.only, food = k => `<button type="button" class="evo-farm-chip evo-farm-staple${only === k ? ' on' : ''}" data-farm-only="${k}" aria-pressed="${only === k}" ` +
             `title="${only === k ? 'Show every food again' : `Show where ${STAPLE_WORDS[k].toLowerCase()} would feed people, and how well — alone`}"><i style="background:${css(STAPLE_RGB[k])}"></i>${STAPLE_WORDS[k]} <em>${pct(T.staple[k])}</em></button>`;
+        // (named: each crop group's named crops under it — those on ≥ 0.2 % of the land, the most first — with Wikipedia links)
+        const nv = only ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), null);
+        const namedChip = chip('named', 'Named', 'Each place\'s own crop — its hearth\'s strain, by its Earth-like name — instead of the archetypes', farmOptions.named);
+        if (nv) {
+            const VT = variantTally(fin, nv), list = st => {
+                const g = STAPLE_CROP[st];
+                if (g < 0) return food(st);
+                const vs = nv.N.strains.filter(S => S.a === g && VT.crop[S.id] >= 0.002).sort((x, y) => VT.crop[y.id] - VT.crop[x.id]).slice(0, 8);
+                return `<div class="evo-farm-group"><span class="evo-farm-groupname"><i style="background:${css(STAPLE_RGB[st])}"></i>${STAPLE_WORDS[st]} <em>${pct(T.staple[st])}</em></span>${vs.map(S => variantChip(nv, S.id, VT.crop[S.id])).join('')}</div>`;
+            };
+            const crops = STAPLES.map((_, k) => k).filter(k => STAPLE_CROP[k] >= 0 && T.staple[k] >= 0.002), rest = STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE && STAPLE_CROP[k] < 0);
+            return head(farmOptions.variant >= 0 && nv.N.strains[farmOptions.variant] ? `Staple food — ${nv.N.strains[farmOptions.variant].label} alone: where it is the staple${when}` : `Staple food — each place's own crop, by name${when}`) +
+                crops.map(list).join('') + `<div class="evo-farm-chips">${rest.map(food).join('')}</div>` + ages +
+                `<div class="evo-farm-chips">${namedChip}${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it feeds less well; striped where a second does nearly as well') +
+                note('Each crop group\'s strains: the one each hearth first tamed, named for the Earth crop it is most like — by its hearth\'s climate and what its neighbours\' hearths are like — and spread from there; a place grows the strain that reached it first. ↗ opens the crop on Wikipedia. Likenesses, not claims: a different world') + cameNote;
+        }
         return head(only ? `Staple food — ${STAPLE_WORDS[only].toLowerCase()} alone: where it would feed people, and how well${when}` : `Staple food — what each place would live on most${when}`) +
             `<div class="evo-farm-chips">${STAPLES.map((_, k) => k).filter(k => k !== Staple.NONE).map(food).join('')}</div>` + ages +
-            `<div class="evo-farm-chips">${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], `paler where it feeds less well${only ? '' : '; striped where a second does nearly as well'}`) +
+            `<div class="evo-farm-chips">${historyOf(fin) ? namedChip : ''}${chips}</div>` + bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], `paler where it feeds less well${only ? '' : '; striped where a second does nearly as well'}`) +
             note('What would feed each place best with these techniques — archetypes, not any one crop. Paddy grains feed the most on rich, level, wet ground; cool-season grains take ' +
                 'the winters and the cool summers; warm-season grains the hot and the dry; roots the leached tropics and cold highlands; livestock the dry grass; ' +
                 'tree and palm crops the ever-wet tropics and the hot oases; fish the coasts of cold, upwelling seas and the big rivers; wild foods the land no farmer or herder would hold') + cameNote;
@@ -649,7 +775,7 @@ export function farmingLegendHTML(layer, fin) {
                 if (from >= 0) { const root = run.centres[run.centres[from].root]; share[root.hearth ?? 0] += a; }
             }
             const list = run.hearths.slice(0, 20).map(C => {
-                const h = hearthRGB(C.hearth), crops = C.items.slice(0, 3).map(it => `${ARCHETYPES[it.a].word.toLowerCase()} (${yrs(it.t)})`).join(', ');
+                const h = hearthRGB(C.hearth), crops = C.items.slice(0, 3).map(it => `${strainName(fin, C.id, it.a)} (${yrs(it.t)})`).join(', ');
                 return `<span><i style="background:${css(h)}"></i><b>${C.hearth}${C.founder ? ' ★' : ''}</b> ${place2(C)}: ${crops}${came ? '' : ` <em>${pct(share[C.hearth] / Math.max(1e-9, landA))}</em>`}</span>`;
             }).join('');
             return head(came ? 'Origins — when farming came: years after the first farming anywhere' : 'Origins — from which hearth each place\'s farming came') + looks +
@@ -688,9 +814,22 @@ export function farmingLegendHTML(layer, fin) {
         const one = farmOptions.beast, beast = k => `<button type="button" class="evo-farm-chip evo-farm-staple${one === k ? ' on' : ''}" data-farm-beast="${k}" aria-pressed="${one === k}" ` +
             `title="${one === k ? 'Show the leading beasts again' : `${BEASTS[k].like}: ${BEASTS[k].roles} — show where it could be kept`}"><i style="background:${css(BEAST_RGB[k])}"></i>${BEAST_WORDS[k]} <em>${pct(Y.beast[k])}</em></button>`;
         const fly = `<span><i style="background:repeating-linear-gradient(135deg, rgba(0,0,0,0.42) 0 2px, transparent 2px 6px), ${css(STAPLE_PALE)}"></i>fly belt <em>${pct(Y.fly)}</em></span>`;
+        const namedChip = chip('named', 'Named', 'Each place\'s own beast — its hearth\'s strain, by its Earth-like name — instead of the archetypes', farmOptions.named);
+        const nv = one ? null : namedView(fin, layer, farmOptions, placesOf(fin, farmOptions, techKey(), C), waysOf(fin, farmOptions, waysKey(), flyAtOf(fin, farmOptions.roll, farmOptions.fewer), C, techKey()));
+        if (nv) {
+            const VT = variantTally(fin, nv), list = b => {
+                const a = beastArchetype(b), vs = nv.N.strains.filter(S => S.a === a && VT.beast[S.id] >= 0.002).sort((x, y) => VT.beast[y.id] - VT.beast[x.id]).slice(0, 8);
+                return `<div class="evo-farm-group"><span class="evo-farm-groupname" title="${BEASTS[b].like}: ${BEASTS[b].roles}"><i style="background:${css(BEAST_RGB[b])}"></i>${BEAST_WORDS[b]} <em>${pct(Y.beast[b])}</em></span>${vs.map(S => variantChip(nv, S.id, VT.beast[S.id])).join('')}</div>`;
+            };
+            return head(farmOptions.variant >= 0 && nv.N.strains[farmOptions.variant] ? `Animals — ${nv.N.strains[farmOptions.variant].label} alone: where it leads${when}` : `Animals — each place's own beasts, by name${when}`) +
+                BEASTS.map((_, k) => k).filter(k => k && Y.beast[k] >= 0.002).map(list).join('') + ages +
+                `<div class="evo-koppen">${fly}</div><div class="evo-farm-chips">${namedChip}${luckChips}</div>` +
+                bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], 'paler where it is kept less well; striped where a second ranks nearly as well') +
+                note('Each beast\'s strains: the one each hearth first tamed, named for the Earth animal it is most like — by its hearth\'s climate and what its neighbours\' hearths are like — and spread from there; a place keeps the strain that reached it first. ↗ opens the animal on Wikipedia. Hatched: the fly belt, where cattle, horses and buffalo fail') + cameNote;
+        }
         return head(one ? `${BEAST_WORDS[one]} (${BEASTS[one].like}: ${BEASTS[one].roles}) — where it could be kept, and how well${when}` : `Animals — farmers’ and herders’ leading beast${when}`) +
             `<div class="evo-farm-chips">${BEASTS.map((_, k) => k).filter(k => k).map(beast).join('')}</div>` + ages +
-            `<div class="evo-koppen">${fly}</div><div class="evo-farm-chips">${luckChips}</div>` +
+            `<div class="evo-koppen">${fly}</div><div class="evo-farm-chips">${historyOf(fin) && !one ? namedChip : ''}${luckChips}</div>` +
             bar([[0, STAPLE_PALE], [1, [150, 150, 150]]], one ? 'paler where it is kept less well' : 'paler where it is kept less well; striped where a second ranks nearly as well') +
             note('Each place’s beast most at home there — its wild ancestor’s home first, how well it is kept second: cattle-like grazers on open lowland, sheep and goats on rugged hills, the horse on cold steppe, camels in the deserts, ' +
                 'yak- or llama-like beasts above ~3,000 m, reindeer where the summers are short and the winters hard, pigs in warm wet woods where no plough beast is, buffalo in the paddies and wetlands. ' +
@@ -755,7 +894,9 @@ export function farmChipClicked(target) {
     if (origin) { farmOptions.origin = origin.dataset.farmOrigin; return true; }
     const wild = target.closest?.('[data-farm-wild]');
     if (wild) { const k = Number(wild.dataset.farmWild); farmOptions.wild = farmOptions.wild === k ? -1 : k; return true; }
-    if (target.closest?.('[data-farm-roll]')) { farmOptions.roll++; return true; }
+    if (target.closest?.('[data-farm-roll]')) { farmOptions.roll++; farmOptions.variant = -1; return true; }
+    const variant = target.closest?.('[data-farm-variant]');
+    if (variant) { const k = Number(variant.dataset.farmVariant); farmOptions.variant = farmOptions.variant === k ? -1 : k; return true; }
     const age = target.closest?.('[data-farm-age]');
     if (age) { farmOptions.age = age.dataset.farmAge; return true; }
     const beast = target.closest?.('[data-farm-beast]');
@@ -764,6 +905,34 @@ export function farmChipClicked(target) {
     if (!b) return false;
     farmOptions[b.dataset.farm] = !farmOptions[b.dataset.farm];
     return true;
+}
+// ── names in words (F5a) ──
+/** A centre's strain of archetype `a`, by name — or the archetype's word (no history names). */
+function strainName(fin, centre, a) {
+    const N = namesOf(fin, farmOptions.roll, farmOptions.fewer), S = N?.strains.find(s => s.centre === centre && s.a === a);
+    return S?.label || ARCHETYPES[a].word.toLowerCase();
+}
+/** The age a view's names read the history at (Infinity: all that ever came). */
+const namesAge = layer => (AS_CAME.has(layer) && farmOptions.age === 'k10' ? AGES.k10 : Infinity);
+/** The name of the strain of archetype `a` at (lat, lon), as the views read it — '' where none had come. */
+function hereName(fin, a, lat, lon, layer) {
+    if (!farmOptions.named) return '';
+    const G = historyOf(fin), run = G && hearthsOf(fin, farmOptions.roll, farmOptions.fewer), N = run && namesOf(fin, farmOptions.roll, farmOptions.fewer);
+    if (!N) return '';
+    const s = strainAt(G, run, a, namesAge(layer), lat, lon);
+    return s >= 0 ? N.strains[s].label : '';
+}
+/** Every crop that grows here (its group's fit ≥ 0.25) and beast kept well here (≥ 0.25) that had come, by name. */
+function hereNames(fin, lat, lon, layer) {
+    const G = historyOf(fin), run = G && hearthsOf(fin, farmOptions.roll, farmOptions.fewer), N = run && namesOf(fin, farmOptions.roll, farmOptions.fewer);
+    if (!N) return null;
+    const age = namesAge(layer), crops = [], beasts = [];
+    ARCHETYPES.forEach((A, a) => {
+        if (fieldAt(G, A.beast ? G.keep[A.beast] : G.fit[A.crop], lat, lon) < 0.25) return;
+        const s = strainAt(G, run, a, age, lat, lon);
+        if (s >= 0) (A.beast ? beasts : crops).push(N.strains[s].label);
+    });
+    return { crops, beasts };
 }
 // ── the readout ──
 const SOIL_GRADE = s => (s >= 0.75 ? 'rich' : s >= 0.5 ? 'good' : s >= 0.3 ? 'middling' : s >= 0.12 ? 'poor' : 'barren');
@@ -790,7 +959,8 @@ export function farmingLines(fin, u, v, sea, layer = null) {
         const life = lv.lifestyle ? ` (${LIFESTYLE_WORDS[lv.lifestyle].toLowerCase()}${lv.lifestyle === Lifestyle.GATHERING ? `, ${foragerWord(M, g0)}` : ''})` : '';
         lines.push(L('Way of life', sy.system ? `<b>${FOOD_SYSTEM_WORDS[sy.system]}</b>${life} — ${FOOD_SYSTEMS[sy.system].why}${sy.second ? ` · and ${FOOD_SYSTEM_WORDS[sy.second].toLowerCase()}` : ''}` : 'uninhabited'));
         const flyWords = bp.fly >= 0.5 ? ' · in the fly belt: no cattle, horses or buffalo, no plough' : bp.fly >= 0.25 ? ' · on the fly belt’s edge' : '';
-        if (keepsBeasts(lv)) lines.push(L('Animals', bp.beast ? `<b>${BEAST_WORDS[bp.beast]}</b> (${BEASTS[bp.beast].like}: ${BEASTS[bp.beast].roles})${bp.second ? ` · then ${BEAST_WORDS[bp.second].toLowerCase()}` : ''}${flyWords}` : `none kept well${flyWords}`));
+        const bName = bp.beast ? hereName(fin, beastArchetype(bp.beast), plat, plon, layer) : '';
+        if (keepsBeasts(lv)) lines.push(L('Animals', bp.beast ? `<b>${BEAST_WORDS[bp.beast]}</b>${bName ? ` — <b>${bName}</b>` : ''} (${BEASTS[bp.beast].like}: ${BEASTS[bp.beast].roles})${bp.second ? ` · then ${BEAST_WORDS[bp.second].toLowerCase()}` : ''}${flyWords}` : `none kept well${flyWords}`));
     }
     // (Origins: the wild larder here, the hearth odds, the landmass and its luck)
     const G = layer === 'farmOrigins' ? historyOf(fin) : null;
@@ -807,7 +977,7 @@ export function farmingLines(fin, u, v, sea, layer = null) {
             lines.unshift(L('Farming came', t < Infinity ? `${t < 50 ? 'first, here' : `~${(Math.round(t / 100) * 100).toLocaleString()} years after the first`}${root?.hearth ? ` · from hearth ${root.hearth}` : ''}` : 'never: nothing fit to farm reached it'));
             let near = null, nd = 400;
             for (const C of run.hearths) { const r = Math.PI / 180, d = 2 * 6371 * Math.asin(Math.sqrt(Math.sin((C.lat - plat) * r / 2) ** 2 + Math.cos(C.lat * r) * Math.cos(plat * r) * Math.sin((C.lon - plon) * r / 2) ** 2)); if (d < nd) { nd = d; near = C; } }
-            if (near) lines.unshift(L(`Hearth ${near.hearth}`, `${near.founder ? 'a founder · ' : ''}${near.t0 < 50 ? 'the first farming' : `began ~${(Math.round(near.t0 / 100) * 100).toLocaleString()} years after the first`} · tamed ${near.items.map(it => `${ARCHETYPES[it.a].word.toLowerCase()}${it.t - near.t0 >= 50 ? ` (+${(Math.round((it.t - near.t0) / 100) * 100).toLocaleString()})` : ''}`).join(', ')}`));
+            if (near) lines.unshift(L(`Hearth ${near.hearth}`, `${near.founder ? 'a founder · ' : ''}${near.t0 < 50 ? 'the first farming' : `began ~${(Math.round(near.t0 / 100) * 100).toLocaleString()} years after the first`} · tamed ${near.items.map(it => `${strainName(fin, near.id, it.a)}${it.t - near.t0 >= 50 ? ` (+${(Math.round((it.t - near.t0) / 100) * 100).toLocaleString()})` : ''}`).join(', ')}`));
         }
         lines.splice(1 + (run ? 1 : 0), 0, L('Hearth odds', rank >= 0.9 ? `<b>high</b> — the top ${Math.max(1, Math.round(100 * (1 - rank)))} % of the land` : rank >= 0.6 ? 'middling' : 'low'));
         if (m >= 0) {
@@ -823,7 +993,12 @@ export function farmingLines(fin, u, v, sea, layer = null) {
         lines.unshift(L('As it came', missing.length ? `${full ? 'never came' : 'not yet come by 10,000 years'}: ${missing.join(', ')}` : `everything that grows or is kept well here ${full ? 'came in the end' : 'had come by 10,000 years'}`));
     }
     if (!hasMeasures(R, K)) lines.push(L('Lifestyle', lv.lifestyle ? `<b>${LIFESTYLE_WORDS[lv.lifestyle]}</b>${lv.secondLife ? ` · and ${LIFESTYLE_WORDS[lv.secondLife].toLowerCase()}` : ''}` : 'uninhabited'));
-    if (lv.staple) lines.push(L('Staple food', `<b>${STAPLE_WORDS[lv.staple]}</b>${lv.second ? ` · then ${STAPLE_WORDS[lv.second].toLowerCase()}` : ''}`));
+    const sName = lv.staple && STAPLE_CROP[lv.staple] >= 0 ? hereName(fin, STAPLE_CROP[lv.staple], plat, plon, layer) : '';
+    if (lv.staple) lines.push(L('Staple food', `<b>${STAPLE_WORDS[lv.staple]}</b>${sName ? ` — <b>${sName}</b>` : ''}${lv.second ? ` · then ${STAPLE_WORDS[lv.second].toLowerCase()}` : ''}`));
+    // (named: every crop and beast that grows or is kept well here and had come, by name)
+    const here = farmOptions.named ? hereNames(fin, plat, plon, layer) : null;
+    if (here?.crops.length) lines.push(L('Crops here', here.crops.join(', ')));
+    if (here?.beasts.length) lines.push(L('Animals here', here.beasts.join(', ')));
     // (how many it could feed; on poor ground, how long its fields rest — a year cropped in so many, shifting
     // cultivation's; gatherers' land, what farming or herding would have fed instead)
     const n = v => (v < 10 ? v.toFixed(v < 1 ? 2 : 1) : String(Math.round(v)));

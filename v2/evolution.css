@@ -193,6 +193,14 @@
 }
 .evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
 .evo-farm-chip:hover { filter: brightness(1.2); }
+/* (named crops and animals: each archetype's group, its named chips with a Wikipedia link) */
+.evo-farm-group { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; margin: 3px 0; }
+.evo-farm-groupname { font-size: 11px; color: #cdd3e0; margin-right: 2px; white-space: nowrap; }
+.evo-farm-groupname i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+.evo-farm-groupname em { font-style: normal; color: #8a93a6; }
+.evo-farm-var { display: inline-flex; align-items: center; }
+.evo-farm-wiki { font-size: 11px; color: #8fb8e8; text-decoration: none; padding: 0 3px; }
+.evo-farm-wiki:hover { color: #cfe4ff; }
 /* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
 .evo-farm-staple { color: #aab; }
 .evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
