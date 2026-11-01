@@ -81,27 +81,30 @@ New tools may come. Each gets its own column here before it is built.
 
 ## Scope
 
-Orogen builds a world as a stack of layers. Each layer builds on the ones above it:
+### Possible worlds, from the ground up
 
-1. **History:** plates moving, rifting and colliding. Evolution simulates it; Generate sets up a single moment of it.
-2. **Land:** continents, mountain ranges, coasts, the ocean floor.
-3. **Climate:** temperature, winds, ocean currents, rain, Köppen zones.
-4. **Water and ice:** rivers, lakes, glaciers, and the erosion they carve.
-5. **Rock and resources:** rock types, ores, fuels, gems.
-6. **What the land can feed:** soil, growing season, farmland, staple foods, how people could live there and how many.
-7. **People (later):** peoples, cultures, settlements, nations, borders.
+Orogen builds a world from the ground up: plates and their history first, then the land, its climate, its water and ice,
+its rock, and what the land could feed. Each layer rests on the ones below, and the science says a great deal about
+each. But it never settles everything. Even in the physics, much is a roll of the dice: where a rift opens, which
+continents meet, where a hotspot rises. Every feature has a cause, but the causes themselves are rolled; a seed is one
+history out of countless possible ones.
 
-What that means:
+The higher up the layers, the fuzzier the line between what the ground decides and what chance decides. Once people are
+involved, chance and choice count for more than the ground. So Orogen makes **possible worlds, not predictions**. It
+generates the inputs: the ground that people then build on, whether they are worldbuilders deciding for themselves or
+peoples simulated in a tool, Orogen's or another's. Its tools today sit low in the layers, where the science is firmest.
+As they reach higher:
 
-- **Layers 1–6 are Orogen's to make.** The physical world decides them, so each should follow from the layers above it
-  rather than be painted on top: rain from the winds and the mountains, ores from the history, farmland from soil, water
-  and season. This is "every feature has a cause" in practice.
-- **A tool can start at any layer.** You bring the layers above it, and Orogen makes the ones below. Import is the first
-  example: you bring the land, and Orogen makes its climate and erosion.
-- **Layer 7 is different.** The physical world shapes people but doesn't decide them; history, chance and choice do.
-  Tools or extensions for it are in scope later, built on the layers above: heartlands where the food is, borders along
-  rivers and mountains. How much the user steers is decided for each tool when it's planned, anywhere from fully
-  generated from the world to generated first, then nudged by hand.
+- **Say what the land allows, not what its people are.** Near the people layers (soil, farmland, staple food, how people
+  might live), describe possibilities and tendencies: *could*, not *will*.
+- **No geographic determinism.** Geography sets the odds; it doesn't write the story. Never frame environment as destiny.
+- **Choose the science with care.** Low in the layers, follow the physics. Higher up, the science gets softer, and some
+  of it has a troubled past (environmental determinism was once used to rank peoples). Use what is well established,
+  present it as tendencies, and leave out the rest.
+- **Leave room.** The higher a layer, the more of it should stay open to chance, to choice and to the worldbuilder.
+
+### Boundaries
+
 - **Generator, not editor, as a gradient.** The existing tools are generators: knobs, seeds and steering, never brushes or
   drawing. Steering is a feature, and tools differ in how much they offer: Generate gives more direct control than
   Evolution. A future tool could be editor-first, but the existing ones don't drift into editors.
