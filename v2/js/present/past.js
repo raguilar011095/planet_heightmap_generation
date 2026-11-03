@@ -30,9 +30,10 @@ const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
  * Replay the continents' past into the crust raster (before today's belts are written over it).
  * @param {Object} L  the layout   @param {Uint8Array} land  the land per sim cell (the coast as drawn)
  * @param {import('../tectonics/model/crust.js').CrustRaster} crust   @param {Object} config  the tectonic config
+ * @param {Object[]} [extra]  more past collisions to replay with the rest (G3b: the inner seams, present/seams.js)
  * @returns {{events: Object[], terrane: Int32Array, seamKm: Float32Array, cores: number}}
  */
-export function presentPast(L, land, crust, config, cfg = PRESENT) {
+export function presentPast(L, land, crust, config, cfg = PRESENT, extra = []) {
     const { sim, xyz, seed } = L, n = sim.numCells, { adjOffset, adjList } = sim;
     const kmOf = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(at(sim.xyz, a), at(sim.xyz, b)))));
     const noise = new FastNoise((seed ^ 0x9a57) >>> 0);
@@ -191,6 +192,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT) {
     });
 
     // ── replay, oldest first, the land wearing down between events ──
+    events.push(...extra);
     events.sort((a, b) => b.age - a.age || a.front[0] - b.front[0]);
     let clock = -Infinity;
     for (const ev of events) {

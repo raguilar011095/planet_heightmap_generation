@@ -218,7 +218,7 @@ function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 function presentReground(present, mesh, r_xyz, seed, knobs) {
-    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask });
+    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm });
     present.world.heightKm = g.heightKm;
     return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
 }

@@ -657,6 +657,28 @@ The phase gate applies as always. One phase at a time. Each has:
     - a quarter of the coast exactly on the pieces' outline; the rest is Evolution's coast just inside it, the outline
       its shelf's edge.
 
+### G3b: The pieces jostle — inner seams and the grain (owner, 2026-11-03)
+- **The owner's words:** "everything is a little blobby/noisy/'perfect'/uniform … bringing some variety based on the mesh
+  and directions of the collisions at the macro and micro level and how that spreads … adding back in some of the
+  inner/smaller plate collisions for noise (in whatver way could make sense, doesnt need to be that realistic) could
+  force more interesting and 'organic' looking shapes".
+- **Built 2026-11-03** (`present/seams.js`; `past.js` takes extra events); `check-present.mjs` 216/216.
+  - **Inner seams:** where two land pieces of one plate meet, the pieces' own motion (today's Generate's
+    `plate-physics.js`, scaled by each planet's own spread of seam rates) says what the seam did:
+    - closing: a past collision (Ural-type), replayed and worn with the rest of the past, 60–1500 Myr ago (log-uniform:
+      most old and low, a few young), its work 120–420 km per spread;
+    - parting: a sag on the land's base height, 0.2 km per spread over a trough σ 220 km — a lowland inland, a gulf
+      where it meets the coast;
+    - its sutures can be squeezed up again by the far field (G5).
+    - Measured: 23–34 inner seams a planet (81 on a land world), two-thirds of them at work.
+  - **The grain:** the distance from the nearest closing front (today's plate edges, every past weld, ring and closing
+    seam) is read fast across and slow along by the fine relief (G6d), the way Evolution's ridge noise is read. Its spurs
+    and valleys run along the strike near a front (85 % at it, fading with an e-folding of 700 km; 4× longer along than
+    across) and wander freely far from any.
+  - **Land Coverage:** at most 6 % of the land pieces under the sea (fore-arcs, rift seas and gulfs counted); past that,
+    the fringe barely under it is lifted to +20 m, shallowest first. Land drawn 25.9–26.4 % for the pieces' 27.4–28 %.
+  - Heights stay Earth-like: land median 0.41–0.50 km, 18–27 % above 1 km.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

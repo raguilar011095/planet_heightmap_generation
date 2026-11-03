@@ -473,7 +473,9 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    kind), coast (the land: the pieces', a passive coast carried a cell out), hold (the ground on
                    Generate's mesh held to its own pieces: a land piece no deeper than a shelf, an ocean piece under the
                    sea but where orogeny raised it, the fore-arc drowned), relief (a ridged fractal on the uplands, its
-                   octaves down to what the Detail can show), seafloor (each ocean cell's age from its
+                   octaves down to what the Detail can show, drawn out along the grain), seams (where two land pieces of
+                   one plate meet: a past range or a sag, by the pieces' own motion; the distance from the closing
+                   fronts — the grain), seafloor (each ocean cell's age from its
                    ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame, identity
                    rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),

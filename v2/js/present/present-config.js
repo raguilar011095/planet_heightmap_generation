@@ -48,6 +48,9 @@ export const PRESENT = {
     // (present/hold.js): a land piece never deeper than a shelf, an ocean piece never above the sea but where orogeny
     // raised it
     landFloorKm: -0.12,            // a land piece's floor (km): its coast may drown into a shelf sea, no deeper
+    landFloodShare: 0.06,          // …but at most this share of the land pieces under the sea (fore-arcs, rift seas and gulfs
+                                   // counted): past it the fringe barely under is lifted to landLiftKm, shallowest first
+    landLiftKm: 0.02,
     oceanCeilKm: -0.08,            // an ocean piece's ceiling: under the sea, its shelf edge sharp
     volcanoReachKm: 160,           // …but within this of a volcano on it (its island's flanks), or on island-arc crust
     foreArcDrownKm: 70,            // a land piece's edge along another plate's ocean piece drowned this far in (the fore-arc:
@@ -62,6 +65,19 @@ export const PRESENT = {
     reliefRiseKm: [0.25, 1.5],     // none below the first height, full from the second (the plains keep Evolution's hills)
     reliefVary: 0.5,               // ± this much more or less rugged from place to place…
     reliefVaryKm: 900,             // …in patches about this wide
+    // G3b: the grain (present/seams.js): near a closing front the relief runs along its strike…
+    grainShare: 0.85,              // …this share of it at the front…
+    grainKm: 700,                  // …fading with the distance from it over this (e-folding)…
+    grainStretch: 4,               // …its features this many times longer along the strike than across
+
+    // ── G3b: the pieces jostle (present/seams.js) — where two land pieces of one plate meet, the pieces' own motion ──
+    seamQuiet: 0.25,               // a seam moving less than this share of the planet's seams' spread did nothing…
+    seamMaxStrength: 1.5,          // …and counts at most this many spreads
+    seamMinCells: 3,               // (a seam shorter than this many sim cells is no seam)
+    seamAgeMyr: [60, 1500],        // a closing seam raised a range this long ago (log-uniform: most old and worn)…
+    seamWorkKm: [120, 420],        // …with this much convergence per spread of closing
+    seamSagKm: 0.2,                // a parting seam sagged this deep per spread (× 0.6–1.4)…
+    seamSagWidthKm: 220,           // …over a trough this wide (σ): a lowland inland, a gulf where it meets the coast
 
     // ── G3: today's mountains — how long each kind of front has been at work (Myr), drawn per front ──
     andeanMyr: [40, 140],          // a subduction margin (the Andes: ~200 Myr; the Cascades' arc younger)

@@ -17,6 +17,8 @@ import { presentPlumes, presentFarField } from './plumes.js';
 import { knobOverrides, reliefShareOf } from './knobs.js';
 import { addFineRelief } from './relief.js';
 import { heldCells, holdToPieces } from './hold.js';
+import { pieceSeams, sagSeams, frontDistance } from './seams.js';
+import { PRESENT } from './present-config.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -52,7 +54,11 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.seaFloor = clock() - t0; t0 = clock();
     // the continents' past first (G4: old orogenies replayed), then today's belts over it
     const config = presentTectonics(), crust = newCrust(L, land, sea);
-    const past = presentPast(L, land, crust, config);
+    // (G3b: the inner seams — where two land pieces of one plate meet — replayed with the past, or sagged)
+    const seams = pieceSeams(L, P, land, crustLand);
+    const past = presentPast(L, land, crust, config, PRESENT, seams.events);
+    sagSeams(L, land, crust, seams.sags);
+    past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
     ms.past = clock() - t0; t0 = clock();
     const belts = presentBelts(L, P, B, land, sea, undefined, config, crust);
     belts.past = past;
@@ -65,9 +71,11 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.frame = clock() - t0; t0 = clock();
     // (G2c: the ground held to the pieces on Generate's mesh — each region by its own piece, as edited)
     const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand) } : null;
-    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask });
+    // (G3b: the grain — how far each place lies from a closing front, today's or the past's)
+    const frontKm = frontDistance(L, B, land, past.events);
+    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, mask, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
+    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
 }
 
 /**
@@ -82,7 +90,7 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
     const cfg = terrainConfig({ ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
-    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null);
+    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
     return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, ms };
@@ -92,7 +100,7 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
  * Evolution's terrain synthesis and carving (terrain/synthesize.js synthesizeTerrain, step for step — the same surface
  * when `relief` is 0), with the fine relief (present/relief.js, G6d) laid down between the two, so the rivers carve it.
  */
-export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null) {
+export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null, frontKm = null) {
     const ms = {}, clock = () => performance.now();
     let t0 = clock();
     const plan = preparePlan(frame, sim, cfg, seed, tMesh.edgeKm);
@@ -103,7 +111,7 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     const carveIn = cfg.carveTimeMyr > 0 ? carveInputs(n) : null;
     surfaceRange(plan, cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn);
     ms.surface = clock() - t0; t0 = clock();
-    addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief);
+    addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
     if (mask) holdToPieces(heightKm, mask, tMesh);
     ms.relief = clock() - t0;
     if (!carveIn) return { heightKm, ms };

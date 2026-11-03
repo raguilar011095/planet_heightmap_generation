@@ -299,6 +299,17 @@ section('G6d: a finer Detail draws finer relief; with none, Evolution\'s own ter
     check(`${pl.name}: no relief, no hold — the same surface as Evolution's synthesizeTerrain`, same);
 }
 
+// ── G3b: the pieces jostle ──
+section('G3b: inner seams — where two land pieces of one plate meet — raise ranges or sag');
+for (const { pl, G } of grounds) {
+    const s = G.belts.past.seams, front = G.frontKm;
+    let landN = 0, near = 0;
+    for (let c = 0; c < G.land.length; c++) if (G.land[c]) { landN++; if (front[c] <= 700) near++; }
+    // (a supercontinent's pieces all meet on one plate or two: there are many; few pieces, few seams)
+    check(`${pl.name}: ${s.count} inner seams, ${s.closing} closed (ranges), ${s.parting} parted (sags); ${(100 * near / landN).toFixed(0)} % of the land within 700 km of a closing front (its grain)`,
+        s.closing + s.parting > 0 && s.closing + s.parting <= s.count, 'some seams at work');
+}
+
 // ── G3: today's mountains ──
 section('G3: belts where plates meet; ranges, not coastal walls');
 for (const { pl, G, mesh } of grounds) {

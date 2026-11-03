@@ -57,10 +57,24 @@ export function holdToPieces(heightKm, m, mesh, cfg = PRESENT) {
         for (const r of front) for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (regionLand[nb] && !foreArc[nb]) { foreArc[nb] = 1; next.push(nb); } }
         front = next;
     }
+    let pieces = 0, flooded = 0;
+    const fringe = [];
     for (let r = 0; r < n; r++) {
         const c = regionCell[r], h = heightKm[r];
-        if (foreArc[r]) heightKm[r] = Math.max(cfg.foreArcFloorKm, Math.min(cfg.foreArcDepthKm, h));
-        else if (regionLand[r]) { if (h < cfg.landFloorKm && !opened[c]) heightKm[r] = cfg.landFloorKm; }
-        else if (h > cfg.oceanCeilKm && !raised[c]) heightKm[r] = cfg.oceanCeilKm;
+        if (foreArc[r]) { heightKm[r] = Math.max(cfg.foreArcFloorKm, Math.min(cfg.foreArcDepthKm, h)); pieces++; flooded++; }
+        else if (regionLand[r]) {
+            pieces++;
+            if (opened[c]) { flooded += h <= 0; continue; }
+            if (h < cfg.landFloorKm) heightKm[r] = cfg.landFloorKm;
+            if (heightKm[r] <= 0) { flooded++; fringe.push(r); }
+        } else if (h > cfg.oceanCeilKm && !raised[c]) heightKm[r] = cfg.oceanCeilKm;
+    }
+    // Land Coverage: at most landFloodShare of the land pieces under the sea (the fore-arcs and the crust's own seas
+    // counted); past that, the coastal fringe barely under it is lifted just above, the shallowest first — the gulfs a
+    // sag drowned and the bays the coast cuts deep stay
+    const lift = Math.min(fringe.length, flooded - Math.floor(cfg.landFloodShare * pieces));
+    if (lift > 0) {
+        fringe.sort((a, b) => heightKm[b] - heightKm[a] || a - b);
+        for (let k = 0; k < lift; k++) heightKm[fringe[k]] = cfg.landLiftKm;
     }
 }
