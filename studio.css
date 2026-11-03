@@ -1,130 +1,143 @@
-/* The Studio page (studio.html): the three tools, explained, and the resources behind them. A scrolling page under V1's
-   top nav (styles.css), in the tools' own look, on the page's own ground (Paper or Night). */
+/* The Studio (index.html), after the style guide's page pattern (docs/style-guide/pages.md, The Studio) and the
+   6 · Hybrid II · Studio board: the hero with the globe in its degree ring, three ways in, worlds to explore, the
+   resources behind the project, the footer. A scrolling page under the masthead (styles.css), on the page's ground. */
 
 body.studio {
     overflow: auto; min-height: 100vh;
-    background: var(--ui-page-studio);
-    background-attachment: fixed;
-    color: var(--ui-body);
+    background: var(--bg);
+    color: var(--body);
 }
-.studio-page { max-width: 1120px; margin: 0 auto; padding: 88px 24px 48px; }
+.studio-page { max-width: 1312px; margin: 0 auto; padding: calc(var(--nav-h) + 56px) var(--space-10) var(--space-8); }
 
-.studio-hero { text-align: center; margin-bottom: 48px; }
-.studio-hero h1 { font: 500 52px/1.05 var(--font-display); color: var(--ui-ink); letter-spacing: -0.01em; margin-bottom: 12px; }
-.studio-lede { font-size: 17px; line-height: 1.6; color: var(--ui-muted); max-width: 620px; margin: 0 auto; }
-/* under the lede: GitHub and the follow links, small and outlined */
-.studio-follow { margin-top: 20px; }
-.studio-follow-links { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; }
-.studio-follow-links a {
-    display: inline-flex; align-items: center; gap: 7px; padding: 5px 12px;
-    border: 1px solid var(--ui-white-14); border-radius: 999px;
-    font-size: 13px; color: var(--ui-muted); text-decoration: none; transition: color 0.2s, border-color 0.2s;
+/* ── the hero: the words left, the globe right ── */
+.studio-hero {
+    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: var(--space-8); align-items: center;
+    margin-bottom: 96px;
 }
-.studio-follow-links a:hover { color: var(--ui-body); border-color: var(--ui-white-30); }
-.studio-follow-note { margin-top: 8px; font-size: 13px; color: var(--ui-faint-2); }
+.hero-text { display: flex; flex-direction: column; gap: 22px; }
+.studio-hero h1 { margin: 0; font: 500 92px/0.95 var(--font-display); letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
+.studio-hero h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
+.hero-lede { margin: 0; max-width: 34em; font: 400 23px/1.55 var(--font-text); color: var(--body); }
+/* the layer highlights (docs/style-guide/components.md, Tag): a word marked in its layer's tint and ink */
+.hero-lede mark { padding: 0 4px; border-radius: var(--radius-xs); background: var(--l-tint); color: var(--l-ink); }
+.hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+.hero-note { margin: 0; font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
+.hero-globe { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
+.hero-globe__frame { position: relative; width: 100%; aspect-ratio: 1; }
+.hero-globe__frame img { position: absolute; inset: 11%; width: 78%; height: 78%; }
+.hero-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.hero-ring .ring-line { fill: none; stroke: var(--gold); stroke-width: 1.2; }
+.hero-ring .tick { stroke: var(--gold); stroke-width: 1; }
+.hero-ring .tick-long { stroke: var(--gold); stroke-width: 1.4; }
+.hero-ring .ring-num { fill: var(--muted); font: 500 12.5px var(--font-ui); text-anchor: middle; dominant-baseline: central; }
+.hero-globe figcaption { font: italic 400 15px/1.45 var(--font-text); color: var(--muted); text-align: center; }
 
-.studio-section { margin-bottom: 56px; }
-.studio-section > h2 {
-    font-size: 13px; font-weight: 600; color: var(--ui-label-cool); text-transform: uppercase; letter-spacing: 0.08em;
-    padding-bottom: 8px; margin-bottom: 20px; border-bottom: 1px solid var(--ui-white-08);
+/* ── the sections ── */
+.studio-section { margin-bottom: 96px; }
+.studio-section > h2 { margin: 10px 0 var(--space-6); font: 500 42px/1 var(--font-display); color: var(--ink); text-wrap: balance; }
+/* hachure: a few fine lines either side of a section title (the Studio's only ornament besides the ring) */
+.studio-section > h2.hachured { display: flex; align-items: center; gap: var(--space-5); text-align: center; justify-content: center; }
+.studio-section > h2.hachured::before, .studio-section > h2.hachured::after {
+    content: ''; flex: 1 1 0; max-width: 220px; height: 14px;
+    background: repeating-linear-gradient(115deg, var(--rule) 0 1px, transparent 1px 5px);
 }
-.studio-intro { font-size: 15px; line-height: 1.6; color: var(--ui-muted); max-width: 680px; margin-bottom: 24px; }
+.studio-intro { margin: -12px 0 var(--space-6); max-width: 40em; font: 400 19px/1.5 var(--font-text); color: var(--muted); }
 
-/* the tools */
-.tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+/* three ways in: the tool cards (ToolCard) */
+.tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
 .tool-card {
-    display: flex; flex-direction: column; overflow: hidden;
-    background: var(--ui-panel); border: 1px solid var(--ui-white-08); border-radius: 14px;
-    transition: border-color 0.2s, transform 0.2s;
+    display: flex; flex-direction: column; gap: var(--space-3);
+    padding: var(--space-6) 26px 0; border: var(--line-hair) solid var(--rule); border-radius: var(--radius-xl);
+    background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink); text-decoration: none;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
-.tool-card:hover { border-color: var(--ui-sky-35); transform: translateY(-2px); }
-.tool-shot { display: block; aspect-ratio: 16 / 10; overflow: hidden; background: var(--ui-page); }
-.tool-shot img { display: block; width: 100%; height: 100%; object-fit: cover; transform: scale(1.2); }
-.tool-body { display: flex; flex-direction: column; flex: 1; padding: 18px 20px 20px; }
-.tool-body h3 { font: 600 26px/1.05 var(--font-display); color: var(--ui-ink); margin-bottom: 4px; display: flex; align-items: center; gap: 8px; }
-.tool-new {
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 2px 7px; border-radius: 5px; background: var(--ui-new-bg); color: var(--ui-new);
+.tool-card:hover { transform: translateY(-2px); }
+.tool-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.tool-tile { width: var(--size-tile); height: var(--size-tile); flex: none; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--l-tint); color: var(--l-ink); }
+.tool-card .og-tag { align-self: center; }
+.tool-card h3 { margin: 4px 0 0; font: 600 28px/1.05 var(--font-display); color: var(--ink); }
+.tool-card__text { margin: 0; font: 400 18px/1.45 var(--font-text); color: var(--body); }
+.tool-card__note { margin: 0; font: 500 12.5px/1.45 var(--font-ui); color: var(--muted); }
+.tool-card__cta {
+    margin-top: auto; padding: 14px 0 18px; border-top: var(--line-hair) solid var(--rule);
+    display: flex; align-items: center; justify-content: space-between;
+    font: 600 15px/1 var(--font-ui); color: var(--l-ink);
 }
-.tool-beta {
-    font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 2px 7px; border-radius: 5px; background: var(--ui-beta-bg); color: var(--ui-beta); margin-left: -2px;
-}
-.tool-tag { font-size: 14px; color: var(--ui-link); margin-bottom: 10px; }
-.tool-body > p:not(.tool-tag) { font-size: 14px; line-height: 1.6; color: var(--ui-muted); margin-bottom: 14px; }
-.tool-facts { list-style: none; font-size: 13px; color: var(--ui-body); line-height: 1.5; margin-bottom: 18px; }
-.tool-facts li { padding: 5px 0; border-top: 1px solid var(--ui-white-06); }
-.tool-facts span { display: block; font-size: 11px; color: var(--ui-faint-2); text-transform: uppercase; letter-spacing: 0.06em; }
-.tool-open {
-    margin-top: auto; display: block; text-align: center; text-decoration: none;
-    padding: 11px 12px; border-radius: 8px; font-size: 15px; font-weight: 600; color: var(--on-accent);
-    background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action)); transition: filter 0.2s;
-}
-.tool-open:hover { filter: brightness(1.15); }
 
-/* the resources */
-.res-head { font-size: 16px; font-weight: 600; color: var(--ui-ink); margin: 28px 0 12px; }
-.res-head:first-of-type { margin-top: 0; }
-.res-list { list-style: none; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+/* worlds to explore: the worlds and the views beside the picture (WorldPicker) */
+.worlds { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+.worlds-panel {
+    display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3);
+    border-radius: var(--radius-2xl); background: var(--panel);
+}
+.world {
+    display: flex; align-items: center; gap: 14px; padding: 8px; border-radius: var(--radius-lg); cursor: pointer;
+    border: var(--line-hair) solid transparent; background: transparent; color: var(--ink); text-align: left; font: inherit;
+}
+.world img { width: 72px; height: 36px; border-radius: var(--radius-sm); object-fit: cover; flex: none; }
+.world b { display: block; font: 600 22px/1.1 var(--font-display); }
+.world small { display: block; font: italic 400 14px/1.3 var(--font-text); color: var(--muted); }
+.world.is-on { background: var(--surface); border-color: var(--rule); box-shadow: var(--shadow-card); }
+.worlds-panel .og-seg { margin-top: var(--space-2); align-self: flex-start; }
+.worlds-panel .og-link { align-self: flex-start; }
+.worlds-picture { margin: 0; }
+.worlds-picture img {
+    display: block; width: 100%; height: auto; aspect-ratio: 2; border-radius: var(--radius-lg);
+    border: var(--line-hair) solid var(--rule); background: var(--desk);
+}
+.worlds-picture figcaption { margin-top: var(--space-2); font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
+.worlds-picture figcaption b { font-style: normal; font-weight: 600; color: var(--ink); }
+
+/* ── the resources: a card per link, grouped ── */
+.res-head { margin: var(--space-7) 0 var(--space-3); display: flex; align-items: center; gap: 10px; font: 600 22px/1.1 var(--font-display); color: var(--ink); }
+.res-head::before { content: ''; width: 8px; height: 18px; border-radius: var(--radius-xs); background: var(--gold); }
+.res-list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-3); }
 .res-item {
-    background: var(--ui-panel-75); border: 1px solid var(--ui-white-08); border-radius: 10px;
-    padding: 14px 16px; transition: border-color 0.2s;
+    display: flex; gap: 14px; align-items: flex-start; padding: var(--space-4);
+    border: var(--line-hair) solid var(--rule); border-radius: var(--radius-lg); background: var(--surface);
 }
-.res-item:hover { border-color: var(--ui-sky-30); }
-.res-link { font-size: 15px; font-weight: 600; color: var(--ui-link); text-decoration: none; }
-.res-link::after { content: ' \2197'; font-size: 12px; color: var(--ui-hint); }
-.res-link:hover { text-decoration: underline; }
-.res-note { font-size: 14px; line-height: 1.55; color: var(--ui-muted); margin-top: 4px; }
-.res-item { display: flex; gap: 14px; align-items: flex-start; }
-.res-icon { flex: none; width: 44px; height: 44px; border-radius: 50%; object-fit: cover; background: var(--ui-white-06); }
+.res-icon { width: 44px; height: 44px; border-radius: 50%; flex: none; object-fit: cover; }
 .res-body { min-width: 0; }
-.res-kind { margin-left: 8px; font-size: 11px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ui-hint); }
-.res-note a { color: var(--ui-link); }
+.res-link { font: 600 16px/1.3 var(--font-ui); color: var(--ink); text-decoration: none; }
+.res-link:hover { color: var(--accent); }
+.res-kind { margin-left: 8px; padding: 2px 8px; border-radius: var(--radius-full); background: var(--chip-track); color: var(--muted); font: 600 10.5px/1.2 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; vertical-align: 2px; }
+.res-note { margin: 6px 0 0; font: 400 16px/1.5 var(--font-text); color: var(--body); }
+.res-note a { color: var(--accent); }
 
-.studio-footer {
-    text-align: center; font-size: 13px; line-height: 1.8; color: var(--ui-faint-2);
-    padding-top: 24px; border-top: 1px solid var(--ui-white-08);
+/* ── the footer, on a hairline ── */
+.studio-footer { padding-top: var(--space-6); border-top: var(--line-hair) solid var(--rule); display: flex; flex-direction: column; gap: var(--space-3); }
+.studio-follow-links { display: flex; flex-wrap: wrap; gap: 8px; }
+.studio-follow-links a {
+    display: inline-flex; align-items: center; gap: 7px; min-height: 36px; padding: 0 14px;
+    border: var(--line-hair) solid var(--rule); border-radius: var(--radius-full);
+    font: 500 13px/1 var(--font-ui); color: var(--body); text-decoration: none;
 }
-.studio-footer a { color: var(--ui-link); text-decoration: none; }
-.studio-footer a:hover { text-decoration: underline; }
+.studio-follow-links a:hover { color: var(--ink); background: var(--chip-track); }
+.studio-footer__line { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--space-2); font: 600 13px/1.4 var(--font-ui); color: var(--ink); }
+.studio-footer p { margin: 0; font: 400 15px/1.5 var(--font-text); color: var(--muted); }
+.studio-footer a { color: var(--accent); }
 
-.tool-dots { display: none; }
-/* narrower than three cards: a row to swipe through — the next card peeking in at the edge, dots beneath */
+@media (prefers-reduced-motion: reduce) { .tool-card { transition: none; } .tool-card:hover { transform: none; } }
+@media (max-width: 1100px) {
+    .studio-hero h1 { font-size: 72px; }
+    .tool-grid { grid-template-columns: 1fr; max-width: 640px; }
+    .worlds { grid-template-columns: 1fr; }
+}
 @media (max-width: 900px) {
-    .tool-grid {
-        display: flex; gap: 12px; overflow-x: auto; overscroll-behavior-x: contain;
-        scroll-snap-type: x mandatory; scroll-padding: 0 24px; scrollbar-width: none;
-        margin: 0 -24px; padding: 0 24px 4px;
-    }
-    .tool-grid::-webkit-scrollbar { display: none; }
-    .tool-card { flex: 0 0 min(82%, 400px); scroll-snap-align: start; }
-    .tool-card:hover { transform: none; }
-    .tool-dots { display: flex; justify-content: center; margin-top: 4px; }
-    .tool-dots button {
-        width: 44px; height: 32px; padding: 0; border: none; background: none; cursor: pointer;
-        display: flex; align-items: center; justify-content: center;
-    }
-    .tool-dots button::before {
-        content: ''; width: 8px; height: 8px; border-radius: 50%; background: var(--ui-white-25); transition: background 0.2s, width 0.2s;
-    }
-    .tool-dots button[aria-current]::before { width: 20px; border-radius: 4px; background: var(--ui-select); }
+    .studio-page { padding: calc(var(--nav-h) + 32px) var(--space-6) var(--space-7); }
+    .studio-hero { grid-template-columns: 1fr; gap: var(--space-6); margin-bottom: 72px; }
+    .hero-globe { max-width: 440px; margin: 0 auto; width: 100%; }
+    .res-list { grid-template-columns: 1fr; }
 }
 @media (max-width: 768px) {
-    .studio-page { padding: 64px 16px 40px; }
-    .tool-grid { margin: 0 -16px; padding: 0 16px 4px; scroll-padding: 0 16px; }
-    .tool-shot { aspect-ratio: 16 / 9; }
-    .tool-body { padding: 16px 16px 18px; }
-    .studio-hero { margin-bottom: 36px; }
-    .studio-hero h1 { font-size: 40px; }
-    .studio-lede { font-size: 16px; }
-    .studio-follow-links a { min-height: 44px; padding: 0 16px; }
-    .res-list { grid-template-columns: 1fr; }
-    .tool-open { min-height: 48px; display: flex; align-items: center; justify-content: center; }
-    .res-link { display: inline-block; min-height: 32px; padding-top: 4px; }
-    .studio-footer a { display: inline-block; min-height: 44px; line-height: 44px; }
-}
-@media (max-width: 480px) {
-    /* (the four don't fit one row: two by two, not three and one) */
-    .studio-follow-links { display: grid; grid-template-columns: repeat(2, auto); justify-content: center; }
-    .studio-follow-links a { justify-content: center; }
+    .studio-page { padding: calc(var(--nav-h) + 28px) var(--space-4) var(--space-7); }
+    .studio-hero h1 { font-size: 52px; }
+    .hero-lede { font-size: 20px; }
+    .hero-actions .og-btn { flex: 1 1 auto; }
+    .studio-section { margin-bottom: 72px; }
+    .studio-section > h2 { font-size: 34px; }
+    .studio-section > h2.hachured::before, .studio-section > h2.hachured::after { max-width: 60px; }
+    .worlds-panel .og-seg { align-self: stretch; }
+    .worlds-panel .og-seg__opt { flex: 1 1 0; min-height: var(--size-touch); }
+    .studio-follow-links a { min-height: var(--size-touch); }
 }

@@ -269,19 +269,31 @@ timeline with Finish and Export, the layer tabs; every knob folded into Settings
 References: **Page patterns: The Studio**; the **6 · Hybrid II · Studio** boards; the components ToolCard, EssayCard,
 WorldPicker, GlobeFrame, SectionHead, Tag, Callout and Logo.
 
-- [ ] **The utility line and the masthead** (the lockup at 42 px with the name at 34 px).
-- [ ] **The hero:** the eyebrow, the headline with its italic accent phrase, the lede with three layer highlights, Begin
-  with Generate (primary) and Watch a world form, the note; the globe in its degree ring with numerals every 30°. A still
-  image first; the turning globe is open question 5.
-- [ ] **Three ways in:** the three tool cards, with icon tiles in their layer's tint.
-- [ ] **Worlds to explore:** the worlds panel (a world and a view) beside the big picture, from real renders.
-- [ ] **Orogen Explains:** per open question 7.
-- [ ] **The footer.**
+- [x] **The masthead** (from R2: the lockup, the tools, the follow links, the theme). The board's utility line above it
+  is left out: the masthead carries the same links.
+- [x] **The hero:** the eyebrow (A studio of planet tools), the headline at 92 px with *from the ground up.* in the
+  accent's italic, the lede with Plates, ranges and rain marked in their layers' tints, **Begin with Generate** (the
+  primary) and **Watch a world form**, the note; Arden (round 7's relief globe, a still) in its gold degree ring with
+  numerals every 30°, and its caption. The turning globe is for later (decided).
+- [x] **Three ways in:** the title between hachure; three tool cards with icon tiles in their layer's tint (Generate:
+  land, Import: climate, Evolution: plates), a tag (Takes seconds · Your map · Takes minutes), the board's line, one
+  honest note (Evolution: best on a desktop for now; Geology and Food in beta) and **Open …** on a hairline.
+- [x] **Worlds to explore:** Arden (900 Myr) and Thessaly (300 Myr) in Terrain, Satellite and Rocks, with the board's
+  captions; a small script switches them. **Make your own in Evolution →** stands in for the board's "Open Arden": the
+  worlds' exact Evolution links aren't kept, and links build differently in different browsers.
+- [x] **Orogen Explains:** off, until the first essay exists (decided).
+- [x] **Resources I love:** kept (VISION: the Studio links the guides) as cards in two columns, grouped under heads
+  with a gold bar.
+- [x] **The footer:** on a hairline, the follow links (they left the hero), "World Orogen · orogen.studio", "Free and
+  open source · GPL-3.0 · Your maps are yours", the copyright and the issues link.
+- [x] The shared pieces the page needs (`og-btn`, `og-link`, `og-seg`, `og-tag`, `og-eyebrow`) moved from the guide's
+  reference CSS into `styles.css`; 48 `--ui-*` roles retired (72 remain).
 - **Verify:**
-  - [ ] Every link; Generate's old links (`/#code`) still reach `/generate`.
-  - [ ] Paper and Night, 1440 px and 400 px (16 px gutter, no sideways scroll).
-  - [ ] No layout shift when the fonts arrive; images sized.
-  - [ ] The page's meta tags and hidden description still match what it says.
+  - [x] Every link; Generate's old links (`/#code`) still reach `/generate` (the page adds no `#` links of its own).
+  - [x] Paper and Night at 1440 px and 400 px (16 px gutter, no sideways scroll, the cards stacked); the picker works.
+  - [x] Text contrast passes in both themes; `check-style.mjs` passes; no console errors.
+  - [x] The page's meta tags still match what it says. Pictures are sized and below the hero lazy (about 750 KB of
+    worlds, 72 KB for the globe).
 
 ### R5: the globe and the map
 
@@ -382,4 +394,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R0 built and checked (above), on `redesign-foundations`: PR #92.
 - **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0): PR #95.
 - **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1): PR #97.
-- **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2).
+- **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2): PR #99.
+- **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3).

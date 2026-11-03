@@ -5,36 +5,23 @@
 :root {
     /* Grounds and panels */
     --ui-page: var(--desk);
-    --ui-page-studio: var(--bg);
     --ui-stage: var(--desk);
     --ui-stage-veil: color-mix(in srgb, var(--desk) 78%, transparent);
     --ui-well: var(--chip-track);
     --ui-menu: var(--surface);
-    --ui-panel-75: var(--surface);
-    --ui-panel-85: color-mix(in srgb, var(--bg) 94%, transparent);
-    --ui-panel-86: color-mix(in srgb, var(--bg) 94%, transparent);
-    --ui-panel: color-mix(in srgb, var(--bg) 96%, transparent);
-    --ui-panel-92: color-mix(in srgb, var(--bg) 97%, transparent);
     --ui-panel-94: var(--surface);
-    --ui-panel-96: var(--surface);
-    --ui-drop-veil: color-mix(in srgb, var(--desk) 72%, transparent);
-    --ui-drop-card: var(--surface);
-    --ui-shadow: color-mix(in srgb, var(--stage-space) 22%, transparent);
     --ui-scrim: color-mix(in srgb, var(--stage-space) 45%, transparent);
     /* Text, lightest to faintest */
     --ui-ink: var(--ink);
-    --ui-ink-cool: var(--ink);
     --ui-ink-soft: var(--ink);
     --ui-body: var(--body);
     --ui-body-soft: var(--ink);
     --ui-body-cool: var(--body);
     --ui-body-dim: var(--body);
     --ui-label: var(--body);
-    --ui-label-cool: var(--ink);
     --ui-label-dim: var(--body);
     --ui-muted: var(--muted);
     --ui-muted-grey: var(--muted);
-    --ui-muted-chip: var(--muted);
     --ui-note: var(--muted);
     --ui-faint: var(--muted);
     --ui-marker: var(--muted);
@@ -44,7 +31,6 @@
     --ui-off: var(--muted);
     --ui-marker-off: var(--muted);
     /* White washes and lines (by opacity) */
-    --ui-white-03: color-mix(in srgb, var(--ink) 3%, transparent);
     --ui-white-04: color-mix(in srgb, var(--ink) 4%, transparent);
     --ui-white-06: color-mix(in srgb, var(--ink) 6%, transparent);
     --ui-white-08: var(--rule);
@@ -55,39 +41,21 @@
     --ui-white-18: color-mix(in srgb, var(--ink) 14%, transparent);
     --ui-white-20: color-mix(in srgb, var(--ink) 24%, transparent);
     --ui-white-25: color-mix(in srgb, var(--ink) 22%, transparent);
-    --ui-white-30: color-mix(in srgb, var(--ink) 30%, transparent);
     --ui-white-50: color-mix(in srgb, var(--ink) 50%, transparent);
     /* Blue: actions, selection and links */
     --ui-action: var(--accent);
     --ui-action-deep: var(--accent);
-    --ui-action-bar: var(--ink);
     --ui-select: var(--ink);
     --ui-select-text: var(--ink);
-    --ui-select-07: var(--panel);
     --ui-select-08: var(--panel);
     --ui-select-15: var(--chip-track);
-    --ui-select-18: var(--chip-on);
-    --ui-select-22: var(--chip-on);
     --ui-select-25: color-mix(in srgb, var(--accent) 18%, transparent);
-    --ui-select-35: color-mix(in srgb, var(--ink) 35%, transparent);
-    --ui-select-45: color-mix(in srgb, var(--ink) 45%, transparent);
     --ui-sky-18: var(--chip-on);
     --ui-sky-25: var(--rule);
-    --ui-sky-28: color-mix(in srgb, var(--ink) 22%, transparent);
-    --ui-sky-30: color-mix(in srgb, var(--ink) 30%, transparent);
-    --ui-sky-35: color-mix(in srgb, var(--ink) 30%, transparent);
     --ui-sky-45: color-mix(in srgb, var(--ink) 30%, transparent);
-    --ui-sky-50: color-mix(in srgb, var(--ink) 40%, transparent);
-    --ui-sky-drop: var(--accent);
-    --ui-navy-40: var(--surface);
-    --ui-navy-60: var(--surface);
     --ui-navy-70: var(--surface);
     --ui-navy-80: var(--surface);
-    --ui-navy-hover-80: var(--chip-track);
     --ui-navy-hover-90: var(--chip-track);
-    --ui-navy-on-65: var(--surface);
-    --ui-navy-on-75: var(--chip-on);
-    --ui-navy-chip: var(--surface);
     --ui-link: var(--accent);
     --ui-link-legend: var(--accent);
     --ui-link-hover: var(--accent);
@@ -97,37 +65,21 @@
     --ui-amber: var(--layer-land-ink);
     --ui-amber-10: color-mix(in srgb, var(--gold) 10%, transparent);
     --ui-amber-25: color-mix(in srgb, var(--gold) 30%, transparent);
-    --ui-stale: var(--accent);
-    --ui-stale-deep: var(--accent);
     --ui-beta: var(--gold-ink);
     --ui-beta-bg: color-mix(in srgb, var(--gold) 16%, transparent);
     --ui-beta-note: var(--muted);
     --ui-warn: var(--gold-ink);
     --ui-sun: var(--gold);
-    --ui-busy-bg: color-mix(in srgb, var(--gold) 18%, transparent);
-    --ui-busy-line: var(--gold);
-    --ui-busy-text: var(--ink);
     --ui-note-warm: var(--gold-ink);
     /* Red: regenerate, errors */
-    --ui-regen: var(--accent);
-    --ui-regen-deep: var(--accent);
     --ui-red: var(--accent);
     --ui-error: var(--accent);
     /* Green: rebuild ready, finish, new */
-    --ui-ready: var(--accent);
-    --ui-ready-deep: var(--accent);
     --ui-ready-35: color-mix(in srgb, var(--accent) 30%, transparent);
     --ui-ready-40: color-mix(in srgb, var(--accent) 35%, transparent);
     --ui-ready-50: color-mix(in srgb, var(--accent) 40%, transparent);
     --ui-ready-55: color-mix(in srgb, var(--accent) 45%, transparent);
     --ui-ready-85: var(--accent);
-    --ui-finish: var(--gold);
-    --ui-finish-deep: var(--gold);
-    --ui-new: var(--accent);
-    --ui-new-bg: color-mix(in srgb, var(--accent) 10%, transparent);
-    --ui-farm-text: var(--layer-food-ink);
-    --ui-farm-line: var(--layer-food);
-    --ui-farm-bg: var(--layer-food-tint);
     /* Greys: a build in progress */
     --ui-busy-grey: var(--chip-track);
     --ui-busy-grey-deep: var(--chip-track);
@@ -140,6 +92,26 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 /* the keyboard focus ring, on every control (docs/style-guide/README.md, Accessibility) */
 :is(button, a, select, summary, input, [tabindex]):focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .toggle-label input:focus-visible + .toggle-track { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+/* ── Components the pages share, from the style guide (docs/style-guide/components.css): add a piece here when a page
+   first needs it, as it stands there ── */
+.og-btn { box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-height: var(--size-touch); padding: 0 var(--space-5); border: var(--line-hair) solid var(--rule); border-radius: var(--radius-md); background: var(--surface); color: var(--ink); font: 600 15px/1 var(--font-ui); text-decoration: none; cursor: pointer; }
+.og-btn--primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+.og-btn--main { min-height: var(--size-button-main); width: 100%; }
+.og-btn--quiet { background: transparent; border-color: transparent; }
+.og-btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+.og-link { display: inline-flex; align-items: center; gap: 6px; min-height: var(--size-touch); color: var(--accent); font: 600 15px/1 var(--font-ui); text-decoration: none; }
+.og-link.is-plates, .og-link.is-land, .og-link.is-climate, .og-link.is-rock, .og-link.is-food { color: var(--l-ink); }
+.og-seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; border-radius: var(--radius-md); background: var(--chip-track); }
+.og-seg__opt { height: var(--size-chip); padding: 0 var(--space-3); border: none; border-radius: var(--radius-sm); background: transparent; color: var(--muted); font: 600 14px/1 var(--font-ui); white-space: nowrap; cursor: pointer; }
+.og-seg__opt[aria-pressed="true"] { background: var(--chip-on); color: var(--ink); box-shadow: var(--shadow-chip); }
+.og-tag { align-self: flex-start; display: inline-flex; align-items: center; padding: 4px 10px; border-radius: var(--radius-full); background: var(--l-tint, var(--chip-track)); color: var(--l-ink, var(--ink)); font: 600 11px/1.2 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; white-space: nowrap; }
+.og-eyebrow { display: flex; align-items: center; gap: 14px; color: var(--gold-ink); font: 600 11px/1.2 var(--font-ui); letter-spacing: 0.22em; text-transform: uppercase; }
+.og-eyebrow::before { content: ""; width: 40px; height: 1px; background: var(--gold); }
+.og-btn:hover { background: var(--chip-track); }
+.og-btn--primary:hover { background: var(--accent); filter: brightness(1.1); }
+.og-seg__opt:hover { color: var(--ink); }
+.og-link:hover { text-decoration: underline; }
 
 /* ─── The masthead (docs/style-guide/components.md: Masthead, Logo, Tabs) ─── */
 :root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 36 px on phones) */

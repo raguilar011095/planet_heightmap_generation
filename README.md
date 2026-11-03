@@ -70,13 +70,14 @@ Then open **http://localhost:8000** for the Studio.
 ## Project structure
 
 ```
-index.html              Home page: the Studio — the tools explained + curated resources; sends Generate's old links (/#code) on to /generate
+index.html              Home page: the Studio — the tools, worlds to explore and curated resources; sends Generate's old links (/#code) on to /generate
 generate.html           Generate page — HTML markup + import map + structured data
 import.html             Import page — heightmap upload + climate visualization
 evolution.html          Evolution page — a planet's tectonic history (v2/)
 studio.html             The Studio's old address (/studio): sends on to /
 studio.css              Studio page styles
-assets/studio/          Screenshots of each tool for the Studio cards
+assets/studio/          The Studio's pictures: the hero globe, the worlds to explore (worlds/), the tools' screenshots
+                        (evolution.jpg is Evolution's social image)
 assets/social.svg       The GitHub, Bluesky, X and Threads marks for the follow links (one <symbol> each)
 tokens.css              The style guide's design tokens (all pages): colours for Paper and Night, type, spacing, corners,
                         lines, sizes and shadows, and the fonts

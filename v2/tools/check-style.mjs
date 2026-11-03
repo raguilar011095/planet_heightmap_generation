@@ -20,15 +20,11 @@ import { fileURLToPath } from 'node:url';
 const PAGES = ['index.html', 'generate.html', 'import.html', 'evolution.html'];
 const UI_BEGIN = '/* ── Today’s look, as variables', UI_END = '/* ── end of today’s look ── */';
 // The roles R0 made from today's colours. The list only shrinks.
-const UI_ROLES = new Set(`page page-studio stage stage-veil well menu panel-75 panel-85 panel-86 panel panel-92 panel-94
-panel-96 drop-veil drop-card shadow scrim ink ink-cool ink-soft body body-soft body-cool body-dim label label-cool label-dim
-muted muted-grey muted-chip note faint marker faint-2 hint faintest off marker-off white-03 white-04 white-06 white-08
-white-10 white-12 white-14 white-15 white-18 white-20 white-25 white-30 white-50 action action-deep
-action-bar select select-text select-07 select-08 select-15 select-18 select-22 select-25 select-35 select-45
-sky-18 sky-25 sky-28 sky-30 sky-35 sky-45 sky-50 sky-drop navy-40 navy-60 navy-70 navy-80 navy-hover-80 navy-hover-90
-navy-on-65 navy-on-75 navy-chip link link-legend link-hover live live-bg amber amber-10 amber-25 stale stale-deep beta
-beta-bg beta-note warn sun busy-bg busy-line busy-text note-warm regen regen-deep red error ready ready-deep ready-35
-ready-40 ready-50 ready-55 ready-85 finish finish-deep new new-bg farm-text farm-line farm-bg busy-grey
+const UI_ROLES = new Set(`page stage stage-veil well menu panel-94 scrim ink ink-soft body body-soft body-cool body-dim label label-dim muted
+muted-grey note faint marker faint-2 hint faintest off marker-off white-04 white-06 white-08 white-10 white-12
+white-14 white-15 white-18 white-20 white-25 white-50 action action-deep select select-text select-08 select-15
+select-25 sky-18 sky-25 sky-45 navy-70 navy-80 navy-hover-90 link link-legend link-hover live live-bg amber amber-10
+amber-25 beta beta-bg beta-note warn sun note-warm red error ready-35 ready-40 ready-50 ready-55 ready-85 busy-grey
 busy-grey-deep`.split(/\s+/).map(n => 'ui-' + n));
 const NAMED = 'white|black|red|green|blue|gray|grey|orange|yellow|purple|pink|brown|navy|silver|teal|maroon|olive|lime|' +
     'aqua|fuchsia|cyan|magenta|beige|ivory|tan|coral|salmon|crimson|indigo|violet|khaki|gold';
