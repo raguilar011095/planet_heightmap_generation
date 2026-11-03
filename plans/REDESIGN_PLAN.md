@@ -310,4 +310,4 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 
 ## Status
 
-- **2026-11-03:** R0 built and checked (above), on `redesign-foundations`.
+- **2026-11-03:** R0 built and checked (above), on `redesign-foundations`: PR #92.
