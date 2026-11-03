@@ -11,6 +11,18 @@ export function elevToHeightKm(elev) {
     return 6 * t2 * t2 * (5 - 4 * t);  // 0→0, 0.25→0.09, 0.5→1.13, 0.75→3.80, 1.0→6
 }
 
+/**
+ * The raw elevation whose height is `km` — elevToHeightKm's inverse (the present-day world, plans/GENERATE_REDESIGN_PLAN.md,
+ * makes heights in km; the page still reads raw elevations until it reads km itself). Land above 6 km reads as 6 km.
+ */
+export function heightKmToElev(km) {
+    if (km <= 0) return km / 10;
+    if (km >= 6) return 1;
+    let lo = 0, hi = 1;                                   // elevToHeightKm rises monotonically on (0, 1]
+    for (let i = 0; i < 40; i++) { const mid = 0.5 * (lo + hi); if (elevToHeightKm(mid) < km) lo = mid; else hi = mid; }
+    return Math.max(1e-6, 0.5 * (lo + hi));
+}
+
 // Biome base colors indexed by Köppen class ID (satellite-view palette).
 // 0=Ocean delegated, 1-30 = land biomes.
 const BIOME_COLORS = [

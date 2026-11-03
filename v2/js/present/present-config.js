@@ -37,4 +37,16 @@ export const PRESENT = {
     smoothKm: 450,                 // the motion averaged over this much of the same boundary either side
     transformRatio: 0.45,          // |closing or opening| below this share of the slip along it: a transform
     minRateCmYr: 0.4,              // slower than this: an inactive seam
+
+    // ── G2: the sea floor and the coasts ──
+    // The floor's age: distance from its ridge ÷ half the spreading rate there (km/Myr = 10 × cm/yr)
+    minHalfSpreadCmYr: 1.0,        // (a ridge spreading slower than this still spreads at this pace)
+    maxFloorAgeMyr: 180,           // older floor than this has gone down a trench somewhere (Earth's oldest: ~180 Myr)
+    unreachedHalfSpreadCmYr: 1.2,  // floor no ridge reaches ages on from the floor around it this slowly…
+    unreachedStartMyr: 90,         // …or, reached by nothing, starts this old at its plate's edges
+    // The coast: the land the pieces give, its distance field smoothed over coastSmoothKm (so no piece outline shows)
+    // and moved by a broad shape of ±coastShapeKm at continent scale, the threshold set so Land Coverage holds
+    coastSmoothKm: 360,            // σ of the smoothing
+    coastShapeKm: 240,
+    coastShapeWaveKm: 2000,        // the shape's broadest waves (two octaves, the second half as long)
 };

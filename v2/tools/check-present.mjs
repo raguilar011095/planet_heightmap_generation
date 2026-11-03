@@ -10,6 +10,10 @@ import { generateCoarsePlates } from '../../js/coarse-plates.js';
 import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
+import { presentWorld } from '../js/present/world.js';
+import { seaDepthKm } from '../js/tectonics/measure.js';
+import { buildSphere } from '../../js/sphere-mesh.js';
+import { makeRng } from '../../js/rng.js';
 
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -183,10 +187,54 @@ for (const { pl, layoutHash } of results) {
 }
 if (VERBOSE) console.log('\nlayout hashes: ' + JSON.stringify(Object.fromEntries(results.map(r => [r.pl.name, r.layoutHash]))));
 
+// ── G2: the ground — the sea floor's past, the coast, the Frame, Evolution's terrain on Generate's mesh ──
+section('G2: the sea floor ages away from its ridges, and deepens with its age');
+const grounds = [];
+for (const r of results.slice(0, 4).concat(results.filter(r => ['supercontinent', 'land world'].includes(r.pl.name)))) {
+    const { pl, L, W } = r;
+    const { mesh, r_xyz } = buildSphere(60000, 0.75, makeRng(pl.seed));       // a small render mesh: the checks' pace
+    const pieceLand = Uint8Array.from(L.pieceIds, id => (L.pieceOcean.has(id) ? 0 : 1));
+    const t0 = performance.now();
+    const G = presentWorld({ L, P: W }, pieceLand, mesh, r_xyz, { seed: pl.seed });
+    grounds.push({ pl, L, W, G, mesh, ms: performance.now() - t0 });
+}
+for (const { pl, G } of grounds) {
+    const { sea, land, frame } = G, n = land.length;
+    let ridgeAge = 0, ridgeN = 0, oldDepth = 0, oldN = 0, fz = 0, ocean = 0;
+    for (let c = 0; c < n; c++) {
+        if (land[c]) continue;
+        ocean++; if (frame.fzU[c]) fz++;
+        if (frame.boundary[c] === 1) { ridgeAge += sea.ageMyr[c]; ridgeN++; }
+        if (sea.ageMyr[c] >= 120) { oldDepth += seaDepthKm(sea.ageMyr[c]); oldN++; }
+    }
+    check(`${pl.name}: floor at the ridges ${(ridgeAge / Math.max(1, ridgeN)).toFixed(1)} Myr old, old floor ${(oldDepth / Math.max(1, oldN)).toFixed(1)} km deep`,
+        ridgeN > 0 && ridgeAge / ridgeN < 8 && oldN > 0 && oldDepth / oldN > 5, 'young at the ridges, > 5 km where old');
+    check(`${pl.name}: ${(100 * fz / ocean).toFixed(0)} % of the floor carries its spreading pole (fracture zones)`, fz / ocean > 0.3, '> 30 %');
+}
+
+section('G2: coasts drawn free of the pieces, land kept; the ground in km, sane');
+for (const { pl, L, W, G, mesh } of grounds) {
+    const n = G.land.length, cp = W.graph.cellP, { adjOffset, adjList } = L.mesh;
+    let coast = 0, onPiece = 0, landSim = 0, landPieces = 0;
+    for (let c = 0; c < n; c++) {
+        landSim += G.land[c]; landPieces += W.cellLand[c];
+        if (!G.land[c]) continue;
+        for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (G.land[nb]) continue; coast++; if (cp[c] !== cp[nb]) onPiece++; }
+    }
+    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast on a piece border; land ${(100 * landSim / n).toFixed(1)} % (pieces ${(100 * landPieces / n).toFixed(1)} %)`,
+        onPiece / coast < 0.35 && Math.abs(landSim - landPieces) / n < 0.005, 'coast mostly off the piece borders; the land\'s share held');
+    let land = 0, bad = 0, hi = -99, lo = 99;
+    for (const h of G.heightKm) { if (!Number.isFinite(h)) bad++; else { if (h > 0) land++; hi = Math.max(hi, h); lo = Math.min(lo, h); } }
+    // (the render's land share is reported, not held, until the continents stand up: G3/G4 — flat continents have low
+    // ground the coast's noise floods)
+    check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km, render land ${(100 * land / G.heightKm.length).toFixed(1)} %`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
+}
+
 section('Speed');
+for (const { pl, G, ms } of grounds) check(`${pl.name}: ground at 60K in ${ms.toFixed(0)} ms (terrain ${G.ms.terrain.toFixed(0)})`, ms < 4000);
 for (const { pl, tPlates } of results) check(`${pl.name}: plates built in ${tPlates.toFixed(0)} ms`, tPlates < 400);
 
-finish('Present-day world, G1');
+finish('Present-day world');
 
 function landDistance(L, isLand) {
     const { mesh, xyz } = L, n = mesh.numRegions, { adjOffset, adjList } = mesh, R = 6371;

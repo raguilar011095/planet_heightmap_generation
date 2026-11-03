@@ -425,6 +425,32 @@ The phase gate applies as always. One phase at a time. Each has:
   - Evolution hash-identical.
 - **Verify:** oceans that read as Evolution's (ridges, abyssal plains, fracture zones, shelves); coasts that are no
   longer plate outlines.
+- **Built 2026-11-02**, the ground without the painting (the painting is its own PR, G2b).
+  - **Modules** in `present/`:
+    - `seafloor.js`: the floor's age is the time from its ridge, distance ÷ half the spreading rate, over its own plate's
+      floor. Floor no ridge reaches ages on slowly. The cap is 180 Myr. Each cell's spreading pole sets its fracture
+      zones.
+    - `coast.js`: the land's signed distance smoothed with σ 360 km, moved ±240 km by a continent-scale shape, and its
+      threshold set so the land's share holds. Landmasses the pieces keep apart stay apart (the Continents slider).
+    - `frame.js`: the Frame. Identity rotations; boundaries by kind (the trench's two sides SUBDUCTING / OVERRIDING,
+      with the TRENCH flag); `classifyMargins`.
+    - `world.js`: Evolution's `synthesizeTerrain` with carving on Generate's own render mesh, its positions turned
+      z-up.
+  - **In the worker**, with `?next=1`, the ground replaces `assignElevation` and the post-processing, for a build and
+    for an edit. Heights in km are handed to the page as raw elevations (`js/color-map.js heightKmToElev`) until it
+    reads km. Reapply keeps the ground until G6.
+  - **Measured** (`check-present.mjs` 138/138):
+    - the floor at the ridges is ~0 Myr, and old floor 6.4 km deep;
+    - 24–31 % of the coast lies on a piece border (it was 100 % by construction);
+    - the land's share is held on the sim mesh;
+    - the ground at a 60K render mesh takes 0.7–0.9 s, and ~1.5 s at 204K on one thread (synthesis 0.54 s, carving
+      0.57 s).
+  - **Open:** the render's land is ~3 points short of the target (25 % for 28 %): flat continents (no belts or swells
+    yet) have low ground that the coast's noise floods. To be held once G3/G4 stand the land up.
+
+### G2b: The painting
+- Generate's and Import's views painted per pixel from the heights (Evolution's `view/gpu-paint.js`), with the hillshade;
+  the coast the heights' zero line. Then the Relief colours by default.
 
 ### G3: Today's mountains
 - **Build:**

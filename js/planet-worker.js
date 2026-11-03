@@ -16,6 +16,8 @@ import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
+import { presentWorld } from '../v2/js/present/world.js';
+import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -192,11 +194,22 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
     for (let r = 0; r < mesh.numRegions; r++) regionCell[r] = index.nearest(r_xyz[3 * r + 2], r_xyz[3 * r], r_xyz[3 * r + 1]);
     return { L, P: plates, regionCell };
 }
+/**
+ * The present-day world's ground (v2/js/present/world.js) for the crust as edited, as Generate's raw elevations (the
+ * page reads raw elevations until it reads km itself: js/color-map.js heightKmToElev). Kept on `present.world`.
+ */
+function presentGround(present, plateIsOcean, mesh, r_xyz, seed) {
+    const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
+    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed });
+    present.world = w;
+    const r_elevation = new Float32Array(mesh.numRegions);
+    for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(w.heightKm[r]);
+    return { r_elevation, debugLayers: {}, timing: Object.entries(w.ms).map(([stage, ms]) => ({ stage, ms })) };
+}
 /** What the page draws of it: the plates, which plate each region rides on, the boundaries on the crust as it is now. */
 function presentMessage(present, plateIsOcean) {
     const { L, P, regionCell } = present;
-    const landNow = cellLandNow(L, P, Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1)));
-    const B = classifyBoundaries(L, P, landNow);
+    const B = present.world?.B ?? classifyBoundaries(L, P, cellLandNow(L, P, Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1))));
     if (!present.regionPlate) {
         present.regionPlate = new Int16Array(regionCell.length);
         for (let r = 0; r < regionCell.length; r++) present.regionPlate[r] = P.cellPlate[regionCell[r]];
@@ -297,8 +310,19 @@ function handleGenerate(data) {
         );
         timing.push({ stage: 'Plate physics (drag + slab pull + ridge push + mantle flow)', ms: performance.now() - t0 });
 
+        let superPlateData = null, r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing = [];
+        let prePostElev, r_dampen = null, r_orogenic = null, postTiming = [];
+        if (present) {
+            // the present-day world's ground: its coast, boundaries, sea floor, Frame, and Evolution's terrain + carving
+            progress(35, 'Raising the ground…');
+            t0 = performance.now();
+            const g = presentGround(present, plateIsOcean, mesh, r_xyz, seed);
+            r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
+            mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);
+            prePostElev = new Float32Array(r_elevation);
+            timing.push({ stage: 'Present-day ground (coast, sea floor, Frame, terrain, carving)', ms: performance.now() - t0 });
+        } else {
         // Build super plates for broad orogenic belts (skip if too few plates)
-        let superPlateData = null;
         if (P >= 8) {
             t0 = performance.now();
             superPlateData = buildSuperPlates(coarseMesh, coarse_r_plate, plateSeeds, plateVec, plateIsOcean, plateDensity, r_plate);
@@ -333,19 +357,21 @@ function handleGenerate(data) {
 
         progress(35, 'Raising mountains\u2026');
         t0 = performance.now();
-        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity, superPlateData, r_mantleField);
+        ({ r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, plateDensity, superPlateData, r_mantleField));
         timing.push({ stage: 'Elevation (collisions + stress + distance fields + assignment)', ms: performance.now() - t0 });
 
-        const prePostElev = new Float32Array(r_elevation);
-        const r_dampen = computeDetailDampenField(debugLayers);
-        const r_orogenic = computeOrogenicField(debugLayers);
+        prePostElev = new Float32Array(r_elevation);
+        r_dampen = computeDetailDampenField(debugLayers);
+        r_orogenic = computeOrogenicField(debugLayers);
 
         progress(60, 'Eroding terrain\u2026');
         t0 = performance.now();
-        const { dl_erosionDelta, postTiming } = runPostProcessing(mesh, r_xyz, r_elevation, { smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, terrainWarp }, neighborDist, seed, debugLayers.hotspot, r_dampen, r_orogenic);
+        const post = runPostProcessing(mesh, r_xyz, r_elevation, { smoothing, glacialErosion, hydraulicErosion, thermalErosion, ridgeSharpening, terrainWarp }, neighborDist, seed, debugLayers.hotspot, r_dampen, r_orogenic);
+        postTiming = post.postTiming;
         timing.push({ stage: 'Terrain post-processing (total)', ms: performance.now() - t0 });
-        debugLayers.erosionDelta = dl_erosionDelta;
+        debugLayers.erosionDelta = post.dl_erosionDelta;
+        }
 
         // Expand plate physics diagnostics to hi-res mesh
         {
@@ -479,7 +505,9 @@ function handleReapply(data) {
 
         progress(20, 'Eroding terrain\u2026');
         t0 = performance.now();
-        const { dl_erosionDelta, postTiming } = runPostProcessing(W.mesh, W.r_xyz, r_elevation, data, W.neighborDist, W.seed, undefined, W.r_dampen, W.r_orogenic);
+        // (the present-day world's sculpting knobs come with G6: until then its ground is kept as built)
+        const { dl_erosionDelta, postTiming } = W.present ? { dl_erosionDelta: null, postTiming: [] }
+            : runPostProcessing(W.mesh, W.r_xyz, r_elevation, data, W.neighborDist, W.seed, undefined, W.r_dampen, W.r_orogenic);
         const tPost = performance.now() - t0;
 
         // Update retained final elevation for deferred climate
@@ -539,6 +567,16 @@ function handleEditRecompute(data) {
         const nMag = data.nMag;
         const spread = 5;
 
+        let t0 = performance.now(), tElev, tPost = 0;
+        let r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing = [], prePostElev, postTiming = [];
+        if (W.present) {
+            // the present-day world: the same plates (the unedited layout's), the crust as edited, the ground again
+            const g = presentGround(W.present, plateIsOcean, mesh, r_xyz, seed);
+            r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
+            mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);
+            prePostElev = new Float32Array(r_elevation);
+            tElev = performance.now() - t0;
+        } else {
         // Rebuild super plates from updated plate ocean/density state
         // (uses retained coarse-plate data for detail-stable adjacency graph)
         let superPlateData = null;
@@ -546,12 +584,11 @@ function handleEditRecompute(data) {
             superPlateData = buildSuperPlates(W.coarseMesh, W.coarse_r_plate, plateSeeds, plateVec, plateIsOcean, W.plateDensity, r_plate);
         }
 
-        let t0 = performance.now();
-        const { r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
-            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity, superPlateData);
-        const tElev = performance.now() - t0;
+        ({ r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing } =
+            assignElevation(mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, nMag, seed, spread, W.plateDensity, superPlateData));
+        tElev = performance.now() - t0;
 
-        const prePostElev = new Float32Array(r_elevation);
+        prePostElev = new Float32Array(r_elevation);
         const r_dampen = computeDetailDampenField(debugLayers);
         const r_orogenic = computeOrogenicField(debugLayers);
         W.r_dampen = r_dampen ? new Float32Array(r_dampen) : null;
@@ -559,9 +596,11 @@ function handleEditRecompute(data) {
 
         progress(50, 'Eroding terrain\u2026');
         t0 = performance.now();
-        const { dl_erosionDelta, postTiming } = runPostProcessing(mesh, r_xyz, r_elevation, data, W.neighborDist, W.seed, debugLayers.hotspot, r_dampen, r_orogenic);
-        const tPost = performance.now() - t0;
-        debugLayers.erosionDelta = dl_erosionDelta;
+        const post = runPostProcessing(mesh, r_xyz, r_elevation, data, W.neighborDist, W.seed, debugLayers.hotspot, r_dampen, r_orogenic);
+        postTiming = post.postTiming;
+        tPost = performance.now() - t0;
+        debugLayers.erosionDelta = post.dl_erosionDelta;
+        }
 
         // Update retained final elevation for deferred climate
         W.r_elevation_final = new Float32Array(r_elevation);
