@@ -10,6 +10,7 @@ import { classifyMargins } from '../tectonics/measure.js';
 import { TECTONICS } from '../tectonics/config.js';
 import { Boundary } from './plates.js';
 import { genToEvoVec } from './layout.js';
+import { writeCrust } from './belts.js';
 
 // which boundary a cell on two shows: a trench's over the rest, then a collision, a ridge, a transform
 const RANK = { [BoundaryKind.SUBDUCTING]: 5, [BoundaryKind.OVERRIDING]: 5, [BoundaryKind.COLLISION]: 4, [BoundaryKind.RIDGE]: 3, [BoundaryKind.TRANSFORM]: 2, [BoundaryKind.NONE]: 0 };
@@ -19,7 +20,7 @@ const RANK = { [BoundaryKind.SUBDUCTING]: 5, [BoundaryKind.OVERRIDING]: 5, [Boun
  * @param {Uint8Array} land  the crust's land per cell (the coast as drawn)   @param {{ageMyr, fzU}} sea  the floor's ages
  * @returns {import('../tectonics/snapshot.js').Frame}
  */
-export function presentFrame(L, W, B, land, sea) {
+export function presentFrame(L, W, B, land, sea, crust = null) {
     const n = L.mesh.numRegions, f = frameArrays(n);
     f.time = 0;
     for (let c = 0; c < n; c++) {
@@ -43,6 +44,8 @@ export function presentFrame(L, W, B, land, sea) {
             }
         }
     }
+    // the crust's records (present/belts.js: today's belts, the arcs and rift seas they made, and — G4 — the past's)
+    if (crust) writeCrust(f, crust);
     f.plates = W.plates.map(p => ({
         id: p.index, name: `Plate ${p.index + 1}`, alive: true, isBackground: false,
         omega: genToEvoVec(p.euler), quat: [1, 0, 0, 0], centre: genToEvoVec(p.centroid), hue: 0,

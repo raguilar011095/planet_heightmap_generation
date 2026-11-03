@@ -17,6 +17,7 @@
 
 import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
+import { FastNoise } from '../core/fast-noise.js';
 import { PRESENT } from './present-config.js';
 
 const R = 6371;                          // km
@@ -123,8 +124,11 @@ function cellComponents(mesh, cells, inSet) {
     return out;
 }
 
-/** A Dijkstra in km over the cells `allowed` marks, from labelled sources: each reached cell takes its source's label. */
-function labelFrom(mesh, xyz, allowed, sources) {
+/**
+ * A Dijkstra in km over the cells `allowed` marks, from labelled sources: each reached cell takes its source's label.
+ * `costAt(c)` (optional) weighs each step into cell c — a noise there makes the line where two labels meet wander.
+ */
+function labelFrom(mesh, xyz, allowed, sources, costAt = null) {
     const n = mesh.numRegions, { adjOffset, adjList } = mesh;
     const dist = new Float64Array(n).fill(Infinity), label = new Int16Array(n).fill(-1), heap = new MinHeap(1024);
     for (const [c, l] of sources) { dist[c] = 0; label[c] = l; heap.push(0, c); }
@@ -135,7 +139,7 @@ function labelFrom(mesh, xyz, allowed, sources) {
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
             const nb = adjList[k];
             if (!allowed[nb]) continue;
-            const nd = dc + gcKm(pc, at(xyz, nb));
+            const nd = dc + gcKm(pc, at(xyz, nb)) * (costAt ? costAt(nb) : 1);
             if (nd < dist[nb]) { dist[nb] = nd; label[nb] = label[c]; heap.push(nd, nb); }
         }
     }
@@ -183,6 +187,7 @@ export function buildPresentPlates(L, cfg = PRESENT) {
     // ── units: each continent rides whole on one plate; the biggest are cut once or twice, by a line of their own
     // through the seam where today's pieces converged or parted hardest ──
     const units = [];                       // { cells, continent, euler }
+    const cutNoise = new FastNoise((seed ^ 0x5c07) >>> 0), cutF = R / cfg.splitWanderKm;
     let splitBudget = Math.max(0, Math.floor((M - continents.length - cfg.oceanPlateMin) / 2));
     const inUnit = new Uint8Array(n);
     continents.forEach((cont, ci) => {
@@ -212,7 +217,9 @@ export function buildPresentPlates(L, cfg = PRESENT) {
             const a = nearestOf(cells[pairs[t][0]].filter(c => inUnit[c]), xyz, G.cen[pairs[t][0]]);
             const b = nearestOf(cells[pairs[t][1]].filter(c => inUnit[c]), xyz, G.cen[pairs[t][1]]);
             if (a === undefined || b === undefined || a === b) continue;
-            const label = labelFrom(mesh, xyz, inUnit, [[a, 0], [b, 1]]);
+            // (through a noise of its own: a weighted Dijkstra's meeting line bends and steps — a collision front or a rift
+            // is never the straight bisector a plain distance draws)
+            const label = labelFrom(mesh, xyz, inUnit, [[a, 0], [b, 1]], (c) => 1 + cfg.splitWander * (1 + cutNoise.noise3D(xyz[3 * c] * cutF, xyz[3 * c + 1] * cutF, xyz[3 * c + 2] * cutF)));
             const parts = [[], []];
             for (const c of partCells) parts[Math.max(0, label[c])].push(c);
             if (Math.min(parts[0].length, parts[1].length) >= cfg.splitMinPart * contArea) return parts;
@@ -250,7 +257,7 @@ export function buildPresentPlates(L, cfg = PRESENT) {
             }
             if (!sea) continue;
             const v = unit(cross(u.euler, pc));
-            if (dot(unit(out), v) < 0.35) continue;             // not on the leading coast
+            if (dot(unit(out), v) < cfg.leadCoastCos) continue;  // not on the leading coast
             // the point leadSeedKm ahead of the coast, along the motion
             const q = unit([pc[0] * Math.cos(th) + v[0] * Math.sin(th), pc[1] * Math.cos(th) + v[1] * Math.sin(th), pc[2] * Math.cos(th) + v[2] * Math.sin(th)]);
             let cur = c, best = dot(q, pc);

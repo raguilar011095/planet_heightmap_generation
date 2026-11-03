@@ -9,6 +9,7 @@ import { classifyBoundaries, cellLandNow } from './plates.js';
 import { naturalCoast } from './coast.js';
 import { seaFloorAges } from './seafloor.js';
 import { presentFrame } from './frame.js';
+import { presentBelts } from './belts.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -38,12 +39,14 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.boundaries = clock() - t0; t0 = clock();
     const sea = seaFloorAges(L, P, B, land);
     ms.seaFloor = clock() - t0; t0 = clock();
-    const frame = presentFrame(L, P, B, land, sea);
+    const belts = presentBelts(L, P, B, land, sea);
+    ms.belts = clock() - t0; t0 = clock();
+    const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
     const T = synthesizeTerrain(frame, L.sim, tMesh, { cfg: terrainConfig(o.terrain ?? {}), seed: o.seed, carve: true });
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { land, B, sea, frame, heightKm: T.heightKm, ms };
+    return { land, B, sea, belts, frame, heightKm: T.heightKm, ms };
 }

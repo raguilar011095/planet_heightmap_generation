@@ -468,6 +468,26 @@ The phase gate applies as always. One phase at a time. Each has:
   - the climate's `planets-dry.mjs` (its Generate planets built the new way) no drier.
 - **Verify:** ranges, not rims and blotches. Parallel ridges, broken crests, valleys carved.
 
+- **Built 2026-11-02** (`present/belts.js`). One world-indexed crust raster carries it all. Every convergent front is
+  written by Evolution's own `spreadBelt` in one call: the convergence it absorbed over a time active drawn per front
+  (its own stream), at today's closing rate; heights come from `buildHeights` (a single call reaches the closed form).
+  - Ocean under continent: an Andean belt. Laramide where a young slab goes in under a plate driving at it. Coupling
+    by the upper plate's drive at its trench: a plate moving away rolls back and builds ¼ of the belt.
+  - Ocean under ocean: island-arc crust (≤ 220 km, set back 60 km, no older than 30 Myr) only where an old slab
+    (≥ 30 Myr) goes down fast (≥ 3 cm/yr), and its arc belt.
+  - Collision: a Himalayan plateau on the side with more land, a foreland on the other; a Ural welt for a short front.
+  - Transpression on land; rift shoulders, and a young sea down a rift opened wider than 140 km.
+  - The continent's cut between two plates now wanders through a noise (it was a straight bisector).
+  - Fewer margins lead into a trench (activeLeadShare 0.35, leading coast within ~57° of the motion, anisotropy 2).
+  - **Measured** (`check-present.mjs` 150/150):
+    - belts lie only where plates meet;
+    - 16–29 % of continental coast is walled (≥ 1.5 km within 300 km), against today's ~33 %;
+    - land above 1 km is 5–7 % (interiors stay low until G4).
+  - **Open:**
+    - Andean margins are still most of the walling: coasts where an ocean plate's growth reaches the shore. To tune with
+      the knobs in G6, toward Earth's ~8 %.
+    - Passive share 77–98 % (they trade against each other).
+
 ### G4: Continents with a past: old orogenies replayed (§3.2b)
 - **Build:**
   - terranes, with cratons inside continents;

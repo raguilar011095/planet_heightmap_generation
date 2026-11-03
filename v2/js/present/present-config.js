@@ -14,14 +14,17 @@ export const PRESENT = {
     splitTwiceShare: 0.2,          // …twice from 20 % (a supercontinent)
     splitMinPart: 0.25,            // each part at least a quarter of the continent
     splitTries: 8,                 // seams tried, strongest first
+    splitWander: 1.6,              // the cut is grown through a noise that weighs each step 1…1 + 2× this (it bends and steps)…
+    splitWanderKm: 900,            // …in waves about this long
     oceanPlateMin: 1,              // at least this many ocean-only plates (a Pacific)
     minPlateShare: 0.006,          // an ocean plate squeezed below this share of the sphere joins its neighbour
     // A continent trails its ocean behind it: the ocean its plate takes grows 1 + α times less far ahead of its motion
     // than behind, so the leading coast meets another plate (a trench: the Andes) and the trailing one stays passive.
-    leadingAnisotropy: 5,
+    leadingAnisotropy: 2,
     // Some continents lead into the open ocean with an active margin: an ocean plate dives under them, its trench this
     // far offshore (the Andes' ~100–200 km); the rest lead into nothing (Africa).
-    activeLeadShare: 0.6,
+    activeLeadShare: 0.35,
+    leadCoastCos: 0.55,            // a coast facing within ~57° of its continent's motion is its leading coast
     leadSeedKm: 1300,              // the ocean plate diving under it is seeded along a line this far off its leading coast
     // An ocean-only plate is drawn toward the continents it dives under (slab pull): its motion is bent this far from
     // the motion its pieces had toward those boundaries.
@@ -49,4 +52,22 @@ export const PRESENT = {
     coastSmoothKm: 360,            // σ of the smoothing
     coastShapeKm: 240,
     coastShapeWaveKm: 2000,        // the shape's broadest waves (two octaves, the second half as long)
+
+    // ── G3: today's mountains — how long each kind of front has been at work (Myr), drawn per front ──
+    andeanMyr: [40, 140],          // a subduction margin (the Andes: ~200 Myr; the Cascades' arc younger)
+    andeanCoastKm: 180,            // a trench within this of its upper plate's coast makes an Andean margin there; farther
+                                   // out at sea it is an island arc's (Japan's sea behind it)
+    couplingCmYr: [-0.5, 2.0],     // an upper plate driving at its trench this fast (cm/yr) is fully coupled — squeezed…
+    rollbackShare: 0.25,           // …and one moving away from it builds this share of the belt (rollback, stretching)
+    riftShoulderShare: 0.6,        // a rift's shoulders: this share of the history's shoulder work (a young rift's flanks)
+    flatSlabMyr: 20,               // a flat slab's belt migrates inland over at most this long (the Laramide: ~20 Myr)
+    collisionMyr: [8, 45],         // a continent–continent collision since first contact (India–Asia: ~50)
+    transpressionMyr: [5, 25],     // a transform pressed together on land (the Southern Alps: ~5–10)
+    riftMyr: [3, 25],              // a continent pulling apart (East Africa: ~25; the Red Sea opened ~5–25)
+    riftSeaMinKm: 140,             // a rift opened wider than this has a young sea down its middle
+    arcMaxKm: 220,                 // an island arc's crust at most this wide…
+    foreArcKm: 60,                 // …set back this far from its trench (the fore-arc)…
+    arcMinRateCmYr: 3,             // …only where the slab goes down at least this fast…
+    arcMinSlabMyr: 30,             // …and is at least this old (dense)…
+    arcAgeMyr: 30,                 // …its crust no older than this
 };
