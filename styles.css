@@ -484,6 +484,7 @@ button#generate.generating {
 .layer-row .map-tab.active::after {
     content: ''; position: absolute; left: var(--space-3); right: var(--space-3); bottom: 6px;
     height: 2px; border-radius: 1px; background: var(--gold);
+    width: auto; margin: 0; opacity: 1; visibility: visible; -webkit-mask: none; mask: none;   /* (over Evolution's lock, v2/evolution.css) */
 }
 .layer-row .map-tab::before { content: none; width: 7px; height: 7px; border-radius: 50%; background: var(--l); flex: none; }
 .layer-row .map-tab:is([data-layer=""], [data-layer="terrain"], [data-layer="landheightmap"], [data-layer="heightmap"])::before { content: ''; --l: var(--layer-land); }

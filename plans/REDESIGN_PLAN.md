@@ -238,15 +238,31 @@ SectionHead, LegendCard, RampKey, Readout and Tag; the **6 · Hybrid II · tool,
 References: as R2, plus `v2/evolution.css` and `plans/V2_EVOLUTION_UI_PLAN.md` (the minimum on screen: New World, the
 timeline with Finish and Export, the layer tabs; every knob folded into Settings).
 
-- [ ] **The timeline:** the rail (built and shown), play, speed, Finish and Export.
-- [ ] **The moment and world cards, the build status, the busy states, Settings.**
-- [ ] **Geology and Food:** their chips and sub-rows as segmented controls and tags in their layer's colours.
-- [ ] **The planet-file drop zone.**
+- [x] **The timeline:** a card like the panel (`shadow-card`, `radius-xl`); the rail on `chip-track` with what is built
+  in a faint ink and what is shown in ink; a white thumb ringed in ink; play and the speed as quiet controls; the
+  moment in Cormorant (lining figures). Its action (Add detail, then Export) is the view's one primary; the others
+  are quiet pills; a busy one is gold-tinted.
+- [x] **The moment card:** on `panel`, its time in Cormorant at 24 px, its text in EB Garamond. Its button repeats the
+  timeline's action, so it is an accent outline (the guide: one primary per view); Extend history and the rest are
+  secondaries; the badges (Preview, Detailed · 2.5M) are small pills, Detailed in the land tint.
+- [x] **The build status and the finish bar:** `chip-track` tracks, filled in ink and in gold.
+- [x] **Geology and Food:** their rows as segmented controls (from R2); the Beta tag in gold-ink; Food's technique chips
+  in the Food layer's tint and ink.
+- [x] **The locked tabs** (Satellite, Geology, Food on a preview): a line lock drawn with a mask, instead of the 🔒 emoji
+  (the guide: no emoji). The active tab's gold underline now overrides the lock's box.
+- [x] **The climate chip over the planet, the tooltips, the planet-file drop zone, the export dialog's lines:** on
+  `surface`, in the guide's type.
+- [x] **Phones:** the timeline keeps one row (its Preview badge gives way: the sheet's line already says it); the moment
+  in Cormorant at 18 px.
+- [x] Generate's guide: the Load button "lights up in the accent" (it said blue).
 - **Verify:**
-  - [ ] Build a history and play it; finish a moment; export; save a planet file and open it again.
-  - [ ] A phone opens a link and a planet file, explores every view and exports (Evolution's commitment).
-  - [ ] Playback is as smooth as on `main`.
-  - [ ] `docs/evolution.md` and Evolution's tutorial match.
+  - [x] A history built and played; paused; **Add detail** from the timeline (Cancel · 12 % … 100 % in the gold busy
+    state); the detailed moment (Detailed · 2.5M, the tabs unlocked, rivers drawn); the Food and Geology views; the
+    export dialog opened and closed.
+  - [x] Paper and Night at 1440 px and 400 px; text contrast passes on the page in both themes.
+  - [x] `check-style.mjs` passes; no console errors.
+  - [ ] A planet file saved and opened again (no file was saved).
+  - [ ] Playback timed against `main` (the change is CSS only).
 
 ### R4: the Studio home page
 
@@ -365,4 +381,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 
 - **2026-11-03:** R0 built and checked (above), on `redesign-foundations`: PR #92.
 - **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0): PR #95.
-- **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1).
+- **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1): PR #97.
+- **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2).
