@@ -374,8 +374,9 @@ its maps · colour by job, ores, food** boards; PR #88.
 
 References: **Page patterns: The atlas print**; the **6 · Hybrid II · atlas print** boards; the `paper-*` tokens.
 
-- [ ] Its own plan, and the owner's go-ahead, before anything is built: which tools first, the plate's exports (PNG and
-  PDF at print size), where place names come from, and how it sits with the export panel.
+- [x] Its own plan: [`plans/ATLAS_PRINT_PLAN.md`](ATLAS_PRINT_PLAN.md) (2026-11-03), with six questions for the owner
+  (which tools, where it lives, PNG or PDF, place names, the key, phones) and three phases.
+- [ ] The owner's answers and go-ahead.
 - [ ] Then, per that plan: the plate (18 × 12 inches, landscape) on Ivory or Midnight; the title row, the main map in its
   double neatline with degree numerals, the globe inset in its gold ring, About this world, the key, Places named, This
   plate; the controls around it styled like the tool.
@@ -385,8 +386,9 @@ References: **Page patterns: The atlas print**; the **6 · Hybrid II · atlas pr
 References: **Page patterns: An Orogen Explains essay**; the **6 · Hybrid II · blog post** boards; the components
 EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides, and the Studio links them.
 
-- [ ] Its own plan, and the owner's go-ahead: who writes the essays, which come first, the page template (static HTML,
-  no build step), figures, and what each essay's search tags say.
+- [x] Its own plan: [`plans/EXPLAINS_PLAN.md`](EXPLAINS_PLAN.md) (2026-11-03), with five questions for the owner (who
+  writes, which first, how the pages are made, the figures, search) and three phases.
+- [ ] The owner's answers and go-ahead.
 - [ ] Then, per that plan: the essay page; the Studio's Explains row; the sitemap.
 
 ### R9: words, icons and the launch
@@ -426,4 +428,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2): PR #99.
 - **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3): PR #101.
 - **2026-11-03:** R5 built and checked, on `redesign-r5` (stacked on R4): PR #104.
-- **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5).
+- **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5): PR #107.
+- **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`.
