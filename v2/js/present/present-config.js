@@ -50,6 +50,8 @@ export const PRESENT = {
     // The coast: the land the pieces give, its distance field smoothed over coastSmoothKm (so no piece outline shows)
     // and moved by a broad shape of ±coastShapeKm at continent scale, the threshold set so Land Coverage holds
     coastSmoothKm: 360,            // σ of the smoothing
+    coastLandLoss: 0.10,           // the terrain draws this share of the land under the sea at 28 % land (G6): the sim's land
+                                   // is grown to make up for it
     coastShapeKm: 240,
     coastShapeWaveKm: 2000,        // the shape's broadest waves (two octaves, the second half as long)
 

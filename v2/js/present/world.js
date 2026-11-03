@@ -12,6 +12,7 @@ import { presentFrame } from './frame.js';
 import { presentBelts, presentTectonics, newCrust } from './belts.js';
 import { presentPast } from './past.js';
 import { presentPlumes, presentFarField } from './plumes.js';
+import { knobOverrides } from './knobs.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -54,10 +55,24 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.plumes = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
+    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, o);
+    Object.assign(ms, G.ms);
+    return { land, B, sea, belts, frame, heightKm: G.heightKm, ms };
+}
+
+/**
+ * Only the ground — Evolution's synthesis and carving of a Frame on Generate's mesh, with the sculpting knobs (G6,
+ * present/knobs.js) — so Reapply keeps the Frame and redraws just this.
+ * @param {{seed: number, knobs?: Object, terrain?: Object}} o
+ */
+export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
+    const ms = {}, clock = () => performance.now();
+    let t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
-    const T = synthesizeTerrain(frame, L.sim, tMesh, { cfg: terrainConfig(o.terrain ?? {}), seed: o.seed, carve: true });
+    const cfg = terrainConfig({ ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
+    const T = synthesizeTerrain(frame, sim, tMesh, { cfg, seed: o.seed, carve: cfg.carveTimeMyr > 0 });
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { land, B, sea, belts, frame, heightKm: T.heightKm, ms };
+    return { heightKm: T.heightKm, ms };
 }

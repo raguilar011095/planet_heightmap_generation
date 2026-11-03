@@ -568,6 +568,29 @@ The phase gate applies as always. One phase at a time. Each has:
   - the terrain shown before the climate;
   - phones.
 - **Check:** a timing budget per Detail on desktop and phone profiles; a scale-invariance sweep; codes.
+- **Built 2026-11-02, the first half.**
+  - **The sculpting knobs** (`present/knobs.js`): each scales the Evolution tunables its name says, around Evolution's
+    defaults (every factor 1 at Generate's default positions):
+    - Roughness: hills and the coast's bays and detail;
+    - Terrain Warp: `warpKm` and `cellWarp`;
+    - Ridge Sharpening: stripes, ridge noise and rugged crests;
+    - Smoothing: wider crests;
+    - Hydraulic Erosion: the carving's time (0 = none);
+    - Thermal Erosion: the valley sides' slope;
+    - Glacial Erosion: how far fjords reach.
+  - **Reapply** draws only the ground again from the kept Frame (`world.js presentGroundOf`). This also fixes G2's
+    reapply crash (a null buffer in the transfer list).
+  - **Land Coverage held:** the sim's land is grown to make up for the coastal strip the terrain sinks (~10 % at 28 %
+    land, ∝ 1/√share); the land as drawn is within 1.3 points of the slider on all 6 planets.
+  - **The hover's Crust line:** what built the ground and when (an Andean margin active ~90 Myr; an old mountain belt
+    last active 1400 Myr ago; ocean floor 85 Myr old; a hotspot volcano; a flood basalt; a craton).
+  - `check-present.mjs` 192/192.
+- **Left for G8** (with the switch-over):
+  - the page reading km itself, with Evolution's export scales (heights are clipped at 6 km until then);
+  - the Inspect list's present-day layers;
+  - the deprecated sliders;
+  - phone timing.
+  - Also still open: walled coasts ≤ 25 %.
 
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with

@@ -16,7 +16,7 @@ import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld, presentTerrainMesh } from '../v2/js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentGroundOf } from '../v2/js/present/world.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
 import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
@@ -199,16 +199,27 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
  * The present-day world's ground (v2/js/present/world.js) for the crust as edited, as Generate's raw elevations (the
  * page reads raw elevations until it reads km itself: js/color-map.js heightKmToElev). Kept on `present.world`.
  */
-function presentGround(present, plateIsOcean, mesh, r_xyz, seed) {
+function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
-    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed });
-    // its hillshade, as Evolution shades its terrain (v2/js/view/terrain-shade.js; flat ground 1): the page paints by it
-    w.shade = hillshade(presentTerrainMesh(mesh, r_xyz), w.heightKm);
+    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs });
     present.world = w;
-    const r_elevation = new Float32Array(mesh.numRegions);
-    for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(w.heightKm[r]);
-    return { r_elevation, debugLayers: {}, timing: Object.entries(w.ms).map(([stage, ms]) => ({ stage, ms })) };
+    return presentHeights(present, w.heightKm, mesh, r_xyz, w.ms);
 }
+/** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
+function presentReground(present, mesh, r_xyz, seed, knobs) {
+    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs });
+    present.world.heightKm = g.heightKm;
+    return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms);
+}
+function presentHeights(present, heightKm, mesh, r_xyz, ms) {
+    // its hillshade, as Evolution shades its terrain (v2/js/view/terrain-shade.js; flat ground 1): the page paints by it
+    present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), heightKm);
+    const r_elevation = new Float32Array(mesh.numRegions);
+    for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(heightKm[r]);
+    return { r_elevation, debugLayers: {}, timing: Object.entries(ms).map(([stage, t]) => ({ stage, ms: t })) };
+}
+const knobsOf = (d, nMag) => ({ nMag, terrainWarp: d.terrainWarp, smoothing: d.smoothing, hydraulicErosion: d.hydraulicErosion,
+    thermalErosion: d.thermalErosion, ridgeSharpening: d.ridgeSharpening, glacialErosion: d.glacialErosion });
 /** What the page draws of it: the plates, which plate each region rides on, the boundaries on the crust as it is now. */
 function presentMessage(present, plateIsOcean) {
     const { L, P, regionCell } = present;
@@ -224,6 +235,9 @@ function presentMessage(present, plateIsOcean) {
         boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
         arrows: present.arrows ?? (present.arrows = arrowAnchors(L, P)),
         shade: present.world?.shade ?? null,
+        // what the hover tells of each place's crust and its past: its sim cell, and the few records it reads there
+        regionCell, rec: present.world ? (({ type, oroType, oroStart, oroLast, formedAt, volcType, volcAt, volcKm }) =>
+            ({ type, oroType, oroStart, oroLast, formedAt, volcType, volcAt, volcKm }))(present.world.frame) : null,
     };
 }
 
@@ -320,7 +334,7 @@ function handleGenerate(data) {
             // the present-day world's ground: its coast, boundaries, sea floor, Frame, and Evolution's terrain + carving
             progress(35, 'Raising the ground…');
             t0 = performance.now();
-            const g = presentGround(present, plateIsOcean, mesh, r_xyz, seed);
+            const g = presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
             r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
             mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);
             prePostElev = new Float32Array(r_elevation);
@@ -504,14 +518,15 @@ function handleReapply(data) {
         progress(0, 'Reapplying terrain\u2026');
 
         let t0 = performance.now();
-        const r_elevation = new Float32Array(W.prePostElev);
+        let r_elevation = new Float32Array(W.prePostElev);
         const tClone = performance.now() - t0;
 
         progress(20, 'Eroding terrain\u2026');
         t0 = performance.now();
-        // (the present-day world's sculpting knobs come with G6: until then its ground is kept as built)
-        const { dl_erosionDelta, postTiming } = W.present ? { dl_erosionDelta: null, postTiming: [] }
-            : runPostProcessing(W.mesh, W.r_xyz, r_elevation, data, W.neighborDist, W.seed, undefined, W.r_dampen, W.r_orogenic);
+        // the present-day world: the same Frame, its ground drawn again with the sculpting knobs (G6); else the old passes
+        let dl_erosionDelta = null, postTiming = [];
+        if (W.present) r_elevation = presentReground(W.present, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag)).r_elevation;
+        else ({ dl_erosionDelta, postTiming } = runPostProcessing(W.mesh, W.r_xyz, r_elevation, data, W.neighborDist, W.seed, undefined, W.r_dampen, W.r_orogenic));
         const tPost = performance.now() - t0;
 
         // Update retained final elevation for deferred climate
@@ -535,6 +550,7 @@ function handleReapply(data) {
             t_elevation,
             erosionDelta: dl_erosionDelta,
             climate,
+            present: W.present ? presentMessage(W.present, W.plateIsOcean) : null,
             _reapplyTiming: {
                 clone: tClone,
                 postProcessing: tPost,
@@ -545,7 +561,7 @@ function handleReapply(data) {
             _postTiming: postTiming
         };
 
-        self.postMessage(result, [r_elevation.buffer, t_elevation.buffer, dl_erosionDelta.buffer, ...(climate ? newClimateTransfers(climate) : [])]);
+        self.postMessage(result, [r_elevation.buffer, t_elevation.buffer, ...(dl_erosionDelta ? [dl_erosionDelta.buffer] : []), ...(climate ? newClimateTransfers(climate) : [])]);
 
     } catch (err) {
         self.postMessage({ type: 'error', message: err.message, stack: err.stack });
@@ -575,7 +591,7 @@ function handleEditRecompute(data) {
         let r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing = [], prePostElev, postTiming = [];
         if (W.present) {
             // the present-day world: the same plates (the unedited layout's), the crust as edited, the ground again
-            const g = presentGround(W.present, plateIsOcean, mesh, r_xyz, seed);
+            const g = presentGround(W.present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
             r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
             mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);
             prePostElev = new Float32Array(r_elevation);

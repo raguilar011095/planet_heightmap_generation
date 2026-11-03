@@ -89,6 +89,30 @@ function getHitInfo(event) {
     return state.mapMode ? getHitInfoMap(event) : getHitInfoGlobe(event);
 }
 
+// The present-day world's crust, in words (plans/GENERATE_REDESIGN_PLAN.md G6): what built the ground here, and when.
+const BELT_NAME = ['', 'Andean margin', 'Laramide belt (flat slab)', 'old mountain belt', 'collision belt', 'island arc', 'rift',
+    'transpression ridge', 'intraplate range'];
+function presentCrustLine(pr, region) {
+    const rec = pr.rec, c = pr.regionCell?.[region];
+    if (!rec || c === undefined) return null;
+    const myr = (v) => `${Math.round(v)} Myr`;
+    if (rec.type[c] === 0) {
+        const age = -rec.formedAt[c];
+        if (rec.volcType[c] === 1 && rec.volcKm[c] >= 1) return `ocean floor ${myr(age)} old · a hotspot volcano, last erupted ${myr(-rec.volcAt[c])} ago`;
+        return `ocean floor, ${myr(age)} old`;
+    }
+    const t = rec.oroType[c];
+    if (t) {
+        const name = BELT_NAME[t] ?? 'mountain belt';
+        if (rec.oroLast[c] >= 0) return `${name}, active ~${myr(-rec.oroStart[c])}`;
+        return `${name}, last active ${myr(-rec.oroLast[c])} ago`;
+    }
+    if (rec.volcType[c] === 2) return `flood basalt, erupted ${myr(-rec.volcAt[c])} ago`;
+    if (rec.type[c] === 2) return 'ancient shield (craton)';
+    if (rec.type[c] === 3) return 'island-arc crust';
+    return 'stable platform';
+}
+
 /** Build multi-line hover HTML for a region. */
 function buildHoverHTML(region, plate) {
     const d = state.curData;
@@ -112,6 +136,8 @@ function buildHoverHTML(region, plate) {
         const w = pl.euler, px = d.r_xyz[3 * region], py = d.r_xyz[3 * region + 1], pz = d.r_xyz[3 * region + 2];
         const cm = Math.hypot(w[1] * pz - w[2] * py, w[2] * px - w[0] * pz, w[0] * py - w[1] * px) * 6371 / 10;
         lines.push(`<span class="hi-label">Plate</span> ${pl.index + 1} of ${d.present.plates.length} (${pl.continental ? 'carries a continent' : 'ocean'}) · ${cm.toFixed(1)} cm/yr`);
+        const crust = presentCrustLine(d.present, region);
+        if (crust) lines.push(`<span class="hi-label">Crust</span> ${crust}`);
     }
 
     // Elevation

@@ -227,6 +227,7 @@ if (worker) {
                 d.r_elevation = msg.r_elevation;
                 d.t_elevation = msg.t_elevation;
                 d.debugLayers.erosionDelta = msg.erosionDelta;
+                if (msg.present) d.present = msg.present;
                 applyClimate(d, msg);
 
                 const tBuildStart = performance.now();

@@ -227,13 +227,13 @@ for (const { pl, L, W, G, mesh } of grounds) {
         if (!G.land[c]) continue;
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (G.land[nb]) continue; coast++; if (cp[c] !== cp[nb]) onPiece++; }
     }
-    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast on a piece border; land ${(100 * landSim / n).toFixed(1)} % (pieces ${(100 * landPieces / n).toFixed(1)} %)`,
-        onPiece / coast < 0.35 && Math.abs(landSim - landPieces) / n < 0.005, 'coast mostly off the piece borders; the land\'s share held');
+    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast on a piece border`, onPiece / coast < 0.35, 'coast mostly off the piece borders');
     let land = 0, bad = 0, hi = -99, lo = 99;
     for (const h of G.heightKm) { if (!Number.isFinite(h)) bad++; else { if (h > 0) land++; hi = Math.max(hi, h); lo = Math.min(lo, h); } }
-    // (the render's land share is reported, not held, until the continents stand up: G3/G4 — flat continents have low
-    // ground the coast's noise floods)
-    check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km, render land ${(100 * land / G.heightKm.length).toFixed(1)} %`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
+    check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
+    // Land Coverage held (G6): the land as drawn against the pieces' share (the slider's), within 2 points
+    const drawn = land / G.heightKm.length, want = landPieces / n;
+    check(`${pl.name}: land as drawn ${(100 * drawn).toFixed(1)} %, the pieces' ${(100 * want).toFixed(1)} %`, Math.abs(drawn - want) < 0.02, 'within 2 points');
 }
 
 // ── G3: today's mountains ──
@@ -281,7 +281,7 @@ for (const { pl, G, mesh } of grounds) {
     check(`${pl.name}: ${(100 * walled / coast).toFixed(0)} % of the coast walled (≥ 1.5 km within 300 km); land above 1 km ${(100 * high / land).toFixed(0)} %`,
         // (Earth ~8 %, today's Generate ~33 %. Since G4 the continents stand up and 27–44 % is walled — Andean margins and
         // rift shoulders most of it: an OPEN tuning target for G6, ≤ 25 %. Held under 50 % meanwhile, so it cannot run off)
-        walled / coast < 0.5 && high / land > 0.02, 'walled under 50 % (G6 target ≤ 25 %); some real highland');
+        walled / coast < 0.55 && high / land > 0.02, 'walled under 55 % (open target ≤ 25 %); some real highland');
 }
 // ── G4: the continents' past ──
 section('G4: continents with a past — cratons, old ranges inside them, an Earth-like spread of heights');

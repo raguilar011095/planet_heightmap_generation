@@ -19,6 +19,11 @@ export function naturalCoast(L, landNow, cfg = PRESENT) {
     const { mesh, xyz, seed } = L, n = mesh.numRegions, { adjOffset, adjList } = mesh;
     let target = 0; for (let c = 0; c < n; c++) target += landNow[c];
     if (target === 0 || target === n) return landNow.slice();
+    // (a little more land on the sim mesh than the pieces give: the terrain draws a strip of its coastal lowland under the
+    // sea — measured, ~10 % of the land at 28 % land, less the less coast there is to each km² of land, ∝ 1/√share —
+    // so the land as drawn comes out at Land Coverage)
+    const loss = cfg.coastLandLoss * Math.sqrt(0.28 / Math.max(0.02, target / n));
+    target = Math.min(n - 1, Math.round(target / (1 - Math.min(0.3, loss))));
     // signed distance to the coast, km (+ on land)
     const sea = new Uint8Array(n); for (let c = 0; c < n; c++) sea[c] = landNow[c] ? 0 : 1;
     const toSea = dijkstraCells(mesh, xyz, sea), toLand = dijkstraCells(mesh, xyz, landNow);
