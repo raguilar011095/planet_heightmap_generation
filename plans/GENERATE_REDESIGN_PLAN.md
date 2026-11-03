@@ -451,6 +451,15 @@ The phase gate applies as always. One phase at a time. Each has:
 ### G2b: The painting
 - Generate's and Import's views painted per pixel from the heights (Evolution's `view/gpu-paint.js`), with the hillshade;
   the coast the heights' zero line. Then the Relief colours by default.
+- **Built 2026-11-02, a first step** within Generate's own renderer, not yet Evolution's GPU painter.
+  - **Hillshade:** the worker shades the ground with Evolution's own hillshade (`view/terrain-shade.js`: NW light,
+    ×20, flat = 1).
+  - **Smooth colours:** the Terrain view colours each vertex by its height (triangle centres from their corners)
+    × (0.35 + 0.65 · shade), so the relief shows and the coast is no longer the cells' staircase. This is
+    `planet-mesh.js smoothGreys`, now RGB, on the globe, the map and colour updates.
+  - **Colours:** Relief by default with `?next=1`.
+  - **Still open:** Evolution's per-pixel painter (heights blended, then coloured: a crisp zero-line coast) and the
+    globe and map views (`app/globe-view.js`); Import's hillshade.
 
 ### G3: Today's mountains
 - **Build:**

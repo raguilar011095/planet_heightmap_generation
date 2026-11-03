@@ -16,7 +16,8 @@ import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld } from '../v2/js/present/world.js';
+import { presentWorld, presentTerrainMesh } from '../v2/js/present/world.js';
+import { hillshade } from '../v2/js/view/terrain-shade.js';
 import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
@@ -201,6 +202,8 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
 function presentGround(present, plateIsOcean, mesh, r_xyz, seed) {
     const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
     const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed });
+    // its hillshade, as Evolution shades its terrain (v2/js/view/terrain-shade.js; flat ground 1): the page paints by it
+    w.shade = hillshade(presentTerrainMesh(mesh, r_xyz), w.heightKm);
     present.world = w;
     const r_elevation = new Float32Array(mesh.numRegions);
     for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(w.heightKm[r]);
@@ -220,6 +223,7 @@ function presentMessage(present, plateIsOcean) {
             speedCmYr: p.speedCmYr, euler: p.euler, centroid: p.centroid })),
         boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
         arrows: present.arrows ?? (present.arrows = arrowAnchors(L, P)),
+        shade: present.world?.shade ?? null,
     };
 }
 

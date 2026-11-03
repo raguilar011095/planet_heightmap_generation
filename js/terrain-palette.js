@@ -49,6 +49,9 @@ export function initPaletteMenu(redraw) {
     const sel = document.getElementById('palette');
     if (!sel) return;
     let stored = null;
+    // the present-day world (plans/GENERATE_REDESIGN_PLAN.md, ?next=1) starts in Evolution's colours, Relief (owner:
+    // "whatever evolution is")
+    if (typeof location !== 'undefined' && new URLSearchParams(location.search).has('next') && [...sel.options].some(o => o.value === 'relief')) state.palette = 'relief';
     try { stored = localStorage.getItem(PALETTE_KEY); } catch { /* (remembered only where the browser allows) */ }
     if (stored && [...sel.options].some(o => o.value === stored)) state.palette = stored;
     sel.value = state.palette;
