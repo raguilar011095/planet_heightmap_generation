@@ -95,6 +95,11 @@
 .evo-koppen span { white-space: nowrap; }
 .evo-koppen i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
 .evo-koppen em { color: var(--ui-faint-2); font-style: normal; }
+/* the Deposits legend: a row per ore family, its metals in words (docs/style-guide/maps.md, Ore families) */
+.evo-ore-family { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px; }
+.evo-ore-family > span:first-child { font: 600 12px/1.3 var(--font-ui); color: var(--ink); }
+.evo-ore-family i { display: inline-block; width: 12px; height: 12px; border-radius: var(--radius-xs); margin-right: 6px; vertical-align: -2px; }
+.evo-ore-members { padding-left: 18px; font: 400 13.5px/1.35 var(--font-text); color: var(--body); }
 #regimeRow { margin-top: 0; margin-bottom: 6px; }
 .evo-regime-legend {
     font: 500 12px/1.4 var(--font-ui); color: var(--body); margin-bottom: 8px;

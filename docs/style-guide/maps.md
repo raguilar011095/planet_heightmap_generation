@@ -37,7 +37,7 @@ Every map mode answers one question. The question picks the colours.
 
 **The categorical eight** (`cat-1` … `cat-8`): ochre, teal, brick, periwinkle, olive, plum, sea blue, rose. Assign in order for invented kinds (hearths 1–8, animals). Every pair is at least 15.6 apart for normal sight and 7.2 for colour-blind readers, so always back it with labels or the readout.
 
-**Ore families:** `ore-alloy` (iron, nickel, platinum and chromium), `ore-base` (copper, tin, lead and zinc, aluminium), `ore-precious` (gold, silver, diamonds), `ore-salt`. They pass every check (21.1 / 8.2). Three views: by family; worth mining (moderate or richer only); one metal at a time, in its family’s colour, richness by strength (Poor, Moderate, Rich), its richest districts numbered.
+**Ore families** (in the code: `ORE_FAMILIES`, `v2/js/geology/deposits.js`): `ore-alloy` (iron, nickel, platinum and chromium), `ore-base` (copper, tin, lead and zinc, aluminium), `ore-precious` (gold, silver, diamonds), `ore-salt`. They pass every check (21.1 / 8.2). Three views: by family; worth mining (moderate or richer only); one metal at a time, in its family’s colour, richness by strength (Poor, Moderate, Rich), its richest districts numbered.
 
 **Staple food:** `staple-paddy`, `staple-cool`, `staple-warm`, `staple-roots`, `staple-livestock`, `staple-fish`, `staple-tree`, and wild foods as stipple. Paler where it feeds less well; striped where a second does nearly as well. These keep the Food view’s own hue choices, tuned to pass (16.7 / 7.5, with labels).
 

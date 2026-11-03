@@ -10,7 +10,7 @@ import { FastNoise } from '../core/fast-noise.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../geology/rocks.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { GEOLOGY } from '../geology/geology-config.js';
-import { DEPOSITS, METALS } from '../geology/deposits.js';
+import { DEPOSITS, METALS, ORE_FAMILIES } from '../geology/deposits.js';
 import { AGES, resourceField, landShares, potentialField } from '../geology/ages.js';
 import { findDistricts, landmasses, landmassName, landmassShares, districtStory, districtSource, keptIndex, cellLatLon, fmtKm2, BELT_KIND } from '../geology/districts.js';
 
@@ -152,6 +152,9 @@ export function washGround(out, o, wet, kk, lake) {
 const GRADE_WORDS = ['Poor', 'Moderate', 'Rich'];
 const DEP_ALL = 'all', SYS = DEPOSITS.length, METAL_PICK = 'm.';
 const ALL_METALS = METALS.map((m, i) => (m.group === 'metal' ? i : -1)).filter(i => i >= 0);
+/** The colour a metal is drawn in on the Deposits map: its family's (fuels: their own). */
+const FAMILY_OF = METALS.map(m => ORE_FAMILIES.find(f => f.metals.includes(m.id)) ?? null);
+const METAL_INK = METALS.map((m, i) => FAMILY_OF[i]?.rgb ?? m.rgb);
 /** A pick's row in the finish's grid and what it is: a metal (METAL_PICK + id) or a system (its id). */
 function pickOf(pick) {
     if (pick.startsWith(METAL_PICK)) { const i = METALS.findIndex(m => m.id === pick.slice(METAL_PICK.length)); return i < 0 ? null : { row: SYS + i, item: METALS[i], metal: i }; }
@@ -181,7 +184,7 @@ function depositGrid(fin, pick) {
         }
     } else {
         const p = pickOf(pick);
-        if (p) { for (let j = 0; j < K; j++) v[Dp.cells[j]] = Dp.data[p.row * K + j] / 255; rgb = p.item.rgb; }
+        if (p) { for (let j = 0; j < K; j++) v[Dp.cells[j]] = Dp.data[p.row * K + j] / 255; rgb = p.metal >= 0 ? METAL_INK[p.metal] : p.item.rgb; }
     }
     const grid = { w: Dp.w, h: Dp.h, step: Dp.step, v, sys, rgb };
     byPick.set(pick, grid);
@@ -199,7 +202,7 @@ function depositAt(grid, la, lo, out) {
     for (const [i, w] of [[i0, w0], [i1, w1], [i2, w2], [i3, w3]]) {
         const k = grid.sys[i], q = w * V[i];
         if (k < 0 || !(q > 0)) continue;
-        const c = METALS[k].rgb;
+        const c = METAL_INK[k];
         r += q * c[0]; g += q * c[1]; b += q * c[2]; sw += q;
         if (q > bw) { bw = q; best = k; }
     }
@@ -239,15 +242,19 @@ export function depositLines(fin, u, v, sea = false, pick = DEP_ALL) {
     const picked = kind && !sea ? sysAt[kind.row] : 0, head = picked >= p0 ? [`<span class="hi-label">${kind.item.name}</span> <span style="color:${css(kind.item.rgb)}">${dots(picked)}</span> — ${kind.item.yields}`] : [];
     if (!found.length) return sea ? [] : [...head, '<span class="hi-label">Deposits</span> no metals to speak of'];
     found.sort((a, b) => b[1] - a[1]);
-    return [...head, ...found.slice(0, 5).map(([i, x, from], n) => `<span class="hi-label">${n ? '' : 'Deposits'}</span> ${METALS[i].name} <span style="color:rgb(${METALS[i].rgb.join(',')})">${dots(x)}</span>${from.length ? ` — ${from.join(', ')}` : ''}`)];
+    return [...head, ...found.slice(0, 5).map(([i, x, from], n) => `<span class="hi-label">${n ? '' : 'Deposits'}</span> ${METALS[i].name} <span style="color:rgb(${METAL_INK[i].join(',')})">${dots(x)}</span>${from.length ? ` — ${from.join(', ')}` : ''}`)];
 }
 function depositsLegendHTML(fin, pick, sw, head) {
     const Dp = fin?.raster?.geology?.deposits;
     if (!Dp?.metalShares) return head('Deposits — add detail again to see them (this moment was detailed before the deposits were added)');
     const pct = x => (x >= 0.0995 ? Math.round(100 * x) : x >= 0.0005 ? (100 * x).toFixed(1) : '0');
     if (pick === DEP_ALL) {
-        const rows = ALL_METALS.map(i => [i, Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]).filter(([, x]) => x >= 0.0005).sort((a, b) => b[1] - a[1]);
-        return head('Deposits — metals and minerals, each place its richest') + `<div class="evo-koppen">${rows.map(([i, x]) => sw(inkRgb(METALS[i].rgb, 1), METALS[i].name, pct(x))).join('')}</div>` +
+        // (the families, each with its metals in words: four hues on the map, every metal named)
+        const share = i => Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2];
+        const fams = ORE_FAMILIES.map(f => ({ f, members: f.metals.map(id => METALS.findIndex(m => m.id === id)).filter(i => i >= 0 && share(i) >= 0.0005)
+            .sort((a, b) => share(b) - share(a)) })).filter(g => g.members.length);
+        return head('Deposits — metals and minerals by family, each place its richest') +
+            fams.map(g => `<div class="evo-ore-family">${sw(inkRgb(g.f.rgb, 1), g.f.name)}<span class="evo-ore-members">${g.members.map(i => `${METALS[i].name.toLowerCase()} ${pct(share(i))}%`).join(' · ')}</span></div>`).join('') +
             '<div class="evo-legend-note">% of the land moderate or rich. Faint where poor, solid where moderate, full where rich; a tie goes to the scarcer. Pick one metal above to see it alone — or a fuel, or a kind of deposit</div>';
     }
     const p = pickOf(pick);

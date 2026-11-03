@@ -83,7 +83,9 @@ On a detailed moment, Geology shows what the history left in the rock.
   contacts that stay organic when zoomed in, and they shape the land: hard rock left standing, soft rock worn into vales,
   the bare deserts showing their bedrock from space. Hover a rock for how it came to be there: its mountain belt, the
   shallow seas that laid it, its cover and how deep it is worn.
-- **Deposits**: by metal (iron, copper, gold, silver, tin, lead and zinc, aluminium, nickel, platinum, diamonds, salt;
+- **Deposits**: all the metals at once, coloured by family (iron and alloy metals, base metals, precious, salt: four
+  hues, each family's metals named in the legend and the readout), or by metal (iron, copper, gold, silver, tin, lead
+  and zinc, aluminium, nickel, platinum, diamonds, salt, each in its family's colour;
   coal, oil and gas, peat, wood) or by the kind of deposit: about 35 kinds of ore, fuel and mineral where the history and
   the finished climate and rivers put them. Copper and gold over volcanic arcs, gold in old belts and along shear zones,
   iron in most mountain belts, tin far inboard and scarce, lead-zinc in basins over the basement's highs, nickel and

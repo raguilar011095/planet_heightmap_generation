@@ -136,6 +136,15 @@ export const METALS = [
     { id: 'peat', name: 'Peat', group: 'fuel', rgb: [120, 96, 64], words: 'wet, flat, badly drained ground', sources: [['peat', 1]] },
     { id: 'wood', name: 'Wood', group: 'fuel', rgb: [70, 130, 70], words: 'the forests of the finished planet', sources: [['wood', 1]] },
 ];
+/** The ore families the Deposits view colours its metals by (docs/style-guide/maps.md, Ore families; tokens.css
+ *  ore-*): four hues on the map instead of eleven, each metal named in the legend and the readout. A metal shown alone
+ *  takes its family's colour, its richness by strength. Fuels keep their own colours; the Ages view keeps its own. */
+export const ORE_FAMILIES = [
+    { id: 'alloy', name: 'Iron and alloy metals', rgb: [146, 55, 24], metals: ['iron', 'nickel', 'platinum'] },
+    { id: 'base', name: 'Base metals', rgb: [43, 179, 183], metals: ['copper', 'tin', 'leadZinc', 'aluminium'] },
+    { id: 'precious', name: 'Precious', rgb: [188, 135, 26], metals: ['gold', 'silver', 'diamonds'] },
+    { id: 'salt', name: 'Salt', rgb: [173, 104, 176], metals: ['salt'] },
+];
 const D = DEPOSIT_INDEX, SYS = DEPOSITS.length;
 
 const ARC_BELTS = new Set([OrogenyType.ANDEAN, OrogenyType.ARC]);

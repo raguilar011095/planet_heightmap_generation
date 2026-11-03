@@ -329,25 +329,46 @@ they need the same checks as the palettes. R5 is the globe's light, air and stag
 References: **Maps and the globe: Colour by job**, its palettes and **Checked, not eyeballed**; the **7 · The globe and
 its maps · colour by job, ores, food** boards; PR #88.
 
+**Every map mode and its question** (the inventory this phase starts from; `docs/style-guide/maps.md`'s rules):
+
+| Tool | Map mode | Its question | Its colours now | What the guide asks |
+|---|---|---|---|---|
+| All | Terrain (Relief and the other height palettes) | a standard | the palettes | keep |
+| All | Satellite | a standard | Blue Marble-like | keep |
+| All | Köppen | a standard | Beck et al. 2018 | keep; gentle relief, the quiet sea |
+| All | Temperature | which side (0 °C) | `temp-*` | keep (already the guide's) |
+| All | Rain | how much | `rain-*` | keep |
+| All | Pressure | which side (1012 hPa) | `pressure-*` | keep |
+| All | Wind, Currents | how much, with arrows | ramps | keep; they live at sea |
+| Generate, Import | Upwelling, Ice, Temperature range, Rain shadow, Aridity, Growing season, Rain seasonality | how much | one-hue ramps | keep; land-only ones on the quiet sea |
+| All | Heightmap | a standard (grey) | grey | keep |
+| All | Plates | which kind (up to ~100 plates) | a hue per plate | **open:** colour neighbours apart with the categorical eight (a map colouring), not a hue each |
+| Evolution | Rocks | a standard (the geological map's families) | families | keep |
+| Evolution | Deposits | which kind (11 metals) | a hue per metal | **done here:** four ore families |
+| Evolution | Ages | which kind (an age's resources, up to 12 in the Industrial Age) | a hue per resource | **open:** families, as Deposits |
+| Evolution | Food: Farmland, Lifestyle, People, Soil, Growing season | how much / which kind | per view | after PR #88 |
+| Evolution | Food: Staple food, Crops, hearths, animals | which kind | generated hues (PR #88) | after PR #88: the tuned `staple-*`, `cat-1`…`cat-8` |
+
+- [x] **Ores:** the Deposits map colours each metal by its family (`ore-alloy`: iron, nickel, platinum and chromium;
+  `ore-base`: copper, tin, lead and zinc, aluminium; `ore-precious`: gold, silver, diamonds; `ore-salt`), so four hues
+  instead of eleven; a metal shown alone takes its family's colour, its richness by strength; the readout's dots the
+  same. The legend is a row per family with its metals in words and their shares. `ORE_FAMILIES` sits beside `METALS`
+  (`v2/js/geology/deposits.js`); the Ages view and the fuels keep their own colours.
+- [x] `check-geology.mjs`'s contrast section now covers the families; run on them alone: 0 of 10 colours (the families
+  and their midpoints) × 168 grounds and grades short, the grades in order.
 - [ ] **From R5, the colour defaults:** gentle relief under thematic colours, `1 + ½ × (shade − 1)`, in every tool
   (Evolution shades them fully today; Generate draws Köppen and climate flat); the quiet sea (`map-sea`, shaded gently by
-  the sea floor) under every land-only layer; `map-paper` for land with nothing to show; `map-ice`, `map-lake`.
-- [ ] **Every map mode, listed** with its question (a standard, how much, which side, which kind, where) and its palette,
-  in this plan before any colour changes.
-- [ ] **Standards untouched:** Köppen (`koppen-*`, as `js/koppen.js` draws it), the height palettes, Satellite, Rocks.
-- [ ] **Ores:** by family (`ore-alloy`, `ore-base`, `ore-precious`, `ore-salt`), worth mining, and one metal at a time
-  (its family's colour, richness by strength, the richest districts numbered).
-- [ ] **Staple food:** the tuned `staple-*` hues, stripes for a second staple nearly as good, stipple for wild foods.
-  After PR #88 is merged, or on top of it.
-- [ ] **Invented kinds** (hearths, animals): `cat-1` … `cat-8` in order; never generated hues; members as words.
-- [ ] **Ramps:** crop variety, when farming came, rain; temperature around 0 °C and pressure around 1012 hPa.
-- [ ] **Legends, readouts and finders:** at most eight rows, members folded inside, a finder for the long tail.
+  the sea floor) under every land-only layer; `map-paper` for land with nothing to show; `map-ice`, `map-lake`. This
+  touches every thematic layer's colour function in three view modules (`js/climate-layers.js`,
+  `v2/js/evolution/climate-view.js`, `geology-view.js`, `farming-view.js`), so it is its own pull request.
+- [ ] **Worth mining** (moderate or richer only) as a Deposits choice.
+- [ ] **Ages** by family, as Deposits.
+- [ ] **Plates** with the categorical eight, neighbours apart.
+- [ ] **Staple food, hearths and animals** with the tuned `staple-*` and `cat-1`…`cat-8`, once PR #88 is merged.
 - **Verify:**
-  - [ ] Every palette through the colour check over every pair (normal sight 15 or more; colour-blind 8 or more, or 6–8
-    with labels).
-  - [ ] Each map looked at on the globe, on Paper and on Night.
-  - [ ] Exported legends and colour maps.
-  - [ ] Evolution's Earth farming check (`tuning/farming/earth-farming.mjs`) is unaffected: colours only.
+  - [x] The Deposits view on a detailed moment: the family legend, the map in four hues; `check-style.mjs` passes.
+  - [ ] Each remaining palette through the colour check over every pair, on the globe, on Paper and on Night.
+  - [ ] Exported legends and colour maps (the Deposits colour map follows the view; not exported here).
 
 ### R7: the atlas print (a new feature)
 
@@ -404,4 +425,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1): PR #97.
 - **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2): PR #99.
 - **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3): PR #101.
-- **2026-11-03:** R5 built and checked, on `redesign-r5` (stacked on R4).
+- **2026-11-03:** R5 built and checked, on `redesign-r5` (stacked on R4): PR #104.
+- **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5).
