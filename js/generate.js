@@ -207,7 +207,7 @@ if (worker) {
                     `Regions: ${mesh.numRegions.toLocaleString()}<br>` +
                     `Triangles: ${mesh.numTriangles.toLocaleString()}<br>` +
                     `Generated in ${ms} ms<br>` +
-                    `<span style="color:#445;font-size:10px">worker ${tWorker.toFixed(0)} · render ${tBuild.toFixed(0)}</span>`;
+                    `<span style="color:var(--muted);font-size:10px">worker ${tWorker.toFixed(0)} · render ${tBuild.toFixed(0)}</span>`;
 
                 if (_onProgress) _onProgress(100, 'Done');
                 resetUI();

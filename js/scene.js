@@ -9,7 +9,10 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 
 export const scene  = new THREE.Scene();
-scene.background = new THREE.Color(0x030308);
+// The stage behind the globe is the page theme's desk: paper by day, navy at night (docs/style-guide/maps.md).
+const stageColour = () => new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
+scene.background = stageColour();
+window.orogenTheme?.onChange(() => { scene.background = stageColour(); });
 
 export const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 0.4, 2.8);
@@ -89,6 +92,7 @@ export let starsMesh;
     p.push(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th),r*Math.cos(ph));}
   g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
   starsMesh = new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.08}));
+  starsMesh.material.visible = false;   // (space with stars is an option to come, never the default: the stage follows the theme)
   scene.add(starsMesh); }
 
 // Atmosphere

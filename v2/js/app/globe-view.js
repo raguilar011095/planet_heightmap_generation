@@ -60,7 +60,15 @@ export class GlobeView {
         this.renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true });
         this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(space ? 0x030308 : 0x05060a);
+        // the stage behind the globe: the page theme's desk (docs/style-guide/maps.md); the labs keep their own dark
+        const stage = () => new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
+        this.scene.background = space ? stage() : new THREE.Color(0x05060a);
+        if (space) window.orogenTheme?.onChange(() => {
+            this.scene.background = stage();
+            if (this.mapScene) this.mapScene.background = stage();
+            this._dirty = true;
+        });
+        this.space = space;
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, space ? 200 : 50);
         this.camera.position.set(0, 0.9, 3.2);
 
@@ -281,7 +289,8 @@ void main() {
         }
         const stars = new THREE.BufferGeometry();
         stars.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-        this.scene.add(new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08 })));
+        // (space with stars is an option to come, never the default: the stage follows the theme)
+        this.scene.add(new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, visible: false })));
         const atmosphere = new THREE.ShaderMaterial({
             uniforms: { c: { value: new THREE.Color(0.35, 0.6, 1.0) } },
             vertexShader: 'varying vec3 vN,vP;void main(){vN=normalize(normalMatrix*normal);vP=(modelViewMatrix*vec4(position,1)).xyz;gl_Position=projectionMatrix*vec4(vP,1);}',
@@ -431,7 +440,7 @@ void main() {
         if (frame && this._mapFrame !== frame) this.wireMapFrame(frame);
         if (frame && !this.mapScene) {
             this.mapScene = new THREE.Scene();
-            this.mapScene.background = new THREE.Color(0x000000);
+            this.mapScene.background = this.space ? new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420') : new THREE.Color(0x000000);
             const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
                 uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() },

@@ -1,144 +1,141 @@
 /* ── Today’s look, as variables ──
-   Every interface colour, by role, at exactly the value the rules used before (R0 changes nothing you can see).
-   The redesign (plans/REDESIGN_PLAN.md) points these at the style guide’s tokens (tokens.css), then retires them.
+   The roles today’s rules use, each pointed at the style guide’s tokens (tokens.css), so both themes follow.
+   R2 and R3 of the redesign (plans/REDESIGN_PLAN.md) redraw the pieces with the tokens and retire these roles.
    New rules use the tokens, never a literal colour. */
 :root {
     /* Grounds and panels */
-    --ui-page: #000000;
-    --ui-page-studio: #05060f;
-    --ui-stage: #030308;
-    --ui-stage-veil: rgba(3,3,8,0.75);
-    --ui-well: #0a0a1a;
-    --ui-menu: #12122a;
-    --ui-panel-75: rgba(8,8,28,0.75);
-    --ui-panel-85: rgba(8,8,28,0.85);
-    --ui-panel-86: rgba(8,8,28,0.86);
-    --ui-panel: rgba(8,8,28,0.88);
-    --ui-panel-92: rgba(8,8,28,0.92);
-    --ui-panel-94: rgba(8,8,28,0.94);
-    --ui-panel-96: rgba(8,8,28,0.96);
-    --ui-drop-veil: rgba(8,14,30,0.55);
-    --ui-drop-card: rgba(20,32,64,0.9);
-    --ui-shadow: rgba(0,0,0,0.4);
-    --ui-scrim: rgba(0,0,0,0.6);
+    --ui-page: var(--desk);
+    --ui-page-studio: var(--bg);
+    --ui-stage: var(--desk);
+    --ui-stage-veil: color-mix(in srgb, var(--desk) 78%, transparent);
+    --ui-well: var(--chip-track);
+    --ui-menu: var(--surface);
+    --ui-panel-75: var(--surface);
+    --ui-panel-85: color-mix(in srgb, var(--bg) 94%, transparent);
+    --ui-panel-86: color-mix(in srgb, var(--bg) 94%, transparent);
+    --ui-panel: color-mix(in srgb, var(--bg) 96%, transparent);
+    --ui-panel-92: color-mix(in srgb, var(--bg) 97%, transparent);
+    --ui-panel-94: var(--surface);
+    --ui-panel-96: var(--surface);
+    --ui-drop-veil: color-mix(in srgb, var(--desk) 72%, transparent);
+    --ui-drop-card: var(--surface);
+    --ui-shadow: color-mix(in srgb, var(--stage-space) 22%, transparent);
+    --ui-scrim: color-mix(in srgb, var(--stage-space) 45%, transparent);
     /* Text, lightest to faintest */
-    --ui-ink: #ffffff;
-    --ui-ink-cool: #ddeeff;
-    --ui-ink-soft: #ddddee;
-    --ui-body: #ccddee;
-    --ui-body-soft: #bbccdd;
-    --ui-body-cool: #aaccdd;
-    --ui-body-dim: #aabbcc;
-    --ui-label: #aaaabb;
-    --ui-label-cool: #99aacc;
-    --ui-label-dim: #9999bb;
-    --ui-muted: #99aabb;
-    --ui-muted-grey: #9999aa;
-    --ui-muted-chip: #8a93a6;
-    --ui-note: #88aabb;
-    --ui-faint: #888899;
-    --ui-marker: #7788aa;
-    --ui-faint-2: #777788;
-    --ui-hint: #667788;
-    --ui-faintest: #666677;
-    --ui-off: #555566;
-    --ui-marker-off: #444455;
+    --ui-ink: var(--ink);
+    --ui-ink-cool: var(--ink);
+    --ui-ink-soft: var(--ink);
+    --ui-body: var(--body);
+    --ui-body-soft: var(--ink);
+    --ui-body-cool: var(--body);
+    --ui-body-dim: var(--body);
+    --ui-label: var(--body);
+    --ui-label-cool: var(--ink);
+    --ui-label-dim: var(--body);
+    --ui-muted: var(--muted);
+    --ui-muted-grey: var(--muted);
+    --ui-muted-chip: var(--muted);
+    --ui-note: var(--muted);
+    --ui-faint: var(--muted);
+    --ui-marker: var(--muted);
+    --ui-faint-2: var(--muted);
+    --ui-hint: var(--muted);
+    --ui-faintest: var(--muted);
+    --ui-off: var(--muted);
+    --ui-marker-off: var(--muted);
     /* White washes and lines (by opacity) */
-    --ui-white-03: rgba(255,255,255,0.03);
-    --ui-white-04: rgba(255,255,255,0.04);
-    --ui-white-06: rgba(255,255,255,0.06);
-    --ui-white-08: rgba(255,255,255,0.08);
-    --ui-white-10: rgba(255,255,255,0.1);
-    --ui-white-12: rgba(255,255,255,0.12);
-    --ui-white-14: rgba(255,255,255,0.14);
-    --ui-white-15: rgba(255,255,255,0.15);
-    --ui-white-18: rgba(255,255,255,0.18);
-    --ui-white-20: rgba(255,255,255,0.2);
-    --ui-white-25: rgba(255,255,255,0.25);
-    --ui-white-30: rgba(255,255,255,0.3);
-    --ui-white-35: rgba(255,255,255,0.35);
-    --ui-white-40: rgba(255,255,255,0.4);
-    --ui-white-50: rgba(255,255,255,0.5);
+    --ui-white-03: color-mix(in srgb, var(--ink) 3%, transparent);
+    --ui-white-04: color-mix(in srgb, var(--ink) 4%, transparent);
+    --ui-white-06: color-mix(in srgb, var(--ink) 6%, transparent);
+    --ui-white-08: var(--rule);
+    --ui-white-10: var(--rule);
+    --ui-white-12: color-mix(in srgb, var(--ink) 12%, transparent);
+    --ui-white-14: var(--rule);
+    --ui-white-15: color-mix(in srgb, var(--ink) 20%, transparent);
+    --ui-white-18: color-mix(in srgb, var(--ink) 14%, transparent);
+    --ui-white-20: color-mix(in srgb, var(--ink) 24%, transparent);
+    --ui-white-25: color-mix(in srgb, var(--ink) 22%, transparent);
+    --ui-white-30: color-mix(in srgb, var(--ink) 30%, transparent);
+    --ui-white-50: color-mix(in srgb, var(--ink) 50%, transparent);
     /* Blue: actions, selection and links */
-    --ui-action: #3366ee;
-    --ui-action-deep: #2255cc;
-    --ui-action-bar: #3366cc;
-    --ui-select: #4488ff;
-    --ui-select-text: #66aaff;
-    --ui-select-07: rgba(68,136,255,0.07);
-    --ui-select-08: rgba(68,136,255,0.08);
-    --ui-select-15: rgba(68,136,255,0.15);
-    --ui-select-16: rgba(68,136,255,0.16);
-    --ui-select-18: rgba(68,136,255,0.18);
-    --ui-select-22: rgba(68,136,255,0.22);
-    --ui-select-25: rgba(68,136,255,0.25);
-    --ui-select-35: rgba(68,136,255,0.35);
-    --ui-select-45: rgba(68,136,255,0.45);
-    --ui-sky-18: rgba(100,160,255,0.18);
-    --ui-sky-25: rgba(100,160,255,0.25);
-    --ui-sky-28: rgba(100,160,255,0.28);
-    --ui-sky-30: rgba(100,160,255,0.3);
-    --ui-sky-35: rgba(100,160,255,0.35);
-    --ui-sky-45: rgba(100,160,255,0.45);
-    --ui-sky-50: rgba(100,160,255,0.5);
-    --ui-sky-drop: rgba(120,170,255,0.6);
-    --ui-navy-40: rgba(40,60,120,0.4);
-    --ui-navy-60: rgba(40,60,120,0.6);
-    --ui-navy-70: rgba(40,60,120,0.7);
-    --ui-navy-80: rgba(40,60,120,0.8);
-    --ui-navy-hover-80: rgba(60,90,180,0.8);
-    --ui-navy-hover-90: rgba(60,90,180,0.9);
-    --ui-navy-on-65: rgba(40,70,150,0.65);
-    --ui-navy-on-75: rgba(40,70,150,0.75);
-    --ui-navy-chip: rgba(50,90,200,0.75);
-    --ui-link: #88bbff;
-    --ui-link-legend: #8ab8ff;
-    --ui-link-hover: #aad0ff;
-    --ui-live: #66ccff;
-    --ui-live-bg: rgba(100,200,255,0.15);
+    --ui-action: var(--accent);
+    --ui-action-deep: var(--accent);
+    --ui-action-bar: var(--ink);
+    --ui-select: var(--ink);
+    --ui-select-text: var(--ink);
+    --ui-select-07: var(--panel);
+    --ui-select-08: var(--panel);
+    --ui-select-15: var(--chip-track);
+    --ui-select-18: var(--chip-on);
+    --ui-select-22: var(--chip-on);
+    --ui-select-25: color-mix(in srgb, var(--accent) 18%, transparent);
+    --ui-select-35: color-mix(in srgb, var(--ink) 35%, transparent);
+    --ui-select-45: color-mix(in srgb, var(--ink) 45%, transparent);
+    --ui-sky-18: var(--chip-on);
+    --ui-sky-25: var(--rule);
+    --ui-sky-28: color-mix(in srgb, var(--ink) 22%, transparent);
+    --ui-sky-30: color-mix(in srgb, var(--ink) 30%, transparent);
+    --ui-sky-35: color-mix(in srgb, var(--ink) 30%, transparent);
+    --ui-sky-45: color-mix(in srgb, var(--ink) 30%, transparent);
+    --ui-sky-50: color-mix(in srgb, var(--ink) 40%, transparent);
+    --ui-sky-drop: var(--accent);
+    --ui-navy-40: var(--surface);
+    --ui-navy-60: var(--surface);
+    --ui-navy-70: var(--surface);
+    --ui-navy-80: var(--surface);
+    --ui-navy-hover-80: var(--chip-track);
+    --ui-navy-hover-90: var(--chip-track);
+    --ui-navy-on-65: var(--surface);
+    --ui-navy-on-75: var(--chip-on);
+    --ui-navy-chip: var(--surface);
+    --ui-link: var(--accent);
+    --ui-link-legend: var(--accent);
+    --ui-link-hover: var(--accent);
+    --ui-live: var(--layer-climate-ink);
+    --ui-live-bg: var(--layer-climate-tint);
     /* Amber: stale, beta, warnings, busy */
-    --ui-amber: #e8a020;
-    --ui-amber-10: rgba(232,160,32,0.1);
-    --ui-amber-25: rgba(232,160,32,0.25);
-    --ui-stale: #d4922a;
-    --ui-stale-deep: #b87a1a;
-    --ui-beta: #ffcc88;
-    --ui-beta-bg: rgba(255,180,60,0.16);
-    --ui-beta-note: #aa9988;
-    --ui-warn: #c9a44e;
-    --ui-sun: #e8c050;
-    --ui-busy-bg: rgba(130,70,20,0.6);
-    --ui-busy-line: rgba(255,170,90,0.5);
-    --ui-busy-text: #ffddbb;
-    --ui-note-warm: #ddbb99;
+    --ui-amber: var(--layer-land-ink);
+    --ui-amber-10: color-mix(in srgb, var(--gold) 10%, transparent);
+    --ui-amber-25: color-mix(in srgb, var(--gold) 30%, transparent);
+    --ui-stale: var(--accent);
+    --ui-stale-deep: var(--accent);
+    --ui-beta: var(--gold-ink);
+    --ui-beta-bg: color-mix(in srgb, var(--gold) 16%, transparent);
+    --ui-beta-note: var(--muted);
+    --ui-warn: var(--gold-ink);
+    --ui-sun: var(--gold);
+    --ui-busy-bg: color-mix(in srgb, var(--gold) 18%, transparent);
+    --ui-busy-line: var(--gold);
+    --ui-busy-text: var(--ink);
+    --ui-note-warm: var(--gold-ink);
     /* Red: regenerate, errors */
-    --ui-regen: #bb4433;
-    --ui-regen-deep: #993322;
-    --ui-red: #d04030;
-    --ui-error: #cc4444;
+    --ui-regen: var(--accent);
+    --ui-regen-deep: var(--accent);
+    --ui-red: var(--accent);
+    --ui-error: var(--accent);
     /* Green: rebuild ready, finish, new */
-    --ui-ready: #22aa5a;
-    --ui-ready-deep: #1a7a4a;
-    --ui-ready-35: rgba(34,170,90,0.35);
-    --ui-ready-40: rgba(34,170,90,0.4);
-    --ui-ready-50: rgba(34,170,90,0.5);
-    --ui-ready-55: rgba(34,170,90,0.55);
-    --ui-ready-85: rgba(34,170,90,0.85);
-    --ui-finish: #aadd66;
-    --ui-finish-deep: #66aa44;
-    --ui-new: #aadd88;
-    --ui-new-bg: rgba(110,200,90,0.18);
-    --ui-farm-text: #ccffee;
-    --ui-farm-line: rgba(100,200,170,0.5);
-    --ui-farm-bg: rgba(30,110,100,0.45);
+    --ui-ready: var(--accent);
+    --ui-ready-deep: var(--accent);
+    --ui-ready-35: color-mix(in srgb, var(--accent) 30%, transparent);
+    --ui-ready-40: color-mix(in srgb, var(--accent) 35%, transparent);
+    --ui-ready-50: color-mix(in srgb, var(--accent) 40%, transparent);
+    --ui-ready-55: color-mix(in srgb, var(--accent) 45%, transparent);
+    --ui-ready-85: var(--accent);
+    --ui-finish: var(--gold);
+    --ui-finish-deep: var(--gold);
+    --ui-new: var(--accent);
+    --ui-new-bg: color-mix(in srgb, var(--accent) 10%, transparent);
+    --ui-farm-text: var(--layer-food-ink);
+    --ui-farm-line: var(--layer-food);
+    --ui-farm-bg: var(--layer-food-tint);
     /* Greys: a build in progress */
-    --ui-busy-grey: #444444;
-    --ui-busy-grey-deep: #333333;
+    --ui-busy-grey: var(--chip-track);
+    --ui-busy-grey-deep: var(--chip-track);
 }
 /* ── end of today’s look ── */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { background: var(--ui-page); overflow: hidden; font-family: 'Segoe UI', system-ui, sans-serif; color: var(--ui-ink); }
+body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui); color: var(--ui-ink); }
 #canvas { display: block; }
 
 /* ─── Top navigation bar ─── */
@@ -159,7 +156,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: 'Segoe UI', sy
 }
 .nav-tab:hover { color: var(--ui-body-soft); background: var(--ui-white-06); }
 .nav-tab.active {
-    color: var(--ui-link); background: var(--ui-select-15);
+    color: var(--ink); background: var(--ui-select-15);
 }
 /* after the tabs, past a short divider: GitHub, then the follow links (on phones and tablets the panel's foot has them) */
 .nav-follow { display: flex; align-items: center; gap: 2px; flex: none; margin-left: 6px; }
@@ -171,6 +168,17 @@ body { background: var(--ui-page); overflow: hidden; font-family: 'Segoe UI', sy
     color: var(--ui-faint); transition: background 0.2s, color 0.2s;
 }
 .nav-icon:hover { color: var(--ui-body-soft); background: var(--ui-white-06); }
+/* the theme switch, at the bar's far end (js/theme.js): the moon on Paper, the sun on Night */
+.nav-theme { position: relative; margin-left: auto; flex: none; border: 0; background: none; padding: 0; cursor: pointer; }
+.nav-theme::after { content: ''; position: absolute; inset: -7px; }   /* (a 44 px target in a 36 px bar) */
+.nav-theme:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nav-theme .i-to-light { display: none; }
+:root[data-theme="dark"] .nav-theme .i-to-light { display: block; }
+:root[data-theme="dark"] .nav-theme .i-to-dark { display: none; }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .nav-theme .i-to-light { display: block; }
+    :root:not([data-theme="light"]) .nav-theme .i-to-dark { display: none; }
+}
 #topNav { overflow-x: auto; scrollbar-width: none; }
 #topNav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: none; white-space: nowrap; }
@@ -196,7 +204,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: 'Segoe UI', sy
     background: var(--ui-white-15); border-radius: 5px;
     border-left: 5px solid transparent; border-right: 2px solid transparent; background-clip: padding-box;
 }
-#ui h2 { margin-bottom: 4px; font-size: 20px; font-weight: 600; }
+#ui h2 { margin-bottom: 4px; font: 600 26px/1.05 var(--font-display); }
 #ui .sub { font-size: 13px; color: var(--ui-faint); margin-bottom: 0; }
 #sidebarHeader {
     display: flex; align-items: flex-start; justify-content: space-between;
@@ -252,7 +260,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: 'Segoe UI', sy
 }
 .section[open] > summary { border-bottom-color: var(--ui-white-06); margin-bottom: 2px; }
 .cg { margin-bottom: 10px; }
-.cg label { display: block; font-size: 14px; color: var(--ui-label); margin-bottom: 3px; }
+.cg label { display: block; font: 400 16px/1.3 var(--font-text); color: var(--ui-label); margin-bottom: 3px; }
 .cg .v { float: right; color: var(--ui-select-text); font-variant-numeric: tabular-nums; }
 .tip {
     display: inline-flex; align-items: center; justify-content: center;
@@ -296,7 +304,7 @@ select {
     background: var(--ui-white-06); color: var(--ui-body);
     border: 1px solid var(--ui-white-10); border-radius: 6px;
     cursor: pointer; appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23667'/%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23808890'/%3E%3C/svg%3E");
     background-repeat: no-repeat; background-position: right 10px center;
 }
 select:hover { border-color: var(--ui-white-18); }
@@ -306,7 +314,7 @@ select optgroup { font-style: normal; font-weight: 600; color: var(--ui-marker);
 button#generate {
     width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 12px;
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    color: var(--ui-ink); border: none; border-radius: 8px;
+    color: var(--on-accent); border: none; border-radius: 8px;
     font-size: 15px; font-weight: 500; cursor: pointer;
     transition: background 0.3s ease, opacity 0.3s ease;
 }
@@ -321,7 +329,7 @@ button#generate.regen {
 button#generate.regen:hover { filter: brightness(1.15); }
 button#generate.generating {
     background: linear-gradient(135deg, var(--ui-busy-grey-deep), var(--ui-busy-grey));
-    cursor: wait; opacity: 0.8;
+    color: var(--muted); cursor: wait; opacity: 0.8;
 }
 #reapplyBtn {
     width: 100%; padding: 8px; margin-top: 4px;
@@ -335,7 +343,7 @@ button#generate.generating {
 #reapplyBtn.spinning .reapply-icon { display: inline-block; animation: spin 0.8s linear infinite; }
 #reapplyBtn.ready {
     background: linear-gradient(135deg, var(--ui-ready-deep), var(--ui-ready));
-    color: var(--ui-ink); border-color: transparent;
+    color: var(--on-accent); border-color: transparent;
     cursor: pointer; opacity: 1;
 }
 #reapplyBtn.ready:hover { filter: brightness(1.15); }
@@ -364,7 +372,7 @@ button#generate.generating {
 #seedRow button:hover { background: var(--ui-white-12); color: var(--ui-ink); }
 #loadBtn.ready {
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    color: var(--ui-ink); border-color: transparent;
+    color: var(--on-accent); border-color: transparent;
 }
 #loadBtn.ready:hover { filter: brightness(1.15); }
 #seedError {
@@ -389,7 +397,7 @@ button#generate.generating {
 }
 .map-tab:hover { color: var(--ui-body-soft); }
 .map-tab.active {
-    background: var(--ui-select-18); color: var(--ui-link);
+    background: var(--ui-select-18); color: var(--ink);
 }
 
 /* ── Over the planet, on every page (plans/VIEW_UI_PLAN.md): the view strip, folded behind the arrow at the tabs' left;
@@ -415,7 +423,7 @@ button#generate.generating {
 }
 .vs-fold:hover { color: var(--ui-body-soft); }
 .vs-fold svg { transition: transform 0.15s; }
-.vs-fold[aria-expanded="true"] { color: var(--ui-link); }
+.vs-fold[aria-expanded="true"] { color: var(--ink); }
 .vs-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
 .layer-subbar { display: flex; align-items: center; gap: 8px; }
 .layer-subbar[hidden], .layer-subbar [hidden] { display: none; }
@@ -425,7 +433,7 @@ button#generate.generating {
     padding: 6px 26px 6px 8px; font-size: 12px; font-family: inherit; width: auto;
 }
 /* (More…: lit as a tab is, while one of its layers is shown) */
-.layer-subbar select.active { background-color: var(--ui-navy-on-75); color: var(--ui-link); border-color: var(--ui-sky-45); }
+.layer-subbar select.active { background-color: var(--ui-navy-on-75); color: var(--ink); border-color: var(--ui-sky-45); }
 /* the view strip: Globe | Map and what applies to it (js/view-strip.js); on a phone, at the top of the bottom sheet, never
    folded */
 .view-strip {
@@ -438,7 +446,7 @@ button#generate.generating {
 .vs-item { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
 .view-strip select { width: auto; padding: 4px 26px 4px 8px; font-size: 12px; background-position: right 9px center; }
 .view-strip input[type=range] { width: 110px; }
-.view-strip .v { color: var(--ui-link); min-width: 3.4em; font-variant-numeric: tabular-nums; }
+.view-strip .v { color: var(--ink); min-width: 3.4em; font-variant-numeric: tabular-nums; }
 .view-strip .toggle-label { font-size: 12px; color: var(--ui-label); }
 .view-strip .xp-proj-opts { display: inline-flex; flex-wrap: wrap; gap: 6px 14px; }
 .view-strip .xp-proj-opt { flex-direction: row; align-items: center; gap: 6px; min-width: 0; flex: none; font-size: 12px; }
@@ -448,7 +456,7 @@ button#generate.generating {
     padding: 4px 12px; border-radius: 5px; cursor: pointer;
 }
 .vs-seg button:hover { color: var(--ui-body-soft); }
-.vs-seg button.active { background: var(--ui-select-22); color: var(--ui-link); }
+.vs-seg button.active { background: var(--ui-select-22); color: var(--ink); }
 .view-strip.in-sheet {
     justify-content: flex-start; gap: 8px 16px; max-width: none; margin-bottom: 12px;
     background: var(--ui-white-03); backdrop-filter: none; padding: 8px 10px;
@@ -693,7 +701,7 @@ button#generate.generating {
     display: block;
 }
 .tutorial-step h3 {
-    font-size: 18px; font-weight: 600; color: var(--ui-ink);
+    font: 600 24px/1.1 var(--font-display); color: var(--ui-ink);
     margin-bottom: 10px;
 }
 .tutorial-step p {
@@ -735,7 +743,7 @@ button#generate.generating {
 .btn-ghost:disabled { opacity: 0.35; cursor: default; }
 .btn-primary {
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    border: none; color: var(--ui-ink); padding: 8px 20px; border-radius: 8px;
+    border: none; color: var(--on-accent); padding: 8px 20px; border-radius: 8px;
     font-size: 14px; font-weight: 500; font-family: inherit; cursor: pointer;
     transition: filter 0.2s;
 }
@@ -779,7 +787,7 @@ button#generate.generating {
     background: var(--ui-stage);
 }
 .cant-run-card { max-width: 440px; text-align: center; }
-.cant-run-card h2 { margin: 0 0 10px; color: var(--ui-ink-soft); font-size: 18px; font-weight: 600; }
+.cant-run-card h2 { margin: 0 0 10px; color: var(--ui-ink-soft); font: 600 24px/1.1 var(--font-display); }
 .cant-run-card p { margin: 0; color: var(--ui-muted-grey); font-size: 14px; line-height: 1.6; }
 
 /* A failed build, import or export: the overlay shows a message and a Close button (js/build-error.js) */
@@ -855,7 +863,7 @@ button#generate.generating {
     color: var(--ui-body);
 }
 #exportCard h3 {
-    font-size: 18px; font-weight: 600; color: var(--ui-ink);
+    font: 600 24px/1.1 var(--font-display); color: var(--ui-ink);
     margin-bottom: 16px;
 }
 #exportClose {
@@ -893,7 +901,7 @@ button#generate.generating {
     color: var(--ui-body);
 }
 #surveyCard h3 {
-    font-size: 18px; font-weight: 600; color: var(--ui-ink);
+    font: 600 24px/1.1 var(--font-display); color: var(--ui-ink);
     margin-bottom: 10px;
 }
 #surveyCard p {
@@ -960,7 +968,7 @@ button#generate.generating {
     display: block;
 }
 .whatsnew-step h3 {
-    font-size: 18px; font-weight: 600; color: var(--ui-ink);
+    font: 600 24px/1.1 var(--font-display); color: var(--ui-ink);
     margin-bottom: 10px;
 }
 .whatsnew-step p {
@@ -1025,7 +1033,7 @@ button#generate.generating {
 .rebuild-fab {
     position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%);
     background: linear-gradient(135deg, var(--ui-ready-deep), var(--ui-ready));
-    color: var(--ui-ink); border: none; border-radius: 24px;
+    color: var(--on-accent); border: none; border-radius: 24px;
     padding: 10px 22px;
     font-size: 15px; font-weight: 500; font-family: inherit;
     cursor: pointer; z-index: 25;
@@ -1084,14 +1092,14 @@ button#generate.generating {
 .import-btn {
     width: 100%; padding: 10px; margin-top: 6px;
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    color: var(--ui-ink); border: none; border-radius: 8px;
+    color: var(--on-accent); border: none; border-radius: 8px;
     font-size: 15px; font-weight: 500; font-family: inherit; cursor: pointer;
     transition: background 0.3s ease, opacity 0.3s ease;
 }
 .import-btn:hover:not(:disabled) { filter: brightness(1.15); }
 .import-btn:disabled {
     background: linear-gradient(135deg, var(--ui-busy-grey-deep), var(--ui-busy-grey));
-    cursor: default; opacity: 0.5;
+    color: var(--muted); cursor: default; opacity: 0.5;
 }
 
 /* ───── Mobile: tablets + phones ───── */
@@ -1171,11 +1179,11 @@ button#generate.generating {
         width: calc(100vw - 16px - 44px - 16px - 12px);
         background: var(--ui-navy-70); backdrop-filter: blur(12px);
         border: 1px solid var(--ui-sky-25);
-        color: var(--ui-link); font-size: 13px; font-family: inherit; font-weight: 500;
+        color: var(--ink); font-size: 13px; font-family: inherit; font-weight: 500;
         padding: 8px 28px 8px 12px; border-radius: 18px;
         min-height: 44px;
         appearance: none; cursor: pointer;
-        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%2388bbff'/%3E%3C/svg%3E");
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%23808890'/%3E%3C/svg%3E");
         background-repeat: no-repeat; background-position: right 10px center;
         z-index: 50;
     }
@@ -1200,7 +1208,7 @@ button#generate.generating {
     .edit-toggle.active {
         background: var(--ui-ready-85);
         border-color: var(--ui-ready-50);
-        color: var(--ui-ink);
+        color: var(--on-accent);
         box-shadow: 0 0 12px var(--ui-ready-40);
     }
 
@@ -1223,7 +1231,7 @@ button#generate.generating {
     .refresh-fab.armed {
         background: var(--ui-ready-85);
         border-color: var(--ui-ready-50);
-        color: var(--ui-ink);
+        color: var(--on-accent);
         box-shadow: 0 0 12px var(--ui-ready-40);
     }
 

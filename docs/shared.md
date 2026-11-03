@@ -16,6 +16,8 @@ On narrow phones the Import tab reads just "Import".
 
 After the tabs, past a short divider: GitHub, then **Follow** with Bluesky, X and Threads, then **Support** with Ko-fi (plain links that open in a new tab; nothing is loaded from those sites). On phones and tablets the bar keeps only the tabs, and the same links sit at the foot of the side panel (a row a desktop shows too): GitHub, the three follow icons and **Support** with the Ko-fi cup. The Studio has GitHub and the follow links under its introduction, and Ko-fi in its footer.
 
+At the bar's far end, on every page and on phones too, the **theme switch** (a moon on Paper, a sun on Night) swaps the light and dark themes. Until it is used, the page follows the device's own light or dark setting; once used, the browser remembers the choice on every page. The stage behind the globe follows the theme: the page's desk colour, paper by day and navy at night. (The style guide's Colour section: `docs/style-guide/README.md`.)
+
 ## The view: layers over the planet
 
 Generate, Import and Evolution share one layout (plans/VIEW_UI_PLAN.md): the sidebar holds what builds the world, and what

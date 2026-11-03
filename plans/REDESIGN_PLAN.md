@@ -93,6 +93,18 @@ first: ornament frames the world and never the controls. The protected strengths
 7. **Orogen Explains before essays exist.** Hide the Studio's Explains row until the first essay is written, or link the
    tool guides there for now?
 
+**Decided 2026-11-03.** The owner: "lets actually set up continuous PRs for the whole project here. do it continuously
+through". So the phases run one after another without a stop between them, and the open questions take their proposed
+answers:
+1. The order as proposed.
+2. **Stacked pull requests**, one per phase, each on the one before (R1 on R0's branch, R2 on R1's, …), so they can be
+   reviewed and merged in order; nothing reaches `main` until the owner merges.
+3. The version is settled in R9.
+4. The device decides; the switch is always one tap away.
+5. A still image first; the turning globe later.
+6. The mark as it is.
+7. The Explains row stays off the Studio until the first essay exists.
+
 ## The phases
 
 Each phase stops for the owner to check it in the browser before the next starts.
@@ -142,27 +154,40 @@ The style guide in the repo, today's colours as variables, the tokens and fonts 
 Every page reads as World Orogen before any piece is redrawn. References: the guide's Colour and Type sections; the
 artifact's Colors and Typography; the **6 · Hybrid II · tool** boards, light and dark.
 
-- [ ] **The theme.** `data-theme` on `<html>`, set before the first paint from the person's choice (saved in the browser
-  where storage works) or else the device. A theme switch beside the follow links, on every page, with the light-mode
-  and dark-mode icons. `<meta name="theme-color">` for each theme.
-- [ ] **The roles onto the tokens, per theme.** Point each `--ui-*` role at a token and fold the near-duplicates:
-  - grounds and panels → `bg`, `surface`, `panel`, `desk`;
-  - the text tiers → `ink`, `body`, `muted`;
-  - the white washes and lines → `rule`, `chip-track`, `chip-on`;
-  - blue selection and links → `accent`, `focus`, `gold` (the active tab's underline);
-  - the build states (stale amber, ready green, regenerate red, busy grey) → kept as states, re-coloured to read on
-    both themes, until R2 redraws the buttons.
-- [ ] **The stage behind the globe** follows the theme (`desk`): the renderer's clear colour in `js/scene.js` and
-  `v2/js/app/globe-view.js`; the stars go (they return as an option in R5).
-- [ ] **The type.** Libre Franklin on every control; Cormorant Garamond on headings (the panel's title, section
-  summaries, modal titles); EB Garamond on slider names, hints and notes.
-- [ ] Retire every `--ui-*` role nothing uses any more.
+- [x] **The theme.** `js/theme.js`, a classic script in each page's `<head>` before the stylesheets, puts a saved
+  choice on `<html>` (`data-theme`) before the first paint; otherwise the device decides. The switch sits at the top
+  bar's far end on every page, phones included (a moon on Paper, a sun on Night; a 44 px target in the 36 px phone
+  bar). `<meta name="theme-color">` for each theme, and the chosen one when the switch has been used.
+- [x] **The roles onto the tokens, per theme.** Every `--ui-*` role now points at a token, or a mix of one with
+  transparency, so both themes follow:
+  - grounds and panels → `desk` for the page behind the globe, `bg` for the floating panels (94–97 %), `surface` for
+    tooltips, menus and cards, `chip-track` for wells;
+  - the text tiers → `ink`, `body` and `muted` (every faint tier folds into `muted`, which holds 4.5:1);
+  - the white washes and lines → `rule`, or `ink` at 3–30 %, so they darken Paper and lighten Night;
+  - the main action (Build, and its Rebuild and Regenerate states, whose words already say which) → `accent` with
+    `on-accent` text; a build in progress → `chip-track` with `muted` words;
+  - a chosen tab → `chip-on` with `ink` words; sliders, toggles and progress → `ink`; links → `accent`;
+  - beta tags and notes → `gold-ink` on a gold tint; the live-climate badge → the Climate layer's ink and tint; Food's
+    chips → the Food layer's; Evolution's finish bar → `gold`.
+- [x] **The stage behind the globe** follows the theme (`desk`) in `js/scene.js` and `v2/js/app/globe-view.js`
+  (Evolution's flat map too), changing the moment the theme does. The stars' material is hidden (they return as an
+  option in R5).
+- [x] **The type.** Libre Franklin on every control (the page's font); Cormorant Garamond on the panel's title, the
+  modal and card titles and the Studio's headings; EB Garamond on slider names.
+- [x] Retired the roles nothing used once the Studio's stars went (`white-35`, `white-40`, `select-16`): 120 remain.
+- [x] **Found on the way:** four colours written into inline styles from JS. Edit mode's "(pending)" note → `gold-ink`;
+  the readout's lake dot → `layer-climate`; Generate's timing line → `muted`. `check-style.mjs` now catches a literal
+  text colour written into an inline style from JS (a data colour, `rgb(${…})`, stays allowed).
 - **Verify:**
-  - [ ] Paper and Night on all four pages, at 1440 px and 400 px; screenshots side by side for the owner.
-  - [ ] Text holds 4.5:1 on its ground (3:1 at 24 px and up), measured on the pages in both themes.
-  - [ ] The theme carries across pages and reloads; no flash of the wrong theme.
-  - [ ] Generate's first build is no slower (timed against `main` on the same seed).
-  - [ ] No console errors.
+  - [x] Paper and Night on all four pages, at 1440 px and 400 px (Chrome, and Puppeteer's phone emulation).
+  - [x] Text holds 4.5:1 on its ground (3:1 at 24 px and up), measured on every visible text node of the four pages in
+    both themes. The only readings under the line were the build overlay caught mid-fade.
+  - [x] The theme carries across pages and reloads, set before the first paint; the switch works by click.
+  - [x] Generate's first build is no slower: median 5.83 s against `main`'s 5.86–5.91 s (three runs each, one seed).
+  - [x] No console errors.
+- **Left for later phases:** the atmosphere's glow, made for black space, reads as a pale halo on Paper (R5's thin rim of
+  air); the Studio's tool pictures are dark screenshots (R4); Evolution shows "Add detail" as a primary twice, in the
+  card and on the timeline (R3).
 
 ### R2: the tool chrome (Generate and Import)
 
@@ -324,3 +349,4 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 ## Status
 
 - **2026-11-03:** R0 built and checked (above), on `redesign-foundations`: PR #92.
+- **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0).

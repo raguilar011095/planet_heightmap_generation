@@ -196,6 +196,8 @@ js/
   edit-mode.js          Ctrl-click plate multi-select + hover info
   detail-scale.js       Non-linear (power-curve) detail slider mapping
   build-error.js        A failed build, import or export shown in the build overlay, with a Close button; the controls held during a build
+  theme.js              Classic script in each page's <head>: Paper or Night, the device's choice until the theme switch
+                        saves one (before the first paint, so no flash); window.orogenTheme lets the globes' stage follow
   support-check.js      Classic script run before the modules: a browser that cannot run the app (no import maps, no
                         WebGL) or app code that fails to load gets a plain message instead of a blank page
 ```

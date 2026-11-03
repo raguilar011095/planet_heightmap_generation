@@ -11,7 +11,8 @@
 //      <style> block on the pages either.
 //   2. No new --ui-* role: the redesign only retires them (plans/REDESIGN_PLAN.md).
 //   3. Every var(--name) without a fallback is defined: in tokens.css, in a stylesheet, or set from JS.
-//   4. Interface JS sets no literal colour on an element's style (canvas drawing and map palettes are data, not chrome).
+//   4. Interface JS sets no literal colour on an element's style, and writes no literal text colour into an inline
+//      style (canvas drawing, map palettes and legend swatches are data, not chrome).
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -22,8 +23,8 @@ const UI_BEGIN = '/* ── Today’s look, as variables', UI_END = '/* ── e
 const UI_ROLES = new Set(`page page-studio stage stage-veil well menu panel-75 panel-85 panel-86 panel panel-92 panel-94
 panel-96 drop-veil drop-card shadow scrim ink ink-cool ink-soft body body-soft body-cool body-dim label label-cool label-dim
 muted muted-grey muted-chip note faint marker faint-2 hint faintest off marker-off white-03 white-04 white-06 white-08
-white-10 white-12 white-14 white-15 white-18 white-20 white-25 white-30 white-35 white-40 white-50 action action-deep
-action-bar select select-text select-07 select-08 select-15 select-16 select-18 select-22 select-25 select-35 select-45
+white-10 white-12 white-14 white-15 white-18 white-20 white-25 white-30 white-50 action action-deep
+action-bar select select-text select-07 select-08 select-15 select-18 select-22 select-25 select-35 select-45
 sky-18 sky-25 sky-28 sky-30 sky-35 sky-45 sky-50 sky-drop navy-40 navy-60 navy-70 navy-80 navy-hover-80 navy-hover-90
 navy-on-65 navy-on-75 navy-chip link link-legend link-hover live live-bg amber amber-10 amber-25 stale stale-deep beta
 beta-bg beta-note warn sun busy-bg busy-line busy-text note-warm regen regen-deep red error ready ready-deep ready-35
@@ -34,6 +35,8 @@ const NAMED = 'white|black|red|green|blue|gray|grey|orange|yellow|purple|pink|br
 const COLOUR = new RegExp(`#[0-9a-fA-F]{3,8}\\b|\\b(?:rgba?|hsla?)\\([^)]*\\)|(?<![-\\w])(?:${NAMED})(?![-\\w])`, 'g');
 const JS_STYLE = /\.style\.(?:color|background|backgroundColor|borderColor|border(?:Top|Right|Bottom|Left)?Color|outlineColor|fill|stroke|boxShadow)\s*=\s*(['"`])\s*(#[0-9a-fA-F]{3,8}|rgba?\(|hsla?\(|(?:white|black|red)\b)/;
 const UI_JS_DIRS = ['js', 'v2/js/app', 'v2/js/evolution', 'v2/js/view'];
+// a text colour written into an inline style from JS (a background there may be a legend's data colour, so only `color:`)
+const JS_INLINE = /style=\\?["'][^"']*(?<![-\w])color\s*:\s*(#[0-9a-fA-F]{3,8}\b|rgba?\((?!\$\{)|hsla?\((?!\$\{))/;   // (rgb(${…}) is a data colour)
 const SKIP_PROPS = /^(--|font|animation|transition|content|grid-template-areas|counter|quotes|will-change)/;
 
 const blank = m => m.replace(/[^\n]/g, ' ');
@@ -118,6 +121,7 @@ function check(root) {
         const src = fs.readFileSync(f, 'utf8');
         src.split('\n').forEach((line, i) => {
             if (JS_STYLE.test(line)) problems.push(`${rel(f)}:${i + 1}  literal colour set on an element's style: use 'var(--…)'`);
+            else if (JS_INLINE.test(line)) problems.push(`${rel(f)}:${i + 1}  literal text colour in an inline style written from JS: use var(--…)`);
         });
     }
     for (const u of used) if (!u.fallback && !defined.has(u.name)) problems.push(`${u.where}  var(${u.name}) is not defined anywhere (a typo, or a token missing from tokens.css?)`);
@@ -125,7 +129,7 @@ function check(root) {
     // today's fonts, for the redesign to retire (information, not a problem)
     let legacyFonts = 0;
     for (const sheet of sheets) for (const m of mask(read(sheet)).matchAll(/font-family\s*:\s*([^;}]+)/g))
-        if (!/^\s*(inherit|initial|unset)\s*$/.test(m[1])) legacyFonts++;
+        if (m[1].trim() && !/^\s*(inherit|initial|unset)\s*$/.test(m[1])) legacyFonts++;   // (a var() is blanked: a token)
     return { problems, sheets: [...sheets], used: used.length, jsFiles: jsFiles.length, legacyFonts };
 }
 

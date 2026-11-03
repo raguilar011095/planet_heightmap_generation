@@ -101,7 +101,7 @@ function buildHoverHTML(region, plate) {
     // Line 1: plate type + edit hint
     if (isPending) {
         const target = isOcean ? 'Land' : 'Ocean';
-        lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${target}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`);
+        lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${target}</b> <span style="color:var(--gold-ink)">(pending)</span> · ${action} to undo`);
     } else {
         lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
     }

@@ -138,7 +138,7 @@
 .evo-card #waterGroup .tg { margin: 0 0 8px; }
 .evo-card-btn {
     width: 100%; padding: 11px 8px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-family: inherit;
-    font-size: 15px; font-weight: 600; color: var(--ui-ink); background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
+    font-size: 15px; font-weight: 600; color: var(--on-accent); background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
     font-variant-numeric: tabular-nums; transition: filter 0.2s;
 }
 .evo-card-btn:hover:not(:disabled) { filter: brightness(1.15); }
@@ -201,7 +201,7 @@
 .evo-act:hover:not(:disabled) { filter: brightness(1.2); }
 .evo-act:disabled { opacity: 0.5; cursor: default; }
 .evo-act[hidden] { display: none; }
-.evo-act-main { background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action)); border-color: transparent; color: var(--ui-ink); }
+.evo-act-main { background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action)); border-color: transparent; color: var(--on-accent); }
 .evo-act.busy { background: var(--ui-busy-bg); border-color: var(--ui-busy-line); color: var(--ui-busy-text); }
 /* (one width for its labels — the track does not jump) */
 #timeline .evo-act { min-width: 112px; text-align: center; font-variant-numeric: tabular-nums; }
