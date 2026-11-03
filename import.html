@@ -31,7 +31,9 @@
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="manifest" href="site.webmanifest">
     <link rel="author" href="humans.txt">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
+    <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/brand/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
     <script src="js/theme.js"></script>
     <link rel="stylesheet" href="tokens.css">
     <link rel="stylesheet" href="styles.css">
@@ -83,7 +85,7 @@
                 <div class="import-upload-area">
                     <label class="import-file-label" for="heightmapFile">
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                        Choose Image
+                        Choose image
                     </label>
                     <input type="file" id="heightmapFile" accept="image/png,image/jpeg,image/webp" style="display:none">
                     <div id="importFileName" class="import-file-name"></div>
@@ -195,9 +197,9 @@
             </select>
             <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
             <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
-            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-rotate</label>
             <label class="toggle-label" data-view="globe" title="The globe in space, with stars, instead of on the page"><input type="checkbox" id="chkSpace"><span class="toggle-track"><span class="toggle-thumb"></span></span>Stars</label>
-            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid lines</label>
             <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
                 <option value="30">30&deg;</option>
                 <option value="15" selected>15&deg;</option>
@@ -256,11 +258,11 @@
                     <option value="ice">Ice</option>
                 </optgroup>
                 <optgroup label="Land">
-                    <option value="tempRange">Temperature Range</option>
-                    <option value="rainShadow">Rain Shadow</option>
+                    <option value="tempRange">Temperature range</option>
+                    <option value="rainShadow">Rain shadow</option>
                     <option value="aridity">Aridity</option>
-                    <option value="growing">Growing Season</option>
-                    <option value="rainSeason">Rain Seasonality</option>
+                    <option value="growing">Growing season</option>
+                    <option value="rainSeason">Rain seasonality</option>
                 </optgroup>
             </select>
             <select id="climateSeason" aria-label="Season" title="The year's average, January or July">
@@ -283,11 +285,11 @@
             <option value="pressure">Pressure</option>
             <option value="upwelling">Upwelling</option>
             <option value="ice">Ice</option>
-            <option value="tempRange">Temperature Range</option>
-            <option value="rainShadow">Rain Shadow</option>
+            <option value="tempRange">Temperature range</option>
+            <option value="rainShadow">Rain shadow</option>
             <option value="aridity">Aridity</option>
-            <option value="growing">Growing Season</option>
-            <option value="rainSeason">Rain Seasonality</option>
+            <option value="growing">Growing season</option>
+            <option value="rainSeason">Rain seasonality</option>
         </optgroup>
         <option value="landheightmap">Heightmap</option>
         <option value="inspect" disabled hidden>Inspect layer</option>

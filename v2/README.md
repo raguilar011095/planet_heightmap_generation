@@ -31,15 +31,15 @@ the developer before the next begins.**
 ## Running it
 
 **Evolution** (`/evolution`, `evolution.html`) is the product page built on this engine — a side generator beside V1's
-Generate and Import Heightmap. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New World** (a new seed),
+Generate and Import Heightmap. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New world** (a new seed),
 the **World** section — folded to a one-line summary once a history is building: the seed (a number from 0 to
-2,147,483,645 — New World draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
+2,147,483,645 — New world draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
 it always did, so a link shared before builds its world again), starting continent size,
 history length, ending, the planet's **Temperature** (−30…+30 W/m²) and **Precipitation** (±50 %) — the climate's
 options (`greenhouseWm2`: a radiative forcing in the energy balance; `precipScale`: the evaporation in the rain budget — so the ice, winds, currents and rain answer them), for the preview climate and Add detail alike; they change the climate only, so
 previews are worked out again when shown and a detailed moment says it was made with the old ones (in the link: `greenhouse=`,
 `rain=`) — and **Quality** (Fast 20K plates / 160K terrain · Balanced 40K / 160K · Best 80K / 640K · Custom,
-which shows the two resolutions), with Build This World and **Load Planet…** (a planet file saved from the Export panel —
+which shows the two resolutions), with Build this world and **Load planet…** (a planet file saved from the Export panel —
 or drop one anywhere on the page) — then the **context card**, and **Stats**. The view's
 settings sit in the **view strip** above the layer tabs, folded behind the arrow at their left (`js/view-strip.js`, shared with Generate and Import): Globe |
 Map, the map's projection and centre, auto-rotate, grid, terrain colours, hillshade, and on a detailed moment the

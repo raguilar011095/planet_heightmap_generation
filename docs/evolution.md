@@ -17,8 +17,8 @@ The view, the climate and the export panel are shared by every tool: see [shared
 
 ## Start a world
 
-**New World** starts a fresh history from a random seed. **World** (folded to a one-line summary once a history is
-building) holds its settings, with **Build This World** and **Load Planet…**:
+**New world** starts a fresh history from a random seed. **World** (folded to a one-line summary once a history is
+building) holds its settings, with **Build this world** and **Load planet…**:
 
 | Setting | Range | Default | What it does |
 |---------|-------|---------|--------------|
@@ -129,7 +129,7 @@ described in [shared.md](shared.md#export).
 
 ## Keep a planet
 
-In Export, **Save planet** puts the whole history and its detailed moment in one `.orogen` file. **Load Planet…** (in
+In Export, **Save planet** puts the whole history and its detailed moment in one `.orogen` file. **Load planet…** (in
 World) opens it again later, or drop the file anywhere on the page, with no waiting for either. The file holds the
 history itself, so it opens exactly as it was saved, in any browser. **Extend history** on an opened planet first runs the
 history again from its seed (as long as it took to build), then goes on from where the file ends, if it comes out the

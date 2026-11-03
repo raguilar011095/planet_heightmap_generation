@@ -58,7 +58,9 @@
     </script>
     <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
     <link rel="manifest" href="site.webmanifest">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text x='50' y='50' dominant-baseline='central' text-anchor='middle' font-size='75'>🌍</text></svg>">
+    <link rel="icon" href="assets/brand/favicon.svg" type="image/svg+xml">
+    <link rel="icon" href="assets/brand/favicon-32.png" sizes="32x32" type="image/png">
+    <link rel="apple-touch-icon" href="assets/brand/apple-touch-icon.png">
     <script src="js/theme.js"></script>
     <link rel="stylesheet" href="tokens.css">
     <link rel="stylesheet" href="styles.css">
@@ -98,13 +100,13 @@
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
-        <button id="generate" title="Build a new world from a new random seed">New World</button>
+        <button id="generate" title="Build a new world from a new random seed">New world</button>
         <div id="buildStatus" class="evo-status" hidden></div>
         <details class="section is-plates" id="worldSection">
             <summary>World <span id="worldSummary" class="evo-world-sum"></span></summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Seed <span class="tip" data-tip="What a world is built from: a number up to 2,147,483,645 (New World picks one at random), or any word or phrase. The same seed and settings build the same history">?</span></label>
+                    <label>Seed <span class="tip" data-tip="What a world is built from: a number up to 2,147,483,645 (New world picks one at random), or any word or phrase. The same seed and settings build the same history">?</span></label>
                     <div id="seedRow"><input type="text" id="seedCode" placeholder="A number or a word" aria-label="World seed" autocomplete="off" spellcheck="false"></div>
                 </div>
                 <div class="cg">
@@ -160,8 +162,8 @@
                     </div>
                 </div>
                 <div id="worldPending" class="evo-card-note" hidden>The new plate resolution applies when you build this world</div>
-                <button id="rebuildBtn" class="evo-climate-btn" title="Build the world of this seed with these settings">Build This World</button>
-                <button id="loadBtn" class="evo-climate-btn evo-load-btn" title="Open a planet file (.orogen) saved from the Export panel: its history and detailed moment, as they were saved — no waiting for either">Load Planet…</button>
+                <button id="rebuildBtn" class="evo-climate-btn" title="Build the world of this seed with these settings">Build this world</button>
+                <button id="loadBtn" class="evo-climate-btn evo-load-btn" title="Open a planet file (.orogen) saved from the Export panel: its history and detailed moment, as they were saved — no waiting for either">Load planet…</button>
                 <input type="file" id="loadFile" accept=".orogen" hidden>
                 <div id="loadNote" class="evo-card-note" hidden></div>
             </div>
@@ -227,11 +229,11 @@
             <option value="pressure">Pressure</option>
             <option value="upwelling">Upwelling</option>
             <option value="ice">Ice</option>
-            <option value="tempRange">Temperature Range</option>
-            <option value="rainShadow">Rain Shadow</option>
+            <option value="tempRange">Temperature range</option>
+            <option value="rainShadow">Rain shadow</option>
             <option value="aridity">Aridity</option>
-            <option value="growing">Growing Season</option>
-            <option value="rainSeason">Rain Seasonality</option>
+            <option value="growing">Growing season</option>
+            <option value="rainSeason">Rain seasonality</option>
         </optgroup>
     </select>
     <div id="layerBar" class="layer-bar">
@@ -243,9 +245,9 @@
             </select>
             <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
             <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
-            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
+            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-rotate</label>
             <label class="toggle-label" data-view="globe" title="The globe in space, with stars, instead of on the page"><input type="checkbox" id="chkSpace"><span class="toggle-track"><span class="toggle-thumb"></span></span>Stars</label>
-            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid lines</label>
             <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
                 <option value="30">30&deg;</option>
                 <option value="15" selected>15&deg;</option>
@@ -317,11 +319,11 @@
                     <option value="ice">Ice</option>
                 </optgroup>
                 <optgroup label="Land">
-                    <option value="tempRange">Temperature Range</option>
-                    <option value="rainShadow">Rain Shadow</option>
+                    <option value="tempRange">Temperature range</option>
+                    <option value="rainShadow">Rain shadow</option>
                     <option value="aridity">Aridity</option>
-                    <option value="growing">Growing Season</option>
-                    <option value="rainSeason">Rain Seasonality</option>
+                    <option value="growing">Growing season</option>
+                    <option value="rainSeason">Rain seasonality</option>
                 </optgroup>
             </select>
             <div class="map-tabs" id="geologyTabs" hidden>
@@ -491,7 +493,7 @@
                 <p><strong>Drag</strong> the globe to turn it, <strong>scroll</strong> to zoom, and <span data-touch="tap">hover</span> the planet for its height, crust and climate.</p>
             </div>
             <div class="tutorial-step" data-step="2">
-                <h3>Add Detail</h3>
+                <h3>Add detail</h3>
                 <p>Found a moment you like? Press <strong>Add detail</strong>. It sculpts that moment again, much more finely: rivers and lakes, glaciers and fjords, sand seas, its own climate, and the <strong>Satellite</strong>, <strong>Geology</strong> and <strong>Food</strong> views. It takes from a few seconds to about a minute.</p>
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
@@ -523,12 +525,12 @@
             </div>
             <div class="tutorial-step" data-step="7">
                 <h3>Keep a Planet</h3>
-                <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load Planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
+                <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
                 <p>The file holds the history itself, so it opens exactly as it was saved, in any browser. <strong>Extend history</strong> on an opened planet first runs the history again here from its seed (as long as it took to build), and then goes on from where the file ends &mdash; if it comes out the same in this browser.<span data-touch=" On a phone, a detailed moment saved on a desktop is too big to show: the history opens, ready for you to add detail at the phone's size."></span></p>
             </div>
             <div class="tutorial-step" data-step="8">
                 <h3>Steer It</h3>
-                <p><strong>New World</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
+                <p><strong>New world</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
                 <p>At the end of a history, <strong>Extend history</strong> runs it on for as long as you like. The link in your address bar rebuilds the same history, so you can share it.</p>
             </div>
             <div class="tutorial-dots">

@@ -83,7 +83,7 @@ tokens.css              The style guide's design tokens (all pages): colours for
                         lines, sizes and shadows, and the fonts
 styles.css              Shared CSS (all pages); today's interface colours are the --ui-* variables at its top
 assets/fonts/           The three typefaces, self-hosted (woff2), and their licence (OFL.txt)
-assets/brand/           The World Orogen mark and the line icons
+assets/brand/           The World Orogen mark, the favicon and app icons (site.webmanifest), and the line icons
 robots.txt              Search engine crawler directives
 sitemap.xml             Sitemap for search engine indexing
 site.webmanifest        Web app manifest (metadata + theming)

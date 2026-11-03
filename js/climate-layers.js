@@ -16,11 +16,11 @@ export const CLIMATE_INSPECT = [
     { id: 'ice',         label: 'Ice',               seasonal: true },
     { id: 'temperature', label: 'Temperature',       seasonal: true },
     { id: 'precip',      label: 'Precipitation',     seasonal: true },
-    { id: 'tempRange',   label: 'Temperature Range', seasonal: false },
-    { id: 'rainShadow',  label: 'Rain Shadow',       seasonal: true },
+    { id: 'tempRange',   label: 'Temperature range', seasonal: false },
+    { id: 'rainShadow',  label: 'Rain shadow',       seasonal: true },
     { id: 'aridity',     label: 'Aridity',           seasonal: false },
-    { id: 'growing',     label: 'Growing Season',    seasonal: false },
-    { id: 'rainSeason',  label: 'Rain Seasonality',  seasonal: false },
+    { id: 'growing',     label: 'Growing season',    seasonal: false },
+    { id: 'rainSeason',  label: 'Rain seasonality',  seasonal: false },
 ];
 const BY_ID = Object.fromEntries(CLIMATE_INSPECT.map(l => [l.id, l]));
 export const SEASON_LABELS = { year: 'Year', jan: 'January', jul: 'July' };

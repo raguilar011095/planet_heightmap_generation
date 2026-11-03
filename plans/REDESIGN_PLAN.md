@@ -393,18 +393,28 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 
 ### R9: words, icons and the launch
 
-- [ ] **The favicon and app icons** from the mark (16 and 32 px, 180 for Apple, 192 and 512 in `site.webmanifest`),
-  replacing the emoji; the manifest's colours.
-- [ ] **The social image** (`preview.png`) and `assets/social.svg` in the new look; `theme-color` per theme.
-- [ ] **The 404 page.**
-- [ ] **The README's front door**, the guides in `docs/` (words and pictures), the three tutorials.
+- [x] **The favicon and app icons** from the mark (`assets/brand/`): `favicon.svg` (its ring ivory in a dark browser),
+  `favicon-32.png`, `apple-touch-icon.png` (180), `icon-192.png`, `icon-512.png` and a maskable 512 in
+  `site.webmanifest`, replacing the 🌍 emoji; the manifest's colours on Paper's ground.
+- [x] **The social image** (`preview.png`, 1200 × 630): the lockup, the eyebrow, "Believable worlds, *from the ground
+  up.*", the three tools named, Arden in its degree ring, the double rule; on Paper. (Evolution keeps its own,
+  `assets/studio/evolution.jpg`, a screenshot to replace when Evolution's look settles.) `theme-color` per theme (R1).
+- [x] **The 404 page** on the tokens: the mark, a gold eyebrow, "This planet doesn't *exist yet.*", Build a new world
+  and the Studio.
+- [x] **Words:** the rest of the labels in sentence case (Auto-rotate, Grid lines, New world, Build this world, Load
+  planet, Choose image, Temperature range, Rain shadow, Growing season, Rain seasonality, Add detail) in the pages, the
+  layer lists, the export list, Evolution's messages, the guides, `v2/README.md` and `llms.txt`.
+- [x] **The README's front door:** the files (R0–R9); its words needed no other change.
 - [ ] **What's New:** ask the owner; if yes, bump `VERSION` in `initWhatsNew()` (`js/main.js`).
-- [ ] **SEO and AISEO** (`generate.html`'s head, JSON-LD and hidden block; `llms.txt`) where the words change;
-  `sitemap.xml`'s dates.
-- [ ] **The release:** the outgoing release archived at `/v/<major>.<minor>/` as usual; the version per open question 3.
+- [x] **SEO and AISEO:** no feature claim changed (the theme switch and Stars are not headline features), so the meta
+  tags, the JSON-LD and `llms.txt`'s claims stand.
+- [ ] `sitemap.xml`'s dates, at the release.
+- [ ] **The release:** the outgoing release archived at `/v/<major>.<minor>/` as usual; the version per open question 3
+  (3.0 or 2.x) is the owner's.
 - [ ] **The announcement** is HQ's work, in its own workspace.
 - **Verify:**
-  - [ ] Every rule in `CLAUDE.md`'s Key Rules checked.
+  - [x] Every icon, the manifest and the preview served; the 404 page on Paper; `check-style.mjs` passes.
+  - [ ] Every rule in `CLAUDE.md`'s Key Rules checked at the release.
   - [ ] A real phone; Firefox and Safari as well as Chrome.
 
 ## Every phase is done when
@@ -429,4 +439,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3): PR #101.
 - **2026-11-03:** R5 built and checked, on `redesign-r5` (stacked on R4): PR #104.
 - **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5): PR #107.
-- **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`.
+- **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`: PR #108.
+- **2026-11-03:** R9 built and checked (all but What's New, the sitemap and the release, which wait for the owner), on `redesign-r9` (stacked on R7 and R8).

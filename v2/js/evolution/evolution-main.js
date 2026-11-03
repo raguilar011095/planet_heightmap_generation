@@ -1,5 +1,5 @@
 // Evolution — World Orogen's tectonic-history generator, a side page beside Generate and Import Heightmap
-// (plans/V2_FULL_PLANET_PLAN.md). Build New World runs the history in a worker and shows the planet AS IT BUILDS (each
+// (plans/V2_FULL_PLANET_PLAN.md). Build New world runs the history in a worker and shows the planet AS IT BUILDS (each
 // frame drawn as it arrives, rivers and all); then the whole history is a timeline to scrub and play. Three settings
 // (starting continent size, history length, where it should end) and two resolutions (plates, terrain) — "way way fewer
 // settings" than the lab (developer). The drawing is the lab's: a shaded equirectangular texture on a globe (fast to
@@ -143,9 +143,9 @@ document.addEventListener('click', e => {
     else if (tipFor) hideTip();
 }, true);
 $('sidebarContent').addEventListener('scroll', hideTip, { passive: true });
-ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); build(); });   // (New World: a new seed)
+ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); build(); });   // (New world: a new seed)
 $('rebuildBtn').addEventListener('click', () => build());                                                         // (Settings: this seed, these settings)
-// Load Planet…: a planet file saved from the Export panel (a phone's picker may not know .orogen: there it shows every file)
+// Load planet…: a planet file saved from the Export panel (a phone's picker may not know .orogen: there it shows every file)
 if (IS_TOUCH) $('loadFile').removeAttribute('accept');
 $('loadBtn').addEventListener('click', () => $('loadFile').click());
 $('loadFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) loadPlanet(f); });
@@ -449,7 +449,7 @@ async function replayHistory(b) {
         b.replay = null;
         if (differs) {
             b.noReplay = true;
-            b.doneText = `Run again in this browser, this history comes out otherwise from ${differs.time.toFixed(0)} Myr — another browser, or an earlier World Orogen, built it — so it is here to view, not to extend. Build This World builds it again here, to extend it.`;
+            b.doneText = `Run again in this browser, this history comes out otherwise from ${differs.time.toFixed(0)} Myr — another browser, or an earlier World Orogen, built it — so it is here to view, not to extend. Build this world builds it again here, to extend it.`;
             console.info(`[evolution] history run again: it differs from the file's at ${differs.time.toFixed(0)} Myr`);
         } else if (err.name !== 'AbortError') { b.doneText = `Could not run the history again: ${String(err.message).split('\n')[0]}`; console.error(err); }
         status(b.doneText, differs ? null : 1);
@@ -497,7 +497,7 @@ async function setTerrainDetail() {
 
 // ── a planet file opened (plans/V2_SAVE_LOAD_PLAN.md): its history and its detailed moment as they were saved — the
 // plates exactly so, in any browser — their terrain, previews and pictures drawn again here, with today's code. The
-// history is to view, not to extend: the simulation that made it is not in the file (Build This World builds it again) ──
+// history is to view, not to extend: the simulation that made it is not in the file (Build this world builds it again) ──
 const mb = n => (n / 2 ** 20).toFixed(0);
 // (a phone holds a detailed moment of its own size — ~60 MB at 2048 px — not a desktop's 4096 or 8192 px ones)
 const DETAIL_BYTES = IS_TOUCH ? 150e6 : Infinity;
@@ -1148,7 +1148,7 @@ function updateClimateUi() {
     const chip = $('climateChip'), shown = frame ? finishedShown(frame) : null, t = frame ? frame.time.toFixed(0) : '';
     let text = null, act = null;
     if (frame && GEOLOGY_LAYERS.has(view.layer) && b.noGeology) {
-        text = 'This planet was saved before Evolution kept a record of its rocks — Build This World (under World) builds its history again with one, to see its geology';
+        text = 'This planet was saved before Evolution kept a record of its rocks — Build this world (under World) builds its history again with one, to see its geology';
     } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
         const fjob = b.finishJob, again = !!fin && GEOLOGY_LAYERS.has(view.layer);
         const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Food views come';
