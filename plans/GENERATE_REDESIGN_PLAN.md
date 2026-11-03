@@ -708,6 +708,25 @@ The phase gate applies as always. One phase at a time. Each has:
       cell, so no sim cell's outline shows.
   - A single supercontinent's walled-coast guard is 80 % (74 % now: its long rim, much of it active, as Pangaea's was).
 
+### G4b: The past along the pieces (owner, 2026-11-03)
+- **The owner's words:** "The noise and mountains still look a bit too random, i think it needs to be more based on the
+  internal plate boundaries." This reverses decision 11's "seams … never along the piece grid" for the past.
+- **Built 2026-11-03** (`present/past.js`); `check-present.mjs` 225/225.
+  - **The terranes are the pieces.** A continent's craton cores are its pieces deepest inland, one per 12 Mkm², at most
+    4, at least a piece apart. Their interiors are the cratons: 160 km in from the piece's edges and 400 km from the
+    coast.
+  - The other pieces dock outward from the cores piece by piece (a Dijkstra between the pieces' middles), one ring per
+    650–950 km, each 280–450 Myr younger. Each docks along its border with the pieces already in: a Ural-type welt on
+    the pieces' outline.
+  - The cores weld where their growths meet, along the pieces' edges between them (the major sutures).
+  - The noise is gone from the seams (no more noisy ellipses or noise-grown rings). The swells' noise is down from 0.15
+    to 0.05 km; their height now follows the seams (0.3 km over 500 km along the pieces' seams, 0.14 km floor). Past
+    seams reach within 300 km of the coast (550 before).
+  - The fine relief is full along the fronts (every piece edge, today's and the past's) and falls to 35 % far from any
+    (e-folding 500 km); its patchiness is down from ±50 % to ±20 %.
+  - **Measured:** land median 0.35–0.58 km, 15–25 % above 1 km; walled coasts 40–50 % on the default planets (48–56 %
+    before), 67 % on the supercontinent.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

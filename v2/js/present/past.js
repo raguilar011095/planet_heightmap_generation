@@ -7,11 +7,12 @@
 // a younger belt overprints an older one into its prev* layer exactly as in Evolution's history; between events the land
 // wears down (uplift, crests and root, each on its own clock), so an ancient orogen is a low, grainy range, a middle-aged
 // one still stands (the Urals) and a young one is high.
-//   1. Terranes, not pieces: each landmass's craton cores (elongated, with a straight rifted edge or two, kept clear of
-//      the coast), and around them accreted terranes in rings, younger outward — their seams wandering through a noise of
-//      their own, never along the piece grid.
-//   2. The events: cores welding where their growth fronts meet (a major suture: a collision belt, a plateau if young),
-//      ring by ring the terranes docking (Ural-type welts), each at its age.
+//   1. The terranes are the pieces (G4b, owner 2026-11-03: "The noise and mountains still look a bit too random, i
+//      think it needs to be more based on the internal plate boundaries"): each landmass's craton cores are its pieces
+//      deepest inland (their interiors the cratons), and the rest dock outward from them piece by piece, younger outward.
+//   2. The events: each piece docking along its border with the pieces in before it (a Ural-type welt on the pieces'
+//      outline), at its age; the cores welding where their growths meet (a major suture: a collision belt, a plateau if
+//      young).
 //   3. Swells along the seams (the worn highlands round an old range), lowlands between, the cratons calm.
 // Today's belts (present/belts.js) then overprint all of it.
 
@@ -31,9 +32,11 @@ const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
  * @param {Object} L  the layout   @param {Uint8Array} land  the land per sim cell (the coast as drawn)
  * @param {import('../tectonics/model/crust.js').CrustRaster} crust   @param {Object} config  the tectonic config
  * @param {Object[]} [extra]  more past collisions to replay with the rest (G3b: the inner seams, present/seams.js)
+ * @param {{cellP: Int32Array, crustLand: Uint8Array}} pieces  each sim cell's piece, and whether its piece is land (as
+ *   edited): the terranes are the pieces (G4b)
  * @returns {{events: Object[], terrane: Int32Array, seamKm: Float32Array, cores: number}}
  */
-export function presentPast(L, land, crust, config, cfg = PRESENT, extra = []) {
+export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], pieces) {
     const { sim, xyz, seed } = L, n = sim.numCells, { adjOffset, adjList } = sim;
     const kmOf = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(at(sim.xyz, a), at(sim.xyz, b)))));
     const noise = new FastNoise((seed ^ 0x9a57) >>> 0);
@@ -56,6 +59,21 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = []) {
     let nextTerrane = 1, coreCount = 0;
     const seamMajor = new Uint8Array(n), seamRing = new Uint8Array(n);
 
+    // each land cell's piece (as edited); a land cell carried out onto an ocean piece's edge (present/coast.js) the land
+    // piece's beside it
+    const { cellP, crustLand } = pieces, tp = new Int32Array(n).fill(-1);
+    {
+        const q = [];
+        for (let c = 0; c < n; c++) if (land[c] && crustLand[c]) { tp[c] = cellP[c]; q.push(c); }
+        for (let h = 0; h < q.length; h++) {
+            const c = q[h];
+            for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && tp[nb] < 0) { tp[nb] = tp[c]; q.push(nb); } }
+        }
+    }
+    // how far in each land cell lies from the nearest edge between two pieces (km over the land)
+    const atEdge = (c) => { if (!land[c]) return false; for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && tp[nb] !== tp[c]) return true; } return false; };
+    const inFromEdge = dijkstra(sim, atEdge, (c) => land[c] === 1, kmOf);
+
     masses.forEach((cells, mi) => {
         const areaKm2 = cells.length * cellKm2;
         const rng = makeRng((seed ^ 0x7a57) + mi * 7919);
@@ -65,112 +83,88 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = []) {
             for (const c of cells) terrane[c] = id;
             return;
         }
-        // ── 1. craton cores: as many as its size calls for, farthest apart in its interior ──
-        const k = Math.max(1, Math.min(cfg.maxCores, Math.round(areaKm2 / cfg.coreAreaKm2)));
-        const centres = [];
+        const inMass = (c) => mass[c] === mi;
+        // its pieces: their land cells here, how deep inland each lies, which meet which
+        const pcs = new Map();
+        for (const c of cells) { const p = tp[c]; if (p < 0) continue; let e = pcs.get(p); if (!e) pcs.set(p, e = { cells: [], inland: 0, nbr: new Set() }); e.cells.push(c); e.inland += toSea[c]; }
+        for (const c of cells) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (inMass(nb) && tp[nb] !== tp[c] && tp[nb] >= 0 && tp[c] >= 0) pcs.get(tp[c]).nbr.add(tp[nb]); }
+        const list = [...pcs.keys()].sort((a, b) => a - b);
+        const inland = (p) => pcs.get(p).inland / pcs.get(p).cells.length;
+        const hops = (from) => { const d = new Map([[from, 0]]), q = [from]; for (let h = 0; h < q.length; h++) for (const j of pcs.get(q[h]).nbr) if (!d.has(j)) { d.set(j, d.get(q[h]) + 1); q.push(j); } return d; };
+        // ── 1. craton cores: the pieces deepest inland, as many as its size calls for, at least a piece apart ──
+        const k = Math.max(1, Math.min(cfg.maxCores, list.length, Math.round(areaKm2 / cfg.coreAreaKm2)));
+        const jitter = new Map(list.map(p => [p, 0.85 + 0.3 * rng()]));       // (not always the very deepest interior)
+        const coreP = [];
         for (let i = 0; i < k; i++) {
+            const far = coreP.map(hops);
             let best = -1, bs = -1;
-            for (const c of cells) {
-                if (toSea[c] < cfg.cratonCoastKm) continue;
-                let s = toSea[c];
-                for (const o of centres) s = Math.min(s, 0.6 * kmOf(c, o));
-                s *= 0.85 + 0.3 * rng();                         // (not always the very deepest interior)
-                if (s > bs) { bs = s; best = c; }
+            for (const p of list) {
+                if (coreP.includes(p) || far.some(d => (d.get(p) ?? 99) < 2)) continue;
+                const s = inland(p) * jitter.get(p);
+                if (s > bs) { bs = s; best = p; }
             }
             if (best < 0) break;
-            centres.push(best);
+            coreP.push(best);
         }
-        if (!centres.length) centres.push(cells.reduce((a, c) => (toSea[c] > toSea[a] ? c : a), cells[0]));
-        // each core's shape: an ellipse (aspect 1.2–2.1, its long axis random) cut by a straight rifted edge or two,
-        // its size its share of ~cratonShare of the continent; its edge wandering ±cratonEdgeKm
-        const weights = centres.map(() => 0.6 + rng()), wsum = weights.reduce((a, b) => a + b, 0);
-        const cores = centres.map((c, i) => {
-            const p = at(xyz, c), areaCore = cfg.cratonShare * areaKm2 * weights[i] / wsum;
-            const aspect = 1.2 + 0.9 * rng(), r = Math.sqrt(areaCore / (Math.PI * aspect));
-            // a tangent basis at the centre, turned by a random angle
-            const e1 = tangent(p), e2 = crossV(p, e1), th = 2 * Math.PI * rng();
-            const ax = [e1[0] * Math.cos(th) + e2[0] * Math.sin(th), e1[1] * Math.cos(th) + e2[1] * Math.sin(th), e1[2] * Math.cos(th) + e2[2] * Math.sin(th)];
-            const ay = crossV(p, ax);
-            const cuts = [];
-            for (let j = 0, m = 1 + Math.floor(rng() * 2); j < m; j++) { const a = 2 * Math.PI * rng(); cuts.push({ dir: [Math.cos(a), Math.sin(a)], at: (0.55 + 0.3 * rng()) * r }); }
-            return { centre: c, p, ax, ay, a: r * Math.sqrt(aspect), b: r / Math.sqrt(aspect), cuts, age: cfg.coreAgeMyr[0] + (cfg.coreAgeMyr[1] - cfg.coreAgeMyr[0]) * rng() };
-        });
-        for (const c of cells) {
-            if (toSea[c] < cfg.cratonCoastKm) continue;
-            const q = at(xyz, c);
-            for (let i = 0; i < cores.length; i++) {
-                const K = cores[i], d = [q[0] - K.p[0], q[1] - K.p[1], q[2] - K.p[2]];
-                const x = dot(d, K.ax) * R, y = dot(d, K.ay) * R;
-                if (dot(q, K.p) < 0) continue;
-                let sd = Math.hypot(x / K.a, y / K.b) - 1;            // < 0 inside the ellipse
-                for (const cut of K.cuts) sd = Math.max(sd, (x * cut.dir[0] + y * cut.dir[1] - cut.at) / K.b);
-                sd += cfg.cratonEdgeKm / K.b * nAt(c, 700, 11 * i);
-                if (sd < 0) { crust.type[c] = CrustType.CRATON; coreOf[c] = i; break; }
-            }
-        }
-        // (a core that came out empty — too near the coast everywhere — still seeds its growth at its centre)
-        cores.forEach((K, i) => { if (coreOf[K.centre] < 0) coreOf[K.centre] = i; });
-
-        // ── 2. growth: every cell's core (the nearest, through a noise so the seams wander), and how far out from it ──
-        const inMass = (c) => mass[c] === mi;
-        const lab = new Int32Array(n).fill(-1), dist = new Float64Array(n).fill(Infinity), heap = new MinHeap(1024);
-        for (const c of cells) if (coreOf[c] >= 0) { lab[c] = coreOf[c]; dist[c] = 0; heap.push(0, c); }
+        const coreAge = coreP.map(() => cfg.coreAgeMyr[0] + (cfg.coreAgeMyr[1] - cfg.coreAgeMyr[0]) * rng());
+        // ── 2. the rest docked outward from the cores, piece by piece (a Dijkstra in km between their middles) ──
+        const mid = new Map(list.map(p => { const s = [0, 0, 0]; for (const c of pcs.get(p).cells) { s[0] += xyz[3 * c]; s[1] += xyz[3 * c + 1]; s[2] += xyz[3 * c + 2]; } const l = Math.hypot(...s); return [p, [s[0] / l, s[1] / l, s[2] / l]]; }));
+        const pDist = new Map(), pCore = new Map(), heap = new MinHeap(64);
+        coreP.forEach((p, i) => { pDist.set(p, 0); pCore.set(p, i); heap.push(0, p); });
         while (heap.size) {
-            const c = heap.pop(), dc = heap.lastKey;
-            if (dc > dist[c]) continue;
-            for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
-                const nb = adjList[j];
-                if (!inMass(nb)) continue;
-                const nd = dc + kmOf(c, nb) * (1 + cfg.seamWander * (1 + nAt(nb, cfg.seamWanderKm, 3.3)));
-                if (nd < dist[nb]) { dist[nb] = nd; lab[nb] = lab[c]; heap.push(nd, nb); }
+            const p = heap.pop(), dp = heap.lastKey;
+            if (dp > pDist.get(p)) continue;
+            for (const j of pcs.get(p).nbr) {
+                const nd = dp + R * Math.acos(Math.max(-1, Math.min(1, dot(mid.get(p), mid.get(j)))));
+                if (nd < (pDist.get(j) ?? Infinity)) { pDist.set(j, nd); pCore.set(j, pCore.get(p)); heap.push(nd, j); }
             }
         }
-        // rings: younger outward, each its own terrane; the craton itself the first
+        // (a piece no core reached — cut off by a sea the crust opened — is its own young terrane)
         const ringKm = cfg.ringKm[0] + (cfg.ringKm[1] - cfg.ringKm[0]) * rng();
         const ringStep = cfg.ringStepMyr[0] + (cfg.ringStepMyr[1] - cfg.ringStepMyr[0]) * rng();
-        const ids = new Map();
-        for (const c of cells) {
-            const i = Math.max(0, lab[c]);
-            const ring = crust.type[c] === CrustType.CRATON ? 0 : 1 + Math.floor(Math.max(0, dist[c] + cfg.ringWanderKm * nAt(c, 900, 7.7)) / ringKm);
-            const key = i * 64 + ring;
-            if (!ids.has(key)) ids.set(key, nextTerrane++);
-            terrane[c] = ids.get(key); coreOf[c] = i; ringOf[c] = ring;
+        const ageOf = new Map(), ringOfP = new Map();
+        for (const p of list) {
+            if (!pCore.has(p)) { ageOf.set(p, cfg.youngestRingMyr); ringOfP.set(p, 99); continue; }
+            const ring = coreP.includes(p) ? 0 : 1 + Math.floor(pDist.get(p) / ringKm);
+            ringOfP.set(p, ring);
+            ageOf.set(p, ring ? Math.max(cfg.youngestRingMyr, coreAge[pCore.get(p)] - ring * ringStep * (0.85 + 0.3 * rng())) : coreAge[pCore.get(p)]);
         }
-        coreCount += cores.length;
+        // the cratons: a core piece's interior, cratonRimKm in from its edges and cratonCoastKm from the sea
+        for (const p of coreP) for (const c of pcs.get(p).cells) if (inFromEdge[c] >= cfg.cratonRimKm && toSea[c] >= cfg.cratonCoastKm) crust.type[c] = CrustType.CRATON;
+        for (const p of list) {
+            const id = nextTerrane++;
+            for (const c of pcs.get(p).cells) { terrane[c] = id; coreOf[c] = pCore.get(p) ?? -1; ringOf[c] = ringOfP.get(p); }
+        }
+        coreCount += coreP.length;
         // ── the events ──
-        // (a) each ring docking onto what was there, at its age: a Ural-type welt along its inner seam
-        const maxRing = Math.max(...cells.map(c => ringOf[c]));
-        for (let ring = 1; ring <= maxRing; ring++) for (let i = 0; i < cores.length; i++) {
-            const age = Math.max(cfg.youngestRingMyr, cores[i].age - ring * ringStep * (0.85 + 0.3 * rng()));
-            // a ring docked along the margin that was active then — one side of the core, not all round it (a closed
-            // oval of mountains round every craton is the "ring" look the owner disliked in Evolution): only the arc of
-            // its seam within ±ringArcDeg/2 of a bearing drawn for it
-            const K = cores[i], bearing = 2 * Math.PI * rng(), halfArc = cfg.ringArcDeg * Math.PI / 360;
+        // (a) each piece docking, at its age, along its border with the pieces of its core already in (nearer the core):
+        // a Ural-type welt on the piece's edge — the old ranges run along the pieces' outlines
+        for (const p of list) {
+            if (!pDist.has(p) || coreP.includes(p)) continue;
             const front = [];
-            for (const c of cells) {
-                // (a seam that runs near today's coast raised no welt there: a passive margin rifted across the old
-                // belts, its rim worn and buried under the coastal plain — the welts stand inland)
-                if (ringOf[c] !== ring || coreOf[c] !== i || toSea[c] < cfg.pastCoastKm) continue;
-                const q = at(xyz, c), d = [q[0] - K.p[0], q[1] - K.p[1], q[2] - K.p[2]];
-                let off = Math.atan2(dot(d, K.ay), dot(d, K.ax)) - bearing;
-                off = Math.atan2(Math.sin(off), Math.cos(off));
-                if (Math.abs(off) > halfArc) continue;
-                for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) { const nb = adjList[j]; if (inMass(nb) && coreOf[nb] === i && ringOf[nb] === ring - 1) { front.push(c); break; } }
+            for (const c of pcs.get(p).cells) {
+                if (toSea[c] < cfg.pastCoastKm) continue;
+                for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
+                    const nb = adjList[j], q = tp[nb];
+                    if (inMass(nb) && q !== p && q >= 0 && pCore.get(q) === pCore.get(p) && (pDist.get(q) ?? Infinity) < pDist.get(p)) { front.push(c); break; }
+                }
             }
             if (front.length < 2) continue;
             for (const c of front) seamRing[c] = 1;
             const work = cfg.ringWorkKm[0] + (cfg.ringWorkKm[1] - cfg.ringWorkKm[0]) * rng();
-            events.push({ age, kind: 'ring', type: OrogenyType.URAL, side: BeltSide.NONE, front, work, allow: inMass, strength: 1 });
+            events.push({ age: ageOf.get(p), kind: 'ring', type: OrogenyType.URAL, side: BeltSide.NONE, front, work, allow: inMass, strength: 1 });
         }
-        // (b) cores welding where their growth fronts meet: the major sutures — the last pair to meet the youngest
+        // (b) the cores welding where their growths meet — along the pieces' edges between them: the major sutures, the
+        // last pair to meet the youngest
         const pairs = new Map();
         for (const c of cells) for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
             const nb = adjList[j];
-            if (!inMass(nb) || coreOf[nb] === coreOf[c] || nb < c) continue;
+            if (!inMass(nb) || nb < c || coreOf[nb] < 0 || coreOf[c] < 0 || coreOf[nb] === coreOf[c]) continue;
             const key = Math.min(coreOf[c], coreOf[nb]) * 64 + Math.max(coreOf[c], coreOf[nb]);
             if (!pairs.has(key)) pairs.set(key, []);
             pairs.get(key).push(c, nb);
         }
+        const weights = coreP.map(p => pcs.get(p).cells.length);
         const pairList = [...pairs.entries()].sort((a, b) => a[0] - b[0]);
         pairList.forEach(([key, seam], j) => {
             const last = j === pairList.length - 1;
@@ -253,9 +247,3 @@ function dijkstra(mesh, isSource, canEnter, kmOf) {
     }
     return d;
 }
-function tangent(p) {
-    const ref = Math.abs(p[1]) < 0.9 ? [0, 1, 0] : [1, 0, 0];
-    const t = crossV(ref, p), l = Math.hypot(t[0], t[1], t[2]);
-    return [t[0] / l, t[1] / l, t[2] / l];
-}
-function crossV(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }

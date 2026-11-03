@@ -59,6 +59,8 @@ export function addFineRelief(heightKm, xyz, edgeKm, seed, terrainCfg, share, gr
             dKm = weights[o3] * frontKm[cells[o3]] + weights[o3 + 1] * frontKm[cells[o3 + 1]] + weights[o3 + 2] * frontKm[cells[o3 + 2]];
             if (Number.isFinite(dKm)) w = cfg.grainShare * Math.exp(-dKm / cfg.grainKm);
         }
+        // (and strongest along the fronts — the pieces' edges, today's and the past's — calmer away from them: G4b)
+        const near = grain ? cfg.reliefFarShare + (1 - cfg.reliefFarShare) * Math.exp(-(Number.isFinite(dKm) ? dKm : 1e9) / cfg.reliefFrontKm) : 1;
         let v = 0;
         for (let o = 0; o < F.length; o++) {
             const f = F[o];
@@ -70,6 +72,6 @@ export function addFineRelief(heightKm, xyz, edgeKm, seed, terrainCfg, share, gr
             }
             v += A[o] * (r * r - m);
         }
-        heightKm[c] = h + share * vary * h * smooth(lo, hi, h) * v;
+        heightKm[c] = h + share * vary * near * h * smooth(lo, hi, h) * v;
     }
 }

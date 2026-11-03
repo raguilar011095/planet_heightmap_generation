@@ -56,7 +56,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const config = presentTectonics(), crust = newCrust(L, land, sea);
     // (G3b: the inner seams — where two land pieces of one plate meet — replayed with the past, or sagged)
     const seams = pieceSeams(L, P, land, crustLand);
-    const past = presentPast(L, land, crust, config, PRESENT, seams.events);
+    const past = presentPast(L, land, crust, config, PRESENT, seams.events, { cellP: P.graph.cellP, crustLand });
     sagSeams(L, land, crust, seams.sags);
     past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
     ms.past = clock() - t0; t0 = clock();
