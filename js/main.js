@@ -42,7 +42,7 @@ function checkStale() {
         btn.classList.add('stale');
         btn.textContent = 'Rebuild';
     } else {
-        btn.textContent = 'Build New World';
+        btn.textContent = 'Build new world';
     }
 }
 
@@ -785,7 +785,7 @@ setupEditMode();
         const skipClimate = shouldSkipClimate();
         editRecomputeViaWorker(() => {
             btn.disabled = false;
-            btn.textContent = 'Build New World';
+            btn.textContent = 'Build new world';
             btn.classList.remove('generating');
             hoverEl.style.display = 'none';
             document.dispatchEvent(new CustomEvent('plates-edited'));

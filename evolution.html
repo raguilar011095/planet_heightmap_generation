@@ -67,6 +67,7 @@
 </head>
 <body>
     <nav id="topNav">
+        <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
         <a href="/generate" class="nav-tab">Generate</a>
         <a href="/import" class="nav-tab">Import<span class="nav-long">&nbsp;Heightmap</span></a>
@@ -89,8 +90,8 @@
         <div id="sheetLine" class="evo-sheet-line"></div>
         <div id="sidebarHeader">
             <div>
-                <h2>World Orogen</h2>
-                <div class="sub">Evolution — a planet's tectonic history</div>
+                <h2>Evolution</h2>
+                <div class="sub">A planet with a past</div>
                 <div class="evo-beta-note">Best on a desktop for now</div>
             </div>
             <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
@@ -99,7 +100,7 @@
         <div id="viewStripSlot"></div>
         <button id="generate" title="Build a new world from a new random seed">New World</button>
         <div id="buildStatus" class="evo-status" hidden></div>
-        <details class="section" id="worldSection">
+        <details class="section is-plates" id="worldSection">
             <summary>World <span id="worldSummary" class="evo-world-sum"></span></summary>
             <div class="section-body">
                 <div class="cg">

@@ -6,7 +6,7 @@ are in [generate.md](generate.md), [import.md](import.md) and [evolution.md](evo
 
 ## Navigation
 
-A top navigation bar connects the pages:
+A top navigation bar connects the pages. It opens with the World Orogen mark and name, which lead home to the Studio; the current page's tab is underlined in gold, and a double rule runs under the bar:
 - **Studio** (`/`, the home page) — the three tools side by side, what each is for, and curated worldbuilding resources (blogs, YouTube channels, other tools); a Generate link from before Generate moved (`/#code`) goes on to `/generate#code`
 - **Generate** (`/generate`) — procedural planet generation with tectonic plates, erosion, and climate
 - **Import** (`/import`) — import your own equirectangular B&W heightmap, view it on a 3D globe, and run climate simulation. Black (0) = ocean, brighter = higher elevation. Supports PNG, JPEG, and WebP.
@@ -49,7 +49,7 @@ Every tool runs the same climate (`v2/js/climate/`; Generate and Import run it t
 
 ## Export
 
-Click **Export Map** at the foot of the sidebar (on Evolution, **Export** on a detailed moment) to open the export panel (`v2/js/view/export-panel.js`; Generate's and Import's maps in `js/export-generate.js`):
+Click **Export map** at the foot of the sidebar (on Evolution, **Export** on a detailed moment) to open the export panel (`v2/js/view/export-panel.js`; Generate's and Import's maps in `js/export-generate.js`):
 
 - **Width** — 1024 to 65536 px (8192 on phones); the height follows the projection (width / 2 for equirectangular). Large maps are rendered in tiles. Evolution's maps go up to 16,384 px.
 - **Projection** — equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic hemispheres, azimuthal equidistant (polar) and Van der Grinten; each with its own options where it has them (Mercator's max latitude, Winkel's standard parallel, the azimuthals' centre latitude and extent, one or two orthographic hemispheres). Equirectangular is the plain 2 : 1 map that re-imports; the others are drawn from it pixel by pixel through the projection's inverse (`v2/js/view/projections.js`), colours and classes by the nearest pixel, numbers bilinearly, the outside transparent.

@@ -193,30 +193,45 @@ artifact's Colors and Typography; the **6 · Hybrid II · tool** boards, light a
 
 References: **Page patterns: A tool**; the components Masthead, Logo, Tabs, Segmented, Slider, Field, Button,
 SectionHead, LegendCard, RampKey, Readout and Tag; the **6 · Hybrid II · tool, map** and **tool, globe** boards;
-`plans/VIEW_UI_PLAN.md` for what stays where.
+`plans/VIEW_UI_PLAN.md` for what stays where. The pieces are shared by all three tools, so Evolution gets them too.
 
-- [ ] **The masthead:** the lockup (the mark at 34–36 px, the name at 26 px); the tools with the current one underlined
-  in `gold`; the follow and Ko-fi links quieter; Inspect, Export and the theme on the right; the page's one double rule.
-- [ ] **The control panel:** section heads with their layer bars (Shape your world, Terrain sculpting, Climate); sliders
-  as `og-slider` (the name in EB Garamond, the value in Cormorant); the `?` tips restyled and still above their trigger on
-  phones.
-- [ ] **The buttons:** Build new world is the one primary (`accent`); Rebuild and Regenerate are secondary, with layer
-  dots; their states (stale, ready, building) keep their meaning. Rebuild's ready state must stay as obvious as today
-  (plate editing is a protected strength). The phone's Rebuild and edit-mode buttons follow.
-- [ ] **The planet code** as an `og-field`, with its error in words and the `--ui-error` border on a token.
-- [ ] **The layer bar and Climate's row** as `og-tabs` with layer dots; **the view strip** as segmented controls
-  (Globe | Map, Year | Jan | Jul) and quiet selects; its fold arrow kept.
-- [ ] **The legend card** as `og-legend` (at most eight rows; Köppen grouped A to E); ramp keys as `og-ramp`.
-- [ ] **The Inspect readout** as `og-readout`: everything at one place, with the view's own labels and real values.
-- [ ] **The export panel, the tutorial, What's New, the build overlay and its errors, the "can't run" card:** surfaces,
-  type and buttons on the tokens; no layout change.
-- [ ] **Phones:** the bottom sheet, tabs that scroll sideways, the key folding into the sheet, 44 px everywhere.
+- [x] **The masthead:** the lockup at its start on every page (the mark at 30 px, the name in Cormorant at 22 px, home
+  to the Studio); the tools as tabs with the current one in ink and underlined in gold; the follow and Ko-fi links in
+  `muted`; the theme switch at the end; the page's one double rule under it. 56 px on the desktop (`--nav-h`, which
+  everything placed under it follows); 36 px on phones, where the lockup gives way to the tools.
+- [x] **The control panel:** 300 px (`--size-panel`; Import's had grown to 590 px around one long hint); titled with
+  the tool and its line from VISION.md's "The way in" ("Generate · A planet in seconds, shaped by hand"); section heads
+  in Cormorant with their layer's bar (Shape your world: plates; Terrain sculpting and Import your heightmap: land;
+  Climate: climate; Inspect: rock) and a chevron; sliders with the name in EB Garamond and the value in Cormorant
+  (lining figures); the `?` tips on `surface`, in EB Garamond.
+- [x] **The buttons:** Build new world is the one primary (`accent`, 50 px); Reapply, the planet code's buttons and
+  Export map are secondaries on `surface`; a ready Reapply is lit in the accent; a build in progress is `chip-track`.
+  **Rebuild (n)** after a plate edit is an accent pill with a soft ring, under the readout (they used to overlap).
+- [x] **The planet code** as a field on `surface`; its error in the accent.
+- [x] **The layer tabs** with a gold underline and a dot for each layer's colour (Terrain and Heightmap: land; Climate;
+  Plates; Evolution's Geology: rock; Food); **Climate's row** and the view strip's choices as segmented controls
+  (`chip-track`, the chosen one on `chip-on` with `shadow-chip`); the strip and its fold arrow on the panel's ground.
+- [x] **The legend card** on `surface` with `shadow-card`; **the readout** (`#hoverInfo`) the same, its values in EB
+  Garamond and its labels in small capitals.
+- [x] **The export panel, the tutorial, What's New, the survey, the build overlay:** cards on `surface` with
+  `radius-xl` and `shadow-card`, titles in Cormorant, the step text in EB Garamond, the buttons as above.
+- [x] **Toggles:** the accent when on (as the guide's checkboxes), a white thumb on a soft track when off.
+- [x] **Focus:** a 2 px `focus` ring on every button, link, select, summary and input reached by keyboard, toggles too.
+- [x] **Words:** Build new world, Shape your world, Terrain sculpting, Import your heightmap, Export map (sentence case),
+  in the pages, the tutorial, the JS that relabels the button, and the guides. Generate's guide no longer says the
+  button changes colour: its words say what it will do.
+- [x] **Phones:** the 36 px masthead; section heads 44 px tall; the bottom sheet on the panel's ground.
+- Not done, on purpose: Inspect and Export stay in the panel rather than moving to the masthead, since this phase keeps
+  `plans/VIEW_UI_PLAN.md`'s layout. Other labels still in title case (Auto-Rotate, Grid Lines, New World…) are R9's
+  words.
 - **Verify:**
-  - [ ] Every control does what it did: build, Ctrl-click → Rebuild and edit mode, Regenerate, a planet code, every tab
-    and Climate map, Inspect, every export.
-  - [ ] Paper and Night, 1440 px and 400 px; a real phone if one is to hand.
-  - [ ] Every control reachable by keyboard, with the 2 px focus ring.
-  - [ ] `docs/generate.md`, `docs/import.md`, `docs/shared.md` and the tutorial match any renamed control.
+  - [x] Plate editing: Ctrl-click marks a plate ("Land → Ocean (pending)"), Rebuild (1) appears, a click rebuilds and
+    the planet code takes the edit. The export panel opens and closes; the tabs, Climate's row and the view strip work.
+  - [x] Paper and Night, 1440 px and 400 px, with the phone's bottom sheet opened.
+  - [x] Text contrast on every visible text node of the four pages in both themes: all pass.
+  - [x] `check-style.mjs` passes; no console errors.
+  - [ ] Every export downloaded and opened (the panel was checked; no file was saved).
+  - [ ] A real phone.
 
 ### R3: Evolution's own pieces
 
@@ -349,4 +364,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 ## Status
 
 - **2026-11-03:** R0 built and checked (above), on `redesign-foundations`: PR #92.
-- **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0).
+- **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0): PR #95.
+- **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1).

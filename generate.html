@@ -130,6 +130,7 @@
 </head>
 <body>
     <nav id="topNav">
+        <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
         <a href="/generate" class="nav-tab active">Generate</a>
         <a href="/import" class="nav-tab">Import<span class="nav-long">&nbsp;Heightmap</span></a>
@@ -150,7 +151,7 @@
         <h1>World Orogen — Procedural Planet Generator</h1>
         <p>World Orogen is a free, browser-based procedural planet generator: believable worlds from the ground up, in a studio of planet tools that gets you from a blank page to a world that makes sense — no download or account required. Its planets are shaped by tectonic plates, erosion, volcanism and a seasonal climate, with the science behind each layer simplified but real. Three tools share one climate: Generate builds a planet from sliders, Import Heightmap runs the climate on your own map, and Evolution simulates a planet's whole tectonic history, with the rocks, ores and food its land could offer.</p>
         <h2>How It Works</h2>
-        <p>Start by adjusting sliders for detail level, number of tectonic plates, continents, and terrain roughness. Click "Build New World" to generate a unique planet with realistic continental shapes, mountain ranges, ocean trenches, volcanic island chains, and hotspot volcanism. Every planet is procedurally generated and completely unique.</p>
+        <p>Start by adjusting sliders for detail level, number of tectonic plates, continents, and terrain roughness. Click "Build new world" to generate a unique planet with realistic continental shapes, mountain ranges, ocean trenches, volcanic island chains, and hotspot volcanism. Every planet is procedurally generated and completely unique.</p>
         <h2>Key Features</h2>
         <ul>
             <li>Tectonic plate simulation with convergent, divergent, and transform boundaries</li>
@@ -186,15 +187,15 @@
         <div id="sheetHandle" class="sheet-handle"><span></span></div>
         <div id="sidebarHeader">
             <div>
-                <h2>World Orogen</h2>
-                <div class="sub">Build worlds shaped by tectonic forces</div>
+                <h2>Generate</h2>
+                <div class="sub">A planet in seconds, shaped by hand</div>
             </div>
             <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
-        <details class="section" open>
-            <summary>Shape Your World</summary>
+        <details class="section is-plates" open>
+            <summary>Shape your world</summary>
             <div class="section-body">
                 <div class="cg">
                     <label>Detail <span class="tip" data-tip="Resolution of the sphere — more detail means finer coastlines and terrain, but takes longer to generate">?</span> <span class="v" id="vN">204,000</span></label>
@@ -234,15 +235,15 @@
                 </div>
             </div>
         </details>
-        <button id="generate">Build New World</button>
+        <button id="generate">Build new world</button>
         <div id="seedRow">
             <input type="text" id="seedCode" placeholder="Planet code">
             <button id="copyBtn" title="Copy code">&#x2398;</button>
             <button id="loadBtn" title="Load planet from code">Load</button>
         </div>
         <div id="seedError">Invalid planet code</div>
-        <details class="section">
-            <summary>Terrain Sculpting <span class="tip" data-tip="Erosion and smoothing passes that refine the raw terrain. Adjust sliders and click Reapply — no full rebuild needed.">?</span></summary>
+        <details class="section is-land">
+            <summary>Terrain sculpting <span class="tip" data-tip="Erosion and smoothing passes that refine the raw terrain. Adjust sliders and click Reapply — no full rebuild needed.">?</span></summary>
             <div class="section-body">
                 <div class="cg">
                     <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field on the sphere using noise, producing more organic, squiggly coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.75</span></label>
@@ -277,7 +278,7 @@
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
-        <details class="section">
+        <details class="section is-climate">
             <summary>Climate <span class="tip" data-tip="The planet's temperature and water cycle, worked through the climate itself — changes apply on slider release, recomputing the climate (a few seconds)">?</span></summary>
             <div class="section-body">
                 <div class="climate-hint">Changes apply on release — the climate is recomputed.</div>
@@ -293,7 +294,7 @@
                 </div>
             </div>
         </details>
-        <details class="section" id="inspectSection">
+        <details class="section is-rock" id="inspectSection">
             <summary>Inspect (advanced) <span class="tip" data-tip="The terrain's inner workings, stage by stage &mdash; what each geology and plate-physics pass built &mdash; to see why a planet looks as it does. The maps you'll want most are the tabs over the planet">?</span></summary>
             <div class="section-body">
                 <div class="cg">
@@ -344,7 +345,7 @@
             <summary>Stats</summary>
             <div id="stats"></div>
         </details>
-        <button id="exportBtn" class="export-btn">Export Map</button>
+        <button id="exportBtn" class="export-btn">Export map</button>
         <div id="repoLink">
             <a class="rl-github" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg>GitHub</a>
             <a class="rl-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>
@@ -472,8 +473,8 @@
                 <p>Every world is one of a kind — with believable continents, mountains, ocean trenches, and volcanic islands. Build one in seconds, tweak it until it's yours.</p>
             </div>
             <div class="tutorial-step" data-step="1">
-                <h3>Shape Your World</h3>
-                <p>Use the <strong>Shape Your World</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build New World</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+                <h3>Shape your world</h3>
+                <p>Use the <strong>Shape your world</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build new world</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
             </div>
             <div class="tutorial-step" data-step="2">
                 <h3>Explore &amp; Edit</h3>
@@ -487,7 +488,7 @@
             <div class="tutorial-step" data-step="4">
                 <h3>Save &amp; Share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
-                <p>Use <strong>Export Map</strong> to save any map the page draws &mdash; the terrain, satellite, climate zones, every climate layer, heightmaps, a hillshade, plates &mdash; as <strong>Colour</strong> (as shown) or as <strong>Data</strong> (16-bit greyscales on fixed scales, for other tools), for the year, January or July, in ten map projections, centred where you like. One map saves as a PNG; several as a ZIP with a README that explains every file.</p>
+                <p>Use <strong>Export map</strong> to save any map the page draws &mdash; the terrain, satellite, climate zones, every climate layer, heightmaps, a hillshade, plates &mdash; as <strong>Colour</strong> (as shown) or as <strong>Data</strong> (16-bit greyscales on fixed scales, for other tools), for the year, January or July, in ten map projections, centred where you like. One map saves as a PNG; several as a ZIP with a README that explains every file.</p>
             </div>
             <div class="tutorial-dots">
                 <span class="dot active" data-dot="0"></span>

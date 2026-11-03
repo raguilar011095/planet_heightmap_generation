@@ -21,7 +21,7 @@ The view (the layer tabs, the map projections), the climate and the export panel
 
 - **Detail**: how finely the image is laid onto the sphere, from Coarse to Fine (204,000 regions by default), then
   **Import**.
-- **Terrain Sculpting**: Generate's six passes (Terrain Warp, Smoothing, Glacial Erosion, Hydraulic Erosion, Thermal
+- **Terrain sculpting**: Generate's six passes (Terrain Warp, Smoothing, Glacial Erosion, Hydraulic Erosion, Thermal
   Erosion, Ridge Sharpening), all at 0 by default so your map is used as drawn. What each does is in
   [generate.md](generate.md#terrain-sculpting).
 - **Climate**: **Temperature** (−30 to +30 W/m²) and **Precipitation** (±50 %), as on Generate.

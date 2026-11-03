@@ -3,7 +3,7 @@
 #canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
 /* the map's frame: the globe's canvas draws the map under it (letterboxed in this box); it takes the pointer */
 #mapCanvas {
-    position: fixed; top: 40px; left: 0; width: 100vw; height: calc(100vh - 40px);
+    position: fixed; top: var(--nav-h); left: 0; width: 100vw; height: calc(100vh - var(--nav-h));
     background: transparent;
 }
 #mapCanvas[hidden] { display: none; }
@@ -78,7 +78,7 @@
 #regimeRow { margin-top: 0; margin-bottom: 6px; }
 .evo-regime-legend { font-size: 12px; color: var(--ui-label); margin-bottom: 8px; }
 .evo-chip {
-    position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 20;
+    position: fixed; top: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%); z-index: 20;
     display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
     background: var(--ui-panel); backdrop-filter: blur(12px); border: 1px solid var(--ui-white-10);
     border-radius: 18px; padding: 6px 8px 6px 14px; color: var(--ui-body); font-size: 13px;
@@ -97,7 +97,7 @@
 
 /* the sidebar (plans/V2_EVOLUTION_UI_PLAN.md): New World; the World section, folded to a line; the context card — the
    moment shown and the one thing to do next; the View section. A set width: the card's text wraps instead of widening it */
-#ui { width: 300px; max-height: calc(100vh - 168px); }          /* (clear of the timeline: the panel scrolls) */
+#ui { width: var(--size-panel); max-height: calc(100vh - var(--nav-h) - 128px); }          /* (clear of the timeline: the panel scrolls) */
 #ui.collapsed { width: auto; }
 #ui #generate { margin-bottom: 8px; background: var(--ui-navy-60); border: 1px solid var(--ui-sky-35); color: var(--ui-body); }
 #worldSection #seedRow { margin-bottom: 0; }
@@ -105,7 +105,7 @@
 .evo-world-sum {
     margin-left: auto; min-width: 0; contain: inline-size; flex: 1 1 auto; text-align: right;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ui-faint-2);
+    font: 500 12px/1.2 var(--font-ui); text-transform: none; letter-spacing: 0; color: var(--muted);
 }
 #worldSection[open] .evo-world-sum { display: none; }
 #rebuildBtn { margin-top: 2px; }

@@ -64,7 +64,7 @@ let _t0 = 0;
 function resetUI() {
     const btn = document.getElementById('generate');
     btn.disabled = false;
-    btn.textContent = 'Build New World';
+    btn.textContent = 'Build new world';
     btn.classList.remove('generating', 'stale');
 }
 

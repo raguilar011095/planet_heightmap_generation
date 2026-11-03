@@ -39,6 +39,7 @@
 </head>
 <body>
     <nav id="topNav">
+        <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
         <a href="/generate" class="nav-tab">Generate</a>
         <a href="/import" class="nav-tab active">Import<span class="nav-long">&nbsp;Heightmap</span></a>
@@ -69,15 +70,15 @@
         <div id="sheetHandle" class="sheet-handle"><span></span></div>
         <div id="sidebarHeader">
             <div>
-                <h2>World Orogen</h2>
-                <div class="sub">Import your own heightmap</div>
+                <h2>Import Heightmap</h2>
+                <div class="sub">Your own landmass, its climate</div>
             </div>
             <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
-        <details class="section" open>
-            <summary>Import Your Heightmap</summary>
+        <details class="section is-land" open>
+            <summary>Import your heightmap</summary>
             <div class="section-body">
                 <div class="import-upload-area">
                     <label class="import-file-label" for="heightmapFile">
@@ -101,8 +102,8 @@
                 <div class="import-hint" style="margin-top:8px">Your image stays on your device — nothing is uploaded. Imported worlds can't be shared via planet codes.</div>
             </div>
         </details>
-        <details class="section">
-            <summary>Terrain Sculpting <span class="tip" data-tip="Post-processing passes to refine the imported terrain. All default to 0 (no effect). Adjust sliders and click Reapply.">?</span></summary>
+        <details class="section is-land">
+            <summary>Terrain sculpting <span class="tip" data-tip="Post-processing passes to refine the imported terrain. All default to 0 (no effect). Adjust sliders and click Reapply.">?</span></summary>
             <div class="section-body">
                 <div class="cg">
                     <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field using noise for more organic coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.00</span></label>
@@ -137,7 +138,7 @@
                 <button id="reapplyBtn" title="Reapply terrain sculpting" disabled><span class="reapply-icon">&#x21bb;</span> Reapply</button>
             </div>
         </details>
-        <details class="section">
+        <details class="section is-climate">
             <summary>Climate <span class="tip" data-tip="The planet's temperature and water cycle, worked through the climate itself — changes apply on slider release, recomputing the climate (a few seconds)">?</span></summary>
             <div class="section-body">
                 <div class="climate-hint">Changes apply on release — the climate is recomputed.</div>
@@ -153,7 +154,7 @@
                 </div>
             </div>
         </details>
-        <details class="section" id="inspectSection">
+        <details class="section is-rock" id="inspectSection">
             <summary>Inspect (advanced) <span class="tip" data-tip="The full heightmap with the sea floor, and what the sculpting passes changed. The maps you'll want most are the tabs over the planet">?</span></summary>
             <div class="section-body">
                 <div class="cg">
@@ -175,7 +176,7 @@
             <summary>Stats</summary>
             <div id="stats"></div>
         </details>
-        <button id="exportBtn" class="export-btn">Export Map</button>
+        <button id="exportBtn" class="export-btn">Export map</button>
         <div id="repoLink">
             <a class="rl-github" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg>GitHub</a>
             <a class="rl-icon" href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener" title="Follow on Bluesky for new releases and sneak peeks" aria-label="World Orogen on Bluesky"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#bluesky"/></svg></a>

@@ -11,10 +11,10 @@ The view (the layer tabs, the map projections), the climate and the export panel
 
 ## Building a planet
 
-Click **Build New World** to create a new random planet. The button changes color and label based on what you've adjusted:
-- **Build New World** (blue) — generates a fresh planet with a new random seed
-- **Rebuild** (amber) — re-renders the current planet at a new detail/roughness level without changing continent shapes
-- **Regenerate** (red) — creates new tectonic plates when the Plates or Continents slider has changed
+Click **Build new world** to create a new random planet. The button's label says what it will do, from what you've adjusted:
+- **Build new world** — generates a fresh planet with a new random seed
+- **Rebuild** — re-renders the current planet at a new detail/roughness level without changing continent shapes
+- **Regenerate** — creates new tectonic plates when the Plates or Continents slider has changed
 
 ## Sharing planets
 
@@ -26,7 +26,7 @@ Every generated planet produces a **planet code** (shown below the Build button)
 
 ## Controls
 
-### Shape Your World
+### Shape your world
 
 Core world parameters that control the planet's structure (changing these requires a full rebuild):
 
@@ -40,7 +40,7 @@ Core world parameters that control the planet's structure (changing these requir
 | Continent Size Variety | 0 – 1 | 0.35 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
 | Land Coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create large continents whose interiors, far from the sea, are drier |
 
-### Terrain Sculpting
+### Terrain sculpting
 
 Post-processing passes that refine the terrain (collapsed by default — the defaults produce good results). These do not require a full rebuild; adjusting any slider lights up the **Reapply** button at the bottom of this section — click it to reapply only the sculpting passes on the current planet.
 
