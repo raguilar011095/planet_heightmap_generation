@@ -300,8 +300,10 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
             if (beside) { fore++; foreSea += h[q] <= 0; }
         } else if (h[q] > 0) oceanUp++;
     }
+    // (G3c: mature island arcs are chains of islands — Earth's arcs, Indonesia to the Aleutians, ~0.5 % of the globe — and
+    // the volcanoes: under 1.2 %)
     check(`${pl.name}: land pieces deeper than a shelf ${deep}, ocean pieces above the sea ${(100 * oceanUp / nR).toFixed(2)} % of the globe (arcs, volcanoes)`,
-        deep === 0 && oceanUp / nR < 0.006, 'none deeper than the fore-arc (1.2 km) but the seas the crust opened; < 0.6 %');
+        deep === 0 && oceanUp / nR < 0.012, 'none deeper than the fore-arc (1.2 km) but the seas the crust opened; < 1.2 %');
     // the fore-arc: a land piece's edge along another plate's ocean piece drowned, the trench offshore
     if (fore) check(`${pl.name}: ${(100 * foreSea / fore).toFixed(0)} % of a land piece's edge along another plate's ocean under the sea`, foreSea / fore > 0.95, 'the fore-arc drowned');
     let bad = 0, hi = -99, lo = 99;
@@ -338,6 +340,19 @@ for (const { pl, G } of grounds) {
     // (a supercontinent's pieces all meet on one plate or two: there are many; few pieces, few seams)
     check(`${pl.name}: ${s.count} inner seams, ${s.closing} closed (ranges), ${s.parting} parted (sags); ${(100 * near / landN).toFixed(0)} % of the land within 700 km of a closing front (its grain)`,
         s.closing + s.parting > 0 && s.closing + s.parting <= s.count, 'some seams at work');
+}
+
+// ── G3c: island arcs ──
+section('G3c: margins split off island arcs (Mariana type) beside Andes (Chilean type); arcs at sea');
+{
+    let splitAll = 0, andeanAll = 0;
+    for (const { pl, G } of grounds) {
+        const subs = G.belts.fronts.filter(f => f.kind === 'subduction');
+        const split = subs.filter(f => f.split > 0).length, andean = subs.filter(f => f.andean + f.laramide > 0).length, arcs = subs.filter(f => f.arc > 0).length;
+        splitAll += split; andeanAll += andean;
+        check(`${pl.name}: ${split} margins split off an arc, ${andean} Andean, ${arcs} arcs at sea`, arcs + split > 0, 'some island arcs');
+    }
+    check(`all: ${splitAll} split margins, ${andeanAll} Andean`, splitAll > 0 && andeanAll > 0, 'both styles');
 }
 
 // ── G3: today's mountains ──

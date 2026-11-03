@@ -727,6 +727,27 @@ The phase gate applies as always. One phase at a time. Each has:
   - **Measured:** land median 0.35–0.58 km, 15–25 % above 1 km; walled coasts 40–50 % on the default planets (48–56 %
     before), 67 % on the supercontinent.
 
+### G3c: Island arcs (owner, 2026-11-03)
+- **The owner's words:** "island arcs and chains and things like indonesia/phillipines are nowhere to be found, we should
+  find a way to simulate them better".
+- **Built 2026-11-03** (`present/belts.js`, `PRESENT_TERRAIN`); `check-present.mjs` 232/232.
+  - **Two styles of margin** (Uyeda & Kanamori 1979): a subduction front along a continent either squeezes an Andes
+    (Chilean type) or has the arc split off the continent's edge and a sea open behind it (Mariana type: Japan and its
+    sea, the Kurils, the Philippines, Indonesia's arcs).
+    - The chance: 35 % at a 60 Myr slab and a still upper plate, +35 % per 100 Myr older slab, −12 % per cm/yr the
+      upper plate drives at the trench, at most 85 %. A draw of its own per front.
+    - A split: the continent's edge becomes arc crust (120–220 km, 40–140 Myr old: chains, or long islands as it
+      matures) and the sea behind it young ocean floor (220–520 km, 6–30 Myr), never through a craton.
+    - 28 split margins beside 37 Andean on the 6 planets.
+  - **Arcs at sea:** each arc's crust 25–120 Myr old, its own draw (it was 30, so all were submerged); arcs from slabs
+    ≥ 15 Myr old going down ≥ 2 cm/yr (30, 3 before), up to 280 km wide.
+  - **Generate's terrain draws a mature open-ocean arc at −0.35 km** (Evolution's −1.5) and one near a continent at
+    +0.5 (0.3), with straits cut 90 km deep at islands 200 km apart (35, 140). The result is chains of islands, not
+    ribbons. Evolution is unchanged (`PRESENT_TERRAIN`).
+  - Walled coasts 32–43 % on the default planets (a split margin is no wall); ocean pieces above the sea 0.3–0.9 % of
+    the globe (arcs, volcanoes; Earth's arcs ~0.5 %).
+  - **Not yet:** Indonesia's broad clusters (arcs colliding with continents and microcontinents).
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

@@ -1,6 +1,16 @@
 // The present-day world's tunables (plans/GENERATE_REDESIGN_PLAN.md): Generate's planet built as one moment of a
 // believable history, its past filled in by closed forms. Physical units throughout: km, Myr, cm/yr.
 
+// Evolution's terrain tunables Generate's present-day world draws differently (G3c): an open-ocean island arc, mature,
+// stands at the sea's surface — its islands a chain (the Philippines, the Lesser Antilles) — where Evolution's stays a
+// submerged ridge its volcanoes break (kept low there, so its arcs never grow huge over a long history)
+export const PRESENT_TERRAIN = {
+    arcOceanMatureKm: -0.35,       // (Evolution's −1.5: its islands the ridge's high points, not the whole ridge)
+    arcMatureKm: 0.5,              // (0.3)
+    arcStraitKm: 90,               // the straits cut deeper and wider apart (35, 140): chains of islands, not ribbons
+    arcIslandKm: 200,
+};
+
 export const PRESENT = {
     // ── G1: plates that move ──
     // Generate's plates are the PIECES you raise or sink. Neighbouring pieces are grouped into plates that move, which
@@ -97,11 +107,22 @@ export const PRESENT = {
     transpressionMyr: [5, 25],     // a transform pressed together on land (the Southern Alps: ~5–10)
     riftMyr: [3, 25],              // a continent pulling apart (East Africa: ~25; the Red Sea opened ~5–25)
     riftSeaMinKm: 140,             // a rift opened wider than this has a young sea down its middle
-    arcMaxKm: 220,                 // an island arc's crust at most this wide…
+    arcMaxKm: 280,                 // an island arc's crust at most this wide…
     foreArcKm: 60,                 // …set back this far from its trench (the fore-arc)…
-    arcMinRateCmYr: 3,             // …only where the slab goes down at least this fast…
-    arcMinSlabMyr: 30,             // …and is at least this old (dense)…
-    arcAgeMyr: 30,                 // …its crust no older than this
+    arcMinRateCmYr: 2,             // …only where the slab goes down at least this fast…
+    arcMinSlabMyr: 15,             // …and is at least this old (dense)…
+    arcAgeMyr: [25, 120],          // …its crust this old, each arc its own draw (a Mariana young, a Philippines mature)
+    // G3c: a margin along a continent splits off an island arc and opens a sea behind it (Mariana type: Japan, the Kurils,
+    // the Philippines, Indonesia's arcs) rather than squeezing an Andes, with a chance of…
+    backArcBase: 0.35,             // …this at a 60 Myr slab and an upper plate standing still…
+    backArcAgeGain: 0.35,          // …more by this per 100 Myr older slab (old, dense floor sinks steeply and rolls back)…
+    backArcDriveGain: 0.12,        // …less by this per cm/yr the upper plate drives at its trench…
+    backArcMaxChance: 0.85,
+    backArcMinCells: 4,            // (a front shorter than this many cells along a continent: as before)
+    backArcArcKm: [120, 220],      // the arc split off: this wide (its islands — chains, or long ones as it matures)…
+    backArcSeaKm: [220, 520],      // …the sea behind it this wide…
+    backArcAgeMyr: [6, 30],        // …its floor at most this old (a back-arc basin, shallow for an ocean)
+    backArcIslandMyr: [40, 140],   // …the arc's crust this old (a Japan matured into long islands)
 
     // ── G4: the continents' past, replayed (a world ~2000 Myr old; owner, 2026-11-02) ──
     pastMinAreaKm2: 1.5e6,         // a landmass smaller than this has no past of its own (a microcontinent, an island)

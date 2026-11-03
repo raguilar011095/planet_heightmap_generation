@@ -18,7 +18,7 @@ import { knobOverrides, reliefShareOf } from './knobs.js';
 import { addFineRelief } from './relief.js';
 import { heldCells, holdToPieces } from './hold.js';
 import { pieceSeams, sagSeams, frontDistance } from './seams.js';
-import { PRESENT } from './present-config.js';
+import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -89,7 +89,7 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     let t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
-    const cfg = terrainConfig({ ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
+    const cfg = terrainConfig({ ...PRESENT_TERRAIN, ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
     const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));

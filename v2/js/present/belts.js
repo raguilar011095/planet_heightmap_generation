@@ -94,13 +94,22 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         const T = timeOf(g, cfg.andeanMyr);
         // which side rides over: per edge (B.over); the sources are the upper plate's cells at the trench
         const andean = { cells: [], widths: [], works: [], shears: [] }, arc = { cells: [], widths: [], works: [], shears: [], slab: [] };
-        const laramide = { cells: [], widths: [], works: [], shears: [] };
+        const laramide = { cells: [], widths: [], works: [], shears: [] }, split = { cells: [], works: [], widths: [] };
+        // the margin's style (G3c; Uyeda & Kanamori 1979's two end members): an upper plate driving at its trench over a
+        // young slab is squeezed into an Andes; one holding back or pulling away over an old, sinking slab has the arc
+        // split off its edge and a sea open behind it (Japan and the Japan Sea, the Kurils, the Philippines, Indonesia's
+        // arcs) — by the front's mean drive and slab age, on a draw of its own
+        const splits = marginSplits(g, E, T);
         for (const e of E) {
             const overA = B.over[e.i] === 0, over = overA ? e.ca : e.cb, down = overA ? e.cb : e.ca, op = plateOf[over];
             const rateKmMyr = Math.abs(e.closing), rate = rateKmMyr / 10, slabKm = rateKmMyr * T, slabAge = sea.ageMyr[down];
             const shape = beltShape(e.headOn, slabAge, config);
             // land on the upper plate within the apron's reach: an Andean margin; else an island arc at sea
-            if (landNear(over, op)) {
+            if (landNear(over, op) && splits) {
+                if (!land[over] || !plates[op].continental) continue;
+                split.cells.push(over); split.works.push(slabKm * config.andeanWorkShare * beltShape(e.headOn, undefined, config));
+                split.widths.push(Math.min(config.arcBeltMaxKm, beltWidthKm('andean', slabKm * config.andeanWorkShare, rate, config) * shape));
+            } else if (landNear(over, op)) {
                 // a young slab going in under a plate that drives at it goes in flat: the belt runs far inland (Laramide)
                 const vo = cross(plates[op].euler, at(xyz, over)), toward = -dot(vo, normalTo(over, down)) * R / 10;
                 // the margin's coupling: an upper plate driving at its trench is squeezed (the Andes); one moving away
@@ -141,6 +150,9 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             // the arc's crust: a strip of the upper plate behind the trench, as wide as the arc is mature (a chain of islets
             // → a Philippines → an Indonesia), set back a little from the trench (the fore-arc)
             const p = overPlate(arc.cells);
+            // (each arc its own age, on its own draw: a young one a submerged ridge its volcanoes break, an old one long
+            // islands — the Marianas beside the Philippines, Java)
+            const arcAge = cfg.arcAgeMyr[0] + (cfg.arcAgeMyr[1] - cfg.arcAgeMyr[0]) * makeRng((seed ^ 0xa7c1) + g.pa * 131 + g.pb * 17)();
             const widthKm = arc.cells.map((c, j) => Math.min(cfg.arcMaxKm, config.arcRowWidthKm * (1 + (arc.slab[j] - config.arcMatureConsumedKm) / config.arcWidenSlabKm)));
             const d = distanceFrom(arc.cells, widthKm, (c) => plateOf[c] === p && !land[c] && crust.type[c] === CrustType.OCEAN);
             const front = [];
@@ -149,7 +161,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 if (d.km[c] < cfg.foreArcKm || d.km[c] > d.reach[c]) continue;
                 // (the arc's crust no older than arcAgeMyr: an open-ocean arc keeps being built and rebuilt, and an old,
                 // mature one would stand as a continuous ridge of land — Evolution's arcs are chains of islands)
-                crust.type[c] = CrustType.ARC; crust.formedAt[c] = -Math.min(T, cfg.arcAgeMyr);
+                crust.type[c] = CrustType.ARC; crust.formedAt[c] = -Math.min(T, arcAge);
                 if (d.km[c] < cfg.foreArcKm + mesh.edgeKm) front.push(c);
             }
             if (front.length) {
@@ -157,7 +169,47 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 stampStart(front, p, T);
             }
         }
-        fronts.push({ kind: 'subduction', T, andean: andean.cells.length, laramide: laramide.cells.length, arc: arc.cells.length });
+        if (split.cells.length) {
+            // the continent's edge split off as an island arc (arc crust: chains of islands, a mature arc long ones — a
+            // Japan, a Java) and the sea opened behind it (young ocean floor: a back-arc basin), never through a craton
+            const p = overPlate(split.cells), r = makeRng((seed ^ 0xbac5) + g.pa * 131 + g.pb * 17);
+            const arcKm = cfg.backArcArcKm[0] + (cfg.backArcArcKm[1] - cfg.backArcArcKm[0]) * r();
+            const seaKm = cfg.backArcSeaKm[0] + (cfg.backArcSeaKm[1] - cfg.backArcSeaKm[0]) * r();
+            const seaAge = cfg.backArcAgeMyr[0] + (cfg.backArcAgeMyr[1] - cfg.backArcAgeMyr[0]) * r();
+            const islandAge = cfg.backArcIslandMyr[0] + (cfg.backArcIslandMyr[1] - cfg.backArcIslandMyr[0]) * r();
+            const d = distanceFrom(split.cells, split.cells.map(() => arcKm + seaKm), (c) => plateOf[c] === p && land[c] && crust.type[c] !== CrustType.CRATON);
+            const front = [];
+            for (let c = 0; c < n; c++) {
+                if (d.reach[c] <= 0 || d.km[c] > d.reach[c]) continue;
+                if (d.km[c] <= arcKm) {
+                    crust.type[c] = CrustType.ARC; crust.formedAt[c] = -Math.min(T, islandAge);
+                    if (d.km[c] < mesh.edgeKm) front.push(c);
+                } else {
+                    // (the sea opens from the arc's back: youngest at its spreading axis, mid-basin)
+                    crust.type[c] = CrustType.OCEAN; crust.formedAt[c] = -seaAge * Math.min(1, 2 * Math.abs((d.km[c] - arcKm) / seaKm - 0.5) + 0.2);
+                }
+            }
+            if (front.length) {
+                spreadBelt(plate, mesh, front, { type: OrogenyType.ARC, time: 0, widthKm: Math.max(...split.widths), workKm: Math.max(...split.works) }, config, (c) => plateOf[c] === p && crust.type[c] === CrustType.ARC);
+                stampStart(front, p, T);
+            }
+        }
+        fronts.push({ kind: 'subduction', T, andean: andean.cells.length, laramide: laramide.cells.length, arc: arc.cells.length, split: split.cells.length });
+    }
+
+    /** Whether a subduction front along a continent splits off an island arc (true) or squeezes an Andes (false). */
+    function marginSplits(g, E, T) {
+        let drive = 0, age = 0, m = 0;
+        for (const e of E) {
+            const overA = B.over[e.i] === 0, over = overA ? e.ca : e.cb, down = overA ? e.cb : e.ca, op = plateOf[over];
+            if (!land[over] || !plates[op].continental) continue;
+            const vo = cross(plates[op].euler, at(xyz, over));
+            drive += -dot(vo, normalTo(over, down)) * R / 10; age += sea.ageMyr[down]; m++;
+        }
+        if (m < cfg.backArcMinCells) return false;
+        drive /= m; age /= m;
+        const chance = Math.min(cfg.backArcMaxChance, Math.max(0, cfg.backArcBase + cfg.backArcAgeGain * (age - 60) / 100 - cfg.backArcDriveGain * drive));
+        return makeRng((seed ^ 0xbac4) + g.pa * 131 + g.pb * 17)() < chance;
     }
 
     function collision(g, E) {
