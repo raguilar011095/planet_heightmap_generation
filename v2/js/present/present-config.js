@@ -15,12 +15,19 @@ export const PRESENT = {
     splitMinPart: 0.25,            // each part at least a quarter of the continent
     splitTries: 8,                 // seams tried, strongest first
     oceanPlateMin: 1,              // at least this many ocean-only plates (a Pacific)
+    minPlateShare: 0.006,          // an ocean plate squeezed below this share of the sphere joins its neighbour
     // A continent trails its ocean behind it: the ocean its plate takes grows 1 + α times less far ahead of its motion
     // than behind, so the leading coast meets another plate (a trench: the Andes) and the trailing one stays passive.
     leadingAnisotropy: 5,
+    // Some continents lead into the open ocean with an active margin: an ocean plate dives under them, its trench this
+    // far offshore (the Andes' ~100–200 km); the rest lead into nothing (Africa).
+    activeLeadShare: 0.6,
+    leadSeedKm: 1300,              // the ocean plate diving under it is seeded along a line this far off its leading coast
     // An ocean-only plate is drawn toward the continents it dives under (slab pull): its motion is bent this far from
     // the motion its pieces had toward those boundaries.
     slabPullBlend: 0.55,
+    // G1b: the boundaries at sea are drawn cell by cell, then smoothed by a majority of the neighbours over about this far
+    boundarySmoothKm: 250,
     // Speeds (the plate's RMS surface speed). Continents are slow, the bigger the slower; ocean plates with trenches fast.
     continentSpeedCmYr: [1.5, 4.0],    // a continent plate's speed from small to big …
     continentSpeedFullShare: 0.15,     // … the slowest at ≥ 15 % of the sphere

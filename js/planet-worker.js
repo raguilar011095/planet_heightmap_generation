@@ -14,7 +14,8 @@ import { runNewClimate, newClimateTransfers } from './climate-new.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
-import { buildPresentPlates, classifyBoundaries, arrowAnchors } from '../v2/js/present/plates.js';
+import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
+import { presentLayout } from '../v2/js/present/layout.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -181,19 +182,27 @@ function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 
 // ── The present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with ?next=1 until it is the default) ──
 // G1: the pieces (Generate's plates) grouped into plates that move, from the UNEDITED layout and the pieces' motion on
 // it — so an edit changes only the crust, never the grouping — and the boundaries classified on the crust as edited.
-function presentPlatesFor({ coarseMesh, coarse_xyz, coarse_r_plate, plateSeeds, originalPlateIsOcean, pieceVec, seed }) {
-    applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse_r_plate, coarseMesh, coarse_xyz, seed);
-    const L = { mesh: coarseMesh, xyz: coarse_xyz, cellPiece: coarse_r_plate, pieceIds: Array.from(plateSeeds),
-        pieceOcean: originalPlateIsOcean, pieceVec, seed };
-    return { L, P: buildPresentPlates(L) };
+function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVec, seed, mesh, r_xyz }) {
+    applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse.coarse_r_plate, coarse.coarseMesh, coarse.coarse_xyz, seed);
+    // on Evolution's sim mesh (v2/js/present/layout.js), free of the render mesh's Detail
+    const L = presentLayout({ seed, P, coarse, pieceOcean: originalPlateIsOcean, pieceVec });
+    const plates = buildPresentPlates(L);
+    // each render region's sim cell (its nearest; the sim mesh's index is in Evolution's z-up frame)
+    const regionCell = new Int32Array(mesh.numRegions), index = L.sim.index;
+    for (let r = 0; r < mesh.numRegions; r++) regionCell[r] = index.nearest(r_xyz[3 * r + 2], r_xyz[3 * r], r_xyz[3 * r + 1]);
+    return { L, P: plates, regionCell };
 }
-/** What the page draws of it: the plates, which plate each piece rides on, the boundaries on the crust as it is now. */
+/** What the page draws of it: the plates, which plate each region rides on, the boundaries on the crust as it is now. */
 function presentMessage(present, plateIsOcean) {
-    const { L, P } = present;
-    const landNow = Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
+    const { L, P, regionCell } = present;
+    const landNow = cellLandNow(L, P, Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1)));
     const B = classifyBoundaries(L, P, landNow);
+    if (!present.regionPlate) {
+        present.regionPlate = new Int16Array(regionCell.length);
+        for (let r = 0; r < regionCell.length; r++) present.regionPlate[r] = P.cellPlate[regionCell[r]];
+    }
     return {
-        pieceIds: L.pieceIds, piecePlate: P.piecePlate,
+        regionPlate: present.regionPlate,
         plates: P.plates.map(p => ({ index: p.index, continental: p.continental, share: p.share, landShare: p.landShare,
             speedCmYr: p.speedCmYr, euler: p.euler, centroid: p.centroid })),
         boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
@@ -275,8 +284,8 @@ function handleGenerate(data) {
         let present = null;
         if (data.next) {
             t0 = performance.now();
-            present = presentPlatesFor({ coarseMesh, coarse_xyz, coarse_r_plate, plateSeeds, originalPlateIsOcean,
-                pieceVec: JSON.parse(JSON.stringify(plateVec)), seed });
+            present = presentPlatesFor({ coarse: { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds }, P,
+                plateSeeds, originalPlateIsOcean, pieceVec: JSON.parse(JSON.stringify(plateVec)), seed, mesh, r_xyz });
             timing.push({ stage: `Present-day plates (${present.P.M} plates from ${P} pieces)`, ms: performance.now() - t0 });
         }
 

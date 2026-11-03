@@ -1,5 +1,6 @@
 // Checks for the present-day world (plans/GENERATE_REDESIGN_PLAN.md): Generate's planet built as one moment with an
-// implied past. G1 — plates that move: Generate's pieces grouped into plates that carry continent and ocean.
+// implied past. G1 — plates that move: Generate's pieces grouped into plates that carry continent and ocean; G1b — the
+// plates drawn free of the piece grid, on Evolution's sim mesh.
 //
 //   node v2/tools/check-present.mjs            the checks, PASS/FAIL, exit code
 //   node v2/tools/check-present.mjs --verbose  plus each planet's plates and boundaries
@@ -7,7 +8,8 @@
 import { check, section, finish } from './lib/check-kit.mjs';
 import { generateCoarsePlates } from '../../js/coarse-plates.js';
 import { applyPlatePhysics } from '../../js/plate-physics.js';
-import { buildPresentPlates, classifyBoundaries, plateStats, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
+import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
+import { presentLayout } from '../js/present/layout.js';
 
 const VERBOSE = process.argv.includes('--verbose');
 
@@ -26,15 +28,14 @@ const PLANETS = [
     { name: 'many pieces', seed: 1234567, ...DEFAULT, P: 120 },
 ];
 
-/** Generate's layout, unedited, and the pieces' motion today on it (as js/planet-worker.js builds them). */
-export function layoutOf({ seed, P, Cn, Csv, Lc }) {
+/** Generate's layout, unedited, and the pieces' motion today on it, on the sim mesh (as js/planet-worker.js builds them). */
+function layoutOf({ seed, P, Cn, Csv, Lc }) {
     const g = generateCoarsePlates(seed, P, Cn, Csv, Lc);
     const pieceVec = JSON.parse(JSON.stringify(g.coarsePlateVec));
     applyPlatePhysics(pieceVec, g.coarsePlateSeeds, g.coarsePlateIsOcean, g.coarse_r_plate, g.coarseMesh, g.coarse_xyz, seed);
-    return {
-        mesh: g.coarseMesh, xyz: g.coarse_xyz, cellPiece: g.coarse_r_plate, pieceIds: Array.from(g.coarsePlateSeeds),
-        pieceOcean: new Set(g.coarsePlateIsOcean), pieceVec, seed, raw: g,
-    };
+    const L = presentLayout({ seed, P, coarse: g, pieceOcean: new Set(g.coarsePlateIsOcean), pieceVec });
+    L.raw = g;
+    return L;
 }
 
 function hashArrays(...arrays) {
@@ -57,10 +58,9 @@ for (const pl of PLANETS) {
     const t1 = performance.now();
     const W = buildPresentPlates(L);
     const tPlates = performance.now() - t1;
-    const landNow = W.land;
-    const B = classifyBoundaries(L, W, landNow);
+    const B = classifyBoundaries(L, W, W.cellLand);
     const S = plateStats(L, W, B);
-    results.push({ pl, L, W, B, S, tLayout, tPlates, layoutHash: hashArrays(L.cellPiece, Int8Array.from(L.pieceIds, id => (L.pieceOcean.has(id) ? 1 : 0))) });
+    results.push({ pl, L, W, B, S, tLayout, tPlates, layoutHash: hashArrays(L.raw.coarse_r_plate, Int8Array.from(L.pieceIds, id => (L.pieceOcean.has(id) ? 1 : 0))) });
 }
 
 if (VERBOSE) {
@@ -73,12 +73,15 @@ if (VERBOSE) {
 
 section('Every plate is one piece of the globe, and holds land and ocean as Evolution\'s do');
 for (const { pl, W } of results) {
+    const { adjOffset, adjList, numRegions: n } = results[0].L.mesh;
     const broken = W.plates.filter(p => {
-        const mine = new Set(p.pieces), seen = new Set([p.pieces[0]]), q = [p.pieces[0]];
-        while (q.length) { const i = q.pop(); for (const j of W.graph.nbr[i].keys()) if (mine.has(j) && !seen.has(j)) { seen.add(j); q.push(j); } }
-        return seen.size !== mine.size;
+        const start = W.cellPlate.indexOf(p.index);
+        if (start < 0) return false;
+        const seen = new Uint8Array(n), q = [start]; seen[start] = 1; let count = 1;
+        while (q.length) { const c = q.pop(); for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (!seen[nb] && W.cellPlate[nb] === p.index) { seen[nb] = 1; count++; q.push(nb); } } }
+        return count !== p.cellCount;
     });
-    const empty = W.plates.filter(p => !p.pieces.length);
+    const empty = W.plates.filter(p => !p.cellCount);
     check(`${pl.name}: ${W.M} plates, each in one piece`, !broken.length && !empty.length, `${broken.length} broken, ${empty.length} empty`);
 }
 
@@ -86,13 +89,15 @@ section('How many plates: about 1.5 √pieces, at least one ocean-only plate');
 for (const { pl, W } of results) {
     const ocean = W.plates.filter(p => !p.continental).length;
     const want = Math.max(3, Math.min(18, Math.round(1.5 * Math.sqrt(pl.P))));
-    check(`${pl.name}: ${W.M} plates (${ocean} ocean-only) for ${pl.P} pieces`, ocean >= 1 && W.M >= Math.min(want, pl.P) && W.M <= Math.max(want, W.continents.length + 1), `want ~${want}`);
+    // (an ocean plate squeezed to a speck by its neighbours joins one of them: one fewer is fine)
+    check(`${pl.name}: ${W.M} plates (${ocean} ocean-only) for ${pl.P} pieces`, ocean >= 1 && W.M >= Math.min(want, pl.P) - 1 && W.M <= Math.max(want, W.continents.length + 1), `want ~${want}`);
 }
 
 section('Continents ride whole, split at most along one or two seams');
 for (const { pl, W } of results) {
-    const bad = W.continents.filter(cont => new Set(cont.map(i => W.piecePlate[i])).size > 3);
-    const splits = W.continents.map(cont => new Set(cont.map(i => W.piecePlate[i])).size - 1);
+    const platesOf = (cont) => { const s = new Set(); for (const i of cont) for (const c of W.graph.cells[i]) s.add(W.cellPlate[c]); return s; };
+    const bad = W.continents.filter(cont => platesOf(cont).size > 3);
+    const splits = W.continents.map(cont => platesOf(cont).size - 1);
     check(`${pl.name}: ${W.continents.length} continents, split ${splits.join('/')}`, !bad.length, `${bad.length} in more than 3 plates`);
 }
 
@@ -100,8 +105,10 @@ section('Most continental coast is passive (inside a plate), as on Earth');
 for (const { pl, S } of results) {
     // (with under ~16 pieces a continent is one or two whole pieces with no ocean piece of its own beside it: there the
     // coast can only be a plate's edge, so only that it is not all active is asked)
-    const lo = pl.P >= 16 ? 0.45 : 0.15;
-    check(`${pl.name}: ${(100 * S.passiveCoastShare).toFixed(0)} % of the coast is passive`, S.passiveCoastShare >= lo && S.passiveCoastShare <= 0.92, `want ${100 * lo}–92 %`);
+    // (passive: no plate boundary within 400 km of the coast. With under ~16 pieces a world has 3–4 plates, too few to
+    // say much: there it is only asked that the coast is not all one kind)
+    const [lo, hi] = pl.P >= 16 ? [0.45, 0.92] : [0.15, 0.98];
+    check(`${pl.name}: ${(100 * S.passiveCoastShare).toFixed(0)} % of the coast is passive`, S.passiveCoastShare >= lo && S.passiveCoastShare <= hi, `want ${100 * lo}–${100 * hi} %`);
 }
 
 section('Ridges, trenches and transforms all present; ridges lie out at sea');
@@ -110,7 +117,7 @@ for (const { pl, L, W, B } of results) {
     const ridge = share(Boundary.RIDGE), trench = share(Boundary.SUBDUCTION), tf = share(Boundary.TRANSFORM);
     // how far each ridge edge lies from land (km), over the coarse mesh
     const n = L.mesh.numRegions, isLand = new Uint8Array(n);
-    for (let c = 0; c < n; c++) isLand[c] = W.land[W.graph.cellP[c]];
+    for (let c = 0; c < n; c++) isLand[c] = W.cellLand[c];
     const far = landDistance(L, isLand);
     // a ridge lies out in its ocean: farther from land than the ocean's cells are on average (a fixed distance in km
     // cannot be asked of a world that is 70 % land, whose seas are narrow)
@@ -137,7 +144,7 @@ for (const { pl, W } of results) {
 section('Edits never regroup; the same planet gives the same plates');
 for (const { pl, L, W } of results.slice(0, 4)) {
     const again = buildPresentPlates(layoutOf(pl));
-    const same = again.piecePlate.every((v, i) => v === W.piecePlate[i]) && again.plates.every((p, i) => p.euler.every((v, k) => v === W.plates[i].euler[k]));
+    const same = again.cellPlate.every((v, i) => v === W.cellPlate[i]) && again.plates.every((p, i) => p.euler.every((v, k) => v === W.plates[i].euler[k]));
     check(`${pl.name}: built twice, the same`, same);
     // raise three ocean pieces and sink a land piece: the grouping is the unedited one, so nothing regroups; only the
     // boundaries the edited crust touches change kind
@@ -145,9 +152,28 @@ for (const { pl, L, W } of results.slice(0, 4)) {
     const ocean = []; for (let i = 0; i < now.length; i++) if (!now[i]) ocean.push(i);
     for (const i of ocean.slice(0, 3)) now[i] = 1;
     const landI = now.findIndex(v => v === 1); now[landI] = 0;
-    const B0 = classifyBoundaries(L, W, W.land), B1 = classifyBoundaries(L, W, now);
+    const B0 = classifyBoundaries(L, W, W.cellLand), B1 = classifyBoundaries(L, W, cellLandNow(L, W, now));
     let changed = 0; for (let i = 0; i < B0.count; i++) changed += B0.kind[i] !== B1.kind[i];
     check(`${pl.name}: 4 pieces edited — plates unchanged, ${(100 * changed / B0.count).toFixed(1)} % of boundary length changed kind`, B0.count === B1.count && changed / B0.count < 0.25);
+}
+
+section('G1b: plate boundaries drawn free of the piece grid');
+for (const { pl, L, W } of results) {
+    // of the plate boundary at sea, how much runs along a piece border, against the share of all sea edges that are
+    // piece borders (what a boundary laid down at random would show)
+    const { adjOffset, adjList, numRegions: n } = L.mesh, cp = W.graph.cellP;
+    let bSea = 0, bOnPiece = 0, sea = 0, seaOnPiece = 0;
+    for (let c = 0; c < n; c++) {
+        if (W.cellLand[c]) continue;
+        for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+            const nb = adjList[k];
+            if (nb < c || W.cellLand[nb]) continue;
+            sea++; const onPiece = cp[c] !== cp[nb]; seaOnPiece += onPiece;
+            if (W.cellPlate[c] !== W.cellPlate[nb]) { bSea++; bOnPiece += onPiece; }
+        }
+    }
+    const share = bOnPiece / Math.max(1, bSea), base = seaOnPiece / Math.max(1, sea);
+    check(`${pl.name}: ${(100 * share).toFixed(0)} % of plate boundary at sea on a piece border (${(100 * base).toFixed(0)} % of sea edges are)`, share <= 3 * base + 0.05, 'no more than ~3× chance');
 }
 
 section('Old planet codes keep their layout');

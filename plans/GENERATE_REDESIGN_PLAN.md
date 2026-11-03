@@ -396,6 +396,21 @@ The phase gate applies as always. One phase at a time. Each has:
   - the pieces left to decide only what is land.
 - **Check:** boundaries at sea smoother than the piece borders (length ÷ end-to-end distance per 500 km); edits still
   never regroup.
+- **Built 2026-11-02** on Evolution's 40K sim mesh (`present/layout.js`: the pieces projected onto it exactly as onto the
+  render mesh; Generate's y-up frame ↔ Evolution's z-up). `check-present.mjs` 108/108.
+  - **Plates drawn cell by cell:**
+    - continents ride whole on one plate, cut by a line grown from two points across their strongest seam;
+    - the oceans are divided by a Dijkstra in km with a local cost (a step costs 1 + 5× its share along the
+      continent's motion, so its ocean trails behind it);
+    - boundaries at sea smoothed over ~250 km;
+    - an ocean plate squeezed below 0.6 % of the sphere joins a neighbour.
+  - **Active margins by cause:** ~60 % of continents (at least the biggest) lead into an ocean plate that dives under
+    them. It is seeded along a line 1300 km off their leading coast, so it spans the whole margin and its trench lies
+    ~200 km offshore (the Andes).
+  - **Measured:**
+    - 70–90 % of the coast passive (no boundary within 400 km);
+    - plate boundary at sea on a piece border 5–7 %, against 1–7 % of all sea edges (chance);
+    - 35–95 ms a planet.
 
 ### G2: The ground switches over: sea floor, coasts, painting
 - **Build:** the Frame with the land mask, sea-floor age, fracture zones, trenches and margins. Evolution's synthesis and

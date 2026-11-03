@@ -247,15 +247,9 @@ export const PRESENT_BOUNDARY_RGB = {
 };
 export const PRESENT_BOUNDARY_NAME = { 1: 'Ridge', 2: 'Rift', 3: 'Trench', 4: 'Collision', 5: 'Transform', 6: 'Inactive seam' };
 
-/** Which plate (index) each region rides on, cached on the present message. */
+/** Which plate (index) each region rides on (the worker reads it off the sim mesh the plates were drawn on). */
 export function presentPlateOfRegion(d) {
-    const pr = d?.present;
-    if (!pr) return null;
-    if (pr._plateOf && pr._plateOf.length === d.mesh.numRegions) return pr._plateOf;
-    const idx = new Map(pr.pieceIds.map((id, i) => [id, i]));
-    const out = new Int16Array(d.mesh.numRegions);
-    for (let r = 0; r < out.length; r++) out[r] = pr.piecePlate[idx.get(d.r_plate[r])];
-    return (pr._plateOf = out);
+    return d?.present?.regionPlate ?? null;
 }
 
 /** Each region's colour on the Plates tab (linear light, 3 a region), cached on the present message. */
