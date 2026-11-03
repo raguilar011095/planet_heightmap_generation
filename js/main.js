@@ -210,6 +210,15 @@ const CLIMATE_LAYERS = { has: needsClimate };
 // sidebar's Inspect list (the terrain's inner layers). 'plates' is the plate colours over no layer (state.showPlates).
 const vizLegend = document.getElementById('vizLegend');
 const debugLayerEl = document.getElementById('debugLayer');
+// The present-day world (plans/GENERATE_REDESIGN_PLAN.md, ?next=1) has its own inner layers (its past); the old
+// pipeline's layers mean nothing to it, and its own nothing to the old one
+{
+    const next = new URLSearchParams(location.search).has('next');
+    debugLayerEl?.querySelectorAll('optgroup').forEach(g => {
+        const present = g.hasAttribute('data-present');
+        if (present ? !next : next && (g.label === 'Geology' || g.label === 'Plate Physics')) g.remove();
+    });
+}
 const shownLayer = () => (state.showPlates ? 'plates' : state.debugLayer);
 
 function switchVisualization(layer) {

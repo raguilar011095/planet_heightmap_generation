@@ -141,11 +141,19 @@ export function presentPast(L, land, crust, config, cfg = PRESENT) {
         const maxRing = Math.max(...cells.map(c => ringOf[c]));
         for (let ring = 1; ring <= maxRing; ring++) for (let i = 0; i < cores.length; i++) {
             const age = Math.max(cfg.youngestRingMyr, cores[i].age - ring * ringStep * (0.85 + 0.3 * rng()));
+            // a ring docked along the margin that was active then — one side of the core, not all round it (a closed
+            // oval of mountains round every craton is the "ring" look the owner disliked in Evolution): only the arc of
+            // its seam within ±ringArcDeg/2 of a bearing drawn for it
+            const K = cores[i], bearing = 2 * Math.PI * rng(), halfArc = cfg.ringArcDeg * Math.PI / 360;
             const front = [];
             for (const c of cells) {
                 // (a seam that runs near today's coast raised no welt there: a passive margin rifted across the old
                 // belts, its rim worn and buried under the coastal plain — the welts stand inland)
                 if (ringOf[c] !== ring || coreOf[c] !== i || toSea[c] < cfg.pastCoastKm) continue;
+                const q = at(xyz, c), d = [q[0] - K.p[0], q[1] - K.p[1], q[2] - K.p[2]];
+                let off = Math.atan2(dot(d, K.ay), dot(d, K.ax)) - bearing;
+                off = Math.atan2(Math.sin(off), Math.cos(off));
+                if (Math.abs(off) > halfArc) continue;
                 for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) { const nb = adjList[j]; if (inMass(nb) && coreOf[nb] === i && ringOf[nb] === ring - 1) { front.push(c); break; } }
             }
             if (front.length < 2) continue;

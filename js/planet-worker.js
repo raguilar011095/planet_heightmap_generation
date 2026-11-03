@@ -218,7 +218,20 @@ function presentHeights(present, heightKm, mesh, r_xyz, ms, drainage, receivers)
     present.world.rivers = presentRivers(heightKm, drainage, receivers);
     const r_elevation = new Float32Array(mesh.numRegions);
     for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(heightKm[r]);
-    return { r_elevation, debugLayers: {}, timing: Object.entries(ms).map(([stage, t]) => ({ stage, ms: t })) };
+    return { r_elevation, debugLayers: presentLayers(present, mesh.numRegions), timing: Object.entries(ms).map(([stage, t]) => ({ stage, ms: t })) };
+}
+/** The Inspect list's layers of the present-day world's past (G6b), per render region off its sim cell. */
+function presentLayers(present, n) {
+    const f = present.world.frame, cellOf = present.regionCell;
+    const floorAge = new Float32Array(n), beltKind = new Float32Array(n), beltAge = new Float32Array(n), craton = new Float32Array(n);
+    for (let r = 0; r < n; r++) {
+        const c = cellOf[r];
+        floorAge[r] = f.type[c] === 0 ? -f.formedAt[c] : 0;
+        beltKind[r] = f.oroType[c];
+        beltAge[r] = f.oroType[c] ? (f.oroLast[c] >= 0 ? 0 : -f.oroLast[c]) : 0;
+        craton[r] = f.type[c] === 2 ? 1 : 0;
+    }
+    return { presentFloorAge: floorAge, presentBeltKind: beltKind, presentBeltAge: beltAge, presentCraton: craton };
 }
 const knobsOf = (d, nMag) => ({ nMag, terrainWarp: d.terrainWarp, smoothing: d.smoothing, hydraulicErosion: d.hydraulicErosion,
     thermalErosion: d.thermalErosion, ridgeSharpening: d.ridgeSharpening, glacialErosion: d.glacialErosion });
