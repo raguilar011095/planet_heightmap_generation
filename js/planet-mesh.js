@@ -654,6 +654,8 @@ export function updateSuperPlateBorders() {
 
     if (!state.curData) return;
     const showPlates = state.showPlates;
+    // the present-day world's rivers on the Terrain tab (G7a), its plates' motion on the Plates tab
+    if (state.curData.present && !showPlates && !state.debugLayer) { drawPresentRivers(state.curData); return; }
     if (!showPlates) return;
     if (state.curData.present) { drawPresentArrows(state.curData); return; }
 
@@ -732,6 +734,55 @@ export function updateSuperPlateBorders() {
             scene.add(state.mapSuperPlateBorderMesh);
         }
     }
+}
+
+/**
+ * The present-day world's rivers (G7a): the carving's own network, each reach a line from a cell to the one it drains
+ * into, drawn as lines on the land (never cut as trenches: the owner's rule), bluer and stronger the bigger the river.
+ * In the border meshes' slots (cleared first).
+ */
+function drawPresentRivers(d) {
+    const R = d.present?.rivers;
+    if (!R || !R.count) return;
+    const { from, to, size } = R, xyz = d.r_xyz, elev = d.r_elevation, V = 0.04;
+    // (linear light: a deep blue, the smaller rivers a little paler)
+    const colour = (s) => { const t = Math.min(1, s); return [0.012 + 0.03 * (1 - t), 0.05 + 0.06 * (1 - t), 0.2 + 0.12 * (1 - t)]; };
+    if (!state.mapMode) {
+        const pos = new Float32Array(6 * R.count), col = new Float32Array(6 * R.count);
+        for (let i = 0; i < R.count; i++) {
+            const a = from[i], b = to[i], ra = 1.0015 + Math.max(0, elev[a]) * V, rb = 1.0015 + Math.max(0, elev[b]) * V, c = colour(size[i]);
+            pos.set([xyz[3 * a] * ra, xyz[3 * a + 1] * ra, xyz[3 * a + 2] * ra, xyz[3 * b] * rb, xyz[3 * b + 1] * rb, xyz[3 * b + 2] * rb], 6 * i);
+            col.set([...c, ...c], 6 * i);
+        }
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+        g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+        state.superPlateBorderMesh = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85 }));
+        scene.add(state.superPlateBorderMesh);
+        return;
+    }
+    const PI = Math.PI, sx = 2 / PI, centerLon = state.mapCenterLon || 0;
+    const ll = (r) => {
+        let lon = Math.atan2(xyz[3 * r], xyz[3 * r + 2]) - centerLon;
+        if (lon > PI) lon -= 2 * PI; else if (lon < -PI) lon += 2 * PI;
+        return [lon * sx, Math.asin(Math.max(-1, Math.min(1, xyz[3 * r + 1]))) * sx];
+    };
+    const pos = [], col = [];
+    for (let i = 0; i < R.count; i++) {
+        const A = ll(from[i]), B = ll(to[i]);
+        if (Math.abs(A[0] - B[0]) > 1) continue;
+        const c = colour(size[i]);
+        pos.push(A[0], A[1], 0.0025, B[0], B[1], 0.0025); col.push(...c, ...c);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    const m = new THREE.LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.85, clippingPlanes: MAP_CLIP_PLANES });
+    state.mapSuperPlateBorderMesh = new THREE.LineSegments(g, m);
+    const cL = new THREE.LineSegments(g, m); cL.position.x = -4;
+    const cR = new THREE.LineSegments(g, m); cR.position.x = 4;
+    state.mapSuperPlateBorderMesh.add(cL, cR);
+    scene.add(state.mapSuperPlateBorderMesh);
 }
 
 /** The present-day plates' motion arrows on the globe or the map (in the border meshes' slots, which are cleared first). */

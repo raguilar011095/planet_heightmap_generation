@@ -16,7 +16,7 @@ import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld, presentTerrainMesh, presentGroundOf } from '../v2/js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentGroundOf, presentRivers } from '../v2/js/present/world.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
 import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
@@ -203,17 +203,19 @@ function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
     const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs });
     present.world = w;
-    return presentHeights(present, w.heightKm, mesh, r_xyz, w.ms);
+    return presentHeights(present, w.heightKm, mesh, r_xyz, w.ms, w.drainage, w.receivers);
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 function presentReground(present, mesh, r_xyz, seed, knobs) {
     const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs });
     present.world.heightKm = g.heightKm;
-    return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms);
+    return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
 }
-function presentHeights(present, heightKm, mesh, r_xyz, ms) {
+function presentHeights(present, heightKm, mesh, r_xyz, ms, drainage, receivers) {
     // its hillshade, as Evolution shades its terrain (v2/js/view/terrain-shade.js; flat ground 1): the page paints by it
     present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), heightKm);
+    // its rivers (G7a): the carving's own network, drawn as lines
+    present.world.rivers = presentRivers(heightKm, drainage, receivers);
     const r_elevation = new Float32Array(mesh.numRegions);
     for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(heightKm[r]);
     return { r_elevation, debugLayers: {}, timing: Object.entries(ms).map(([stage, t]) => ({ stage, ms: t })) };
@@ -235,6 +237,7 @@ function presentMessage(present, plateIsOcean) {
         boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
         arrows: present.arrows ?? (present.arrows = arrowAnchors(L, P)),
         shade: present.world?.shade ?? null,
+        rivers: present.world?.rivers ?? null,
         // what the hover tells of each place's crust and its past: its sim cell, and the few records it reads there
         regionCell, rec: present.world ? (({ type, oroType, oroStart, oroLast, formedAt, volcType, volcAt, volcKm }) =>
             ({ type, oroType, oroStart, oroLast, formedAt, volcType, volcAt, volcKm }))(present.world.frame) : null,

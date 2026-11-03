@@ -57,7 +57,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.frame = clock() - t0; t0 = clock();
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, o);
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, heightKm: G.heightKm, ms };
+    return { land, B, sea, belts, frame, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
 }
 
 /**
@@ -74,5 +74,20 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const T = synthesizeTerrain(frame, sim, tMesh, { cfg, seed: o.seed, carve: cfg.carveTimeMyr > 0 });
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { heightKm: T.heightKm, ms };
+    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, ms };
+}
+
+/**
+ * The rivers to draw (G7a): every land cell draining at least `minKm2` (rain-weighted, km² — the same rivers at every
+ * Detail), a reach from it to the cell it drains into (or the sea cell it pours into); its size 0…1 by log of its area.
+ */
+export function presentRivers(heightKm, drainage, receivers, minKm2 = 60000, fullKm2 = 3e6) {
+    if (!drainage || !receivers) return { count: 0, from: new Int32Array(0), to: new Int32Array(0), size: new Float32Array(0) };
+    const from = [], to = [], size = [], lg = Math.log(fullKm2 / minKm2);
+    for (let c = 0; c < heightKm.length; c++) {
+        if (heightKm[c] <= 0 || drainage[c] < minKm2) continue;
+        const r = receivers[c], d = r >= 0 ? r : -1 - r;
+        from.push(c); to.push(d); size.push(Math.min(1, Math.log(drainage[c] / minKm2) / lg));
+    }
+    return { count: from.length, from: Int32Array.from(from), to: Int32Array.from(to), size: Float32Array.from(size) };
 }
