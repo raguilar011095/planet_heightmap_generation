@@ -295,35 +295,43 @@ WorldPicker, GlobeFrame, SectionHead, Tag, Callout and Logo.
   - [x] The page's meta tags still match what it says. Pictures are sized and below the hero lazy (about 750 KB of
     worlds, 72 KB for the globe).
 
-### R5: the globe and the map
+### R5: the globe's light, air and stage
 
-References: **Maps and the globe: The globe's defaults**; the **7 · The globe and its maps · the globe** boards; the
-artifact's Maps assets (`light-atlas.png` and the Arden globes). Code: `js/scene.js` and `js/map-projection.js`
-(Generate and Import), `v2/js/app/globe-view.js` (Evolution); find the rest when the phase starts.
+References: **Maps and the globe: The globe's defaults**; the **7 · The globe and its maps · the globe** boards. Code:
+`js/scene.js`, `js/planet-mesh.js` (Generate and Import), `v2/js/app/globe-view.js` (Evolution), and two new shared
+modules, `js/stage.js` and `js/degree-ring.js`.
 
-- [ ] **Atlas light** in every tool: soft, from the upper left, never dark; no night side.
-- [ ] **Gentle relief under thematic colours:** `1 + ½ × (shade − 1)` in every tool (Evolution shades fully today;
-  Generate draws Köppen and climate flat).
-- [ ] **The quiet sea** (`map-sea`, shaded gently by the sea floor) under every land-only layer; `map-paper` for land with
-  nothing to show; `map-ice`, `map-lake`.
-- [ ] **Around the globe:** `desk` by theme (from R1); black space with stars as an option in the view strip.
-- [ ] **A thin rim of air** (`map-air`), no heavy glow.
-- [ ] **Lines:** the graticule in `map-grid`; the equator and tropics dashed in `map-tropics` (optional, useful in Climate);
-  the degree ring in `gold` at home zoom, fading as you zoom in.
-- [ ] **Flat maps:** the same colours and relief, without the globe's light.
+**Re-scoped while building:** the defaults that change a layer's colours (gentle relief under thematic colours, the quiet
+sea, map paper) moved to R6, with the rest of the map colours: they are per-layer colour work in both renderers, and
+they need the same checks as the palettes. R5 is the globe's light, air and stage.
+
+- [x] **Atlas light** in every tool: the sun carried with the camera, soft, from the upper left (the side the relief is
+  shaded from); the strong ambient keeps the far side up, so nothing falls into night. Generate's sun used to be fixed
+  in the world (the side turned away dimmed); Evolution's came from the upper right.
+- [x] **A thin rim of air** (`map-air`, a little bluer at night) at 1.03 of the globe's radius, lit only at its edge,
+  instead of the heavy glow at 1.12 that read as a pale halo on Paper.
+- [x] **The stage:** the theme's `desk` (R1); **Stars**, a new option in the view strip on all three tools (globe only,
+  remembered), puts the globe in `stage-space` with its stars. Evolution's flat map stays on the desk.
+- [x] **The degree ring** in `gold` at home zoom (ticks every 5°, longer every 30°), sized each frame to the globe on
+  screen, fading as you zoom in, gone in the map view; still under reduced motion (it shows or hides, no fade).
+- [x] **The grid** in `map-grid` (white at 22 %, was 12–13 %) on Generate's and Import's globe and map, and Evolution's.
+- [x] Guides: `docs/shared.md` (the stage, the light, the ring, Stars), `docs/generate.md` (the files, the globe),
+  `docs/evolution.md` (Stars).
 - **Verify:**
-  - [ ] By eye, at the whole planet and close up, on several seeds per tool and on an Earth import; before and after at
-    one camera and zoom.
-  - [ ] The frame rate while turning and zooming matches `main`.
-  - [ ] Decide with the owner whether colour exports carry the gentle relief; check every export either way.
-  - [ ] Links and planet files open the same worlds (only their pictures change).
-  - [ ] `docs/shared.md` (the view) and each tool's guide.
+  - [x] Generate on Paper and on Night, Stars on and off; Evolution's globe and its map view (the ring goes); a phone
+    (the ring fits the portrait camera).
+  - [x] No console errors; `check-style.mjs` passes.
+  - [ ] Frame rate while turning and zooming, timed against `main` (one SVG updated only when its size changes).
+  - [ ] By eye on several seeds per tool and an Earth import (one seed each was looked at).
 
 ### R6: map colours by job
 
 References: **Maps and the globe: Colour by job**, its palettes and **Checked, not eyeballed**; the **7 · The globe and
 its maps · colour by job, ores, food** boards; PR #88.
 
+- [ ] **From R5, the colour defaults:** gentle relief under thematic colours, `1 + ½ × (shade − 1)`, in every tool
+  (Evolution shades them fully today; Generate draws Köppen and climate flat); the quiet sea (`map-sea`, shaded gently by
+  the sea floor) under every land-only layer; `map-paper` for land with nothing to show; `map-ice`, `map-lake`.
 - [ ] **Every map mode, listed** with its question (a standard, how much, which side, which kind, where) and its palette,
   in this plan before any colour changes.
 - [ ] **Standards untouched:** Köppen (`koppen-*`, as `js/koppen.js` draws it), the height palettes, Satellite, Rocks.
@@ -395,4 +403,5 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R1 built and checked, on `redesign-r1` (stacked on R0): PR #95.
 - **2026-11-03:** R2 built and checked, on `redesign-r2` (stacked on R1): PR #97.
 - **2026-11-03:** R3 built and checked, on `redesign-r3` (stacked on R2): PR #99.
-- **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3).
+- **2026-11-03:** R4 built and checked, on `redesign-r4` (stacked on R3): PR #101.
+- **2026-11-03:** R5 built and checked, on `redesign-r5` (stacked on R4).

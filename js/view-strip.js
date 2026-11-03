@@ -8,6 +8,7 @@
 
 import { PROJECTIONS } from '../v2/js/view/projections.js';
 import { renderProjectionOptions } from '../v2/js/view/export-panel.js';
+import { wireSpaceToggle } from './stage.js';
 
 const OPEN_KEY = 'orogen.view-strip-open';
 // (one projection for the three pages; Evolution's own key, from before they shared it, read when there is none)
@@ -52,6 +53,7 @@ export function initViewStrip() {
     });
     mode.addEventListener('change', sync);
     sync();
+    wireSpaceToggle();
     // (folded until opened)
     const fold = document.getElementById('viewFold');
     if (fold) {

@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { renderer, scene, waterMesh, atmosMesh, starsMesh } from './scene.js';
+import { tokenRGBA } from './stage.js';
 import { state } from './state.js';
 import { elevationToColor, elevToHeightKm, biomeColor } from './color-map.js';
 import { terrainColorFn } from './terrain-palette.js';
@@ -438,7 +439,8 @@ function buildMapGrid() {
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    const gridMat = new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.12, clippingPlanes: MAP_CLIP_PLANES });
+    const g = tokenRGBA('map-grid', 'rgba(255,255,255,0.22)');   // (the grid's map colour, docs/style-guide/maps.md)
+    const gridMat = new THREE.LineBasicMaterial({ color: new THREE.Color(g.r, g.g, g.b), transparent: true, opacity: g.a, clippingPlanes: MAP_CLIP_PLANES });
     state.mapGridMesh = new THREE.LineSegments(geo, gridMat);
     state.mapGridMesh.visible = state.mapMode && state.gridEnabled;
     // Wrap clones for smooth longitude scrolling
@@ -497,8 +499,8 @@ function buildGlobeGrid() {
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     const gridMat = new THREE.ShaderMaterial({
         uniforms: {
-            color: { value: new THREE.Color(0xffffff) },
-            opacity: { value: 0.12 }
+            color: { value: new THREE.Color(...(c => [c.r, c.g, c.b])(tokenRGBA('map-grid', 'rgba(255,255,255,0.22)'))) },
+            opacity: { value: tokenRGBA('map-grid', 'rgba(255,255,255,0.22)').a }
         },
         vertexShader: `
             void main() {

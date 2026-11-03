@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
          tickZoom, tickMapZoom, fitCamera } from './scene.js';
+import { createDegreeRing } from './degree-ring.js';
 import { state } from './state.js';
 import { initGenerateExport } from './export-generate.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
@@ -977,9 +978,11 @@ window.addEventListener('orientationchange', () => {
 });
 
 // Animation loop
+const degreeRing = createDegreeRing(renderer.domElement);
 function animate() {
     requestAnimationFrame(animate);
     if (state.mapMode) { tickMapZoom(); mapCtrl.update(); } else { tickZoom(); ctrl.update(); }
+    degreeRing.update(camera.position.distanceTo(ctrl.target), camera.fov, innerWidth, innerHeight, !state.mapMode && !!state.planetMesh);
     if (!state.mapMode && state.planetMesh && document.getElementById('chkRotate').checked) {
         state.planetMesh.rotation.y += 0.0008;
         waterMesh.rotation.y = state.planetMesh.rotation.y;

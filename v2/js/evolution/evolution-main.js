@@ -35,6 +35,7 @@ import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
 import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
+import { createDegreeRing } from '../../../js/degree-ring.js';
 import { downloadBlob } from '../view/png.js';
 import { savePlanet, planetBytes, openPlanet } from '../save/planet-file.js';
 import { PackedFrame } from '../tectonics/frame-pack.js';
@@ -890,7 +891,7 @@ function paintTile(fin, t, look) {
         const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
         const X = lon => (lon + 180) / 360 * W - x0, Y = lat => (90 - lat) / 180 * (W >> 1) - y0;
         ctx.save();
-        ctx.strokeStyle = 'rgba(255,255,255,0.13)'; ctx.lineWidth = 1.5; ctx.beginPath();
+        ctx.strokeStyle = (window.orogenTheme?.token('map-grid') || 'rgba(255,255,255,0.22)'); ctx.lineWidth = 1.5; ctx.beginPath();
         for (let lon = Math.ceil(w0 / st) * st; lon <= e0; lon += st) { ctx.moveTo(X(lon), 0); ctx.lineTo(X(lon), SLOT); }
         for (let lat = Math.ceil(s0 / st) * st; lat <= n0; lat += st) { if (Math.abs(lat) >= 90) continue; ctx.moveTo(0, Y(lat)); ctx.lineTo(SLOT, Y(lat)); }
         ctx.stroke();
@@ -1210,7 +1211,9 @@ function tick(now) {
     updatePatch(now);
     globe.resize();
     globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
+    degreeRing.update(globe.camera.position.length(), globe.camera.fov, innerWidth, innerHeight, !globe.map && !!B?.frames?.length);
 }
+const degreeRing = createDegreeRing(ui.canvas);
 requestAnimationFrame(tick);
 
 // ── the timeline ──

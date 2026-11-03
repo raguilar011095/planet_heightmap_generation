@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { stageColour, inSpace, onStage, makeAir } from '../../../js/stage.js';
 import { P as PROJ } from '../view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../view/projection-glsl.js';
 import { CLOUDS, CLOUD_GLSL, MAX_STORMS, scaleOf, driftRadPerS, cloudNoiseTexture, cloudEdges, cloudQuantileList, cloudStormsAt } from '../view/clouds.js';
@@ -60,12 +61,14 @@ export class GlobeView {
         this.renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true });
         this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
         this.scene = new THREE.Scene();
-        // the stage behind the globe: the page theme's desk (docs/style-guide/maps.md); the labs keep their own dark
-        const stage = () => new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
-        this.scene.background = space ? stage() : new THREE.Color(0x05060a);
-        if (space) window.orogenTheme?.onChange(() => {
-            this.scene.background = stage();
-            if (this.mapScene) this.mapScene.background = stage();
+        // the stage behind the globe: the page theme's desk, or space with stars when Stars is on (js/stage.js;
+        // docs/style-guide/maps.md); the map always on the desk; the labs keep their own dark
+        this.scene.background = space ? new THREE.Color(stageColour()) : new THREE.Color(0x05060a);
+        if (space) onStage(() => {
+            this.scene.background = new THREE.Color(stageColour());
+            if (this.mapScene) this.mapScene.background = new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
+            if (this.stars) this.stars.material.visible = inSpace();
+            this.air?.update();
             this._dirty = true;
         });
         this.space = space;
@@ -289,21 +292,19 @@ void main() {
         }
         const stars = new THREE.BufferGeometry();
         stars.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-        // (space with stars is an option to come, never the default: the stage follows the theme)
-        this.scene.add(new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, visible: false })));
-        const atmosphere = new THREE.ShaderMaterial({
-            uniforms: { c: { value: new THREE.Color(0.35, 0.6, 1.0) } },
-            vertexShader: 'varying vec3 vN,vP;void main(){vN=normalize(normalMatrix*normal);vP=(modelViewMatrix*vec4(position,1)).xyz;gl_Position=projectionMatrix*vec4(vP,1);}',
-            fragmentShader: 'uniform vec3 c;varying vec3 vN,vP;void main(){float r=1.0-max(0.0,dot(normalize(-vP),vN));gl_FragColor=vec4(c,pow(r,3.5)*0.55);}',
-            transparent: true, side: THREE.FrontSide, depthWrite: false,
-        });
-        const halo = new THREE.Mesh(new THREE.SphereGeometry(1.12, 64, 64), atmosphere);
+        // (space with stars is an option, never the default)
+        this.stars = new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, visible: inSpace() }));
+        this.scene.add(this.stars);
+        // the air: a thin rim of map-air at the globe's edge, no heavy glow (js/stage.js)
+        this.air = makeAir(THREE, 1.03);
+        const halo = this.air.mesh;
         halo.renderOrder = 3;                                 // (over the clouds: it is nearer the eye)
         this.scene.add(halo);
         this.scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
-        // the sun, carried with the camera: where V1's (5, 3, 4) stands seen from V1's opening view
+        // atlas light: the sun carried with the camera, soft, from the upper left (the side the relief is shaded from),
+        // never dark — the ambient holds the far side up (docs/style-guide/maps.md; Generate's globe has the same)
         const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
-        sun.position.set(0.707, 0.34, 0.62);
+        sun.position.set(-0.6, 0.5, 0.62);
         this.camera.add(sun, sun.target);
         this.scene.add(this.camera);
         this.setSeaMask(null);

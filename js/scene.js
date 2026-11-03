@@ -2,6 +2,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { stageColour, inSpace, onStage, makeAir } from './stage.js';
 
 export const canvas   = document.getElementById('canvas');
 export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -9,10 +10,9 @@ renderer.setSize(innerWidth, innerHeight);
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 
 export const scene  = new THREE.Scene();
-// The stage behind the globe is the page theme's desk: paper by day, navy at night (docs/style-guide/maps.md).
-const stageColour = () => new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
-scene.background = stageColour();
-window.orogenTheme?.onChange(() => { scene.background = stageColour(); });
+// The stage behind the globe: the page theme's desk (paper by day, navy at night), or space with stars when the view
+// strip's Stars is on (js/stage.js; docs/style-guide/maps.md)
+scene.background = new THREE.Color(stageColour());
 
 export const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 0.4, 2.8);
@@ -81,9 +81,12 @@ export function tickZoom() {
 }
 
 scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
+// Atlas light: the sun carried with the camera, soft, from the upper left (the side the relief is shaded from), never
+// dark — the ambient holds the far side up (docs/style-guide/maps.md; Evolution's globe has the same)
 export const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
-sun.position.set(5, 3, 4);
-scene.add(sun);
+sun.position.set(-0.6, 0.5, 0.62);
+camera.add(sun, sun.target);
+scene.add(camera);
 
 // Stars
 export let starsMesh;
@@ -92,18 +95,14 @@ export let starsMesh;
     p.push(r*Math.sin(ph)*Math.cos(th),r*Math.sin(ph)*Math.sin(th),r*Math.cos(ph));}
   g.setAttribute('position',new THREE.Float32BufferAttribute(p,3));
   starsMesh = new THREE.Points(g,new THREE.PointsMaterial({color:0xffffff,size:0.08}));
-  starsMesh.material.visible = false;   // (space with stars is an option to come, never the default: the stage follows the theme)
+  starsMesh.material.visible = inSpace();   // (space with stars is an option, never the default)
   scene.add(starsMesh); }
 
-// Atmosphere
-const atmosMat = new THREE.ShaderMaterial({
-    uniforms:{c:{value:new THREE.Color(0.35,0.6,1.0)}},
-    vertexShader:`varying vec3 vN,vP;void main(){vN=normalize(normalMatrix*normal);vP=(modelViewMatrix*vec4(position,1)).xyz;gl_Position=projectionMatrix*vec4(vP,1);}`,
-    fragmentShader:`uniform vec3 c;varying vec3 vN,vP;void main(){float r=1.0-max(0.0,dot(normalize(-vP),vN));gl_FragColor=vec4(c,pow(r,3.5)*0.55);}`,
-    transparent:true,side:THREE.FrontSide,depthWrite:false
-});
-export const atmosMesh = new THREE.Mesh(new THREE.SphereGeometry(1.12,64,64), atmosMat);
+// Air: a thin rim of map-air at the globe's edge, no heavy glow
+const air = makeAir(THREE, 1.03);
+export const atmosMesh = air.mesh;
 scene.add(atmosMesh);
+onStage(() => { scene.background = new THREE.Color(stageColour()); starsMesh.material.visible = inSpace(); air.update(); });
 
 // Water sphere — the sun's glint on it broad and soft, a sheen the sea still shows through (a tight, bright one hid it)
 const waterMat = new THREE.MeshPhongMaterial({

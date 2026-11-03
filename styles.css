@@ -113,6 +113,13 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 .og-seg__opt:hover { color: var(--ink); }
 .og-link:hover { text-decoration: underline; }
 
+/* the degree ring round the globe at home zoom (js/degree-ring.js): gold, ticks every 5°, longer every 30° */
+.degree-ring { position: fixed; pointer-events: none; overflow: visible; transition: opacity 0.2s ease; }
+.degree-ring .ring-line { fill: none; stroke: var(--gold); stroke-width: 1.2px; vector-effect: non-scaling-stroke; }
+.degree-ring .tick { stroke: var(--gold); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+.degree-ring .tick-long { stroke: var(--gold); stroke-width: 1.4px; vector-effect: non-scaling-stroke; }
+@media (prefers-reduced-motion: reduce) { .degree-ring { transition: none; } }
+
 /* ─── The masthead (docs/style-guide/components.md: Masthead, Logo, Tabs) ─── */
 :root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 36 px on phones) */
 #topNav {

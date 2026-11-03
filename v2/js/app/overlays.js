@@ -8,7 +8,7 @@ import { plateCss } from '../view/palettes.js';
 
 export function drawGraticule(ctx, width, height, stepDeg = 30) {
     ctx.save();
-    ctx.strokeStyle = 'rgba(255,255,255,0.13)';
+    ctx.strokeStyle = (window.orogenTheme?.token('map-grid') || 'rgba(255,255,255,0.22)');
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let lon = -180; lon <= 180; lon += stepDeg) {

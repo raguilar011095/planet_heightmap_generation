@@ -70,7 +70,7 @@ Switch views with the tabs over the planet: **Terrain**, **Satellite** (on detai
 - **Satellite** colours the land from its climate and terrain, and clouds from the planet's own climate drift over the
   globe, with storm spirals; turn them off with **Clouds** beside Hillshade.
 - The arrow at the tabs' left opens the view options: Globe or Map, the map in any of ten projections, its centre,
-  auto-rotate, a grid, the terrain's colours (sixteen palettes) and **Hillshade**, which turns the relief's shading off
+  auto-rotate, **Stars** (the globe in space), a grid, the terrain's colours (sixteen palettes) and **Hillshade**, which turns the relief's shading off
   for flat colour.
 
 ## Geology (beta)
