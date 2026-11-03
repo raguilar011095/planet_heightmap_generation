@@ -95,6 +95,8 @@ CNAME                   Custom domain config (orogen.studio)
 preview.png             Social preview image (og:image / Twitter card)
 VISION.md               The project's vision: what Orogen is, its pillars, each tool's profile, its scope
 CLAUDE.md               Rules for Claude Code sessions (imports VISION.md)
+.claude/               Claude Code setup: the look's checklist (skills/orogen-look/) and a hook that runs the style
+                        check after edits to stylesheets, pages and interface JS (settings.json)
 docs/                   Each tool's guide (generate.md, import.md, evolution.md) and what they share (shared.md)
 docs/style-guide/       The look: the brand book, maps and the globe, page patterns, and the components (reference CSS and
                         JS); plans/REDESIGN_PLAN.md moves the app onto it
@@ -104,6 +106,7 @@ v2/                     World Orogen V2 — the Evolution page (/evolution) and 
                         plans/V2_TECTONIC_HISTORY_DESIGN.md. Open /v2/ for the Tectonics Lab (locally: the deploy leaves
                         the labs out);
                         `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks;
+                        `node v2/tools/check-style.mjs` checks the pages' CSS against the style guide's tokens;
                         v2/js/view/ holds what every page shares — the export panel (export-panel.js), its rasters,
                         scales and README (export-raster.js), the map projections (projections.js) and their GLSL
                         inverses for Evolution's map view (projection-glsl.js), PNG and ZIP writers

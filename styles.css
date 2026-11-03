@@ -306,7 +306,7 @@ select optgroup { font-style: normal; font-weight: 600; color: var(--ui-marker);
 button#generate {
     width: 100%; padding: 10px; margin-top: 10px; margin-bottom: 12px;
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    color: white; border: none; border-radius: 8px;
+    color: var(--ui-ink); border: none; border-radius: 8px;
     font-size: 15px; font-weight: 500; cursor: pointer;
     transition: background 0.3s ease, opacity 0.3s ease;
 }
@@ -1084,7 +1084,7 @@ button#generate.generating {
 .import-btn {
     width: 100%; padding: 10px; margin-top: 6px;
     background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
-    color: white; border: none; border-radius: 8px;
+    color: var(--ui-ink); border: none; border-radius: 8px;
     font-size: 15px; font-weight: 500; font-family: inherit; cursor: pointer;
     transition: background 0.3s ease, opacity 0.3s ease;
 }

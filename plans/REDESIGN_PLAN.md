@@ -114,6 +114,15 @@ The style guide in the repo, today's colours as variables, the tokens and fonts 
   exactly the value it replaced.
 - [x] The local dev server serves `.woff2`.
 - [x] README (structure, dependencies, licence) and CLAUDE.md (where the look lives; new CSS uses tokens).
+- [x] **Using the standard when it applies:**
+  - CLAUDE.md's "The look" section, loaded in every session: the guide applies to anything a person sees.
+  - The `orogen-look` skill (`.claude/skills/orogen-look/`), loaded when a change touches the interface, map colours
+    or the words: what to read for the change, the rules that are easy to miss, how to colour a map, what to check.
+  - `node v2/tools/check-style.mjs`: no literal colour in the pages' stylesheets, style attributes or `<style>`
+    blocks; no new `--ui-*` role; no undefined `var(--…)`; no literal colour set on an element from interface JS.
+  - A project hook (`.claude/settings.json`) runs it after every edit to a stylesheet, a page or interface JS, and
+    reports only when something is wrong.
+  - The two `color: white` left in `styles.css` became `var(--ui-ink)` (the same white).
 - **Verify:**
   - [x] Resolving every `var(--ui-*)` back to its value gives the original three stylesheets exactly; no literal colour
     is left in a rule.
@@ -122,6 +131,10 @@ The style guide in the repo, today's colours as variables, the tokens and fonts 
     angle and Evolution's progress bars.
   - [x] The fonts load from `assets/fonts/` when asked for, and today's pages download none of them.
   - [x] No new console errors.
+  - [x] `check-style.mjs` passes on the branch, and catches one planted problem of each kind (a hex, a colour
+    name, an `rgba()`, a new `--ui-*` role, a misspelt `var()`, a colour in a style attribute, one set from JS).
+  - [x] The hook command, fed Claude Code's input for an edited file, reports the problems (exit 2) and stays silent
+    for a clean or unrelated file. It takes effect in sessions started after it lands.
   - [ ] The owner looks at the four pages: they should look exactly as they do today.
 
 ### R1: the palette and the type on today's layout
@@ -299,7 +312,7 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 
 - [ ] It follows the style guide; anything it bends is written back into `docs/style-guide/`, `tokens.css` and the
   design-system artifact in the same pull request.
-- [ ] Its CSS uses tokens and no literal colours (outside `tokens.css` and the shrinking `--ui-*` block).
+- [ ] Its CSS uses tokens and no literal colours: `node v2/tools/check-style.mjs` passes.
 - [ ] Paper and Night, at 1440 px and 400 px, checked in Chrome, with screenshots for the owner.
 - [ ] Controls are 44 px or more on phones; tooltips sit above their trigger; the bottom sheet holds what it should.
 - [ ] Every control shows the focus ring; nothing moves under `prefers-reduced-motion`.

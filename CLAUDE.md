@@ -20,9 +20,16 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 - `tuning/`: the automated Earth checks; `plans/`: design docs and phase plans
 - `docs/style-guide/`, `tokens.css`, `assets/fonts/`, `assets/brand/`: the look (brand book, tokens, fonts, mark and icons, components); `plans/REDESIGN_PLAN.md` moves the app onto it
 
-## Key Rules
+## The look
 
-Interface colours, type, spacing and shapes come from the style guide (`docs/style-guide/`) through `tokens.css`. New CSS uses its tokens (`var(--accent)`, `var(--space-4)`, the `--font-*` families), never a literal colour. Until a page has been redesigned (`plans/REDESIGN_PLAN.md`), its colours are the `--ui-*` variables at the top of `styles.css`; use those for small fixes there, and add no new ones. A change to a token, a component or a rule of the look updates `docs/style-guide/` in the same change.
+Everything a person sees follows the style guide, `docs/style-guide/` (the brand book, maps and the globe, page patterns, components), with its values in `tokens.css`. `plans/REDESIGN_PLAN.md` moves the app onto it, phase by phase.
+
+- **Before changing anything a person sees** (CSS or HTML, a control, a legend, a map mode's colours, an icon, the words in the interface), use the `orogen-look` skill (`.claude/skills/orogen-look/`): what to read for the change, the rules that are easy to miss, how to colour a map, and what to check.
+- **Tokens, never literals.** New CSS takes its colours, fonts and spacing from `tokens.css`. Pages not yet redesigned use the `--ui-*` roles at the top of `styles.css`; add no new ones.
+- **`node v2/tools/check-style.mjs`** checks the mechanical rules (no literal colours, no new `--ui-*` role, no undefined `var(--…)`). A hook in `.claude/settings.json` runs it after each edit to a stylesheet, a page or interface JS, and speaks only when something is wrong.
+- **Keep the guide in step.** A change that adds to the look or bends it updates `docs/style-guide/` (and `tokens.css`) in the same change.
+
+## Key Rules
 
 After any code change, check whether the docs need updating. The README is the Studio's front door: the vision in short, the tools, quick start, project structure and dependencies. Each tool's guide in `docs/` (`generate.md`, `import.md`, `evolution.md`) documents its controls, interactions, pipeline and algorithms; `docs/shared.md` covers what every tool shares (the navigation, the view, the climate, the export panel, previous versions); `v2/README.md` documents Evolution's engine for developers. If a change adds, removes, or modifies any of the following, update the matching file:
 

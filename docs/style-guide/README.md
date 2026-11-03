@@ -10,6 +10,7 @@ World Orogen is a free studio of planet tools that run in the browser: Generate,
 - **[Components](components.md)**: the twenty pieces as plain HTML and CSS (prefix `og-`), with `components.css` and `components.js` as their reference implementation. The app doesn't load these yet.
 - **[Maps and the globe](maps.md)**: how every world looks, and the colours of every map mode.
 - **[Page patterns](pages.md)**: how the pieces make the Studio, a tool, the atlas print and an Orogen Explains essay.
+- **The check**: `node v2/tools/check-style.mjs` finds literal colours in the pages' CSS, new `--ui-*` roles and undefined `var(--…)`. For Claude Code, `.claude/skills/orogen-look/` turns this guide into a checklist, and a hook runs the check after each edit to a stylesheet, a page or interface JS.
 - **The redesign**: [`plans/REDESIGN_PLAN.md`](../../plans/REDESIGN_PLAN.md) moves the app onto this guide, phase by phase. Until a page has moved, its colours are the `--ui-*` variables at the top of `styles.css`, which the redesign retires. New rules use the tokens and never a literal colour.
 
 ## Voice
