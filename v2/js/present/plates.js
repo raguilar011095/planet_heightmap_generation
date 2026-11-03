@@ -144,6 +144,26 @@ function componentsOf(G, members) {
  *   oceanSeeds }
  */
 export function buildPresentPlates(L, cfg = PRESENT) {
+    // Every continent has an active margin somewhere (G1d, owner 2026-11-03: "each continent have at least 1 active
+    // orogeny/plate boundary"): built once as drawn; a continent of at least activeMinShare of the sphere left with no
+    // trench, collision or pressed transform on it then leads into the ocean with its biggest unit, and all is built again
+    const W = buildPlatesWith(L, cfg, null);
+    const B = classifyBoundaries(L, W, W.cellLand, cfg), active = new Uint8Array(W.cellPlate.length);
+    for (let i = 0; i < B.count; i++) {
+        const k = B.kind[i];
+        if (k === Boundary.SUBDUCTION || k === Boundary.COLLISION || (k === Boundary.TRANSFORM && B.openCmYr[i] < 0)) { active[B.cellA[i]] = 1; active[B.cellB[i]] = 1; }
+    }
+    const quiet = new Set();
+    W.continents.forEach((cont, ci) => {
+        let cells = 0, hit = false;
+        for (const i of cont) for (const c of W.graph.cells[i]) { cells++; hit ||= active[c] === 1; }
+        if (!hit && cells >= cfg.activeMinShare * W.cellPlate.length) quiet.add(ci);
+    });
+    return quiet.size ? buildPlatesWith(L, cfg, quiet) : W;
+}
+
+/** The plates, built with the continents in `forced` (indices; or null) leading into the ocean whatever their draw. */
+function buildPlatesWith(L, cfg, forced) {
     const { mesh, xyz, pieceIds, pieceOcean, seed } = L;
     const n = mesh.numRegions, { adjOffset, adjList } = mesh;
     const G = pieceGraph(L);
@@ -209,13 +229,23 @@ export function buildPresentPlates(L, cfg = PRESENT) {
     // Some continents lead into an ocean plate that dives under them (an active margin: South America's Andes); the
     // rest lead into nothing (Africa). For each of the first, the ocean pieces its coast faces along its motion seed an
     // ocean plate of their own, so that plate's edge runs along the coast. Own stream.
-    const lrng = makeRng(seed ^ 0x1ead);
-    const leaders = units.map((u, ui) => ({ ui, active: lrng() < cfg.activeLeadShare })).filter(l => l.active);
+    // (each unit's own draw, keyed to its first piece: an edit elsewhere leaves it be)
+    const drawn = units.map(u => makeRng(((seed ^ 0x1ead) + Math.min(...u.pieces.map(p => pieceIds[p])) * 7919) >>> 0)() < cfg.activeLeadShare);
     // (at least the biggest continent has one, should the draw give none: a supercontinent's rim was never all quiet)
-    if (!leaders.length && U) leaders.push({ ui: 0, active: true });
+    if (!drawn.some(Boolean) && U) drawn[0] = true;
+    // a continent forced to lead (buildPresentPlates: it had no active margin) leads with its biggest unit, seeded first,
+    // whatever the plate count asks
+    const firsts = [], rest = [];
+    if (forced) continents.forEach((cont, ci) => {
+        if (!forced.has(ci)) return;
+        const us = units.map((u, ui) => ui).filter(ui => units[ui].continent === ci);
+        firsts.push({ ui: us.reduce((a, b) => (units[b].cells.length > units[a].cells.length ? b : a), us[0]), must: true });
+    });
+    units.forEach((u, ui) => { if (drawn[ui] && !firsts.some(f => f.ui === ui)) rest.push({ ui, must: false }); });
+    const leaders = [...firsts, ...rest];
     // the ocean pieces a unit's coast faces along its motion: from the middle of their shared border, the piece lies
     // within ~57° of the way the continent moves there
-    const leadingPieces = (u) => {
+    const leadingPieces = (u, minCos = cfg.leadCoastCos, openOnly = true) => {
         const score = new Map();
         for (const p of u.pieces) for (const [q, cnt] of G.nbr[p]) {
             if (land[q]) continue;
@@ -228,13 +258,16 @@ export function buildPresentPlates(L, cfg = PRESENT) {
         // (open sea: not a narrow one with another continent's coast across it)
         const otherCoast = (q) => [...G.nbr[q].keys()].some(p => land[p] && piecePlate[p] >= 0 && !u.pieces.includes(p));
         const out = [];
-        for (const [q, [s, w]] of score) if (s / w >= cfg.leadCoastCos && !otherCoast(q)) out.push(q);
+        for (const [q, [s, w]] of score) if (s / w >= minCos && (!openOnly || !otherCoast(q))) out.push(q);
         return out.sort((a, b) => a - b);
     };
     const coastWith = (u, q) => { let s = 0; for (const p of u.pieces) s += G.nbr[p].get(q) ?? 0; return s; };
-    for (const { ui } of leaders) {
-        if (oceanSeeds.length >= K - 1) break;                  // (keep one for the open ocean)
-        const ahead = leadingPieces(units[ui]).filter(q => !taken[q]);
+    for (const { ui, must } of leaders) {
+        if (!must && oceanSeeds.length >= K - 1) continue;      // (keep one for the open ocean)
+        let ahead = leadingPieces(units[ui]).filter(q => !taken[q]);
+        // (a continent's first margin, should no open sea lie squarely ahead: the sea most nearly ahead, then any)
+        if (!ahead.length && must) ahead = leadingPieces(units[ui], 0).filter(q => !taken[q]);
+        if (!ahead.length && must) ahead = leadingPieces(units[ui], 0, false).filter(q => !taken[q]);
         if (!ahead.length) continue;
         // (the longest connected stretch of them: one plate, one margin)
         const groups = componentsOf(G, ahead).map(g => [g, g.reduce((s, q) => s + coastWith(units[ui], q), 0)]);
@@ -243,7 +276,8 @@ export function buildPresentPlates(L, cfg = PRESENT) {
         oceanSeeds.push({ pieces: groups[0][0], unit: ui });
     }
     // the rest seeded farthest from land and from each other
-    const rng = makeRng(seed ^ 0x51ab);
+    // (among the three farthest, each piece by a draw of its own: an edit elsewhere leaves the choice be)
+    const pieceDraw = (i) => makeRng(((seed ^ 0x51ab) + pieceIds[i] * 104729) >>> 0)();
     for (let k = oceanSeeds.length; k < K; k++) {
         const scored = [];
         for (const i of oceanPieces) {
@@ -254,7 +288,8 @@ export function buildPresentPlates(L, cfg = PRESENT) {
         }
         if (!scored.length) break;
         scored.sort((a, b) => b[0] - a[0] || a[1] - b[1]);
-        const pick = scored[Math.min(scored.length - 1, Math.floor(rng() * Math.min(3, scored.length)))];
+        const top = scored.slice(0, Math.min(3, scored.length));
+        const pick = top.reduce((a, b) => (pieceDraw(b[1]) > pieceDraw(a[1]) ? b : a));
         taken[pick[1]] = 1;
         oceanSeeds.push({ pieces: [pick[1]], unit: -1 });
     }
@@ -481,6 +516,8 @@ export function buildPresentPlates(L, cfg = PRESENT) {
             for (const c of pc) { landCells += cellLand[c]; s0 += xyz[3 * c]; s1 += xyz[3 * c + 1]; s2 += xyz[3 * c + 2]; }
             plates.push({
                 index: pl, continental: pl < U, continent: pl < U ? units[pl].continent : -1,
+                // (who it is across edits: its first piece — its land's, or its seed's at sea — the Plates tab's colour)
+                key: pl < U ? Math.min(...units[pl].pieces.map(p => pieceIds[p])) : pieceIds[oceanSeeds[pl - U].pieces[0]],
                 cellCount: pc.length, share: pc.length / n, landShare: pc.length ? landCells / pc.length : 0,
                 centroid: unit([s0, s1, s2]),
                 dir: unit(pl < U ? units[pl].euler : fitEuler(pc, xyz, velOf)),

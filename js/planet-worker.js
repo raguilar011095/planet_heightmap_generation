@@ -183,16 +183,22 @@ function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 
 }
 
 // ── The present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with ?next=1 until it is the default) ──
-// G1: the pieces (Generate's plates) grouped into plates that move, from the UNEDITED layout and the pieces' motion on
-// it — so an edit changes only the crust, never the grouping — and the boundaries classified on the crust as edited.
-function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate }) {
-    applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse.coarse_r_plate, coarse.coarseMesh, coarse.coarse_xyz, seed);
+// G1: the pieces (Generate's plates) grouped into plates that move, from the layout AS EDITED — so an edit regroups the
+// plates as loading its planet code would (G1d, owner 2026-11-03: "I dont think the plates update motion and recalculate
+// things"): a raised piece rides its continent's plate, whose motion is fitted again — with the pieces' own motion from
+// the UNEDITED layout (js/plate-physics.js, run once: re-run on an edit it moves every piece on the planet).
+// reuse: the present-day world built before on this mesh (an edit): its sim cells per region and pieces on the sim mesh.
+function presentPlatesFor({ coarse, P, pieceOcean, pieceVec, seed, mesh, r_xyz, r_plate, reuse = null }) {
     // on Evolution's sim mesh (v2/js/present/layout.js), free of the render mesh's Detail
-    const L = presentLayout({ seed, P, coarse, pieceOcean: originalPlateIsOcean, pieceVec });
+    const L = reuse ? { ...reuse.L, pieceOcean, pieceVec } : presentLayout({ seed, P, coarse, pieceOcean, pieceVec });
     const plates = buildPresentPlates(L);
     // each render region's sim cell (its nearest; the sim mesh's index is in Evolution's z-up frame)
-    const regionCell = new Int32Array(mesh.numRegions), index = L.sim.index;
-    for (let r = 0; r < mesh.numRegions; r++) regionCell[r] = index.nearest(r_xyz[3 * r + 2], r_xyz[3 * r], r_xyz[3 * r + 1]);
+    let regionCell = reuse?.regionCell;
+    if (!regionCell) {
+        regionCell = new Int32Array(mesh.numRegions);
+        const index = L.sim.index;
+        for (let r = 0; r < mesh.numRegions; r++) regionCell[r] = index.nearest(r_xyz[3 * r + 2], r_xyz[3 * r], r_xyz[3 * r + 1]);
+    }
     // each region's plate: its own piece's (G1c: a plate is whole pieces, so its edges are the pieces' outlines at any
     // Detail) — or its sim cell's, in a piece split down a narrow sea or too small to hold a sim cell
     const pieceIndex = new Map(L.pieceIds.map((id, i) => [id, i]));
@@ -252,7 +258,7 @@ function presentMessage(present, plateIsOcean) {
     const B = present.world?.B ?? classifyBoundaries(L, P, cellLandNow(L, P, Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1))));
     return {
         regionPlate: present.regionPlate,
-        plates: P.plates.map(p => ({ index: p.index, continental: p.continental, share: p.share, landShare: p.landShare,
+        plates: P.plates.map(p => ({ index: p.index, key: p.key, continental: p.continental, share: p.share, landShare: p.landShare,
             speedCmYr: p.speedCmYr, euler: p.euler, centroid: p.centroid })),
         boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
         arrows: present.arrows ?? (present.arrows = arrowAnchors(L, P)),
@@ -338,8 +344,13 @@ function handleGenerate(data) {
         let present = null;
         if (data.next) {
             t0 = performance.now();
-            present = presentPlatesFor({ coarse: { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds }, P,
-                plateSeeds, originalPlateIsOcean, pieceVec: JSON.parse(JSON.stringify(plateVec)), seed, mesh, r_xyz, r_plate });
+            // the pieces' motion: the physics on the unedited layout (its own copy — the physics below bends the page's)
+            const pieceVec = JSON.parse(JSON.stringify(plateVec));
+            applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse_r_plate, coarseMesh, coarse_xyz, seed);
+            const coarse = { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds };
+            present = presentPlatesFor({ coarse, P, pieceOcean: plateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate });
+            // (kept for an edit: the coarse layout and the pieces' motion — G1d)
+            present.edit = { pieceVec, coarse, P };
             timing.push({ stage: `Present-day plates (${present.P.M} plates from ${P} pieces)`, ms: performance.now() - t0 });
         }
 
@@ -461,6 +472,9 @@ function handleGenerate(data) {
             coarseMesh, coarse_r_plate: new Int32Array(coarse_r_plate),
             present,
         };
+        // (the present-day world reads each region's piece on every edit and Reapply: the worker's own copy — r_plate
+        // itself goes to the page below, transferred, and is empty here after)
+        if (present) present.r_plate = W.r_plate;
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });
 
         // Compute terrain quality metrics using retained-state clones
@@ -613,7 +627,11 @@ function handleEditRecompute(data) {
         let t0 = performance.now(), tElev, tPost = 0;
         let r_elevation, mountain_r, coastline_r, ocean_r, r_stress, debugLayers, _timing = [], prePostElev, postTiming = [];
         if (W.present) {
-            // the present-day world: the same plates (the unedited layout's), the crust as edited, the ground again
+            // the present-day world: the plates regrouped and moved on the layout as edited (as loading the code would),
+            // then the ground again
+            const E = W.present.edit;
+            W.present = { ...presentPlatesFor({ coarse: E.coarse, P: E.P, pieceOcean: plateIsOcean, pieceVec: E.pieceVec,
+                seed, mesh, r_xyz, r_plate: W.present.r_plate, reuse: W.present }), edit: E };
             const g = presentGround(W.present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
             r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
             mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);

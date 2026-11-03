@@ -23,6 +23,7 @@ export const PRESENT = {
     // Most continents lead into an ocean plate that dives under them — an active margin, the plate's edge along their
     // leading coast (the Andes, the Cascades, Sumatra); the rest lead into nothing (Africa, Antarctica).
     activeLeadShare: 0.6,
+    activeMinShare: 0.01,          // …and every continent of at least this share of the sphere (~5 Mkm²) leads somewhere (G1d)
     seaSmoothKm: 250,              // out at sea a plate's edge is smoothed over about this (the pieces' outlines wiggle)
     leadCoastCos: 0.55,            // an ocean piece within ~57° of its continent's motion, seen from their shared coast, is ahead
     // An ocean-only plate is drawn toward the continents it dives under (slab pull): its motion is bent this far from
@@ -51,7 +52,10 @@ export const PRESENT = {
     landFloodShare: 0.06,          // …but at most this share of the land pieces under the sea (fore-arcs, rift seas and gulfs
                                    // counted): past it the fringe barely under is lifted to landLiftKm, shallowest first
     landLiftKm: 0.02,
-    oceanCeilKm: -0.08,            // an ocean piece's ceiling: under the sea, its shelf edge sharp
+    oceanCeilKm: -0.05,            // an ocean piece's ceiling at the land pieces' edge: under the sea…
+    shelfDeepKm: -0.3,             // …deepening to this…
+    shelfKm: 150,                  // …over this far out (a shelf: no flat band where the land was carried out)
+    holdSoftKm: 0.05,              // every hold soft: the ground squeezed into a band this deep under its bound, not cut flat
     volcanoReachKm: 160,           // …but within this of a volcano on it (its island's flanks), or on island-arc crust
     foreArcDrownKm: 70,            // a land piece's edge along another plate's ocean piece drowned this far in (the fore-arc:
     foreArcDepthKm: -0.2,          // the Andes' coast ~100 km from the trench), to at least this deep

@@ -112,7 +112,7 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     surfaceRange(plan, cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn);
     ms.surface = clock() - t0; t0 = clock();
     addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
-    if (mask) holdToPieces(heightKm, mask, tMesh);
+    if (mask) holdToPieces(heightKm, mask, tMesh, S);
     ms.relief = clock() - t0;
     if (!carveIn) return { heightKm, ms };
     t0 = clock();

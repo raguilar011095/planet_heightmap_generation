@@ -101,7 +101,7 @@ for (const { pl, W } of results) {
     // (an ocean plate squeezed to a speck by its neighbours joins one of them: one fewer is fine)
     // (a world mostly land squeezes its ocean plates: up to three of them join a neighbour)
     const slack = pl.Lc >= 0.6 ? 3 : 1;
-    check(`${pl.name}: ${W.M} plates (${ocean} ocean-only) for ${pl.P} pieces`, ocean >= 1 && W.M >= Math.min(want, pl.P) - slack && W.M <= Math.max(want, W.continents.length + 1), `want ~${want}`);
+    check(`${pl.name}: ${W.M} plates (${ocean} ocean-only) for ${pl.P} pieces`, ocean >= 1 && W.M >= Math.min(want, pl.P) - slack && W.M <= Math.max(want, 2 * W.continents.length), `want ~${want} (up to a diving plate per continent: G1d)`);
 }
 
 section('Continents ride whole, split at most along one or two seams');
@@ -155,20 +155,46 @@ for (const { pl, W } of results) {
     check(`${pl.name}: continents ${mean(cont).toFixed(1)}, oceans ${mean(ocean).toFixed(1)} cm/yr`, ok && (!ocean.length || mean(ocean) > mean(cont)), '1–10 cm/yr, oceans faster');
 }
 
-section('Edits never regroup; the same planet gives the same plates');
-for (const { pl, L, W } of results.slice(0, 4)) {
+section('Edits regroup as the planet code would (G1d); the same planet gives the same plates');
+/** The layout with some pieces toggled (as the planet code's edits), the pieces' motion from the unedited layout, as the worker does. */
+function layoutEdited({ seed, P, Cn, Csv, Lc }, toggle) {
+    const g = generateCoarsePlates(seed, P, Cn, Csv, Lc), ocean = new Set(g.coarsePlateIsOcean);
+    for (const id of toggle) { if (ocean.has(id)) ocean.delete(id); else ocean.add(id); }
+    const pieceVec = JSON.parse(JSON.stringify(g.coarsePlateVec));
+    applyPlatePhysics(pieceVec, g.coarsePlateSeeds, new Set(g.coarsePlateIsOcean), g.coarse_r_plate, g.coarseMesh, g.coarse_xyz, seed);
+    const L = presentLayout({ seed, P, coarse: g, pieceOcean: ocean, pieceVec });
+    L.raw = g;
+    return L;
+}
+for (const { pl, W } of results.slice(0, 4)) {
     const again = buildPresentPlates(layoutOf(pl));
     const same = again.cellPlate.every((v, i) => v === W.cellPlate[i]) && again.plates.every((p, i) => p.euler.every((v, k) => v === W.plates[i].euler[k]));
     check(`${pl.name}: built twice, the same`, same);
-    // raise three ocean pieces and sink a land piece: the grouping is the unedited one, so nothing regroups; only the
-    // boundaries the edited crust touches change kind
-    const now = W.land.slice();
-    const ocean = []; for (let i = 0; i < now.length; i++) if (!now[i]) ocean.push(i);
-    for (const i of ocean.slice(0, 3)) now[i] = 1;
-    const landI = now.findIndex(v => v === 1); now[landI] = 0;
-    const B0 = classifyBoundaries(L, W, W.cellLand), B1 = classifyBoundaries(L, W, cellLandNow(L, W, now));
-    let changed = 0; for (let i = 0; i < B0.count; i++) changed += B0.kind[i] !== B1.kind[i];
-    check(`${pl.name}: 4 pieces edited — plates unchanged, ${(100 * changed / B0.count).toFixed(1)} % of boundary length changed kind`, B0.count === B1.count && changed / B0.count < 0.25);
+    // raise the ocean piece sharing most coast with the biggest continent, and sink a land piece of another: the raised
+    // piece rides a continent's plate, the sunk one no longer carries land, and the motions move
+    const G = W.graph, big = new Set(W.continents[0]);
+    let raise = -1, most = 0;
+    for (let i = 0; i < G.P; i++) { if (W.land[i]) continue; let s2 = 0; for (const [j, cnt] of G.nbr[i]) if (big.has(j)) s2 += cnt; if (s2 > most) { most = s2; raise = i; } }
+    const sink = (W.continents[1] ?? W.continents[0])[0];
+    const W2 = buildPresentPlates(layoutEdited(pl, [L_id(pl, raise), L_id(pl, sink)]));
+    const moved = W2.plates.some((p, k) => !W.plates[k] || p.euler.some((v, m) => Math.abs(v - W.plates[k].euler[m]) > 1e-12));
+    check(`${pl.name}: a piece raised beside a continent rides a continent's plate, a sunk one carries no land; motions recomputed`,
+        W2.land[raise] === 1 && W2.piecePlate[raise] >= 0 && W2.plates[W2.piecePlate[raise]].continental && W2.land[sink] === 0 && moved);
+}
+function L_id(pl, i) { return results.find(r => r.pl === pl).L.pieceIds[i]; }
+
+section('G1d: every continent has an active margin — a trench, a collision or a transform pressed together on it');
+for (const { pl, W, B } of results) {
+    // (owner, 2026-11-03: "each continent have at least 1 active orogeny/plate boundary"; continents of ≥ 1 % of the
+    // sphere — a smaller island only as its draw falls)
+    const n = W.cellPlate.length, active = new Uint8Array(n);
+    for (let i = 0; i < B.count; i++) {
+        const k = B.kind[i];
+        if (k === Boundary.SUBDUCTION || k === Boundary.COLLISION || (k === Boundary.TRANSFORM && B.openCmYr[i] < 0)) { active[B.cellA[i]] = 1; active[B.cellB[i]] = 1; }
+    }
+    const big = W.continents.filter(cont => cont.reduce((s, i) => s + W.graph.cells[i].length, 0) >= 0.01 * n);
+    const quiet = big.filter(cont => !cont.some(i => W.graph.cells[i].some(c => active[c])));
+    check(`${pl.name}: ${big.length - quiet.length} of ${big.length} continents with an active margin`, !quiet.length);
 }
 
 section('G1c: plates are whole pieces; some coasts are plate edges, mostly trenches');
@@ -263,7 +289,11 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
     for (let q = 0; q < nR; q++) {
         pieces += regionLand[q]; land += h[q] > 0;
         if (regionLand[q]) {
-            if (G.mask.opened[G.mask.regionCell[q]]) opened++;
+            // (a sea the crust opened, and its rim: the hold blends into it over a sim triangle)
+            const c = G.mask.regionCell[q], sim = results[0].L.sim;
+            let nearOpen = G.mask.opened[c] === 1;
+            for (let k = sim.adjOffset[c]; !nearOpen && k < sim.adjOffset[c + 1]; k++) nearOpen = G.mask.opened[sim.adjList[k]] === 1;
+            if (nearOpen) opened++;
             else if (h[q] < -1.25) deep++;     // (the fore-arc drowned before a trench reaches −1.2 km, no deeper)
             let beside = false;
             for (let k = adjOffset[q]; k < adjOffset[q + 1]; k++) { const nb = adjList[k]; if (!regionLand[nb] && regionPlate[nb] !== regionPlate[q]) { beside = true; break; } }
@@ -356,8 +386,10 @@ for (const { pl, G, mesh } of grounds) {
         // (Earth ~8 %, today's Generate ~33 %. Since G4 the continents stand up and 27–44 % is walled — Andean margins and
         // rift shoulders most of it: an OPEN tuning target, ≤ 25 %. Since G1c a third or so of the coast is an active
         // margin, as the owner asked (2026-11-03), and every one stands walled like the Andes: 44–56 %; a supercontinent
-        // rifting apart, its young seas walled by their shoulders, 68 %. Held under 70 % meanwhile, so it cannot run off)
-        walled / coast < 0.7 && high / land > 0.02, 'walled under 70 % (open target ≤ 25 %); some real highland');
+        // rifting apart, its young seas walled by their shoulders, 68 %. Held under 70 % meanwhile, so it cannot run off.
+        // One supercontinent has one long rim, much of it active — Pangaea's facing Panthalassa was — and its rift seas'
+        // shoulders: under 80 %)
+        walled / coast < (pl.Cn === 1 ? 0.8 : 0.7) && high / land > 0.02, `walled under ${pl.Cn === 1 ? 80 : 70} % (open target ≤ 25 %); some real highland`);
 }
 // ── G4: the continents' past ──
 section('G4: continents with a past — cratons, old ranges inside them, an Earth-like spread of heights');

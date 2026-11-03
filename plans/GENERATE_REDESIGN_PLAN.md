@@ -679,6 +679,35 @@ The phase gate applies as always. One phase at a time. Each has:
     the fringe barely under it is lifted to +20 m, shallowest first. Land drawn 25.9–26.4 % for the pieces' 27.4–28 %.
   - Heights stay Earth-like: land median 0.41–0.50 km, 18–27 % above 1 km.
 
+### G1d + G2d: Edits regroup; every continent active; the sea held softly (owner, 2026-11-03)
+- **The owner's words:**
+  - "Im not sure the plate swapping/editing is really working corectly. I dont think the plates update motion and
+    recalculate things";
+  - "I saw a bunch of light blue and patterns of dark blue 'diamonds' on the ocean";
+  - "can we potentially have each continent have at least 1 active orogeny/plate boundary?"
+- **Built 2026-11-03**; `check-present.mjs` 226/226.
+  - **A bug:** the worker's own `r_plate` (each region's piece) was transferred to the page and left empty. After an
+    edit or Reapply every region read as a land piece, and the whole sea was held to the land's floor (light blue).
+    The present-day world now keeps the worker's copy.
+  - **Edits regroup** (reverses decision G1's "edits never regroup"): the plates are built on the layout as edited, as
+    loading its planet code would. A raised piece rides its continent's plate, whose motion is fitted again. The pieces'
+    own motion stays the unedited layout's: `plate-physics.js` re-run on an edit moved all 80 pieces and flipped up to a
+    third of the plate edges.
+    - The leading-margin draws are keyed to each unit's first piece, and the ocean seeds' choice to each piece's own
+      draw, so an edit elsewhere leaves them be. An edit now flips 12–26 of 234 piece borders' plate-edge status (54
+      when it joins two continents).
+    - Each plate's colour comes from its first piece, so only regrouped plates change colour.
+  - **Every continent active:** the plates are built once as drawn. A continent of at least 1 % of the sphere left with
+    no trench, collision or transform pressed together on it then leads into the ocean with its biggest unit, and all
+    is built again. None of the 10 test planets needed it.
+  - **The sea held softly** (`hold.js`):
+    - an ocean piece's ceiling deepens from −0.05 km at the land pieces' edge to −0.3 km over 150 km (a shelf, not a flat
+      band where the land was carried out);
+    - every hold is soft (squeezed into a band 50 m deep under its bound, not cut flat);
+    - the exceptions (rift seas, arcs, volcanoes) are read through the terrain's warped sampling, not the nearest sim
+      cell, so no sim cell's outline shows.
+  - A single supercontinent's walled-coast guard is 80 % (74 % now: its long rim, much of it active, as Pangaea's was).
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

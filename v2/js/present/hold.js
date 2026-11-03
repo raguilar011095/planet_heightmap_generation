@@ -5,12 +5,20 @@
 //   · a land piece is continental crust: never deeper than a shelf (landFloorKm), but where the crust itself opened a
 //     sea (a rift's young sea); along another plate's ocean piece (an active margin) its fore-arc is drowned, so the
 //     trench lies offshore;
-//   · an ocean piece is oceanic crust: never above the sea (oceanCeilKm), but where orogeny raised it — an island arc's
-//     crust, a volcano and its flanks.
+//   · an ocean piece is oceanic crust: under the sea, shallowest at the land pieces' edge and deepening away from it (a
+//     shelf: oceanCeilKm → shelfDeepKm over shelfKm), but where orogeny raised it — an island arc's crust, a volcano.
+// Every hold is soft (the ground keeps its own texture, squeezed into a band under the bound), and the exceptions are
+// read through the terrain's own warped sampling of the sim mesh (as the belts and coasts are), not cell by cell — so
+// no sim cell's outline shows (G2d: flat light-blue bands and "diamonds" on the sea).
 // Laid down before the rivers carve, so they run to the coast it draws.
 
 import { CrustType } from '../tectonics/model/crust.js';
 import { PRESENT } from './present-config.js';
+
+/** h held above f, softly: unchanged from f + s up, squeezed toward f below (continuous, its slope 1 at f + s). */
+const softFloor = (h, f, s) => (h >= f + s ? h : f + s * Math.exp((h - f - s) / s));
+/** h held below c, softly: unchanged up to c − s, squeezed toward c above. */
+const softCeil = (h, c, s) => (h <= c - s ? h : c - s * Math.exp(-(h - c + s) / s));
 
 /**
  * Per sim cell: where a land piece's crust opened a sea (ocean crust on a land piece: 1 in `opened`), and where orogeny
@@ -37,13 +45,14 @@ export function heldCells(frame, sim, crustLand, cfg = PRESENT) {
 /**
  * Holds a terrain surface to the pieces, in place.
  * @param {Float32Array} heightKm  the surface on Generate's mesh (km)
- * @param {{regionLand: Uint8Array, regionCell: Int32Array, regionPlate: Int16Array, opened: Uint8Array,
- *   raised: Uint8Array}} m  regionLand: each region's piece is land (as edited); regionCell: its sim cell; regionPlate:
- *   its plate; opened, raised: heldCells
+ * @param {{regionLand: Uint8Array, regionPlate: Int16Array, opened: Uint8Array, raised: Uint8Array}} m  regionLand: each
+ *   region's piece is land (as edited); regionPlate: its plate; opened, raised: heldCells (per sim cell)
  * @param {{adjOffset, adjList, edgeKm: number}} mesh  Generate's mesh (its terrain mesh)
+ * @param {{cells: Int32Array, weights: Float32Array}} S  each region's three sim cells and weights (sampleOnto)
  */
-export function holdToPieces(heightKm, m, mesh, cfg = PRESENT) {
-    const { regionLand, regionCell, regionPlate, opened, raised } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
+export function holdToPieces(heightKm, m, mesh, S, cfg = PRESENT) {
+    const { regionLand, regionPlate, opened, raised } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
+    const read = (field, r) => { const o = 3 * r; return S.weights[o] * field[S.cells[o]] + S.weights[o + 1] * field[S.cells[o + 1]] + S.weights[o + 2] * field[S.cells[o + 2]]; };
     // the fore-arc: a land piece's edge where another plate's ocean piece meets it (an active margin, present/plates.js
     // G1c), drowned over foreArcDrownKm so the trench lies offshore — on the pieces' own outline, at any Detail
     const foreArc = new Uint8Array(n);
@@ -57,17 +66,33 @@ export function holdToPieces(heightKm, m, mesh, cfg = PRESENT) {
         for (const r of front) for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (regionLand[nb] && !foreArc[nb]) { foreArc[nb] = 1; next.push(nb); } }
         front = next;
     }
+    // how far out from the land pieces each ocean piece's region lies, in rings of the mesh (km): the shelf deepens
+    const rings = Math.ceil(cfg.shelfKm / mesh.edgeKm), out = new Uint16Array(n).fill(65535);
+    front = [];
+    for (let r = 0; r < n; r++) if (regionLand[r]) { out[r] = 0; front.push(r); }
+    for (let ring = 1; ring <= rings && front.length; ring++) {
+        const next = [];
+        for (const r of front) for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (out[nb] === 65535) { out[nb] = ring; next.push(nb); } }
+        front = next;
+    }
+    const soft = cfg.holdSoftKm;
     let pieces = 0, flooded = 0;
     const fringe = [];
     for (let r = 0; r < n; r++) {
-        const c = regionCell[r], h = heightKm[r];
-        if (foreArc[r]) { heightKm[r] = Math.max(cfg.foreArcFloorKm, Math.min(cfg.foreArcDepthKm, h)); pieces++; flooded++; }
-        else if (regionLand[r]) {
+        const h = heightKm[r];
+        if (foreArc[r]) { heightKm[r] = Math.max(cfg.foreArcFloorKm, Math.min(cfg.foreArcDepthKm, h)); pieces++; flooded++; continue; }
+        if (regionLand[r]) {
             pieces++;
-            if (opened[c]) { flooded += h <= 0; continue; }
-            if (h < cfg.landFloorKm) heightKm[r] = cfg.landFloorKm;
-            if (heightKm[r] <= 0) { flooded++; fringe.push(r); }
-        } else if (h > cfg.oceanCeilKm && !raised[c]) heightKm[r] = cfg.oceanCeilKm;
+            const o = read(opened, r);                    // (1 inside a sea the crust opened, 0 outside, blended between)
+            const held = o * h + (1 - o) * softFloor(h, cfg.landFloorKm, soft);
+            heightKm[r] = held;
+            if (held <= 0) { flooded++; if (o < 0.5) fringe.push(r); }
+            continue;
+        }
+        const q = read(raised, r);                        // (1 on an arc's crust or a volcano's flanks)
+        const t = Math.min(1, (out[r] === 65535 ? rings : out[r]) * mesh.edgeKm / cfg.shelfKm);
+        const ceil = cfg.oceanCeilKm + (cfg.shelfDeepKm - cfg.oceanCeilKm) * t * t * (3 - 2 * t);
+        heightKm[r] = q * h + (1 - q) * softCeil(h, ceil, soft);
     }
     // Land Coverage: at most landFloodShare of the land pieces under the sea (the fore-arcs and the crust's own seas
     // counted); past that, the coastal fringe barely under it is lifted just above, the shallowest first — the gulfs a

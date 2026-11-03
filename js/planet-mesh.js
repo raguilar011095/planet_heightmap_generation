@@ -277,6 +277,7 @@ function presentRegionRGB(d) {
     const { mesh, r_plate, r_xyz, plateIsOcean } = d, n = mesh.numRegions, { adjOffset, adjList } = mesh;
     const plateOf = presentPlateOfRegion(d);
     const rgb = new Float32Array(3 * n), col = new THREE.Color();
+    const hues = new Map(), hueOf = (p) => { if (!hues.has(p)) { const k = pr.plates[p]?.key ?? p; hues.set(p, makeRng(k * 7 + 13)()); } return hues.get(p); };
     const shade = new Map();                                     // a piece's own shade
     const pieceShade = (id) => { if (!shade.has(id)) shade.set(id, makeRng(id + 31)() - 0.5); return shade.get(id); };
     for (let r = 0; r < n; r++) {
@@ -284,7 +285,8 @@ function presentRegionRGB(d) {
         let pieceEdge = false;
         for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (r_plate[nb] !== r_plate[r] && plateOf[nb] === p) { pieceEdge = true; break; } }
         const l = (land ? 0.56 : 0.27) + 0.07 * pieceShade(r_plate[r]) - (pieceEdge ? 0.05 : 0);
-        col.setHSL((0.03 + p * 0.618034) % 1, land ? 0.36 : 0.5, l);
+        // (each plate's hue from who it is — its first piece — so an edit recolours only the plates it regroups)
+        col.setHSL(hueOf(p), land ? 0.36 : 0.5, l);
         rgb[3 * r] = col.r; rgb[3 * r + 1] = col.g; rgb[3 * r + 2] = col.b;
     }
     // the boundaries: each region touching another plate takes the kind of the nearest classified edge of that pair,
