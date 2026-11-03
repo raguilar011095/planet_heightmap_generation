@@ -14,6 +14,7 @@ import { runNewClimate, newClimateTransfers } from './climate-new.js';
 import { computeTerrainMetrics } from './terrain-metrics.js';
 import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
+import { buildPresentPlates, classifyBoundaries, arrowAnchors } from '../v2/js/present/plates.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -177,6 +178,29 @@ function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 
     return climate;
 }
 
+// ── The present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with ?next=1 until it is the default) ──
+// G1: the pieces (Generate's plates) grouped into plates that move, from the UNEDITED layout and the pieces' motion on
+// it — so an edit changes only the crust, never the grouping — and the boundaries classified on the crust as edited.
+function presentPlatesFor({ coarseMesh, coarse_xyz, coarse_r_plate, plateSeeds, originalPlateIsOcean, pieceVec, seed }) {
+    applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse_r_plate, coarseMesh, coarse_xyz, seed);
+    const L = { mesh: coarseMesh, xyz: coarse_xyz, cellPiece: coarse_r_plate, pieceIds: Array.from(plateSeeds),
+        pieceOcean: originalPlateIsOcean, pieceVec, seed };
+    return { L, P: buildPresentPlates(L) };
+}
+/** What the page draws of it: the plates, which plate each piece rides on, the boundaries on the crust as it is now. */
+function presentMessage(present, plateIsOcean) {
+    const { L, P } = present;
+    const landNow = Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
+    const B = classifyBoundaries(L, P, landNow);
+    return {
+        pieceIds: L.pieceIds, piecePlate: P.piecePlate,
+        plates: P.plates.map(p => ({ index: p.index, continental: p.continental, share: p.share, landShare: p.landShare,
+            speedCmYr: p.speedCmYr, euler: p.euler, centroid: p.centroid })),
+        boundaries: { count: B.count, mid: B.mid, a: B.a, b: B.b, kind: B.kind, openCmYr: B.openCmYr, slipCmYr: B.slipCmYr, over: B.over },
+        arrows: present.arrows ?? (present.arrows = arrowAnchors(L, P)),
+    };
+}
+
 function handleGenerate(data) {
     const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, greenhouse = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate } = data;
     const spread = 5;
@@ -245,6 +269,16 @@ function handleGenerate(data) {
         }
 
         const noise = new SimplexNoise(seed);
+
+        // The present-day world (?next=1): its own copy of the pieces' motion, before the physics below bends it on the
+        // edited layout — its grouping is the unedited layout's
+        let present = null;
+        if (data.next) {
+            t0 = performance.now();
+            present = presentPlatesFor({ coarseMesh, coarse_xyz, coarse_r_plate, plateSeeds, originalPlateIsOcean,
+                pieceVec: JSON.parse(JSON.stringify(plateVec)), seed });
+            timing.push({ stage: `Present-day plates (${present.P.M} plates from ${P} pieces)`, ms: performance.now() - t0 });
+        }
 
         // Apply physically-motivated plate motion biasing
         t0 = performance.now();
@@ -348,7 +382,8 @@ function handleGenerate(data) {
             r_orogenic: r_orogenic ? new Float32Array(r_orogenic) : null,
             // Retain coarse-plate data so editRecompute can rebuild super
             // plates with the same detail-independent adjacency graph.
-            coarseMesh, coarse_r_plate: new Int32Array(coarse_r_plate)
+            coarseMesh, coarse_r_plate: new Int32Array(coarse_r_plate),
+            present,
         };
         timing.push({ stage: 'Clone state for retention', ms: performance.now() - t0 });
 
@@ -400,7 +435,8 @@ function handleGenerate(data) {
             _postTiming: postTiming,          // post-processing sub-stages
             _workerTotal: tWorkerTotal,
             _params: { N, P, jitter, nMag, numContinents, smoothing, terrainWarp, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, continentSizeVariety, greenhouse, precipitationOffset, landCoverage, seed },
-            terrainMetrics
+            terrainMetrics,
+            present: present ? presentMessage(present, plateIsOcean) : null,
         };
 
         // Transfer arrays the worker no longer needs (cloned copies kept in W)
@@ -554,6 +590,7 @@ function handleEditRecompute(data) {
             r_stress,
             climate,
             debugLayers,
+            present: W.present ? presentMessage(W.present, W.plateIsOcean) : null,
             _editTiming: {
                 elevation: tElev,
                 postProcessing: tPost,

@@ -11,6 +11,9 @@ import { SEED_MAX } from './planet-code.js';
 // Main thread still needs Delaunator for SphereMesh reconstruction
 setDelaunator(Delaunator);
 
+// The present-day world (plans/GENERATE_REDESIGN_PLAN.md) is built beside today's while it is under way: ?next=1
+const NEXT = typeof location !== 'undefined' && new URLSearchParams(location.search).has('next');
+
 // Read all slider values from the DOM into a params object
 function readSliders() {
     return {
@@ -136,7 +139,8 @@ if (worker) {
                     seed: msg.seed,
                     nMag: msg.nMag,
                     debugLayers: msg.debugLayers,
-                    terrainMetrics: msg.terrainMetrics || null
+                    terrainMetrics: msg.terrainMetrics || null,
+                    present: msg.present ?? null,
                 };
                 applyClimate(state.curData, msg);
                 if (msg.terrainMetrics) window.__terrainMetrics = msg.terrainMetrics;
@@ -261,6 +265,7 @@ if (worker) {
                 d.ocean_r = new Set(msg.ocean_r);
                 d.r_stress = msg.r_stress;
                 d.debugLayers = msg.debugLayers;
+                if (msg.present) d.present = msg.present;
                 applyClimate(d, msg);
 
                 const tColorsStart = performance.now();
@@ -517,7 +522,8 @@ export function generate(overrideSeed, toggledIndices = [], onProgress, skipClim
         ...s,
         seed: overrideSeed,
         toggledIndices,
-        skipClimate
+        skipClimate,
+        next: NEXT
     });
 }
 

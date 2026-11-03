@@ -197,11 +197,13 @@ function globeMaterial(exact) {
 /** The layer's colour of a region (linear light), from the layer state each mesh builder works out. */
 function regionColorFn({ climateColor, isBiome, biomeSmoothed, isKoppen, koppenArr, dbgArr, dbgMin, dbgMax, showPlates, showStress,
     r_plate, r_stress, mountain_r, coastline_r, ocean_r, r_elevation, waterLevel, terrainColor }) {
+    const presentRGB = showPlates ? presentRegionRGB(state.curData) : null;
     return (br) => {
         if (climateColor) return toLinear3(climateColor(br));
         if (isBiome && biomeSmoothed) return [biomeSmoothed[br * 3], biomeSmoothed[br * 3 + 1], biomeSmoothed[br * 3 + 2]];
         if (isKoppen && koppenArr) return toLinear3(koppenColor(koppenArr[br]));
         if (dbgArr) return debugValueToColor(dbgArr[br], dbgMin, dbgMax);
+        if (presentRGB) return [presentRGB[3 * br], presentRGB[3 * br + 1], presentRGB[3 * br + 2]];
         if (showPlates) {
             const pc = state.plateColors[r_plate[br]] || new THREE.Color(0.3,0.3,0.3);
             return [pc.r, pc.g, pc.b];
@@ -230,6 +232,110 @@ function smoothGreys(mesh, colorFn, t_elevation, r_elevation) {
     for (let i = 0; i < t.length; i++) t[i] = srgbToLinear(colorFn(t_elevation[i])[0]);
     for (let i = 0; i < r.length; i++) r[i] = srgbToLinear(colorFn(r_elevation[i])[0]);
     return { t, r };
+}
+
+// ── The present-day world's plates (plans/GENERATE_REDESIGN_PLAN.md G1; ?next=1) ──
+// Each plate that moves in its own hue, its continent light and its ocean dark, each piece (what Ctrl-click raises or
+// sinks) a shade of its own; the plate boundaries a band ~60 km wide in the colour of their kind; arrows for the motion.
+export const PRESENT_BOUNDARY_RGB = {
+    1: [240, 60, 50],     // ridge
+    2: [255, 150, 40],    // rift
+    3: [40, 120, 255],    // trench
+    4: [255, 0, 200],     // collision
+    5: [70, 205, 95],     // transform
+    6: [140, 140, 140],   // inactive seam
+};
+export const PRESENT_BOUNDARY_NAME = { 1: 'Ridge', 2: 'Rift', 3: 'Trench', 4: 'Collision', 5: 'Transform', 6: 'Inactive seam' };
+
+/** Which plate (index) each region rides on, cached on the present message. */
+export function presentPlateOfRegion(d) {
+    const pr = d?.present;
+    if (!pr) return null;
+    if (pr._plateOf && pr._plateOf.length === d.mesh.numRegions) return pr._plateOf;
+    const idx = new Map(pr.pieceIds.map((id, i) => [id, i]));
+    const out = new Int16Array(d.mesh.numRegions);
+    for (let r = 0; r < out.length; r++) out[r] = pr.piecePlate[idx.get(d.r_plate[r])];
+    return (pr._plateOf = out);
+}
+
+/** Each region's colour on the Plates tab (linear light, 3 a region), cached on the present message. */
+function presentRegionRGB(d) {
+    const pr = d?.present;
+    if (!pr) return null;
+    if (pr._rgb && pr._rgb.length === 3 * d.mesh.numRegions) return pr._rgb;
+    const { mesh, r_plate, r_xyz, plateIsOcean } = d, n = mesh.numRegions, { adjOffset, adjList } = mesh;
+    const plateOf = presentPlateOfRegion(d);
+    const rgb = new Float32Array(3 * n), col = new THREE.Color();
+    const shade = new Map();                                     // a piece's own shade
+    const pieceShade = (id) => { if (!shade.has(id)) shade.set(id, makeRng(id + 31)() - 0.5); return shade.get(id); };
+    for (let r = 0; r < n; r++) {
+        const p = plateOf[r], land = !plateIsOcean.has(r_plate[r]);
+        let pieceEdge = false;
+        for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (r_plate[nb] !== r_plate[r] && plateOf[nb] === p) { pieceEdge = true; break; } }
+        const l = (land ? 0.56 : 0.27) + 0.07 * pieceShade(r_plate[r]) - (pieceEdge ? 0.05 : 0);
+        col.setHSL((0.03 + p * 0.618034) % 1, land ? 0.36 : 0.5, l);
+        rgb[3 * r] = col.r; rgb[3 * r + 1] = col.g; rgb[3 * r + 2] = col.b;
+    }
+    // the boundaries: each region touching another plate takes the kind of the nearest classified edge of that pair,
+    // then the band is widened to ~60 km (in km, so the same at every Detail)
+    const B = pr.boundaries, pairs = new Map();
+    for (let i = 0; i < B.count; i++) {
+        const key = Math.min(B.a[i], B.b[i]) * 1024 + Math.max(B.a[i], B.b[i]);
+        if (!pairs.has(key)) pairs.set(key, []);
+        pairs.get(key).push(i);
+    }
+    const kindOf = new Uint8Array(n);
+    let front = [];
+    for (let r = 0; r < n; r++) {
+        const p = plateOf[r];
+        for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) {
+            const q = plateOf[adjList[k]];
+            if (q === p) continue;
+            const list = pairs.get(Math.min(p, q) * 1024 + Math.max(p, q));
+            if (!list) break;
+            let best = -2, kind = 6;
+            const x = r_xyz[3 * r], y = r_xyz[3 * r + 1], z = r_xyz[3 * r + 2];
+            for (const i of list) { const dd = x * B.mid[3 * i] + y * B.mid[3 * i + 1] + z * B.mid[3 * i + 2]; if (dd > best) { best = dd; kind = B.kind[i]; } }
+            kindOf[r] = kind; front.push(r);
+            break;
+        }
+    }
+    const edgeKm = Math.PI * 6371 / Math.sqrt(n);
+    const rings = Math.max(0, Math.round(30 / edgeKm) - 1);
+    for (let ring = 0; ring < rings; ring++) {
+        const next = [];
+        for (const r of front) for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (!kindOf[nb]) { kindOf[nb] = kindOf[r]; next.push(nb); } }
+        front = next;
+    }
+    for (let r = 0; r < n; r++) {
+        if (!kindOf[r]) continue;
+        const c = PRESENT_BOUNDARY_RGB[kindOf[r]];
+        rgb[3 * r] = srgbToLinear(c[0] / 255); rgb[3 * r + 1] = srgbToLinear(c[1] / 255); rgb[3 * r + 2] = srgbToLinear(c[2] / 255);
+    }
+    return (pr._rgb = rgb);
+}
+
+/** Arrows of the plates' motion: at points spread evenly over the sphere (the worker's), each its plate's velocity. */
+function presentArrowPoints(d) {
+    const pr = d?.present;
+    if (!pr?.arrows) return null;
+    if (pr._arrows) return pr._arrows;
+    const { pts, plate } = pr.arrows, segs = [];
+    for (let k = 0; k < plate.length; k++) {
+        const p = [pts[3 * k], pts[3 * k + 1], pts[3 * k + 2]], w = pr.plates[plate[k]].euler;
+        const v = [w[1] * p[2] - w[2] * p[1], w[2] * p[0] - w[0] * p[2], w[0] * p[1] - w[1] * p[0]];
+        const vl = Math.hypot(v[0], v[1], v[2]);
+        if (vl < 1e-12) continue;
+        const cm = vl * 6371 / 10, t = [v[0] / vl, v[1] / vl, v[2] / vl];
+        const L = 0.02 + 0.015 * cm;                             // radians: 9 cm/yr ≈ 1000 km
+        const s = [p[1] * t[2] - p[2] * t[1], p[2] * t[0] - p[0] * t[2], p[0] * t[1] - p[1] * t[0]];
+        const nrm = (a) => { const l = Math.hypot(a[0], a[1], a[2]); return [a[0] / l, a[1] / l, a[2] / l]; };
+        const e = nrm([p[0] + t[0] * L, p[1] + t[1] * L, p[2] + t[2] * L]);
+        const h1 = nrm([e[0] - t[0] * 0.35 * L + s[0] * 0.18 * L, e[1] - t[1] * 0.35 * L + s[1] * 0.18 * L, e[2] - t[2] * 0.35 * L + s[2] * 0.18 * L]);
+        const h2 = nrm([e[0] - t[0] * 0.35 * L - s[0] * 0.18 * L, e[1] - t[1] * 0.35 * L - s[1] * 0.18 * L, e[2] - t[2] * 0.35 * L - s[2] * 0.18 * L]);
+        segs.push([p, e], [e, h1], [e, h2]);
+    }
+    return (pr._arrows = segs);
 }
 
 // Plate colours — green shades for land, blue for ocean.
@@ -538,6 +644,7 @@ export function updateSuperPlateBorders() {
     if (!state.curData) return;
     const showPlates = state.showPlates;
     if (!showPlates) return;
+    if (state.curData.present) { drawPresentArrows(state.curData); return; }
 
     const { mesh, t_xyz, t_elevation, debugLayers } = state.curData;
     if (!debugLayers || !debugLayers.superPlates) return;
@@ -614,6 +721,42 @@ export function updateSuperPlateBorders() {
             scene.add(state.mapSuperPlateBorderMesh);
         }
     }
+}
+
+/** The present-day plates' motion arrows on the globe or the map (in the border meshes' slots, which are cleared first). */
+function drawPresentArrows(d) {
+    const segs = presentArrowPoints(d);
+    if (!segs || !segs.length) return;
+    const mat = (clip) => new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9, ...(clip ? { clippingPlanes: MAP_CLIP_PLANES } : {}) });
+    if (!state.mapMode) {
+        const R = 1.045, pos = [];
+        for (const [a, b] of segs) pos.push(a[0] * R, a[1] * R, a[2] * R, b[0] * R, b[1] * R, b[2] * R);
+        const g = new THREE.BufferGeometry();
+        g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+        state.superPlateBorderMesh = new THREE.LineSegments(g, mat(false));
+        scene.add(state.superPlateBorderMesh);
+        return;
+    }
+    const PI = Math.PI, sx = 2 / PI, centerLon = state.mapCenterLon || 0;
+    const ll = (p) => {
+        let lon = Math.atan2(p[0], p[2]) - centerLon;
+        if (lon > PI) lon -= 2 * PI; else if (lon < -PI) lon += 2 * PI;
+        return [lon * sx, Math.asin(Math.max(-1, Math.min(1, p[1]))) * sx];
+    };
+    const pos = [];
+    for (const [a, b] of segs) {
+        const A = ll(a), B = ll(b);
+        if (Math.abs(A[0] - B[0]) > 1) continue;                // across the map's edge
+        pos.push(A[0], A[1], 0.003, B[0], B[1], 0.003);
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    const m = mat(true);
+    state.mapSuperPlateBorderMesh = new THREE.LineSegments(g, m);
+    const cL = new THREE.LineSegments(g, m); cL.position.x = -4;
+    const cR = new THREE.LineSegments(g, m); cR.position.x = 4;
+    state.mapSuperPlateBorderMesh.add(cL, cR);
+    scene.add(state.mapSuperPlateBorderMesh);
 }
 
 // Build Voronoi mesh — each half-edge produces one triangle.

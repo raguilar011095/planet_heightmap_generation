@@ -8,7 +8,7 @@ import { state } from './state.js';
 import { initGenerateExport } from './export-generate.js';
 import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
+import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight, PRESENT_BOUNDARY_RGB, PRESENT_BOUNDARY_NAME } from './planet-mesh.js';
 import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
@@ -352,6 +352,12 @@ function updateLegend(layer) {
     } else if (layer === 'landheightmap') {
         vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
             `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;
+    } else if (layer === 'plates' && state.curData?.present) {
+        // the present-day world (?next=1): the plates that move, their boundaries by kind, the pieces you edit
+        const sw = (rgb) => `<span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:rgb(${rgb.join(',')});vertical-align:middle;margin-right:4px"></span>`;
+        const kinds = [1, 2, 3, 4, 5].map(k => `<span style="margin-right:8px;white-space:nowrap">${sw(PRESENT_BOUNDARY_RGB[k])}${PRESENT_BOUNDARY_NAME[k]}</span>`).join('');
+        const pr = state.curData.present;
+        vizLegend.innerHTML = `<div class="legend-note" style="margin-bottom:4px">${pr.plates.length} plates that move (arrows: their motion), each carrying continent (light) and ocean (dark). The shades inside a plate are its pieces: ${state.isTouchDevice ? 'turn on edit mode (the button at the bottom right), then tap one' : 'Ctrl-click (⌘-click on a Mac) one'} to raise or sink it, then Rebuild.</div><div>${kinds}</div>`;
     } else if (layer === 'plates') {
         vizLegend.innerHTML = `<div class="legend-note">The plates in their colours. ${state.isTouchDevice ? 'Turn on edit mode (the button at the bottom right), then tap a plate' : 'Ctrl-click (⌘-click on a Mac) a plate'} to raise or sink it &mdash; in any view &mdash; then Rebuild.</div>`;
     } else if (climateLayer(layer)) {

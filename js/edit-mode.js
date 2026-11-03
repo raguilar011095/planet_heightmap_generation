@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { canvas, camera, mapCamera } from './scene.js';
 import { state } from './state.js';
-import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
+import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, updateMapPendingHighlight, presentPlateOfRegion } from './planet-mesh.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevToHeightKm } from './color-map.js';
 import { climateReadoutLines } from './climate-layers.js';
@@ -104,6 +104,14 @@ function buildHoverHTML(region, plate) {
         lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${target}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`);
     } else {
         lines.push(`${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
+    }
+
+    // The present-day world (?next=1): the plate this piece rides on and how fast it moves here
+    if (d.present) {
+        const pl = d.present.plates[presentPlateOfRegion(d)[region]];
+        const w = pl.euler, px = d.r_xyz[3 * region], py = d.r_xyz[3 * region + 1], pz = d.r_xyz[3 * region + 2];
+        const cm = Math.hypot(w[1] * pz - w[2] * py, w[2] * px - w[0] * pz, w[0] * py - w[1] * px) * 6371 / 10;
+        lines.push(`<span class="hi-label">Plate</span> ${pl.index + 1} of ${d.present.plates.length} (${pl.continental ? 'carries a continent' : 'ocean'}) · ${cm.toFixed(1)} cm/yr`);
     }
 
     // Elevation

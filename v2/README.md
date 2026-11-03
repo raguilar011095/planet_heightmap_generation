@@ -325,6 +325,8 @@ node v2/tools/check-save.mjs                  # the planet file: (a) a small his
                                               # files made by hand → v2/out/; (b) every planet kept in tools/fixtures/saves/ opens, its terrain and every export map drawn
 node v2/tools/check-save.mjs --fixture        # (a) on a small planet kept as the fixture of today's versions — once per version
 node v2/tools/check-seeds.mjs                 # the seeds: each of 0 … 2,147,483,645 its own world; typed seeds, words' hashes and old planet codes as they were
+node v2/tools/check-present.mjs [--verbose]   # Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md): its plates that move, their
+                                              # boundaries, old codes' layout unchanged — on 10 fixed planets
 ```
 
 After a change to what a frame or a detailed moment holds, or to `js/save/`, run `check-save.mjs`: planets saved by an
@@ -463,6 +465,10 @@ js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the sta
                    regimes, lakes), finish-cover (the land's cover and its colours from space), finish-drivers (what the detail
                    finer than the mesh is drawn from) and fine-detail (that detail: any window of a detailed moment at any
                    resolution — plans/V2_FINE_DETAIL_PLAN.md)
+js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with `?next=1` while it is built):
+                   one moment of a believable history with its past in closed form, written as the records Evolution's
+                   terrain reads — present-config (its tunables, km / Myr / cm·yr⁻¹), plates (Generate's pieces grouped
+                   into plates that move and carry continent and ocean, their motion, their boundaries by kind)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
