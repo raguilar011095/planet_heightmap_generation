@@ -1,0 +1,304 @@
+/* World Orogen design tokens: the style guide’s values (docs/style-guide/), compiled from its tokens.
+   Paper (light) is the default. Night (dark) follows the device, unless the page sets data-theme="light"
+   or data-theme="dark" on <html>. Map colours are the same in both themes.
+   The redesign (plans/REDESIGN_PLAN.md) moves each page onto these; until a page uses them they cost nothing
+   (a browser fetches a font only when text uses it). */
+
+@font-face { font-family: 'Cormorant Garamond'; src: url('assets/fonts/CormorantGaramond.woff2') format('woff2'); font-weight: 400 700; font-style: normal; font-display: swap; }
+@font-face { font-family: 'Cormorant Garamond'; src: url('assets/fonts/CormorantGaramond-Italic.woff2') format('woff2'); font-weight: 400 700; font-style: italic; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('assets/fonts/EBGaramond.woff2') format('woff2'); font-weight: 400 800; font-style: normal; font-display: swap; }
+@font-face { font-family: 'EB Garamond'; src: url('assets/fonts/EBGaramond-Italic.woff2') format('woff2'); font-weight: 400 800; font-style: italic; font-display: swap; }
+@font-face { font-family: 'Libre Franklin'; src: url('assets/fonts/LibreFranklin.woff2') format('woff2'); font-weight: 100 900; font-style: normal; font-display: swap; }
+
+:root {
+    /* Page, text and action */
+    --bg: #FBFAF6;  /* Page ground: the Studio, tools, Explains. Ivory paper by day, navy at night. */
+    --surface: #FFFFFF;  /* Cards, legend cards, inputs, the raised world in a picker. */
+    --panel: #F4F1E8;  /* Tinted panels that hold other things: the worlds panel, the Explains call to action. */
+    --desk: #EFEBE1;  /* The stage behind the globe and behind an atlas print: one step off the page. */
+    --chip-track: #ECE8DD;  /* The track of a segmented control and the open row of a list. */
+    --chip-on: #FFFFFF;  /* The chosen option inside a segmented control. */
+    --ink: #1B2A3A;  /* Headings, labels and anything that must read first; on bg, surface, panel, desk and chip-track (12:1 or more… */
+    --body: #33414F;  /* Running text and descriptions; on bg, surface, panel and desk (8.5:1 or more). */
+    --muted: #5E6772;  /* Captions, meta, inactive chips, units; on bg, surface, panel, desk and chip-track (4.7:1 or more). Not on chi… */
+    --rule: rgba(27,42,58,0.16);  /* Hairlines: card borders, list dividers, input borders. */
+    --accent: #9E2B25;  /* Oxblood. The one primary action on a view, links that act, the italic accent phrase in a display heading. As… */
+    --on-accent: #FBFAF6;  /* Text and icons on an accent fill (7.1:1 by day, 5.6:1 at night). */
+    --gold: #9C7A2E;  /* Ornament only: the degree ring, the active-tab underline, a founder’s ring. Never text, never clickable. 3.3:… */
+    --gold-ink: #7D6224;  /* Gold as text: small-caps eyebrows (“A STUDIO OF PLANET TOOLS”); on bg, surface, panel and desk (4.8:1 or more… */
+    --focus: #9E2B25;  /* The keyboard focus ring: 2px solid, 2px offset; 6:1 or more on every ground. */
+    /* Layers: they mark the interface, never the data */
+    --layer-plates: #6E5AA0;  /* Plates: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more o… */
+    --layer-plates-ink: #5A4790;  /* Plates as text: a tag, a highlighted word, a tool card’s call to action; on layer-plates-tint (4.9:1 or more). */
+    --layer-plates-tint: #ECE7F5;  /* Plates’s tint: behind its ink in tags, highlights and icon tiles. */
+    --layer-land: #B07624;  /* Land: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more on… */
+    --layer-land-ink: #8A5A0E;  /* Land as text: a tag, a highlighted word, a tool card’s call to action; on layer-land-tint (4.9:1 or more). */
+    --layer-land-tint: #F5E9D6;  /* Land’s tint: behind its ink in tags, highlights and icon tiles. */
+    --layer-climate: #3F7CC2;  /* Climate: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more… */
+    --layer-climate-ink: #2C5F9A;  /* Climate as text: a tag, a highlighted word, a tool card’s call to action; on layer-climate-tint (4.9:1 or mor… */
+    --layer-climate-tint: #E1EBF7;  /* Climate’s tint: behind its ink in tags, highlights and icon tiles. */
+    --layer-rock: #B3573F;  /* Rock: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more on… */
+    --layer-rock-ink: #9A4430;  /* Rock as text: a tag, a highlighted word, a tool card’s call to action; on layer-rock-tint (4.9:1 or more). */
+    --layer-rock-tint: #F6E2DC;  /* Rock’s tint: behind its ink in tags, highlights and icon tiles. */
+    --layer-food: #4E8A5A;  /* Food: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more on… */
+    --layer-food-ink: #2F6B45;  /* Food as text: a tag, a highlighted word, a tool card’s call to action; on layer-food-tint (4.9:1 or more). */
+    --layer-food-tint: #E1F0E6;  /* Food’s tint: behind its ink in tags, highlights and icon tiles. */
+    /* The logo */
+    --logo-violet: #6E5AA0;  /* The mark’s top stripe (Plates). Fixed in both themes. */
+    --logo-ochre: #C98A2E;  /* The mark’s middle stripe (Land). Fixed in both themes. */
+    --logo-blue: #3F7CC2;  /* The mark’s bottom stripe (Climate). Fixed in both themes. */
+    /* The map’s ground (the same in both themes: the globe is an object, not chrome) */
+    --map-sea: #18223E;  /* The quiet sea under every land-only layer (Köppen, Rocks, Ores, Food…), shaded gently by the sea floor. */
+    --map-paper: #DED9CC;  /* Land with nothing to show in this view: no ore, no farming yet, no data. */
+    --map-ice: #E8ECF2;  /* Ice, drawn as ice in every view. */
+    --map-lake: #2C3E64;  /* Lakes under land-only layers. */
+    --map-stipple: #8A7A66;  /* The stipple dots on paper: lived off the wild, not farmed (wild foods, foragers). */
+    --map-grid: rgba(255,255,255,0.22);  /* The 30° graticule over the globe. */
+    --map-tropics: #F3E3B0;  /* The equator and tropics, dashed, at 70 % opacity; optional, useful in Climate. */
+    --map-air: rgba(120,150,185,0.38);  /* The thin rim of air around the globe, a little bluer on the night stage. */
+    --map-label: #FFFFFF;  /* Continent and sea names on the map, with map-halo behind them. */
+    --map-halo: rgba(10,20,35,0.9);  /* The soft halo under map labels (text-shadow). */
+    --stage-space: #04060C;  /* Space, the optional cinematic stage (with stars). The default stage is desk. */
+    /* Pins */
+    --pin-fill: #FFFFFF;  /* A map pin’s face; an open pin swaps fill and ink. */
+    --pin-ink: #1B2A3A;  /* A map pin’s ring and number (14.6:1 on pin-fill). */
+    --pin-founder: #C9A85A;  /* The ring of a founding hearth’s pin. */
+    /* The atlas print’s papers */
+    --paper-ivory: #F7F2E6;  /* Atlas print paper, Ivory. */
+    --paper-midnight: #0F1B2A;  /* Atlas print paper, Midnight. */
+    --paper-ink: #1B2A3A;  /* Ink on Ivory paper: frames, title, notes. */
+    --paper-gold: #8A6A24;  /* Gold on Ivory paper: the globe inset’s ring, small-caps heads (#C9A85A on Midnight). */
+    /* Which kind: the categorical eight, assigned in order */
+    --cat-1: #D08F34;
+    --cat-2: #31B4AC;
+    --cat-3: #8B3D2C;
+    --cat-4: #8896EF;
+    --cat-5: #728431;
+    --cat-6: #7B358B;
+    --cat-7: #0578A4;
+    --cat-8: #C66178;
+    /* Ore families */
+    --ore-alloy: #923718;  /* Ore family: Iron and alloy metals (iron, nickel, platinum and chromium). One metal alone takes its family’s c… */
+    --ore-base: #2BB3B7;  /* Ore family: Base metals (copper, tin, lead and zinc, aluminium). One metal alone takes its family’s colour, r… */
+    --ore-precious: #BC871A;  /* Ore family: Precious (gold, silver, diamonds). One metal alone takes its family’s colour, richness by strengt… */
+    --ore-salt: #AD68B0;  /* Ore family: Salt. One metal alone takes its family’s colour, richness by strength. The four pass every check… */
+    /* Staple food */
+    --staple-paddy: #4FBCAA;  /* Staple food: Paddy grains. Paler where it feeds less well; striped where a second does nearly as well. Wild f… */
+    --staple-cool: #CCB21F;  /* Staple food: Cool-season grains. Paler where it feeds less well; striped where a second does nearly as well.… */
+    --staple-warm: #D07B64;  /* Staple food: Warm-season grains. Paler where it feeds less well; striped where a second does nearly as well.… */
+    --staple-roots: #A778DE;  /* Staple food: Roots and tubers. Paler where it feeds less well; striped where a second does nearly as well. Wi… */
+    --staple-livestock: #6E8E00;  /* Staple food: Livestock. Paler where it feeds less well; striped where a second does nearly as well. Wild food… */
+    --staple-fish: #1064AE;  /* Staple food: Fish. Paler where it feeds less well; striped where a second does nearly as well. Wild foods are… */
+    --staple-tree: #B3355A;  /* Staple food: Tree and palm crops. Paler where it feeds less well; striped where a second does nearly as well.… */
+    /* How much and which side: ramps */
+    --ramp-variety-0: #E2DACA;
+    --ramp-variety-1: #E2D6AA;
+    --ramp-variety-2: #BCC87C;
+    --ramp-variety-3: #70A468;
+    --ramp-variety-4: #2E7864;
+    --ramp-variety-5: #164C52;
+    --ramp-came-0: #164A48;
+    --ramp-came-1: #2A7868;
+    --ramp-came-2: #68A270;
+    --ramp-came-3: #B2C478;
+    --ramp-came-4: #E2D294;
+    --ramp-came-5: #EEDEBA;
+    --temp-0: #2A0B5E;
+    --temp-1: #313695;
+    --temp-2: #4575B4;
+    --temp-3: #E0F3F8;
+    --temp-4: #FEE090;
+    --temp-5: #FDAE61;
+    --temp-6: #D73027;
+    --temp-7: #67001F;
+    --rain-0: #F6ECD4;
+    --rain-1: #E4D696;
+    --rain-2: #B4D26E;
+    --rain-3: #5CB060;
+    --rain-4: #218078;
+    --rain-5: #1E5AAA;
+    --rain-6: #141E6E;
+    --pressure-0: #2166AC;
+    --pressure-1: #92C5DE;
+    --pressure-2: #F7F7F7;
+    --pressure-3: #F4A582;
+    --pressure-4: #B2182B;
+    /* Köppen-Geiger, exactly as js/koppen.js draws it */
+    --koppen-Ocean: #4A70A6;
+    --koppen-Af: #0000FF;
+    --koppen-Am: #0078FF;
+    --koppen-Aw: #45ABFA;
+    --koppen-BWh: #FF0000;
+    --koppen-BWk: #FF9696;
+    --koppen-BSh: #F5A600;
+    --koppen-BSk: #FFDB63;
+    --koppen-Cfa: #C7FF4F;
+    --koppen-Cfb: #63FF4F;
+    --koppen-Cfc: #33C700;
+    --koppen-Csa: #FFFF00;
+    --koppen-Csb: #C7C700;
+    --koppen-Csc: #969600;
+    --koppen-Cwa: #96FF96;
+    --koppen-Cwb: #63C763;
+    --koppen-Cwc: #339633;
+    --koppen-Dfa: #00FFFF;
+    --koppen-Dfb: #38C7FF;
+    --koppen-Dfc: #007D7D;
+    --koppen-Dfd: #00455E;
+    --koppen-Dsa: #E680FF;
+    --koppen-Dsb: #B259D9;
+    --koppen-Dsc: #8033A6;
+    --koppen-Dsd: #591A73;
+    --koppen-Dwa: #ABB0FF;
+    --koppen-Dwb: #6E78C7;
+    --koppen-Dwc: #4A4FC7;
+    --koppen-Dwd: #330087;
+    --koppen-ET: #B2B2B2;
+    --koppen-EF: #696969;
+
+    /* Type families */
+    --font-display: "Cormorant Garamond", "EB Garamond", Georgia, serif;
+    --font-text: "EB Garamond", Georgia, "Times New Roman", serif;
+    --font-ui: "Libre Franklin", "Segoe UI", system-ui, -apple-system, sans-serif;
+
+    /* Spacing, on 4px */
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-7: 32px;
+    --space-8: 40px;
+    --space-10: 64px;
+
+    /* Corners */
+    --radius-xs: 3px;
+    --radius-sm: 8px;
+    --radius-input: 10px;
+    --radius-md: 12px;
+    --radius-lg: 14px;
+    --radius-xl: 18px;
+    --radius-2xl: 22px;
+    --radius-full: 9999px;
+
+    /* Lines */
+    --line-hair: 1px;
+    --line-masthead: 3px;
+    --line-sidenote: 3px;
+    --line-callout: 4px;
+
+    /* Sizes */
+    --size-touch: 44px;
+    --size-chip: 36px;
+    --size-button-main: 50px;
+    --size-pin: 24px;
+    --size-tile: 60px;
+    --size-panel: 300px;
+    --size-column: 720px;
+
+    /* Shadows */
+    --shadow-chip: 0 1px 3px rgba(0,0,0,0.15);
+    --shadow-card: 0 10px 26px rgba(27,42,58,0.08);
+    --shadow-pin: 0 1px 4px rgba(0,0,0,0.45);
+    --shadow-paper: 0 30px 70px rgba(0,0,0,0.28);
+}
+
+/* Night */
+:root[data-theme="dark"] {
+    --bg: #0E1824;
+    --surface: #142232;
+    --panel: #122030;
+    --desk: #0B1420;
+    --chip-track: #1A2A3C;
+    --chip-on: #2A3D52;
+    --ink: #EDE6D6;
+    --body: #CFC8B8;
+    --muted: #9AA4AE;
+    --rule: rgba(237,230,214,0.2);
+    --accent: #D9735E;
+    --on-accent: #0E1824;
+    --gold: #C9A85A;
+    --gold-ink: #C9A85A;
+    --focus: #E39A88;
+    --layer-plates: #9A87D0;
+    --layer-plates-ink: #C9BCF0;
+    --layer-plates-tint: rgba(110,90,160,0.28);
+    --layer-land: #C98A2E;
+    --layer-land-ink: #EBC27C;
+    --layer-land-tint: rgba(201,138,46,0.26);
+    --layer-climate: #5C95D6;
+    --layer-climate-ink: #A3C8F2;
+    --layer-climate-tint: rgba(63,124,194,0.28);
+    --layer-rock: #CF7A62;
+    --layer-rock-ink: #F2AE9A;
+    --layer-rock-tint: rgba(179,87,63,0.28);
+    --layer-food: #6FAA7B;
+    --layer-food-ink: #A6D8B2;
+    --layer-food-tint: rgba(78,138,90,0.28);
+    --map-air: rgba(96,156,255,0.38);
+    --shadow-card: 0 10px 26px rgba(0,0,0,0.3);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+      --bg: #0E1824;
+      --surface: #142232;
+      --panel: #122030;
+      --desk: #0B1420;
+      --chip-track: #1A2A3C;
+      --chip-on: #2A3D52;
+      --ink: #EDE6D6;
+      --body: #CFC8B8;
+      --muted: #9AA4AE;
+      --rule: rgba(237,230,214,0.2);
+      --accent: #D9735E;
+      --on-accent: #0E1824;
+      --gold: #C9A85A;
+      --gold-ink: #C9A85A;
+      --focus: #E39A88;
+      --layer-plates: #9A87D0;
+      --layer-plates-ink: #C9BCF0;
+      --layer-plates-tint: rgba(110,90,160,0.28);
+      --layer-land: #C98A2E;
+      --layer-land-ink: #EBC27C;
+      --layer-land-tint: rgba(201,138,46,0.26);
+      --layer-climate: #5C95D6;
+      --layer-climate-ink: #A3C8F2;
+      --layer-climate-tint: rgba(63,124,194,0.28);
+      --layer-rock: #CF7A62;
+      --layer-rock-ink: #F2AE9A;
+      --layer-rock-tint: rgba(179,87,63,0.28);
+      --layer-food: #6FAA7B;
+      --layer-food-ink: #A6D8B2;
+      --layer-food-tint: rgba(78,138,90,0.28);
+      --map-air: rgba(96,156,255,0.38);
+      --shadow-card: 0 10px 26px rgba(0,0,0,0.3);
+  }
+}
+
+/* Type styles: og-t-<name>, as named in the style guide (docs/style-guide/README.md, Type) */
+.og-t-hero { font: 500 92px/0.95 var(--font-display); letter-spacing: -0.01em; }
+.og-t-display { font: 500 58px/0.98 var(--font-display); }
+.og-t-title { font: 500 42px/1 var(--font-display); }
+.og-t-view-title { font: 500 34px/1 var(--font-display); }
+.og-t-card-title { font: 600 28px/1.05 var(--font-display); }
+.og-t-section { font: 600 22px/1.1 var(--font-display); }
+.og-t-group { font: 600 20px/1.2 var(--font-display); }
+.og-t-value { font: 600 26px/1 var(--font-display); }
+.og-t-wordmark { font: 600 26px/1 var(--font-display); }
+.og-t-lede { font: 400 23px/1.55 var(--font-text); }
+.og-t-essay { font: 400 21px/1.65 var(--font-text); }
+.og-t-reading { font: 400 18px/1.45 var(--font-text); }
+.og-t-control-label { font: 400 18px/1.3 var(--font-text); }
+.og-t-note { font: italic 400 16px/1.4 var(--font-text); }
+.og-t-caption { font: italic 400 15px/1.45 var(--font-text); }
+.og-t-button { font: 600 15px/1 var(--font-ui); }
+.og-t-nav { font: 500 14px/1 var(--font-ui); }
+.og-t-control { font: 600 14px/1 var(--font-ui); }
+.og-t-label { font: 600 13px/1.3 var(--font-ui); }
+.og-t-meta { font: 500 12.5px/1.45 var(--font-ui); }
+.og-t-eyebrow { font: 600 11px/1.2 var(--font-ui); letter-spacing: 0.14em; }
+.og-t-figure { font: 600 14px/1.3 var(--font-ui); font-variant-numeric: tabular-nums; }
+.og-t-map-land { font: 600 19px/1 var(--font-display); letter-spacing: 0.22em; }
+.og-t-map-sea { font: italic 400 17px/1 var(--font-text); letter-spacing: 0.06em; }
+.og-t-map-range { font: 600 9px/1 var(--font-ui); letter-spacing: 0.3em; }

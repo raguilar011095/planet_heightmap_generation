@@ -78,7 +78,11 @@ studio.html             The Studio's old address (/studio): sends on to /
 studio.css              Studio page styles
 assets/studio/          Screenshots of each tool for the Studio cards
 assets/social.svg       The GitHub, Bluesky, X and Threads marks for the follow links (one <symbol> each)
-styles.css              Shared CSS (all pages)
+tokens.css              The style guide's design tokens (all pages): colours for Paper and Night, type, spacing, corners,
+                        lines, sizes and shadows, and the fonts
+styles.css              Shared CSS (all pages); today's interface colours are the --ui-* variables at its top
+assets/fonts/           The three typefaces, self-hosted (woff2), and their licence (OFL.txt)
+assets/brand/           The World Orogen mark and the line icons
 robots.txt              Search engine crawler directives
 sitemap.xml             Sitemap for search engine indexing
 site.webmanifest        Web app manifest (metadata + theming)
@@ -92,6 +96,8 @@ preview.png             Social preview image (og:image / Twitter card)
 VISION.md               The project's vision: what Orogen is, its pillars, each tool's profile, its scope
 CLAUDE.md               Rules for Claude Code sessions (imports VISION.md)
 docs/                   Each tool's guide (generate.md, import.md, evolution.md) and what they share (shared.md)
+docs/style-guide/       The look: the brand book, maps and the globe, page patterns, and the components (reference CSS and
+                        JS); plans/REDESIGN_PLAN.md moves the app onto it
 js/                     Generate and Import Heightmap (file by file: docs/generate.md, "Code")
 v2/                     World Orogen V2 — the Evolution page (/evolution) and the climate every page runs;
                         tectonic *history* engine built in confirmed phases; see v2/README.md and
@@ -118,6 +124,8 @@ Loaded via CDN import maps (no installation needed):
 - [Three.js](https://threejs.org/) v0.160.0 — 3D rendering
 - [Delaunator](https://github.com/mapbox/delaunator) v5.0.1 — 2D Delaunay triangulation
 
+Served with the site, so a page never waits on another server: the typefaces [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant), [EB Garamond](https://github.com/octaviopardo/EBGaramond12) and [Libre Franklin](https://github.com/googlefonts/Libre-Franklin), in `assets/fonts/`.
+
 ## Follow and support
 
 New releases, work in progress and sneak peeks of what's coming, plus the odd planet along the way: [Bluesky](https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t) · [X](https://x.com/worldorogen) · [Threads](https://www.threads.com/@orogen.studio).
@@ -131,6 +139,8 @@ Maps, heightmaps and images you make with World Orogen are yours to use however 
 ## License
 
 World Orogen · Copyright (C) 2026 Robert Aguilar. Free software under the GNU General Public License v3.0 — see [LICENSE](LICENSE).
+
+The typefaces in `assets/fonts/` are their authors' work under the SIL Open Font License 1.1 — see [assets/fonts/OFL.txt](assets/fonts/OFL.txt).
 
 ## Acknowledgments
 

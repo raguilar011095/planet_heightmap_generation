@@ -18,8 +18,11 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 - `v2/js/climate/`: the one climate every tool runs (see the climate rule below)
 - `docs/`: each tool's guide and what they share; `README.md`: the front door
 - `tuning/`: the automated Earth checks; `plans/`: design docs and phase plans
+- `docs/style-guide/`, `tokens.css`, `assets/fonts/`, `assets/brand/`: the look (brand book, tokens, fonts, mark and icons, components); `plans/REDESIGN_PLAN.md` moves the app onto it
 
 ## Key Rules
+
+Interface colours, type, spacing and shapes come from the style guide (`docs/style-guide/`) through `tokens.css`. New CSS uses its tokens (`var(--accent)`, `var(--space-4)`, the `--font-*` families), never a literal colour. Until a page has been redesigned (`plans/REDESIGN_PLAN.md`), its colours are the `--ui-*` variables at the top of `styles.css`; use those for small fixes there, and add no new ones. A change to a token, a component or a rule of the look updates `docs/style-guide/` in the same change.
 
 After any code change, check whether the docs need updating. The README is the Studio's front door: the vision in short, the tools, quick start, project structure and dependencies. Each tool's guide in `docs/` (`generate.md`, `import.md`, `evolution.md`) documents its controls, interactions, pipeline and algorithms; `docs/shared.md` covers what every tool shares (the navigation, the view, the climate, the export panel, previous versions); `v2/README.md` documents Evolution's engine for developers. If a change adds, removes, or modifies any of the following, update the matching file:
 
