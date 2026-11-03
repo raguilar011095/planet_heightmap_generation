@@ -555,7 +555,7 @@ function paramsToSliderMap(params) {
 function applyCode(code) {
     const params = decodePlanetCode(code);
     if (!params) {
-        seedInput.style.borderColor = '#c44';
+        seedInput.style.borderColor = 'var(--ui-error)';
         seedError.classList.add('visible');
         setTimeout(() => { seedInput.style.borderColor = ''; }, 1500);
         return;

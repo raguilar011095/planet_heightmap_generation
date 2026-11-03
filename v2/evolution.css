@@ -16,17 +16,17 @@
     position: fixed; left: 50%; bottom: 44px; transform: translateX(-50%);
     width: min(760px, calc(100vw - 420px)); min-width: 360px;
     display: flex; align-items: center; gap: 10px;
-    background: rgba(8,8,28,0.88); backdrop-filter: blur(12px);
-    border: 1px solid rgba(255,255,255,0.08); border-radius: 12px;
+    background: var(--ui-panel); backdrop-filter: blur(12px);
+    border: 1px solid var(--ui-white-08); border-radius: 12px;
     padding: 8px 12px; z-index: 20;
 }
 .evo-timeline[hidden] { display: none; }
 /* the track: the whole history, what is built so far (faint), up to the moment shown (bright); a scale beneath */
 .evo-track { position: relative; flex: 1 1 auto; min-width: 80px; height: 34px; }
-.evo-rail { position: absolute; left: 8px; right: 8px; top: 11px; height: 6px; border-radius: 3px; background: rgba(255,255,255,0.1); overflow: hidden; }
+.evo-rail { position: absolute; left: 8px; right: 8px; top: 11px; height: 6px; border-radius: 3px; background: var(--ui-white-10); overflow: hidden; }
 .evo-rail i { position: absolute; left: 0; top: 0; bottom: 0; width: 0; }
-.evo-rail .built { background: rgba(100,160,255,0.28); }
-.evo-rail .shown { background: #48f; }
+.evo-rail .built { background: var(--ui-sky-28); }
+.evo-rail .shown { background: var(--ui-select); }
 .evo-track input[type=range] {
     position: absolute; left: 0; right: 0; top: 4px; width: 100%; height: 20px; margin: 0;
     -webkit-appearance: none; appearance: none; background: transparent;
@@ -35,23 +35,23 @@
 .evo-track input[type=range]::-moz-range-track { height: 20px; background: transparent; }
 .evo-track input[type=range]::-webkit-slider-thumb {
     -webkit-appearance: none; width: 16px; height: 16px; margin-top: 2px; border-radius: 50%;
-    background: #cde; border: 2px solid #48f; box-shadow: 0 0 0 3px rgba(68,136,255,0.25);
+    background: var(--ui-body); border: 2px solid var(--ui-select); box-shadow: 0 0 0 3px var(--ui-select-25);
 }
-.evo-track input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: #cde; border: 2px solid #48f; }
-.evo-ticks { position: absolute; left: 8px; right: 8px; top: 21px; height: 12px; font-size: 10px; color: #778; pointer-events: none; }
+.evo-track input[type=range]::-moz-range-thumb { width: 12px; height: 12px; border-radius: 50%; background: var(--ui-body); border: 2px solid var(--ui-select); }
+.evo-ticks { position: absolute; left: 8px; right: 8px; top: 21px; height: 12px; font-size: 10px; color: var(--ui-faint-2); pointer-events: none; }
 .evo-ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .evo-ticks span:first-child { transform: none; }
 .evo-ticks span:last-child { transform: translateX(-100%); }
 .evo-play {
     width: 36px; height: 36px; flex: none; border-radius: 50%;
-    border: 1px solid rgba(100,160,255,0.35); background: rgba(40,60,120,0.6);
-    color: #cde; font-size: 14px; cursor: pointer;
+    border: 1px solid var(--ui-sky-35); background: var(--ui-navy-60);
+    color: var(--ui-body); font-size: 14px; cursor: pointer;
 }
 .evo-play:hover { filter: brightness(1.2); }
-.evo-time { flex: none; min-width: 120px; text-align: right; color: #cde; font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.evo-time { flex: none; min-width: 120px; text-align: right; color: var(--ui-body); font-size: 13px; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .evo-timeline select {
     flex: none; width: auto;
-    background: rgba(255,255,255,0.06); color: #aab; border: 1px solid rgba(255,255,255,0.1);
+    background: var(--ui-white-06); color: var(--ui-label); border: 1px solid var(--ui-white-10);
     border-radius: 6px; padding: 4px 6px; font-size: 12px;
 }
 /* (the notes in the panel take its width instead of setting it: V1's panel is as wide as its widest content) */
@@ -61,114 +61,114 @@
 /* the climate: the button, the moments with one, the legend; the chip over the planet on a climate layer */
 .evo-climate-btn {
     width: 100%; padding: 9px 8px; margin-bottom: 6px; border-radius: 8px; cursor: pointer; font-size: 13px; font-family: inherit;
-    border: 1px solid rgba(100,160,255,0.35); background: rgba(40,60,120,0.6); color: #cde;
+    border: 1px solid var(--ui-sky-35); background: var(--ui-navy-60); color: var(--ui-body);
 }
 .evo-climate-btn:hover:not(:disabled) { filter: brightness(1.2); }
 .evo-climate-btn:disabled { opacity: 0.65; cursor: default; }
-.evo-climate-info { font-size: 12px; color: #9ab; line-height: 1.5; margin-bottom: 8px; }
+.evo-climate-info { font-size: 12px; color: var(--ui-muted); line-height: 1.5; margin-bottom: 8px; }
 .evo-climate-info:empty { display: none; }
-.evo-climate-info a { color: #8bf; text-decoration: none; }
+.evo-climate-info a { color: var(--ui-link); text-decoration: none; }
 .evo-climate-info a:hover { text-decoration: underline; }
 #climateLegend canvas { width: 100%; height: 22px; display: block; }
-.evo-legend-note { font-size: 11px; color: #9ab; margin-top: 2px; }
+.evo-legend-note { font-size: 11px; color: var(--ui-muted); margin-top: 2px; }
 .evo-koppen { display: flex; flex-wrap: wrap; gap: 3px 10px; }
 .evo-koppen span { white-space: nowrap; }
 .evo-koppen i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
-.evo-koppen em { color: #778; font-style: normal; }
+.evo-koppen em { color: var(--ui-faint-2); font-style: normal; }
 #regimeRow { margin-top: 0; margin-bottom: 6px; }
-.evo-regime-legend { font-size: 12px; color: #aab; margin-bottom: 8px; }
+.evo-regime-legend { font-size: 12px; color: var(--ui-label); margin-bottom: 8px; }
 .evo-chip {
     position: fixed; top: 56px; left: 50%; transform: translateX(-50%); z-index: 20;
     display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
-    background: rgba(8,8,28,0.88); backdrop-filter: blur(12px); border: 1px solid rgba(255,255,255,0.1);
-    border-radius: 18px; padding: 6px 8px 6px 14px; color: #cde; font-size: 13px;
+    background: var(--ui-panel); backdrop-filter: blur(12px); border: 1px solid var(--ui-white-10);
+    border-radius: 18px; padding: 6px 8px 6px 14px; color: var(--ui-body); font-size: 13px;
 }
 .evo-chip[hidden] { display: none; }
 .evo-chip button {
     flex: none; border-radius: 14px; padding: 5px 12px; font-size: 12px; font-family: inherit; cursor: pointer;
-    border: 1px solid rgba(100,160,255,0.45); background: rgba(50,90,200,0.75); color: #fff;
+    border: 1px solid var(--ui-sky-45); background: var(--ui-navy-chip); color: var(--ui-ink);
 }
 .evo-chip button[hidden] { display: none; }
 
 /* the finish: its progress */
-.evo-finish-bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); margin: -2px 0 8px; overflow: hidden; }
+.evo-finish-bar { height: 4px; border-radius: 2px; background: var(--ui-white-08); margin: -2px 0 8px; overflow: hidden; }
 .evo-finish-bar[hidden] { display: none; }
-.evo-finish-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, #6a4, #ad6); transition: width 0.4s; }
+.evo-finish-bar > i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--ui-finish-deep), var(--ui-finish)); transition: width 0.4s; }
 
 /* the sidebar (plans/V2_EVOLUTION_UI_PLAN.md): New World; the World section, folded to a line; the context card — the
    moment shown and the one thing to do next; the View section. A set width: the card's text wraps instead of widening it */
 #ui { width: 300px; max-height: calc(100vh - 168px); }          /* (clear of the timeline: the panel scrolls) */
 #ui.collapsed { width: auto; }
-#ui #generate { margin-bottom: 8px; background: rgba(40,60,120,0.6); border: 1px solid rgba(100,160,255,0.35); color: #cde; }
+#ui #generate { margin-bottom: 8px; background: var(--ui-navy-60); border: 1px solid var(--ui-sky-35); color: var(--ui-body); }
 #worldSection #seedRow { margin-bottom: 0; }
 #worldSection summary { min-height: 30px; }
 .evo-world-sum {
     margin-left: auto; min-width: 0; contain: inline-size; flex: 1 1 auto; text-align: right;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
-    font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: #778;
+    font-size: 12px; font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ui-faint-2);
 }
 #worldSection[open] .evo-world-sum { display: none; }
 #rebuildBtn { margin-top: 2px; }
 .evo-card {
     margin: 10px 0 12px; padding: 12px; border-radius: 10px;
-    background: rgba(68,136,255,0.07); border: 1px solid rgba(100,160,255,0.18);
+    background: var(--ui-select-07); border: 1px solid var(--ui-sky-18);
 }
 .evo-card-head {
     display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
-    font-size: 17px; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums;
+    font-size: 17px; font-weight: 600; color: var(--ui-ink); font-variant-numeric: tabular-nums;
 }
 .evo-badge {
     flex: none; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap;
-    padding: 2px 7px; border-radius: 5px; background: rgba(255,255,255,0.1); color: #bcd;
+    padding: 2px 7px; border-radius: 5px; background: var(--ui-white-10); color: var(--ui-body-soft);
 }
-.evo-badge.detailed { background: rgba(110,200,90,0.18); color: #ad8; }
+.evo-badge.detailed { background: var(--ui-new-bg); color: var(--ui-new); }
 /* Geology and Food are in beta: a tag at the end of their sub-bars (on the main tabs it wrapped the bar below 1360 px),
    and a line in the tutorial (beside Evolution's "best on a desktop") */
 .evo-beta {
     display: inline-block; vertical-align: 3px; margin-left: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
-    padding: 2px 7px; border-radius: 5px; background: rgba(255,180,60,0.16); color: #fc8;
+    padding: 2px 7px; border-radius: 5px; background: var(--ui-beta-bg); color: var(--ui-beta);
 }
 .map-tabs > .evo-beta { align-self: center; margin: 0 6px 0 5px; }
-#ui .evo-beta-note { font-size: 12px; color: #a98; margin-top: 4px; }
-#tutorialCard .evo-beta-note { font-size: 13px; color: #a98; }
-#tutorialCard .evo-beta-note strong { color: #fc8; }
+#ui .evo-beta-note { font-size: 12px; color: var(--ui-beta-note); margin-top: 4px; }
+#tutorialCard .evo-beta-note { font-size: 13px; color: var(--ui-beta-note); }
+#tutorialCard .evo-beta-note strong { color: var(--ui-beta); }
 .evo-badge[hidden] { display: none; }
-.evo-card-text { font-size: 13px; color: #9ab; line-height: 1.5; margin-bottom: 10px; contain: inline-size; }
+.evo-card-text { font-size: 13px; color: var(--ui-muted); line-height: 1.5; margin-bottom: 10px; contain: inline-size; }
 .evo-card #detailGroup { margin-bottom: 10px; }
 .evo-card #waterGroup .tg { margin: 0 0 8px; }
 .evo-card-btn {
     width: 100%; padding: 11px 8px; border: 1px solid transparent; border-radius: 8px; cursor: pointer; font-family: inherit;
-    font-size: 15px; font-weight: 600; color: #fff; background: linear-gradient(135deg, #2255cc, #3366ee);
+    font-size: 15px; font-weight: 600; color: var(--ui-ink); background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action));
     font-variant-numeric: tabular-nums; transition: filter 0.2s;
 }
 .evo-card-btn:hover:not(:disabled) { filter: brightness(1.15); }
 .evo-card-btn:disabled { opacity: 0.5; cursor: default; }
-.evo-card-btn.busy { background: rgba(130,70,20,0.6); border-color: rgba(255,170,90,0.5); color: #fdb; }
+.evo-card-btn.busy { background: var(--ui-busy-bg); border-color: var(--ui-busy-line); color: var(--ui-busy-text); }
 .evo-card #cardBar { margin: 6px 0 0; }
-.evo-card-link { display: block; background: none; border: none; padding: 8px 0 0; color: #8bf; font-size: 12px; font-family: inherit; cursor: pointer; }
+.evo-card-link { display: block; background: none; border: none; padding: 8px 0 0; color: var(--ui-link); font-size: 12px; font-family: inherit; cursor: pointer; }
 .evo-card-link:hover { text-decoration: underline; }
-.evo-card-note { font-size: 12px; color: #9ab; line-height: 1.5; margin-top: 8px; contain: inline-size; }
-.evo-card-note a { color: #8bf; text-decoration: none; }
+.evo-card-note { font-size: 12px; color: var(--ui-muted); line-height: 1.5; margin-top: 8px; contain: inline-size; }
+.evo-card-note a { color: var(--ui-link); text-decoration: none; }
 .evo-card-note a:hover { text-decoration: underline; }
-#worldSection .evo-card-note { margin: 0 0 8px; color: #db9; }
-.evo-card .evo-card-replace { margin: 0 0 10px; color: #db9; }        /* (what Add detail costs, read before pressing it) */
+#worldSection .evo-card-note { margin: 0 0 8px; color: var(--ui-note-warm); }
+.evo-card .evo-card-replace { margin: 0 0 10px; color: var(--ui-note-warm); }        /* (what Add detail costs, read before pressing it) */
 .evo-card-ghost {
     width: 100%; margin-top: 10px; padding: 8px; border-radius: 8px; cursor: pointer; font-family: inherit; font-size: 13px;
-    border: 1px solid rgba(100,160,255,0.35); background: rgba(40,60,120,0.4); color: #cde;
+    border: 1px solid var(--ui-sky-35); background: var(--ui-navy-40); color: var(--ui-body);
 }
 .evo-card-ghost:hover:not(:disabled) { filter: brightness(1.2); }
-.evo-card-ghost.on { border-color: rgba(255,170,90,0.5); background: rgba(130,70,20,0.6); color: #fdb; }
+.evo-card-ghost.on { border-color: var(--ui-busy-line); background: var(--ui-busy-bg); color: var(--ui-busy-text); }
 .evo-card-ghost:disabled { opacity: 0.65; cursor: default; }
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
 /* Satellite, Geology and Food come with detail: their tabs locked on previews */
 .map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after, .map-tab[data-layer="farming"]::after { content: ' \1F512'; font-size: 10px; opacity: 0.75; visibility: hidden; }
 .map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
-.evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
+.evo-legend-head { font-size: 11px; color: var(--ui-muted); margin-bottom: 6px; }
 /* the Ages legend's entries are its switch: tap one to see it alone */
 .evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
-.evo-age-chips [data-age-res]:hover { background: rgba(255,255,255,0.06); }
-.evo-age-chips [data-age-res].on { background: rgba(100,160,255,0.18); box-shadow: inset 0 0 0 1px rgba(100,160,255,0.45); }
+.evo-age-chips [data-age-res]:hover { background: var(--ui-white-06); }
+.evo-age-chips [data-age-res].on { background: var(--ui-sky-18); box-shadow: inset 0 0 0 1px var(--ui-sky-45); }
 /* the view strip, the layers and the legend (styles.css .layer-bar, .view-strip, .legend-card): here the legend clears
    the timeline, and the chip (what a layer needs) ends the bar's column */
 @media (min-width: 769px) { #legendCard { bottom: 110px; } }
@@ -179,15 +179,15 @@
 .evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
 .evo-farm-chip {
     padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6;
+    border: 1px solid var(--ui-white-14); background: var(--ui-white-04); color: var(--ui-muted-chip);
 }
-.evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
+.evo-farm-chip.on { border-color: var(--ui-farm-line); background: var(--ui-farm-bg); color: var(--ui-farm-text); }
 .evo-farm-chip:hover { filter: brightness(1.2); }
 /* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
-.evo-farm-staple { color: #aab; }
+.evo-farm-staple { color: var(--ui-label); }
 .evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.evo-farm-staple em { color: #778; font-style: normal; }
-.evo-farm-staple.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.12); color: #fff; }
+.evo-farm-staple em { color: var(--ui-faint-2); font-style: normal; }
+.evo-farm-staple.on { border-color: var(--ui-white-50); background: var(--ui-white-12); color: var(--ui-ink); }
 .evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
 .evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
 .evo-farm-bar span { min-width: 0; }
@@ -196,13 +196,13 @@
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {
     flex: none; border-radius: 14px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap;
-    font-family: inherit; border: 1px solid rgba(100,160,255,0.45); background: rgba(40,70,150,0.65); color: #dde;
+    font-family: inherit; border: 1px solid var(--ui-sky-45); background: var(--ui-navy-on-65); color: var(--ui-ink-soft);
 }
 .evo-act:hover:not(:disabled) { filter: brightness(1.2); }
 .evo-act:disabled { opacity: 0.5; cursor: default; }
 .evo-act[hidden] { display: none; }
-.evo-act-main { background: linear-gradient(135deg, #2255cc, #3366ee); border-color: transparent; color: #fff; }
-.evo-act.busy { background: rgba(130,70,20,0.6); border-color: rgba(255,170,90,0.5); color: #fdb; }
+.evo-act-main { background: linear-gradient(135deg, var(--ui-action-deep), var(--ui-action)); border-color: transparent; color: var(--ui-ink); }
+.evo-act.busy { background: var(--ui-busy-bg); border-color: var(--ui-busy-line); color: var(--ui-busy-text); }
 /* (one width for its labels — the track does not jump) */
 #timeline .evo-act { min-width: 112px; text-align: center; font-variant-numeric: tabular-nums; }
 .evo-time { min-width: 64px; }
@@ -212,34 +212,34 @@
 .tip:hover::after { display: none; }
 .evo-tooltip {
     position: fixed; z-index: 300; max-width: 260px; pointer-events: none;
-    background: rgba(8,8,28,0.96); backdrop-filter: blur(8px);
-    border: 1px solid rgba(255,255,255,0.12); border-radius: 6px; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    padding: 6px 10px; font-size: 13px; line-height: 1.4; color: #cde; white-space: normal;
+    background: var(--ui-panel-96); backdrop-filter: blur(8px);
+    border: 1px solid var(--ui-white-12); border-radius: 6px; box-shadow: 0 4px 12px var(--ui-shadow);
+    padding: 6px 10px; font-size: 13px; line-height: 1.4; color: var(--ui-body); white-space: normal;
 }
 .evo-tooltip[hidden] { display: none; }
 /* the export dialog (V1's #exportOverlay / #exportCard, styles.css): the moment, and the progress */
-.evo-export-moment { font-size: 13px; font-weight: 400; color: #9ab; margin-left: 6px; }
-.evo-export-note { font-size: 12px; color: #9ab; margin: 6px 0 0; }
-.evo-export-progress { margin-top: 12px; font-size: 12px; color: #9ab; }
+.evo-export-moment { font-size: 13px; font-weight: 400; color: var(--ui-muted); margin-left: 6px; }
+.evo-export-note { font-size: 12px; color: var(--ui-muted); margin: 6px 0 0; }
+.evo-export-progress { margin-top: 12px; font-size: 12px; color: var(--ui-muted); }
 .evo-export-progress[hidden] { display: none; }
 .evo-export-progress .evo-finish-bar { margin: 0 0 4px; }
 #exportCard .export-actions { flex-wrap: wrap; }      /* (Cancel, Export, Export All: on a phone they wrap rather than overflow) */
 
 /* how far the history has got */
 .evo-status {
-    font-size: 12px; color: #9ab; margin: -4px 0 12px; line-height: 1.5;
+    font-size: 12px; color: var(--ui-muted); margin: -4px 0 12px; line-height: 1.5;
 }
-.evo-status .bar { height: 4px; border-radius: 2px; background: rgba(255,255,255,0.08); margin-top: 4px; overflow: hidden; }
-.evo-status .bar > i { display: block; height: 100%; background: linear-gradient(90deg, #36c, #6af); width: 0; transition: width 0.3s; }
-#seedRow #seedCode { color: #cde; }
+.evo-status .bar { height: 4px; border-radius: 2px; background: var(--ui-white-08); margin-top: 4px; overflow: hidden; }
+.evo-status .bar > i { display: block; height: 100%; background: linear-gradient(90deg, var(--ui-action-bar), var(--ui-select-text)); width: 0; transition: width 0.3s; }
+#seedRow #seedCode { color: var(--ui-body); }
 /* Load Planet… (beneath Build This World, quieter), and a planet file dragged over the page */
-.evo-load-btn { background: rgba(255,255,255,0.04); border-color: rgba(255,255,255,0.15); color: #9ab; }
+.evo-load-btn { background: var(--ui-white-04); border-color: var(--ui-white-15); color: var(--ui-muted); }
 .evo-drop {
     position: fixed; inset: 0; z-index: 900; display: flex; align-items: center; justify-content: center; pointer-events: none;
-    background: rgba(8,14,30,0.55); border: 3px dashed rgba(120,170,255,0.6); border-radius: 12px; margin: 10px;
+    background: var(--ui-drop-veil); border: 3px dashed var(--ui-sky-drop); border-radius: 12px; margin: 10px;
 }
 .evo-drop[hidden] { display: none; }
-.evo-drop div { padding: 14px 22px; border-radius: 10px; background: rgba(20,32,64,0.9); color: #cde; font-size: 16px; }
+.evo-drop div { padding: 14px 22px; border-radius: 10px; background: var(--ui-drop-card); color: var(--ui-body); font-size: 16px; }
 #reseedBtn { font-size: 15px; }
 
 @media (max-width: 768px) {
@@ -265,7 +265,7 @@
     /* the collapsed sheet shows the moment and what is going on; open, the header instead */
     .evo-sheet-line {
         display: block; height: 22px; margin: -4px 0 0; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        font-size: 13px; color: #cde; font-variant-numeric: tabular-nums;
+        font-size: 13px; color: var(--ui-body); font-variant-numeric: tabular-nums;
     }
     #ui:not(.collapsed) .evo-sheet-line { display: none; }
     #exportCard select, #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
