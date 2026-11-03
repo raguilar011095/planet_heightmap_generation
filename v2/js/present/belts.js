@@ -300,5 +300,6 @@ export function writeCrust(frame, crust) {
         frame.prevSide[c] = crust.prevSide[c]; frame.prevShear[c] = crust.prevShear[c];
         frame.rootKm[c] = crust.rootKm[c]; frame.upliftKm[c] = crust.upliftKm[c]; frame.baseKm[c] = crust.baseKm[c];
         frame.rugged[c] = crust.rugged[c]; frame.prevRugged[c] = crust.prevRugged[c]; frame.volcWornKm[c] = crust.volcWornKm[c];
+        frame.volcType[c] = crust.volcType[c]; frame.volcAt[c] = crust.volcAt[c]; frame.volcKm[c] = crust.volcKm[c]; frame.volcSource[c] = crust.volcSource[c];
     }
 }

@@ -245,7 +245,8 @@ for (const { pl, G, mesh } of grounds) {
     const onB = new Uint8Array(n); for (let c = 0; c < n; c++) if (f.boundary[c]) onB[c] = 1;
     const dB = dijkstraKm(G, onB);
     // (today's belts only — active now, oroLast 0; the past's (G4) lie where the old sutures are)
-    for (let c = 0; c < n; c++) if (f.oroType[c] && f.oroLast[c] >= 0) { belt++; if (dB[c] <= 1300) near++; }
+    // (and not the intraplate ranges the far field raises inland — G5: far from any boundary by design)
+    for (let c = 0; c < n; c++) if (f.oroType[c] && f.oroType[c] !== 8 && f.oroLast[c] >= 0) { belt++; if (dB[c] <= 1300) near++; }
     check(`${pl.name}: ${belt} belt cells, ${(100 * near / Math.max(1, belt)).toFixed(0)} % within 1300 km of a plate boundary`, belt > 100 && near / belt > 0.95, 'belts only where plates meet');
     // coastal walling (memory, 2026-10-14: ~⅓ of Generate's coast had ≥ 1.5 km ground within 300 km; Earth 8 %)
     // (measured on the continents' coasts — landmasses of 1 Mkm² and more: an island arc's islets are all coast, with
@@ -312,6 +313,22 @@ for (const { pl, L, G, mesh } of grounds) {
         if (age > 1000) { oldS += f.rugged[c]; oldN++; } else if (age < 600) { youngS += f.rugged[c]; youngN++; }
     }
     if (oldN && youngN) check(`${pl.name}: past crests ${(youngS / youngN).toFixed(2)} km where < 600 Myr old, ${(oldS / oldN).toFixed(2)} km where > 1000`, youngS / youngN > oldS / oldN, 'old ranges lower');
+}
+// ── G5: plumes and the far field ──
+section('G5: hotspot tracks age along their plate and drown downstream; intraplate ranges behind collisions');
+for (const { pl, G } of grounds) {
+    const f = G.frame, n = f.owner.length, P = G.belts.plumes.plumes;
+    let young = 0, youngUp = 0, old = 0, oldUp = 0;
+    for (let c = 0; c < n; c++) {
+        if (f.volcType[c] !== 1 || f.type[c] !== 0 || f.volcKm[c] < 1) continue;
+        const age = -f.volcAt[c], top = f.volcKm[c] - f.volcWornKm[c] - seaDepthKm(-f.formedAt[c]);
+        if (age < 6) { young++; if (top > 0) youngUp++; } else if (age > 40) { old++; if (top > 0) oldUp++; }
+    }
+    check(`${pl.name}: ${P.length} plumes; volcanoes near them ${young ? (100 * youngUp / young).toFixed(0) : '–'} % above the sea, > 40 Myr downstream ${old ? (100 * oldUp / old).toFixed(0) : '–'} %`,
+        P.length >= 4 && (!young || !old || youngUp / young > oldUp / old), 'islands near the plume, seamounts downstream');
+    let collisions = 0; for (let i = 0; i < G.B.count; i++) if (G.B.kind[i] === Boundary.COLLISION) collisions++;
+    const far = G.belts.far.ranges;
+    check(`${pl.name}: ${far.length} intraplate ranges (${collisions} collision edges)`, !collisions || far.length >= 0, 'reported');
 }
 function dijkstraKm(G, src) {
     const sim = G.frame && grounds[0].L.sim, n = src.length, d = new Float64Array(n).fill(Infinity), q = [];

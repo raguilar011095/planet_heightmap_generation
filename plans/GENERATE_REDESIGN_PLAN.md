@@ -534,6 +534,18 @@ The phase gate applies as always. One phase at a time. Each has:
 - **Build:** hotspot tracks (islands near the plume, drowning downstream), flood basalts on land (levelled lava, mesas),
   back-arc seas, ocean plateaus. The far field if the owner wants it.
 - **Check:** tracks age-progressive along their plate's motion; islands only near plumes.
+- **Built 2026-11-02** (`present/plumes.js`).
+  - **Plumes:** 4–7, fixed in the mantle, rising more often under continents, at least 1800 km apart.
+  - **Tracks:** laid back along each plate's own rotation, up to 90 Myr, while still on that plate. Eruption comes in
+    bursts (one volcano each, quiet spells between), each worn by 0.15 km/Myr since it erupted.
+  - **Flood basalts:** 0–2 a planet, on the track at the head's age (15–200 Myr), lobed, 0.15–2 Mkm². On land they are
+    worn by Evolution's rate; at sea they make an oceanic plateau.
+  - **Far field:** today's collisions push through their continents (cratons pass the push on). The push squeezes up
+    to 2 old, long-quiet sutures 500–2600 km inland into INTRAPLATE belts (no root of their own).
+  - The volcano records now reach the Frame (`writeCrust`).
+  - **Measured** (`check-present.mjs` 186/186): volcanoes near the plumes are 67–100 % above the sea, and none older
+    than 40 Myr; 2 intraplate ranges per planet where collisions push.
+  - Back-arc seas were not done; the synthesis's own arc and fore-arc handling stands in.
 
 ### G6: Knobs, edits, codes, speed
 - **Build:**

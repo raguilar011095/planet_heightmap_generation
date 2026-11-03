@@ -11,6 +11,7 @@ import { seaFloorAges } from './seafloor.js';
 import { presentFrame } from './frame.js';
 import { presentBelts, presentTectonics, newCrust } from './belts.js';
 import { presentPast } from './past.js';
+import { presentPlumes, presentFarField } from './plumes.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -47,6 +48,10 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const belts = presentBelts(L, P, B, land, sea, undefined, config, crust);
     belts.past = past;
     ms.belts = clock() - t0; t0 = clock();
+    // G5: today's collisions squeezing up old sutures far inland; the plumes' tracks and flood basalts
+    belts.far = presentFarField(L, P, B, land, crust, config);
+    belts.plumes = presentPlumes(L, P, land, crust);
+    ms.plumes = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
