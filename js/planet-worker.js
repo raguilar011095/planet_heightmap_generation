@@ -185,7 +185,7 @@ function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 
 // ── The present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with ?next=1 until it is the default) ──
 // G1: the pieces (Generate's plates) grouped into plates that move, from the UNEDITED layout and the pieces' motion on
 // it — so an edit changes only the crust, never the grouping — and the boundaries classified on the crust as edited.
-function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVec, seed, mesh, r_xyz }) {
+function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate }) {
     applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse.coarse_r_plate, coarse.coarseMesh, coarse.coarse_xyz, seed);
     // on Evolution's sim mesh (v2/js/present/layout.js), free of the render mesh's Detail
     const L = presentLayout({ seed, P, coarse, pieceOcean: originalPlateIsOcean, pieceVec });
@@ -193,7 +193,15 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
     // each render region's sim cell (its nearest; the sim mesh's index is in Evolution's z-up frame)
     const regionCell = new Int32Array(mesh.numRegions), index = L.sim.index;
     for (let r = 0; r < mesh.numRegions; r++) regionCell[r] = index.nearest(r_xyz[3 * r + 2], r_xyz[3 * r], r_xyz[3 * r + 1]);
-    return { L, P: plates, regionCell };
+    // each region's plate: its own piece's (G1c: a plate is whole pieces, so its edges are the pieces' outlines at any
+    // Detail) — or its sim cell's, in a piece split down a narrow sea or too small to hold a sim cell
+    const pieceIndex = new Map(L.pieceIds.map((id, i) => [id, i]));
+    const regionPlate = new Int16Array(mesh.numRegions);
+    for (let r = 0; r < mesh.numRegions; r++) {
+        const i = pieceIndex.get(r_plate[r]), pp = i === undefined ? -1 : plates.piecePlate[i];
+        regionPlate[r] = pp < 0 || plates.splitPiece[i] ? plates.cellPlate[regionCell[r]] : pp;
+    }
+    return { L, P: plates, regionCell, regionPlate };
 }
 /**
  * The present-day world's ground (v2/js/present/world.js) for the crust as edited, as Generate's raw elevations (the
@@ -239,10 +247,6 @@ const knobsOf = (d, nMag) => ({ nMag, terrainWarp: d.terrainWarp, smoothing: d.s
 function presentMessage(present, plateIsOcean) {
     const { L, P, regionCell } = present;
     const B = present.world?.B ?? classifyBoundaries(L, P, cellLandNow(L, P, Uint8Array.from(L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1))));
-    if (!present.regionPlate) {
-        present.regionPlate = new Int16Array(regionCell.length);
-        for (let r = 0; r < regionCell.length; r++) present.regionPlate[r] = P.cellPlate[regionCell[r]];
-    }
     return {
         regionPlate: present.regionPlate,
         plates: P.plates.map(p => ({ index: p.index, continental: p.continental, share: p.share, landShare: p.landShare,
@@ -332,7 +336,7 @@ function handleGenerate(data) {
         if (data.next) {
             t0 = performance.now();
             present = presentPlatesFor({ coarse: { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds }, P,
-                plateSeeds, originalPlateIsOcean, pieceVec: JSON.parse(JSON.stringify(plateVec)), seed, mesh, r_xyz });
+                plateSeeds, originalPlateIsOcean, pieceVec: JSON.parse(JSON.stringify(plateVec)), seed, mesh, r_xyz, r_plate });
             timing.push({ stage: `Present-day plates (${present.P.M} plates from ${P} pieces)`, ms: performance.now() - t0 });
         }
 

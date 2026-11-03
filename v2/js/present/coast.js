@@ -4,6 +4,10 @@
 // thousand km and more across); the threshold is set so the land's share is what the pieces gave — Land Coverage holds.
 // What a raised piece adds is land around about its outline, its coast drawn with the rest. Finer than the sim mesh,
 // Evolution's terrain draws the coast itself (coast noise, curved reads: synthesize.js).
+//
+// G1c: where a plate's edge runs along the coast (an active margin: present/plates.js), the coast hugs it instead,
+// set back marginInsetKm from it, so the trench lies just offshore (the Andes' ~100 km) and no land spills onto the
+// plate that dives.
 
 import { FastNoise } from '../core/fast-noise.js';
 import { dijkstraCells } from './plates.js';
@@ -13,9 +17,10 @@ const R = 6371;
 
 /**
  * @param {Object} L  the layout (present/layout.js)   @param {Uint8Array} landNow  the pieces' land per cell, as edited
+ * @param {Int16Array} [cellPlate]  each cell's plate (present/plates.js): the coast hugs the plates' edges along it
  * @returns {Uint8Array} the land, redrawn
  */
-export function naturalCoast(L, landNow, cfg = PRESENT) {
+export function naturalCoast(L, landNow, cellPlate = null, cfg = PRESENT) {
     const { mesh, xyz, seed } = L, n = mesh.numRegions, { adjOffset, adjList } = mesh;
     let target = 0; for (let c = 0; c < n; c++) target += landNow[c];
     if (target === 0 || target === n) return landNow.slice();
@@ -27,34 +32,44 @@ export function naturalCoast(L, landNow, cfg = PRESENT) {
     // signed distance to the coast, km (+ on land)
     const sea = new Uint8Array(n); for (let c = 0; c < n; c++) sea[c] = landNow[c] ? 0 : 1;
     const toSea = dijkstraCells(mesh, xyz, sea), toLand = dijkstraCells(mesh, xyz, landNow);
-    let phi = new Float32Array(n), tmp = new Float32Array(n);
+    let phi = new Float32Array(n);
     for (let c = 0; c < n; c++) phi[c] = landNow[c] ? toSea[c] - 0.5 * edgeKm(n) : -(toLand[c] - 0.5 * edgeKm(n));
-    // smoothed: each pass the mean of a cell and its ~6 neighbours, which spreads it by ~0.43 edge² a pass — so a
-    // Gaussian of σ = coastSmoothKm takes (σ / edge)² / 0.43 passes (in km: the same on any mesh)
-    const passes = Math.max(1, Math.round((cfg.coastSmoothKm / edgeKm(n)) ** 2 / 0.43));
-    for (let p = 0; p < passes; p++) {
-        for (let c = 0; c < n; c++) {
-            let s = phi[c], k = 1;
-            for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) { s += phi[adjList[j]]; k++; }
-            tmp[c] = s / k;
-        }
-        [phi, tmp] = [tmp, phi];
-    }
+    phi = smoothKm(mesh, phi, cfg.coastSmoothKm);
     // the broad shape: two octaves of smooth noise at continent scale, its own stream
     const noise = new FastNoise((seed ^ 0xc0a5) >>> 0), f = R / cfg.coastShapeWaveKm;
     for (let c = 0; c < n; c++) {
         const x = xyz[3 * c] * f, y = xyz[3 * c + 1] * f, z = xyz[3 * c + 2] * f;
         phi[c] += cfg.coastShapeKm * (noise.noise3D(x, y, z) + 0.5 * noise.noise3D(2 * x + 31.7, 2 * y - 11.3, 2 * z + 5.1)) / 1.5;
     }
-    // the level that keeps the land's share
+    // the active margins: near a plate's edge between land and sea, the coast follows the edge (its distance field only
+    // lightly smoothed), set back marginInsetKm onto the land — blended in over ~marginHugKm (a Gaussian in km), and held
+    // there whatever level the rest of the coast takes
+    let hug = null, pin = null;
+    if (cellPlate) {
+        const margin = new Uint8Array(n);
+        for (let c = 0; c < n; c++) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+            const nb = adjList[k];
+            if (cellPlate[nb] !== cellPlate[c] && landNow[nb] !== landNow[c]) { margin[c] = 1; break; }
+        }
+        if (margin.includes(1)) {
+            const toMargin = dijkstraCells(mesh, xyz, margin);
+            let raw = new Float32Array(n);
+            for (let c = 0; c < n; c++) raw[c] = landNow[c] ? toSea[c] - 0.5 * edgeKm(n) : -(toLand[c] - 0.5 * edgeKm(n));
+            raw = smoothKm(mesh, raw, cfg.marginSmoothKm);
+            hug = new Float32Array(n); pin = new Float32Array(n);
+            for (let c = 0; c < n; c++) { hug[c] = Math.exp(-((toMargin[c] / cfg.marginHugKm) ** 2)); pin[c] = raw[c] - cfg.marginInsetKm; }
+        }
+    }
+    // land where the field stands above the level that keeps the land's share (the margins' part of it pinned)
+    const above = hug ? (c, lv) => (1 - hug[c]) * (phi[c] - lv) + hug[c] * pin[c] > 0 : (c, lv) => phi[c] > lv;
     let lo = -4000, hi = 4000;
     for (let it = 0; it < 40; it++) {
         const mid = 0.5 * (lo + hi);
-        let count = 0; for (let c = 0; c < n; c++) count += phi[c] > mid ? 1 : 0;
+        let count = 0; for (let c = 0; c < n; c++) count += above(c, mid) ? 1 : 0;
         if (count > target) lo = mid; else hi = mid;
     }
     const level = 0.5 * (lo + hi), out = new Uint8Array(n);
-    for (let c = 0; c < n; c++) out[c] = phi[c] > level ? 1 : 0;
+    for (let c = 0; c < n; c++) out[c] = above(c, level) ? 1 : 0;
     // landmasses the pieces keep apart stay apart (the Continents slider): each cell is the nearest landmass's, and where
     // two different ones' land would touch, the sea runs between them
     const owner = nearestLandmass(mesh, xyz, landNow);
@@ -96,3 +111,22 @@ function nearestLandmass(mesh, xyz, land) {
 }
 
 const edgeKm = (n) => Math.PI * R / Math.sqrt(n);
+
+/**
+ * A field smoothed by a Gaussian of σ = sigmaKm: each pass the mean of a cell and its ~6 neighbours, which spreads it by
+ * ~0.43 edge² a pass, so it takes (σ / edge)² / 0.43 passes (in km: the same on any mesh). Returns a new array.
+ */
+function smoothKm(mesh, field, sigmaKm) {
+    const n = mesh.numRegions, { adjOffset, adjList } = mesh;
+    let a = Float32Array.from(field), b = new Float32Array(n);
+    const passes = Math.max(1, Math.round((sigmaKm / edgeKm(n)) ** 2 / 0.43));
+    for (let p = 0; p < passes; p++) {
+        for (let c = 0; c < n; c++) {
+            let s = a[c], k = 1;
+            for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) { s += a[adjList[j]]; k++; }
+            b[c] = s / k;
+        }
+        [a, b] = [b, a];
+    }
+    return a;
+}

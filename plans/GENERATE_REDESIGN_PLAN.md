@@ -23,11 +23,17 @@ Status: **G1 built 2026-11-02, awaiting the owner's look** (`/generate?next=1`, 
     also want to make sure we have interesting mountain ranges inside of continents, and to simulate old orogenies as
     well." This leads to two changes:
     - **Only the land comes from the pieces.** Plate boundaries out at sea, the seams inside continents and the ranges
-      along them get their own geometry, so the piece grid shows nowhere but where you edit (G1b).
+      along them get their own geometry, so the piece grid shows nowhere but where you edit (G1b). *Reversed for the
+      plates by decision 12.*
     - **The continents' past is replayed as a sequence of real past collisions** (§3.2b, G4). Each one writes the same
       belt records Evolution's history writes, at its own age; they overprint one another and wear down between events.
       Ranges inside continents come from four sources: those old orogens, young collisions where a continent spans two
       plates, intraplate ranges raised by today's collisions (the far field), and rifts.
+12. **(Owner, 2026-11-03, after G6b.)** The plate boundaries drawn free of the pieces looked "haphazard": "they dont
+    follow the plates really. And also they do not really conform to the land. At least some/a lot of the edges of
+    plates should be on the sides of the ocean/land boundaries at least in some places." So the plates are whole
+    pieces again, and a continent leading into the ocean has its plate's edge along its coast (G1c). Coasts stay drawn
+    free of the pieces, except along those edges.
 
 The owner's ask (2026-11-02): bring Generate up to parity with Evolution, because
 
@@ -411,6 +417,35 @@ The phase gate applies as always. One phase at a time. Each has:
     - 70–90 % of the coast passive (no boundary within 400 km);
     - plate boundary at sea on a piece border 5–7 %, against 1–7 % of all sea edges (chance);
     - 35–95 ms a planet.
+
+### G1c: Plates of whole pieces, edges along some coasts (owner, 2026-11-03; decision 12)
+- **Built 2026-11-03** (`present/plates.js`, `present/coast.js`); `check-present.mjs` 208/208.
+  - **Plates are whole pieces:**
+    - each continent rides one plate, or is split along its pieces' strongest seam;
+    - the oceans are divided by the same anisotropic Dijkstra, each ocean piece then going whole to the plate that
+      reached most of it;
+    - the Plates tab draws each region's plate from its own piece, so the edges are the outlines you click at every
+      Detail.
+  - **Active margins along coasts:** ~60 % of continents (at least the biggest) lead into an ocean plate that dives
+    under them. The ocean pieces their coast faces along their motion seed that plate, so its edge runs along the coast.
+    Pieces also touching another continent's coast are left out; its slab pull points at that continent.
+  - **No ridge along a coast:** an ocean piece parting from the continent it borders joins that continent's plate. A
+    narrow sea between two continents parting is split down its middle, so its ridge runs there (the Red Sea).
+  - **Smoothing at sea:** far out at sea (more than ~360 km from land), the edge is smoothed by a Gaussian blur of the
+    plates' shares (σ 250 km), so trenches and island arcs sweep in arcs. The pieces' outlines wiggle a few hundred km
+    across.
+  - **The coast hugs those edges** (`marginHugKm` 350, a Gaussian blend), set back `marginInsetKm` 70 km from them, so the
+    trench lies offshore. The level that keeps Land Coverage is solved with the hugged part held. The continent rides
+    over the trench even where that leaves a strip of sea in front of it.
+  - **Measured:**
+    - 25–40 % of the coast is a plate edge (10 % for the supercontinent, 74 % with 8 pieces): trenches 53–82 % of it,
+      ridges 0–13 %;
+    - the drawn land touches 12–27 % of the coastal trench;
+    - peaks ≤ 6.2 km (a collision through a coast reached 11.5 km before the hug);
+    - plates built in 45–130 ms.
+  - **Cost:** walled coasts rose from 33–47 % to 44–56 % (69 % for the supercontinent, whose rift seas' shoulders wall
+    them). Every active margin stands walled like the Andes, even weakly coupled: coupling by slab age was tried and
+    changed nothing measurable. The guard was raised to 70 %; the ≤ 25 % target stays open.
 
 ### G2: The ground switches over: sea floor, coasts, painting
 - **Build:** the Frame with the land mask, sea-floor age, fracture zones, trenches and margins. Evolution's synthesis and

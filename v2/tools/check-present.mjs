@@ -1,6 +1,6 @@
 // Checks for the present-day world (plans/GENERATE_REDESIGN_PLAN.md): Generate's planet built as one moment with an
-// implied past. G1 — plates that move: Generate's pieces grouped into plates that carry continent and ocean; G1b — the
-// plates drawn free of the piece grid, on Evolution's sim mesh.
+// implied past. G1 — plates that move: Generate's pieces grouped into plates that carry continent and ocean, on
+// Evolution's sim mesh; G1c — each plate whole pieces, its edge along some coasts (active margins).
 //
 //   node v2/tools/check-present.mjs            the checks, PASS/FAIL, exit code
 //   node v2/tools/check-present.mjs --verbose  plus each planet's plates and boundaries
@@ -166,23 +166,43 @@ for (const { pl, L, W } of results.slice(0, 4)) {
     check(`${pl.name}: 4 pieces edited — plates unchanged, ${(100 * changed / B0.count).toFixed(1)} % of boundary length changed kind`, B0.count === B1.count && changed / B0.count < 0.25);
 }
 
-section('G1b: plate boundaries drawn free of the piece grid');
-for (const { pl, L, W } of results) {
-    // of the plate boundary at sea, how much runs along a piece border, against the share of all sea edges that are
-    // piece borders (what a boundary laid down at random would show)
+section('G1c: plates are whole pieces; some coasts are plate edges, mostly trenches');
+for (const { pl, L, W, B } of results) {
+    // every plate boundary on land and along the coasts runs along a piece border (the outlines the Plates tab shows
+    // and Ctrl-click picks), but in a narrow sea split down its middle between two continents parting; far out at sea
+    // the edge is smoothed into arcs (reported)
     const { adjOffset, adjList, numRegions: n } = L.mesh, cp = W.graph.cellP;
-    let bSea = 0, bOnPiece = 0, sea = 0, seaOnPiece = 0;
+    const nearLand = new Uint8Array(n);
+    for (let c = 0; c < n; c++) if (W.cellLand[c]) { nearLand[c] = 1; for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) nearLand[adjList[k]] = 1; }
+    let edges = 0, onPiece = 0, seaEdges = 0, seaOnPiece = 0;
+    for (let c = 0; c < n; c++) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+        const nb = adjList[k];
+        if (nb < c || W.cellPlate[c] === W.cellPlate[nb] || W.splitPiece[cp[c]] || W.splitPiece[cp[nb]]) continue;
+        if (nearLand[c] || nearLand[nb]) { edges++; onPiece += cp[c] !== cp[nb]; } else { seaEdges++; seaOnPiece += cp[c] !== cp[nb]; }
+    }
+    check(`${pl.name}: ${onPiece} of ${edges} plate boundary edges on land and coasts on a piece border (out at sea ${(100 * seaOnPiece / Math.max(1, seaEdges)).toFixed(0)} %)`, onPiece === edges, 'all (bar a split narrow sea)');
+    // of the continental coast (land piece | ocean piece), the share that is a plate edge, and of what kind: owner,
+    // 2026-11-03, "some/a lot of the edges of plates should be on the sides of the ocean/land boundaries" — Earth's
+    // active margins, trenches most of them (the Andes, Sumatra); a ridge along a coast only in a young sea
+    const kindOf = new Map(); for (let i = 0; i < B.count; i++) kindOf.set(B.cellA[i] * n + B.cellB[i], B.kind[i]);
+    let coast = 0, atEdge = 0, trench = 0, ridge = 0;
     for (let c = 0; c < n; c++) {
-        if (W.cellLand[c]) continue;
+        if (!W.cellLand[c]) continue;
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
             const nb = adjList[k];
-            if (nb < c || W.cellLand[nb]) continue;
-            sea++; const onPiece = cp[c] !== cp[nb]; seaOnPiece += onPiece;
-            if (W.cellPlate[c] !== W.cellPlate[nb]) { bSea++; bOnPiece += onPiece; }
+            if (W.cellLand[nb]) continue;
+            coast++;
+            if (W.cellPlate[c] === W.cellPlate[nb]) continue;
+            atEdge++;
+            const kind = kindOf.get(Math.min(c, nb) * n + Math.max(c, nb));
+            trench += kind === Boundary.SUBDUCTION; ridge += kind === Boundary.RIDGE;
         }
     }
-    const share = bOnPiece / Math.max(1, bSea), base = seaOnPiece / Math.max(1, sea);
-    check(`${pl.name}: ${(100 * share).toFixed(0)} % of plate boundary at sea on a piece border (${(100 * base).toFixed(0)} % of sea edges are)`, share <= 3 * base + 0.05, 'no more than ~3× chance');
+    const share = atEdge / coast;
+    // (with under ~16 pieces a world has 3–4 plates and a continent is a piece or two: most of its coast is an edge)
+    const [lo, hi] = pl.P >= 16 ? [0.08, 0.55] : [0.08, 0.9];
+    check(`${pl.name}: ${(100 * share).toFixed(0)} % of the coast a plate edge — trench ${(100 * trench / Math.max(1, atEdge)).toFixed(0)} %, ridge ${(100 * ridge / Math.max(1, atEdge)).toFixed(0)} % of it`,
+        share >= lo && share <= hi && trench >= 0.4 * atEdge && ridge <= 0.25 * atEdge, `${100 * lo}–${100 * hi} % of the coast; trenches ≥ 40 %, ridges ≤ 25 % of it`);
 }
 
 section('Old planet codes keep their layout');
@@ -221,13 +241,24 @@ for (const { pl, G } of grounds) {
 section('G2: coasts drawn free of the pieces, land kept; the ground in km, sane');
 for (const { pl, L, W, G, mesh } of grounds) {
     const n = G.land.length, cp = W.graph.cellP, { adjOffset, adjList } = L.mesh;
+    // (away from the active margins, where the coast follows the plate's edge — a piece border — on purpose: G1c)
+    const margin = new Uint8Array(n);
+    for (let c = 0; c < n; c++) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (W.cellPlate[nb] !== W.cellPlate[c] && W.cellLand[nb] !== W.cellLand[c]) { margin[c] = 1; break; } }
+    const toMargin = dijkstraKm({ frame: { owner: G.land }, L }, margin);
     let coast = 0, onPiece = 0, landSim = 0, landPieces = 0;
     for (let c = 0; c < n; c++) {
         landSim += G.land[c]; landPieces += W.cellLand[c];
-        if (!G.land[c]) continue;
+        if (!G.land[c] || toMargin[c] < 500) continue;
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (G.land[nb]) continue; coast++; if (cp[c] !== cp[nb]) onPiece++; }
     }
-    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast on a piece border`, onPiece / coast < 0.35, 'coast mostly off the piece borders');
+    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast off the active margins on a piece border`, onPiece / coast < 0.35, 'coast mostly off the piece borders');
+    // at the active margins the coast holds back from the plate's edge (the trench offshore, no land on the plate that dives)
+    let tEdges = 0, tLand = 0;
+    for (let i = 0; i < G.B.count; i++) {
+        if (G.B.kind[i] !== Boundary.SUBDUCTION || W.cellLand[G.B.cellA[i]] === W.cellLand[G.B.cellB[i]]) continue;
+        tEdges++; tLand += G.B.landA[i] || G.B.landB[i] ? 1 : 0;
+    }
+    if (tEdges) check(`${pl.name}: drawn land touches ${(100 * tLand / tEdges).toFixed(0)} % of the trench along the coast`, tLand / tEdges < 0.35, 'the coast held back from the trench');
     let land = 0, bad = 0, hi = -99, lo = 99;
     for (const h of G.heightKm) { if (!Number.isFinite(h)) bad++; else { if (h > 0) land++; hi = Math.max(hi, h); lo = Math.min(lo, h); } }
     check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
@@ -280,8 +311,10 @@ for (const { pl, G, mesh } of grounds) {
     let land = 0, high = 0; for (const v of h) { if (v > 0) { land++; if (v > 1) high++; } }
     check(`${pl.name}: ${(100 * walled / coast).toFixed(0)} % of the coast walled (≥ 1.5 km within 300 km); land above 1 km ${(100 * high / land).toFixed(0)} %`,
         // (Earth ~8 %, today's Generate ~33 %. Since G4 the continents stand up and 27–44 % is walled — Andean margins and
-        // rift shoulders most of it: an OPEN tuning target for G6, ≤ 25 %. Held under 50 % meanwhile, so it cannot run off)
-        walled / coast < 0.55 && high / land > 0.02, 'walled under 55 % (open target ≤ 25 %); some real highland');
+        // rift shoulders most of it: an OPEN tuning target, ≤ 25 %. Since G1c a third or so of the coast is an active
+        // margin, as the owner asked (2026-11-03), and every one stands walled like the Andes: 44–56 %; a supercontinent
+        // rifting apart, its young seas walled by their shoulders, 68 %. Held under 70 % meanwhile, so it cannot run off)
+        walled / coast < 0.7 && high / land > 0.02, 'walled under 70 % (open target ≤ 25 %); some real highland');
 }
 // ── G4: the continents' past ──
 section('G4: continents with a past — cratons, old ranges inside them, an Earth-like spread of heights');

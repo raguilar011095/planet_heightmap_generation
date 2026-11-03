@@ -4,7 +4,8 @@
 export const PRESENT = {
     // ── G1: plates that move ──
     // Generate's plates are the PIECES you raise or sink. Neighbouring pieces are grouped into plates that move, which
-    // carry continent and ocean alike (as Evolution's do), so most coasts lie inside a plate: passive margins.
+    // carry continent and ocean alike (as Evolution's do), so most coasts lie inside a plate: passive margins. Each plate
+    // is whole pieces (G1c), so its edges follow the outlines the Plates tab shows.
     platesPerSqrtPieces: 1.5,      // about 1.5 √P plates: 80 pieces → 13 (Earth: 7 major, ~8 minor)
     minPlates: 3,
     maxPlates: 18,
@@ -14,23 +15,19 @@ export const PRESENT = {
     splitTwiceShare: 0.2,          // …twice from 20 % (a supercontinent)
     splitMinPart: 0.25,            // each part at least a quarter of the continent
     splitTries: 8,                 // seams tried, strongest first
-    splitWander: 1.6,              // the cut is grown through a noise that weighs each step 1…1 + 2× this (it bends and steps)…
-    splitWanderKm: 900,            // …in waves about this long
     oceanPlateMin: 1,              // at least this many ocean-only plates (a Pacific)
     minPlateShare: 0.006,          // an ocean plate squeezed below this share of the sphere joins its neighbour
     // A continent trails its ocean behind it: the ocean its plate takes grows 1 + α times less far ahead of its motion
-    // than behind, so the leading coast meets another plate (a trench: the Andes) and the trailing one stays passive.
+    // than behind, so the leading coast meets another plate and the trailing one stays passive.
     leadingAnisotropy: 2,
-    // Some continents lead into the open ocean with an active margin: an ocean plate dives under them, its trench this
-    // far offshore (the Andes' ~100–200 km); the rest lead into nothing (Africa).
-    activeLeadShare: 0.35,
-    leadCoastCos: 0.55,            // a coast facing within ~57° of its continent's motion is its leading coast
-    leadSeedKm: 1300,              // the ocean plate diving under it is seeded along a line this far off its leading coast
+    // Most continents lead into an ocean plate that dives under them — an active margin, the plate's edge along their
+    // leading coast (the Andes, the Cascades, Sumatra); the rest lead into nothing (Africa, Antarctica).
+    activeLeadShare: 0.6,
+    seaSmoothKm: 250,              // out at sea a plate's edge is smoothed over about this (the pieces' outlines wiggle)
+    leadCoastCos: 0.55,            // an ocean piece within ~57° of its continent's motion, seen from their shared coast, is ahead
     // An ocean-only plate is drawn toward the continents it dives under (slab pull): its motion is bent this far from
     // the motion its pieces had toward those boundaries.
     slabPullBlend: 0.55,
-    // G1b: the boundaries at sea are drawn cell by cell, then smoothed by a majority of the neighbours over about this far
-    boundarySmoothKm: 250,
     // Speeds (the plate's RMS surface speed). Continents are slow, the bigger the slower; ocean plates with trenches fast.
     continentSpeedCmYr: [1.5, 4.0],    // a continent plate's speed from small to big …
     continentSpeedFullShare: 0.15,     // … the slowest at ≥ 15 % of the sphere
@@ -54,6 +51,10 @@ export const PRESENT = {
                                    // is grown to make up for it
     coastShapeKm: 240,
     coastShapeWaveKm: 2000,        // the shape's broadest waves (two octaves, the second half as long)
+    // G1c: where a plate's edge runs along the coast (an active margin), the coast follows the edge instead…
+    marginHugKm: 350,              // …within about this of it (a Gaussian blend)…
+    marginInsetKm: 70,             // …set back this far onto the land (the trench offshore: the Andes' ~100 km)…
+    marginSmoothKm: 100,           // …its line smoothed only this much (the pieces' outline, without the sim mesh's steps)
 
     // ── G3: today's mountains — how long each kind of front has been at work (Myr), drawn per front ──
     andeanMyr: [40, 140],          // a subduction margin (the Andes: ~200 Myr; the Cascades' arc younger)

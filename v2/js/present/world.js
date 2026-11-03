@@ -36,9 +36,10 @@ export function presentTerrainMesh(genMesh, r_xyz) {
 export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const { L, P } = present, ms = {}, clock = () => performance.now();
     let t0 = clock();
-    const land = naturalCoast(L, cellLandNow(L, P, pieceLandNow));
+    const crustLand = cellLandNow(L, P, pieceLandNow);
+    const land = naturalCoast(L, crustLand, P.cellPlate);
     ms.coast = clock() - t0; t0 = clock();
-    const B = classifyBoundaries(L, P, land);
+    const B = classifyBoundaries(L, P, land, undefined, crustLand);
     ms.boundaries = clock() - t0; t0 = clock();
     const sea = seaFloorAges(L, P, B, land);
     ms.seaFloor = clock() - t0; t0 = clock();

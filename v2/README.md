@@ -468,9 +468,10 @@ js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the sta
 js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with `?next=1` while it is built):
                    one moment of a believable history with its past in closed form, written as the records Evolution's
                    terrain reads — present-config (its tunables, km / Myr / cm·yr⁻¹), layout (Generate's pieces on the
-                   sim mesh; its y-up frame and Evolution's z-up), plates (the pieces grouped into plates that move and
-                   carry continent and ocean, their motion, their boundaries by kind), coast (the land's coast drawn
-                   free of the pieces, its share and its landmasses kept), seafloor (each ocean cell's age from its
+                   sim mesh; its y-up frame and Evolution's z-up), plates (the pieces grouped whole into plates that move
+                   and carry continent and ocean, their edges along some coasts, their motion, their boundaries by
+                   kind), coast (the land's coast drawn free of the pieces but hugging the plates' edges along it, its
+                   share and its landmasses kept), seafloor (each ocean cell's age from its
                    ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame, identity
                    rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
