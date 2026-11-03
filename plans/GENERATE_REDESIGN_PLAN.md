@@ -506,6 +506,29 @@ The phase gate applies as always. One phase at a time. Each has:
   - rocks near Earth's families (`check-geology`'s shares).
 - **Verify:** interiors with shields, old ranges of several ages far from any plate edge, intraplate ranges behind
   today's collisions, and lowland basins between them.
+- **Built 2026-11-02** (`present/past.js`, run before today's belts, which overprint it).
+  - **Per landmass of ≥ 1.5 Mkm²:**
+    - 1–4 craton cores (one per ~12 Mkm²), placed in the interior: ellipses cut by a straight rifted edge or two, kept
+      450 km from the coast, ~22 % of the land;
+    - growth out from them through a noise, so the seams wander;
+    - accreted rings 650–950 km wide, each 280–450 Myr younger outward.
+  - **Events replayed oldest first** with the history's own `spreadBelt` at their times:
+    - rings docking (Ural welts);
+    - cores welding where their growth meets, the last pair 250–600 Myr ago, a plateau and foreland if under 350 Myr.
+  - **Between events** uplift, crests and root wear down, each on its own clock (e-folding 200, 420, 320 Myr). Younger
+    belts overprint older ones into `prev*`.
+  - **Swells** along the seams, the cratons calm. Seams and swells fade within 550 km of the coast (a passive margin
+    rifted across the old belts).
+  - **Measured** (`check-present.mjs` 174/174):
+    - land median 0.48–0.58 km;
+    - 17–24 % of land above 1 km (Earth ~¼);
+    - 9–14 % of land is highland more than 800 km from any plate edge (ranges inside continents);
+    - past crests ~1 km where under 600 Myr old, ~0.08 km where over 1000.
+  - **Not yet:** intraplate ranges raised by today's collisions (the far field) → G5. The geology record (cover,
+    exhumation) → G7, with Add detail.
+  - **Open, and worse than today:** 27–44 % of the continents' coast is walled (≥ 1.5 km within 300 km), against
+    today's ~33 % and Earth's ~8 %. Mostly Andean margins and rift shoulders. G6 tuning target: ≤ 25 %. It matters for
+    the climate: walled coasts dry generated planets.
 
 ### G5: Plumes and the sea's features
 - **Build:** hotspot tracks (islands near the plume, drowning downstream), flood basalts on land (levelled lava, mesas),

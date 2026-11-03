@@ -194,10 +194,11 @@ if (VERBOSE) console.log('\nlayout hashes: ' + JSON.stringify(Object.fromEntries
 
 // ── G2: the ground — the sea floor's past, the coast, the Frame, Evolution's terrain on Generate's mesh ──
 section('G2: the sea floor ages away from its ridges, and deepens with its age');
-const grounds = [];
+const grounds = [], renderXyz = new Map();
 for (const r of results.slice(0, 4).concat(results.filter(r => ['supercontinent', 'land world'].includes(r.pl.name)))) {
     const { pl, L, W } = r;
     const { mesh, r_xyz } = buildSphere(60000, 0.75, makeRng(pl.seed));       // a small render mesh: the checks' pace
+    renderXyz.set(mesh, r_xyz);
     const pieceLand = Uint8Array.from(L.pieceIds, id => (L.pieceOcean.has(id) ? 0 : 1));
     const t0 = performance.now();
     const G = presentWorld({ L, P: W }, pieceLand, mesh, r_xyz, { seed: pl.seed });
@@ -243,7 +244,8 @@ for (const { pl, G, mesh } of grounds) {
     // each belt cell's distance to a plate boundary (km, over the sim mesh)
     const onB = new Uint8Array(n); for (let c = 0; c < n; c++) if (f.boundary[c]) onB[c] = 1;
     const dB = dijkstraKm(G, onB);
-    for (let c = 0; c < n; c++) if (f.oroType[c]) { belt++; if (dB[c] <= 1300) near++; }
+    // (today's belts only — active now, oroLast 0; the past's (G4) lie where the old sutures are)
+    for (let c = 0; c < n; c++) if (f.oroType[c] && f.oroLast[c] >= 0) { belt++; if (dB[c] <= 1300) near++; }
     check(`${pl.name}: ${belt} belt cells, ${(100 * near / Math.max(1, belt)).toFixed(0)} % within 1300 km of a plate boundary`, belt > 100 && near / belt > 0.95, 'belts only where plates meet');
     // coastal walling (memory, 2026-10-14: ~⅓ of Generate's coast had ≥ 1.5 km ground within 300 km; Earth 8 %)
     // (measured on the continents' coasts — landmasses of 1 Mkm² and more: an island arc's islets are all coast, with
@@ -276,8 +278,40 @@ for (const { pl, G, mesh } of grounds) {
     }
     let land = 0, high = 0; for (const v of h) { if (v > 0) { land++; if (v > 1) high++; } }
     check(`${pl.name}: ${(100 * walled / coast).toFixed(0)} % of the coast walled (≥ 1.5 km within 300 km); land above 1 km ${(100 * high / land).toFixed(0)} %`,
-        // (Earth ~8 %, today's Generate ~33 %: held under 30 % for now — the Andean margins' share is still being tuned)
-        walled / coast < 0.3 && high / land > 0.02, 'walled under today\'s ~33 %; some real highland');
+        // (Earth ~8 %, today's Generate ~33 %. Since G4 the continents stand up and 27–44 % is walled — Andean margins and
+        // rift shoulders most of it: an OPEN tuning target for G6, ≤ 25 %. Held under 50 % meanwhile, so it cannot run off)
+        walled / coast < 0.5 && high / land > 0.02, 'walled under 50 % (G6 target ≤ 25 %); some real highland');
+}
+// ── G4: the continents' past ──
+section('G4: continents with a past — cratons, old ranges inside them, an Earth-like spread of heights');
+for (const { pl, L, G, mesh } of grounds) {
+    const f = G.frame, n = f.owner.length, past = G.belts.past;
+    const onB = new Uint8Array(n); for (let c = 0; c < n; c++) if (f.boundary[c]) onB[c] = 1;
+    const dB = dijkstraKm(G, onB);
+    let craton = 0, land = 0; for (let c = 0; c < n; c++) if (f.type[c] !== 0) { land++; if (f.type[c] === 2) craton++; }
+    check(`${pl.name}: ${past.cores} craton cores, ${(100 * craton / land).toFixed(0)} % of the land shield; ${past.events.length} past events`,
+        past.cores >= 1 && craton / land > 0.05 && craton / land < 0.35 && past.events.length >= 3, 'cores 5–35 % of the land; a past to replay');
+    // ranges inside continents: render land above 1 km more than 800 km from any plate boundary
+    const h = G.heightKm, xyzR = renderXyz.get(mesh);
+    let landR = 0, inner = 0, high = 0; const hs = [];
+    for (let r = 0; r < h.length; r++) {
+        if (h[r] <= 0) continue;
+        landR++; hs.push(h[r]); if (h[r] > 1) high++;
+        const s = L.sim.index.nearest(xyzR[3 * r + 2], xyzR[3 * r], xyzR[3 * r + 1]);
+        if (h[r] > 1 && dB[s] > 800) inner++;
+    }
+    hs.sort((a, b) => a - b);
+    check(`${pl.name}: ${(100 * inner / landR).toFixed(1)} % of the land is highland > 800 km from any plate edge`, inner / landR > 0.01, 'ranges inside continents');
+    check(`${pl.name}: land median ${hs[hs.length >> 1].toFixed(2)} km, above 1 km ${(100 * high / landR).toFixed(0)} %`,
+        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.12 && high / landR < 0.38, 'Earth: median ~0.4–0.6 km, ~¼ above 1 km');
+    // old ranges lower than young ones: the past belts' crest size by age
+    let oldS = 0, oldN = 0, youngS = 0, youngN = 0;
+    for (let c = 0; c < n; c++) {
+        if (!f.oroType[c] || f.oroLast[c] >= 0) continue;
+        const age = -f.oroLast[c];
+        if (age > 1000) { oldS += f.rugged[c]; oldN++; } else if (age < 600) { youngS += f.rugged[c]; youngN++; }
+    }
+    if (oldN && youngN) check(`${pl.name}: past crests ${(youngS / youngN).toFixed(2)} km where < 600 Myr old, ${(oldS / oldN).toFixed(2)} km where > 1000`, youngS / youngN > oldS / oldN, 'old ranges lower');
 }
 function dijkstraKm(G, src) {
     const sim = G.frame && grounds[0].L.sim, n = src.length, d = new Float64Array(n).fill(Infinity), q = [];

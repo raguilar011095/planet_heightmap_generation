@@ -33,6 +33,13 @@ export function presentTectonics() {
     return config;
 }
 
+/** A crust raster over the sim mesh, one cell a world cell: the land as drawn, the sea floor at its age. */
+export function newCrust(L, land, sea) {
+    const n = L.mesh.numRegions, crust = new CrustRaster(n);
+    for (let c = 0; c < n; c++) crust.create(c, land[c] ? CrustType.CONTINENT : CrustType.OCEAN, land[c] ? -2000 : -sea.ageMyr[c]);
+    return crust;
+}
+
 /**
  * Today's belts, written into a crust raster over the sim mesh.
  * @param {Object} L  the layout   @param {Object} W  the plates   @param {Object} B  the boundaries (on `land`)
@@ -43,10 +50,7 @@ export function presentTectonics() {
 export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = presentTectonics(), crust = null) {
     const { xyz, sim, seed } = L, n = L.mesh.numRegions, mesh = sim;
     const plateOf = W.cellPlate, plates = W.plates;
-    if (!crust) {
-        crust = new CrustRaster(n);
-        for (let c = 0; c < n; c++) crust.create(c, land[c] ? CrustType.CONTINENT : CrustType.OCEAN, land[c] ? -2000 : -sea.ageMyr[c]);
-    }
+    if (!crust) crust = newCrust(L, land, sea);
     const plate = { crust };
 
     // every boundary edge, its two sides, its motion: grouped into fronts by (kind, the two plates)

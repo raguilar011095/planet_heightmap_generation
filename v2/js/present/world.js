@@ -9,7 +9,8 @@ import { classifyBoundaries, cellLandNow } from './plates.js';
 import { naturalCoast } from './coast.js';
 import { seaFloorAges } from './seafloor.js';
 import { presentFrame } from './frame.js';
-import { presentBelts } from './belts.js';
+import { presentBelts, presentTectonics, newCrust } from './belts.js';
+import { presentPast } from './past.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -39,7 +40,12 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.boundaries = clock() - t0; t0 = clock();
     const sea = seaFloorAges(L, P, B, land);
     ms.seaFloor = clock() - t0; t0 = clock();
-    const belts = presentBelts(L, P, B, land, sea);
+    // the continents' past first (G4: old orogenies replayed), then today's belts over it
+    const config = presentTectonics(), crust = newCrust(L, land, sea);
+    const past = presentPast(L, land, crust, config);
+    ms.past = clock() - t0; t0 = clock();
+    const belts = presentBelts(L, P, B, land, sea, undefined, config, crust);
+    belts.past = past;
     ms.belts = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
