@@ -627,6 +627,36 @@ The phase gate applies as always. One phase at a time. Each has:
   - phone timing.
   - Also still open: walled coasts ≤ 25 %.
 
+### G2c + G6d: Coasts and detail from the pieces (owner, 2026-11-03)
+- **The owner's words:**
+  - "the actual heights are still blobby regardless of the [Detail] slider";
+  - "at higher detail and iregularity we are loosing some of the interesting coastlines and shapres that the plates
+    create naturally and everything is looking uniformly blobby";
+  - "anything labeled as a land plate needs to be some minimum height, and the same for the ocean plates (land can be
+    underwater for sure, ocean can only be above during orogeny) I think this will help keep the sharpness".
+- **Built 2026-11-03** (`present/coast.js`, `present/hold.js`, `present/relief.js`, `world.js presentSynthesize`);
+  `check-present.mjs` 210/210.
+  - **The land is the pieces'.** G2's smoothing (σ 360 km) and its growth into the sea are gone. The Frame's continental
+    crust is the land pieces as edited; a passive coast is carried one sim cell out to sea, but never beside another
+    plate nor between two landmasses.
+  - **The ground held to the pieces** on Generate's own mesh, each region by its own piece (the outlines the Plates tab
+    draws, as fine as Detail and Irregularity make them), before the rivers carve:
+    - a land piece no deeper than −0.12 km (a shelf), except a rift's young sea;
+    - an ocean piece no higher than −0.08 km, except island-arc crust and within 160 km of a volcano;
+    - the fore-arc, a land piece's edge along another plate's ocean piece, drowned over ~70 km to −0.2…−1.2 km, so the
+      trench lies offshore. This replaces G1c's coast hug.
+  - **Fine relief** on the uplands and mountains: a ridged fractal from 160 km down to what the mesh can show, ± ~15 % of
+    the ground's height (× the Roughness slider), patchy, laid down before the carving so the rivers cut it. It is
+    nothing at 60K, ~90 m on a 2 km upland at 204K and ~105 m at 2.5M, in finer octaves. Evolution's synthesis is
+    unchanged: `presentSynthesize` runs its steps and matches it exactly with no relief and no hold.
+  - **Measured at 204K:**
+    - land drawn 25.5–26.2 % for the pieces' 27.4–28 % (the fore-arcs and a little coastal lowland), against 1.3 points
+      in G6;
+    - 6–9 % of land pieces under the sea;
+    - ocean pieces above it 0.1–0.2 % of the globe (arcs, volcanoes);
+    - a quarter of the coast exactly on the pieces' outline; the rest is Evolution's coast just inside it, the outline
+      its shelf's edge.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

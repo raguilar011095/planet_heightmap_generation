@@ -201,7 +201,7 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
         const i = pieceIndex.get(r_plate[r]), pp = i === undefined ? -1 : plates.piecePlate[i];
         regionPlate[r] = pp < 0 || plates.splitPiece[i] ? plates.cellPlate[regionCell[r]] : pp;
     }
-    return { L, P: plates, regionCell, regionPlate };
+    return { L, P: plates, regionCell, regionPlate, r_plate };
 }
 /**
  * The present-day world's ground (v2/js/present/world.js) for the crust as edited, as Generate's raw elevations (the
@@ -209,13 +209,16 @@ function presentPlatesFor({ coarse, P, plateSeeds, originalPlateIsOcean, pieceVe
  */
 function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
-    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs });
+    // (G2c: each region's own piece as edited — the ground is held to the pieces' outlines at this Detail)
+    const regionLand = new Uint8Array(mesh.numRegions);
+    for (let r = 0; r < regionLand.length; r++) regionLand[r] = plateIsOcean.has(present.r_plate[r]) ? 0 : 1;
+    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate });
     present.world = w;
     return presentHeights(present, w.heightKm, mesh, r_xyz, w.ms, w.drainage, w.receivers);
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 function presentReground(present, mesh, r_xyz, seed, knobs) {
-    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs });
+    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask });
     present.world.heightKm = g.heightKm;
     return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
 }

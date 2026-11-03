@@ -44,17 +44,24 @@ export const PRESENT = {
     maxFloorAgeMyr: 180,           // older floor than this has gone down a trench somewhere (Earth's oldest: ~180 Myr)
     unreachedHalfSpreadCmYr: 1.2,  // floor no ridge reaches ages on from the floor around it this slowly…
     unreachedStartMyr: 90,         // …or, reached by nothing, starts this old at its plate's edges
-    // The coast: the land the pieces give, its distance field smoothed over coastSmoothKm (so no piece outline shows)
-    // and moved by a broad shape of ±coastShapeKm at continent scale, the threshold set so Land Coverage holds
-    coastSmoothKm: 360,            // σ of the smoothing
-    coastLandLoss: 0.10,           // the terrain draws this share of the land under the sea at 28 % land (G6): the sim's land
-                                   // is grown to make up for it
-    coastShapeKm: 240,
-    coastShapeWaveKm: 2000,        // the shape's broadest waves (two octaves, the second half as long)
-    // G1c: where a plate's edge runs along the coast (an active margin), the coast follows the edge instead…
-    marginHugKm: 350,              // …within about this of it (a Gaussian blend)…
-    marginInsetKm: 70,             // …set back this far onto the land (the trench offshore: the Andes' ~100 km)…
-    marginSmoothKm: 100,           // …its line smoothed only this much (the pieces' outline, without the sim mesh's steps)
+    // G2c: the land is the pieces' own (present/coast.js), and on Generate's mesh the ground is held to them
+    // (present/hold.js): a land piece never deeper than a shelf, an ocean piece never above the sea but where orogeny
+    // raised it
+    landFloorKm: -0.12,            // a land piece's floor (km): its coast may drown into a shelf sea, no deeper
+    oceanCeilKm: -0.08,            // an ocean piece's ceiling: under the sea, its shelf edge sharp
+    volcanoReachKm: 160,           // …but within this of a volcano on it (its island's flanks), or on island-arc crust
+    foreArcDrownKm: 70,            // a land piece's edge along another plate's ocean piece drowned this far in (the fore-arc:
+    foreArcDepthKm: -0.2,          // the Andes' coast ~100 km from the trench), to at least this deep
+    foreArcFloorKm: -1.2,          // …and no deeper than this (the trench itself is on the ocean piece)
+
+    // ── G6d: detail that holds up close (present/relief.js) — a ridged fractal on the uplands and mountains, its octaves
+    // from reliefFromKm down to what the terrain mesh can show, laid down before the rivers carve ──
+    reliefShare: 0.15,             // its strength: ± about this share of the ground's height (× the Roughness slider's factor)
+    reliefFromKm: 160,             // its broadest wave (shown from ~200K cells; 80 km from ~800K, 40 km at 2.5M)
+    reliefRoughness: 0.55,         // each octave this share of the one before
+    reliefRiseKm: [0.25, 1.5],     // none below the first height, full from the second (the plains keep Evolution's hills)
+    reliefVary: 0.5,               // ± this much more or less rugged from place to place…
+    reliefVaryKm: 900,             // …in patches about this wide
 
     // ── G3: today's mountains — how long each kind of front has been at work (Myr), drawn per front ──
     andeanMyr: [40, 140],          // a subduction margin (the Andes: ~200 Myr; the Cascades' arc younger)

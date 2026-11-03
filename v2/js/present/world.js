@@ -3,7 +3,9 @@
 // terrain synthesis and carving on Generate's own render mesh, in km.
 
 import { meshFromArrays } from '../core/sim-mesh.js';
-import { synthesizeTerrain } from '../terrain/synthesize.js';
+import { preparePlan, surfaceRange, carveInputs, settleFields, carveLadder, carveSettings } from '../terrain/synthesize.js';
+import { sampleOnto, terrainMesh } from '../terrain/terrain-mesh.js';
+import { carveTerrain } from '../terrain/carve.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { classifyBoundaries, cellLandNow } from './plates.js';
 import { naturalCoast } from './coast.js';
@@ -12,7 +14,9 @@ import { presentFrame } from './frame.js';
 import { presentBelts, presentTectonics, newCrust } from './belts.js';
 import { presentPast } from './past.js';
 import { presentPlumes, presentFarField } from './plumes.js';
-import { knobOverrides } from './knobs.js';
+import { knobOverrides, reliefShareOf } from './knobs.js';
+import { addFineRelief } from './relief.js';
+import { heldCells, holdToPieces } from './hold.js';
 
 const tMeshes = new WeakMap();
 /** Generate's render mesh as a terrain mesh (SimMesh-shaped), its positions turned into Evolution's z-up frame. */
@@ -30,8 +34,11 @@ export function presentTerrainMesh(genMesh, r_xyz) {
  * Everything of the present-day world but its plates (present/plates.js, built once per layout).
  * @param {{L, P}} present  the layout and its plates   @param {Uint8Array} pieceLandNow  each piece's land as edited
  * @param {Object} genMesh  Generate's render mesh   @param {Float32Array} r_xyz  its positions (Generate's frame)
- * @param {{seed: number, terrain?: Object}} o  terrain: terrain-config overrides
- * @returns {{land, B, sea, frame, heightKm: Float32Array, ms: Object}}
+ * @param {{seed: number, terrain?: Object, knobs?: Object, regionLand?: Uint8Array, regionCell?: Int32Array,
+ *   regionPlate?: Int16Array}} o  terrain: terrain-config overrides; regionLand, regionCell, regionPlate: each region's
+ *   piece as edited (1: land), its sim cell and its plate
+ *   — given, the ground is held to the pieces (present/hold.js)
+ * @returns {{land, B, sea, frame, mask, heightKm: Float32Array, ms: Object}}  mask: what the hold read (for Reapply)
  */
 export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const { L, P } = present, ms = {}, clock = () => performance.now();
@@ -56,15 +63,18 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.plumes = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
-    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, o);
+    // (G2c: the ground held to the pieces on Generate's mesh — each region by its own piece, as edited)
+    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand) } : null;
+    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask });
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
+    return { land, B, sea, belts, frame, mask, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
 }
 
 /**
  * Only the ground — Evolution's synthesis and carving of a Frame on Generate's mesh, with the sculpting knobs (G6,
  * present/knobs.js) — so Reapply keeps the Frame and redraws just this.
- * @param {{seed: number, knobs?: Object, terrain?: Object}} o
+ * @param {{seed: number, knobs?: Object, terrain?: Object, relief?: number, mask?: Object}} o  mask: hold the ground
+ *   to the pieces (presentWorld's `mask`)
  */
 export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const ms = {}, clock = () => performance.now();
@@ -72,10 +82,35 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
     const cfg = terrainConfig({ ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
-    const T = synthesizeTerrain(frame, sim, tMesh, { cfg, seed: o.seed, carve: cfg.carveTimeMyr > 0 });
+    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
     return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, ms };
+}
+
+/**
+ * Evolution's terrain synthesis and carving (terrain/synthesize.js synthesizeTerrain, step for step — the same surface
+ * when `relief` is 0), with the fine relief (present/relief.js, G6d) laid down between the two, so the rivers carve it.
+ */
+export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null) {
+    const ms = {}, clock = () => performance.now();
+    let t0 = clock();
+    const plan = preparePlan(frame, sim, cfg, seed, tMesh.edgeKm);
+    ms.records = clock() - t0; t0 = clock();
+    const S = sampleOnto(sim, tMesh, cfg, seed);
+    ms.sample = clock() - t0; t0 = clock();
+    const n = tMesh.numCells, heightKm = new Float32Array(n);
+    const carveIn = cfg.carveTimeMyr > 0 ? carveInputs(n) : null;
+    surfaceRange(plan, cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn);
+    ms.surface = clock() - t0; t0 = clock();
+    addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief);
+    if (mask) holdToPieces(heightKm, mask, tMesh);
+    ms.relief = clock() - t0;
+    if (!carveIn) return { heightKm, ms };
+    t0 = clock();
+    const C = carveTerrain(carveLadder(sim, tMesh, terrainMesh), { ...carveIn, z: heightKm }, carveSettings(cfg), settleFields(frame, sim, tMesh, cfg, seed));
+    ms.carve = clock() - t0;
+    return { heightKm: C.z, drainage: C.area, receivers: C.recv, ms };
 }
 
 /**

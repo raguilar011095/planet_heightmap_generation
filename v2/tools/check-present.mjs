@@ -6,11 +6,16 @@
 //   node v2/tools/check-present.mjs --verbose  plus each planet's plates and boundaries
 
 import { check, section, finish } from './lib/check-kit.mjs';
-import { generateCoarsePlates } from '../../js/coarse-plates.js';
+import { generateCoarsePlates, projectCoarsePlates } from '../../js/coarse-plates.js';
+import { smoothAndReconnectPlates } from '../../js/plates.js';
 import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
-import { presentWorld } from '../js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentSynthesize } from '../js/present/world.js';
+import { addFineRelief } from '../js/present/relief.js';
+import { synthesizeTerrain } from '../js/terrain/synthesize.js';
+import { terrainConfig } from '../js/terrain/terrain-config.js';
+import { knobOverrides } from '../js/present/knobs.js';
 import { seaDepthKm } from '../js/tectonics/measure.js';
 import { buildSphere } from '../../js/sphere-mesh.js';
 import { makeRng } from '../../js/rng.js';
@@ -220,9 +225,20 @@ for (const r of results.slice(0, 4).concat(results.filter(r => ['supercontinent'
     const { mesh, r_xyz } = buildSphere(60000, 0.75, makeRng(pl.seed));       // a small render mesh: the checks' pace
     renderXyz.set(mesh, r_xyz);
     const pieceLand = Uint8Array.from(L.pieceIds, id => (L.pieceOcean.has(id) ? 0 : 1));
+    // each region's own piece, its sim cell and its plate, as js/planet-worker.js finds them (G2c: the ground is held to them)
+    const r_plate = projectCoarsePlates(mesh, r_xyz, L.raw.coarseMesh, L.raw.coarse_xyz, L.raw.coarse_r_plate, pl.seed, pl.P);
+    smoothAndReconnectPlates(mesh, r_plate, L.raw.coarsePlateSeeds, 3);
+    const nR = mesh.numRegions, regionLand = new Uint8Array(nR), regionCell = new Int32Array(nR), regionPlate = new Int16Array(nR);
+    const pIdx = new Map(L.pieceIds.map((id, i) => [id, i]));
+    for (let q = 0; q < nR; q++) {
+        regionLand[q] = L.pieceOcean.has(r_plate[q]) ? 0 : 1;
+        regionCell[q] = L.sim.index.nearest(r_xyz[3 * q + 2], r_xyz[3 * q], r_xyz[3 * q + 1]);
+        const i = pIdx.get(r_plate[q]), pp = i === undefined ? -1 : W.piecePlate[i];
+        regionPlate[q] = pp < 0 || W.splitPiece[i] ? W.cellPlate[regionCell[q]] : pp;
+    }
     const t0 = performance.now();
-    const G = presentWorld({ L, P: W }, pieceLand, mesh, r_xyz, { seed: pl.seed });
-    grounds.push({ pl, L, W, G, mesh, ms: performance.now() - t0 });
+    const G = presentWorld({ L, P: W }, pieceLand, mesh, r_xyz, { seed: pl.seed, regionLand, regionCell, regionPlate });
+    grounds.push({ pl, L, W, G, mesh, regionLand, regionPlate, ms: performance.now() - t0 });
 }
 for (const { pl, G } of grounds) {
     const { sea, land, frame } = G, n = land.length;
@@ -238,33 +254,49 @@ for (const { pl, G } of grounds) {
     check(`${pl.name}: ${(100 * fz / ocean).toFixed(0)} % of the floor carries its spreading pole (fracture zones)`, fz / ocean > 0.3, '> 30 %');
 }
 
-section('G2: coasts drawn free of the pieces, land kept; the ground in km, sane');
-for (const { pl, L, W, G, mesh } of grounds) {
-    const n = G.land.length, cp = W.graph.cellP, { adjOffset, adjList } = L.mesh;
-    // (away from the active margins, where the coast follows the plate's edge — a piece border — on purpose: G1c)
-    const margin = new Uint8Array(n);
-    for (let c = 0; c < n; c++) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (W.cellPlate[nb] !== W.cellPlate[c] && W.cellLand[nb] !== W.cellLand[c]) { margin[c] = 1; break; } }
-    const toMargin = dijkstraKm({ frame: { owner: G.land }, L }, margin);
-    let coast = 0, onPiece = 0, landSim = 0, landPieces = 0;
-    for (let c = 0; c < n; c++) {
-        landSim += G.land[c]; landPieces += W.cellLand[c];
-        if (!G.land[c] || toMargin[c] < 500) continue;
-        for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (G.land[nb]) continue; coast++; if (cp[c] !== cp[nb]) onPiece++; }
+section('G2c: the ground held to the pieces; land kept; the ground in km, sane');
+for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
+    // (owner, 2026-11-03: a land piece never deep, an ocean piece above the sea only where orogeny raised it — so the
+    // coast and the shelf's edge follow the pieces' outlines)
+    const h = G.heightKm, nR = h.length, { adjOffset, adjList } = mesh;
+    let pieces = 0, land = 0, deep = 0, oceanUp = 0, opened = 0, fore = 0, foreSea = 0;
+    for (let q = 0; q < nR; q++) {
+        pieces += regionLand[q]; land += h[q] > 0;
+        if (regionLand[q]) {
+            if (G.mask.opened[G.mask.regionCell[q]]) opened++;
+            else if (h[q] < -1.25) deep++;     // (the fore-arc drowned before a trench reaches −1.2 km, no deeper)
+            let beside = false;
+            for (let k = adjOffset[q]; k < adjOffset[q + 1]; k++) { const nb = adjList[k]; if (!regionLand[nb] && regionPlate[nb] !== regionPlate[q]) { beside = true; break; } }
+            if (beside) { fore++; foreSea += h[q] <= 0; }
+        } else if (h[q] > 0) oceanUp++;
     }
-    check(`${pl.name}: ${(100 * onPiece / coast).toFixed(0)} % of the coast off the active margins on a piece border`, onPiece / coast < 0.35, 'coast mostly off the piece borders');
-    // at the active margins the coast holds back from the plate's edge (the trench offshore, no land on the plate that dives)
-    let tEdges = 0, tLand = 0;
-    for (let i = 0; i < G.B.count; i++) {
-        if (G.B.kind[i] !== Boundary.SUBDUCTION || W.cellLand[G.B.cellA[i]] === W.cellLand[G.B.cellB[i]]) continue;
-        tEdges++; tLand += G.B.landA[i] || G.B.landB[i] ? 1 : 0;
-    }
-    if (tEdges) check(`${pl.name}: drawn land touches ${(100 * tLand / tEdges).toFixed(0)} % of the trench along the coast`, tLand / tEdges < 0.35, 'the coast held back from the trench');
-    let land = 0, bad = 0, hi = -99, lo = 99;
-    for (const h of G.heightKm) { if (!Number.isFinite(h)) bad++; else { if (h > 0) land++; hi = Math.max(hi, h); lo = Math.min(lo, h); } }
+    check(`${pl.name}: land pieces deeper than a shelf ${deep}, ocean pieces above the sea ${(100 * oceanUp / nR).toFixed(2)} % of the globe (arcs, volcanoes)`,
+        deep === 0 && oceanUp / nR < 0.006, 'none deeper than the fore-arc (1.2 km) but the seas the crust opened; < 0.6 %');
+    // the fore-arc: a land piece's edge along another plate's ocean piece drowned, the trench offshore
+    if (fore) check(`${pl.name}: ${(100 * foreSea / fore).toFixed(0)} % of a land piece's edge along another plate's ocean under the sea`, foreSea / fore > 0.95, 'the fore-arc drowned');
+    let bad = 0, hi = -99, lo = 99;
+    for (const v of h) { if (!Number.isFinite(v)) bad++; else { hi = Math.max(hi, v); lo = Math.min(lo, v); } }
     check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
-    // Land Coverage held (G6): the land as drawn against the pieces' share (the slider's), within 2 points
-    const drawn = land / G.heightKm.length, want = landPieces / n;
-    check(`${pl.name}: land as drawn ${(100 * drawn).toFixed(1)} %, the pieces' ${(100 * want).toFixed(1)} %`, Math.abs(drawn - want) < 0.02, 'within 2 points');
+    // Land Coverage held (G6): the land as drawn against the pieces' share (the slider's) — less the fore-arcs drowned and
+    // a little coastal lowland: within 3 points, or 6 % of it (a world mostly land has more active margins)
+    const drawn = land / nR, want = pieces / nR;
+    check(`${pl.name}: land as drawn ${(100 * drawn).toFixed(1)} %, the pieces' ${(100 * want).toFixed(1)} %`, Math.abs(drawn - want) < Math.max(0.03, 0.06 * want), 'within 3 points, or 6 % of the share');
+}
+
+// ── G6d: detail that holds up close ──
+section('G6d: a finer Detail draws finer relief; with none, Evolution\'s own terrain exactly');
+{
+    // the fine relief on a flat upland 2 km high, by mesh spacing: nothing at a coarse mesh, more the finer it is
+    const xyz = new Float32Array(3 * 4000), rng = makeRng(7);
+    for (let i = 0; i < 4000; i++) { const z = 2 * rng() - 1, a = 2 * Math.PI * rng(), r = Math.sqrt(1 - z * z); xyz[3 * i] = r * Math.cos(a); xyz[3 * i + 1] = r * Math.sin(a); xyz[3 * i + 2] = z; }
+    const cfgT = terrainConfig(), spread = (edgeKm) => { const h = new Float32Array(4000).fill(2); addFineRelief(h, xyz, edgeKm, 1, cfgT, 0.15); let s2 = 0; for (const v of h) s2 += (v - 2) ** 2; return 1000 * Math.sqrt(s2 / 4000); };
+    const [c, m, f] = [80, 44, 13].map(spread);
+    check(`relief's spread on a 2 km upland: ${c.toFixed(0)} m at an 80 km mesh (60K), ${m.toFixed(0)} m at 44 km (204K), ${f.toFixed(0)} m at 13 km (2.5M)`, c === 0 && f > m && m >= 0, 'none at 60K, more the finer');
+    // with no relief and no hold, the present-day synthesis is Evolution's step for step
+    const { pl, L, G, mesh } = grounds[0], tMesh = presentTerrainMesh(mesh, renderXyz.get(mesh)), cfg = terrainConfig(knobOverrides({}));
+    const a = synthesizeTerrain(G.frame, L.sim, tMesh, { cfg, seed: pl.seed, carve: true }).heightKm, b = presentSynthesize(G.frame, L.sim, tMesh, cfg, pl.seed, 0).heightKm;
+    let same = a.length === b.length; for (let i = 0; same && i < a.length; i++) same = a[i] === b[i];
+    check(`${pl.name}: no relief, no hold — the same surface as Evolution's synthesizeTerrain`, same);
 }
 
 // ── G3: today's mountains ──

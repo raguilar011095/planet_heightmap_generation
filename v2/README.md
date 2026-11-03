@@ -470,8 +470,10 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    terrain reads — present-config (its tunables, km / Myr / cm·yr⁻¹), layout (Generate's pieces on the
                    sim mesh; its y-up frame and Evolution's z-up), plates (the pieces grouped whole into plates that move
                    and carry continent and ocean, their edges along some coasts, their motion, their boundaries by
-                   kind), coast (the land's coast drawn free of the pieces but hugging the plates' edges along it, its
-                   share and its landmasses kept), seafloor (each ocean cell's age from its
+                   kind), coast (the land: the pieces', a passive coast carried a cell out), hold (the ground on
+                   Generate's mesh held to its own pieces: a land piece no deeper than a shelf, an ocean piece under the
+                   sea but where orogeny raised it, the fore-arc drowned), relief (a ridged fractal on the uplands, its
+                   octaves down to what the Detail can show), seafloor (each ocean cell's age from its
                    ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame, identity
                    rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),

@@ -4,6 +4,7 @@
 // and the carving with them: the Frame is kept.
 
 import { TERRAIN } from '../terrain/terrain-config.js';
+import { PRESENT } from './present-config.js';
 
 // Generate's defaults (js/planet-code.js SLIDERS): where every factor is 1
 const DEFAULTS = { nMag: 0.4, terrainWarp: 0.75, smoothing: 0.1, hydraulicErosion: 0.5, thermalErosion: 0.1, ridgeSharpening: 0.5, glacialErosion: 0.5 };
@@ -39,4 +40,9 @@ export function knobOverrides(s = {}) {
     // Glacial Erosion: how far fjords reach up their valleys (the ice age itself comes with Add detail)
     o.drownKm = T.drownKm * k('glacialErosion');
     return o;
+}
+
+/** The fine relief's strength (present/relief.js, G6d) for the Roughness slider: PRESENT.reliefShare at its default. */
+export function reliefShareOf(s = {}) {
+    return PRESENT.reliefShare * (s.nMag ?? DEFAULTS.nMag) / DEFAULTS.nMag;
 }
