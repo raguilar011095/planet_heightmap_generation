@@ -748,6 +748,25 @@ The phase gate applies as always. One phase at a time. Each has:
     the globe (arcs, volcanoes; Earth's arcs ~0.5 %).
   - **Not yet:** Indonesia's broad clusters (arcs colliding with continents and microcontinents).
 
+### G3d: Arcs that vary, near land (owner, 2026-11-04)
+- **The owner's words:** "ocean island arcs are too uniform and everywhere … lets definitely work on making the open arcs
+  much less uniform, and they should be less likely on ocean to ocean/much more likely land to ocean. (or on an ocean
+  plate right by land on the same major plate, that is good as it looks like a trailing/edge arc".
+- **Built 2026-11-04** (`present/belts.js`); `check-present.mjs` 239/239.
+  - **An arc stands along only part of its trench.** A noise along the trench (stretches ~900 km) is read as a share of
+    its spread and compared with the chance there: 90 % within 500 km of the upper plate's own land (an arc trailing
+    from its continent: the Aleutians, the Antilles, the Scotia arc), falling to 8 % at 1800 km or on a plate with no
+    land (the open ocean: the Marianas).
+  - **Where it stands it varies along its strike** (over ~500 km): its width × 0.45–1.5, its distance from the trench
+    40–150 km, and toward a stretch's ends younger (down to 15 % of its age: a submerged ridge its volcanoes break) and
+    narrower.
+  - **A long continental front splits along some stretches (~1600 km) and squeezes an Andes along others**, by the same
+    noise against its chance (G3c's, now no longer one draw per front); the back-arc sea narrows toward a stretch's ends,
+    where the arc joins its continent again (Kamchatka, Sakhalin).
+  - **Measured on the 6 planets:** an arc along 25 % of the trenches that could hold one (every one before); 65 % of the
+    arc crust at sea within 1000 km of land (the supercontinent's 35 %: its ocean plates carry no land); ocean pieces
+    above the sea 0.12–0.33 % of the globe (0.3–0.9 % before); 49 split margins beside 58 Andean.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

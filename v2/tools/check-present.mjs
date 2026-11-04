@@ -17,6 +17,7 @@ import { synthesizeTerrain } from '../js/terrain/synthesize.js';
 import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { knobOverrides } from '../js/present/knobs.js';
 import { seaDepthKm } from '../js/tectonics/measure.js';
+import { CrustType } from '../js/tectonics/model/crust.js';
 import { buildSphere } from '../../js/sphere-mesh.js';
 import { makeRng } from '../../js/rng.js';
 
@@ -353,6 +354,24 @@ section('G3c: margins split off island arcs (Mariana type) beside Andes (Chilean
         check(`${pl.name}: ${split} margins split off an arc, ${andean} Andean, ${arcs} arcs at sea`, arcs + split > 0, 'some island arcs');
     }
     check(`all: ${splitAll} split margins, ${andeanAll} Andean`, splitAll > 0 && andeanAll > 0, 'both styles');
+}
+section('G3d: arcs at sea mostly trail from land, along part of their trench');
+{
+    let nearAll = 0, arcAll = 0, keptAll = 0, trenchAll = 0;
+    for (const { pl, L, G } of grounds) {
+        // the arc crust at sea (not on a land piece's split edge), and how far each cell lies from any land
+        const { sim } = L, n = sim.numCells, hops = new Int32Array(n).fill(-1), q = [];
+        for (let c = 0; c < n; c++) if (G.land[c]) { hops[c] = 0; q.push(c); }
+        for (let h = 0; h < q.length; h++) { const c = q[h]; for (let k = sim.adjOffset[c]; k < sim.adjOffset[c + 1]; k++) { const nb = sim.adjList[k]; if (hops[nb] < 0) { hops[nb] = hops[c] + 1; q.push(nb); } } }
+        let arc = 0, near = 0;
+        for (let c = 0; c < n; c++) if (!G.land[c] && G.frame.type[c] === CrustType.ARC) { arc++; if (hops[c] * sim.edgeKm <= 1000) near++; }
+        const subs = G.belts.fronts.filter(f => f.kind === 'subduction'), kept = subs.reduce((s, f) => s + f.arc, 0), trench = subs.reduce((s, f) => s + f.arcTrench, 0);
+        nearAll += near; arcAll += arc; keptAll += kept; trenchAll += trench;
+        check(`${pl.name}: ${arc} sim cells of arc crust at sea, ${(100 * near / Math.max(1, arc)).toFixed(0)} % within 1000 km of land; an arc along ${(100 * kept / Math.max(1, trench)).toFixed(0)} % of the trenches that could hold one`,
+            kept < trench, 'not along every trench');
+    }
+    check(`all: ${(100 * nearAll / Math.max(1, arcAll)).toFixed(0)} % of the arc crust at sea within 1000 km of land, along ${(100 * keptAll / Math.max(1, trenchAll)).toFixed(0)} % of the trenches`,
+        nearAll >= 0.6 * arcAll && keptAll <= 0.7 * trenchAll, '≥ 60 % near land; ≤ 70 % of the trenches');
 }
 
 // ── G3: today's mountains ──
