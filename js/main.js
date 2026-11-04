@@ -14,6 +14,7 @@ import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { needsClimate, climateLayer, climateLegendHTML, satelliteLegendHTML, showClimateArrows, initSeasonPicker } from './climate-layers.js';
 import { initLayerBar } from './layer-bar.js';
+import { isPresentLayer, presentLegendHTML, presentLegendClicked } from './present-layers-view.js';
 import { initViewStrip, initProjectionPicker } from './view-strip.js';
 import { renderView, setProjection } from './map-projection.js';
 import { terrainCss, initPaletteMenu } from './terrain-palette.js';
@@ -203,8 +204,9 @@ function shouldSkipClimate() {
     return detailFromSlider(+document.getElementById('sN').value) > AUTO_CLIMATE_THRESHOLD;
 }
 
-// Layers that need a climate: the Inspect climate layers, Köppen and Satellite (js/climate-layers.js)
-const CLIMATE_LAYERS = { has: needsClimate };
+// Layers that need a climate: the Inspect climate layers, Köppen and Satellite (js/climate-layers.js) — and the
+// present-day world's Geology and Food (?next=1: they are worked out with the climate, js/present-layers-view.js)
+const CLIMATE_LAYERS = { has: (layer) => needsClimate(layer) || isPresentLayer(layer) };
 
 // The layers over the planet (js/layer-bar.js: the tabs, the Climate row and the season, the phone's list) and the
 // sidebar's Inspect list (the terrain's inner layers). 'plates' is the plate colours over no layer (state.showPlates).
@@ -246,6 +248,12 @@ function applyLayer(layer) {
 }
 
 const layerBar = initLayerBar(switchVisualization);
+// (the Geology and Food legends' chips — the farming's techniques and staples, an age's resources — redraw the view)
+vizLegend?.addEventListener('click', (e) => {
+    if (!isPresentLayer(state.debugLayer) || !presentLegendClicked(e.target)) return;
+    updateMeshColors();
+    updateLegend(state.debugLayer);
+});
 initViewStrip();
 initProjectionPicker(setProjection);
 /** The bar, its season and the Inspect list, for the layer shown. */
@@ -369,6 +377,8 @@ function updateLegend(layer) {
         vizLegend.innerHTML = `<div class="legend-note" style="margin-bottom:4px">${pr.plates.length} plates that move (arrows: their motion), each carrying continent (light) and ocean (dark). The shades inside a plate are its pieces: ${state.isTouchDevice ? 'turn on edit mode (the button at the bottom right), then tap one' : 'Ctrl-click (⌘-click on a Mac) one'} to raise or sink it, then Rebuild.</div><div>${kinds}</div>`;
     } else if (layer === 'plates') {
         vizLegend.innerHTML = `<div class="legend-note">The plates in their colours. ${state.isTouchDevice ? 'Turn on edit mode (the button at the bottom right), then tap a plate' : 'Ctrl-click (⌘-click on a Mac) a plate'} to raise or sink it &mdash; in any view &mdash; then Rebuild.</div>`;
+    } else if (isPresentLayer(layer)) {
+        vizLegend.innerHTML = presentLegendHTML(layer, state.curData);
     } else if (climateLayer(layer)) {
         vizLegend.innerHTML = climateLegendHTML(layer, state.climateSeason);
     } else {

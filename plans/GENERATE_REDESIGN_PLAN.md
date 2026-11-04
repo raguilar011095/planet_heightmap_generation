@@ -938,9 +938,48 @@ The phase gate applies as always. One phase at a time. Each has:
     - the food (`farmCells`, its climate gathered from the climate's own twelve months per region, as the finish
       does: the growing season, the soil's climate, the deposits' climate tests);
     - the same fields the finished moment holds.
+    - **Built 2026-11-04** (`present/layers.js`; the worker's `climateFor`):
+      - **The climate pass:** `layerClimate` gathers, per land region, from its twelve months as the climate runs
+        (`runNewClimate`'s per-region callback): the land cover (`landCover`, the biome the deposits read), the farming's
+        climate (`addFarmClimate`) and the deposits' climate tests.
+      - **After it:** `presentLayers` runs the rocks, the deposits and `farmCells`, then Evolution's picture of them
+        (`finishRaster`, 1024–2048 wide by the Detail).
+      - **The inputs, from Generate's own ground:**
+        - the carve's drainage (rivers' plains, placers, the farming's water), its receivers and order (placers
+          downstream), its lava cap and its rising ranges (`world.js`);
+        - how deep the carve's rivers cut (`cut`, 20 m steps: Evolution's `geo.cut`). This strips the cover where a
+          region is cut deep and bares the basement and its ore.
+      - **Not yet given:** the finish's dunes, loess, till and lakes.
+      - **Cost:** about 1.2 s at 204K; 0.8–1.0 s at 60K, after a 2.5 s climate.
+      - **Measured** (`check-present.mjs` G7c and G7d, 300/300):
+        - **Rocks (the four default planets):** sediment 75 %, metamorphic 19 %, plutonic 3.8 %, volcanic 3.1 %. This
+          is within all of Evolution's ranges now that the cut bares the basement.
+        - **The supercontinent and the land world:** about a third of their land is metamorphic (collision belts over a
+          third of it). They are now checked against looser bounds of their own: metamorphic ≤ 40 %, gold and tin
+          ≤ 4 %. The land world's gold is 2.8 % moderate or rich.
+        - **Deposits and ages, within Evolution's check-geology bounds:**
+          - iron on 43–51 % of the land (≥ 3 × copper);
+          - copper growing with the ages;
+          - Bronze Age tin ≤ 0.1 % moderate or rich, bronze potential 0.1–0.8 %;
+          - Iron Age iron 25–34 %;
+          - Industrial metals on 19–28 %.
+        - **Food:** the land could feed 23–28 people a km², and 5–9 % of it is excellent land (Evolution: 10–40 a km²,
+          0.5–8 %).
   - **G7e — the Geology and Food tabs on Generate's layer bar:** Evolution's colours, legends (with their toggles) and
     hover readouts reused through a finished-moment-shaped adapter on Generate's mesh; the phone list; the tutorial and
     docs.
+    - **Built 2026-11-04** (`js/present-layers-view.js`; `layer-bar.js`, `main.js`, `edit-mode.js`, `generate.html`,
+      `styles.css`):
+      - **The tabs:** Geology (Rocks, Deposits with its system picker, Ages with its age picker) and Food (Farmland,
+        Staple food, Lifestyle, People, Soil, Growing season), each its own row as on Evolution. They are shown only with
+        `?next=1`.
+      - **The colours:** each region reads Evolution's view functions (`finishedGeologyColor`, `finishedFarmingColor`)
+        at its latitude and longitude on the rasters. The legends are Evolution's, and their chips (the farming's
+        techniques and staples, an age's resources) redraw the view. The hover adds Evolution's readout lines.
+      - **On a phone:** both rows are in the layer list (Geology and Food groups), the pickers stay, and the chips are
+        44 px.
+      - The readout's labels now take the width they need (they overlapped on long labels, on Evolution too).
+      - The tutorial is unchanged while the tabs sit behind `?next=1`.
   - **G7f — their export rows** (Evolution's Geology and Food exports on Generate's mesh).
 
 ### G7: Add detail parity

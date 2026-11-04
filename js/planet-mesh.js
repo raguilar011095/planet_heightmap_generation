@@ -8,6 +8,7 @@ import { terrainColorFn } from './terrain-palette.js';
 import { makeRng } from './rng.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { climateColorFn, climateLayer, vectorAt, regionLatLon, sampleGrid as gridSampleAt } from './climate-layers.js';
+import { presentLayerColorFn, isPresentLayer } from './present-layers-view.js';
 import { satelliteRegionColors, seaIceRegion } from '../v2/js/evolution/sat-style.js';
 import { FastNoise } from '../v2/js/core/fast-noise.js';
 
@@ -177,7 +178,7 @@ function koppenColor(classId) {
 // own colours) and are drawn unlit on the globe (issues #64 and #51).
 const toLinear3 = (c) => [srgbToLinear(c[0]), srgbToLinear(c[1]), srgbToLinear(c[2])];
 /** Whether a layer is drawn in its legend's exact colours (unlit, no gamma shift). */
-const isExactLayer = (debugLayer) => debugLayer === 'koppen' || debugLayer === 'heightmap' || debugLayer === 'landheightmap' || !!climateLayer(debugLayer);
+const isExactLayer = (debugLayer) => debugLayer === 'koppen' || debugLayer === 'heightmap' || debugLayer === 'landheightmap' || !!climateLayer(debugLayer) || isPresentLayer(debugLayer);
 /** The globe's material for a layer: unlit for an exact layer, lit (with the mesh's own normals) otherwise. */
 function globeMaterial(exact) {
     if (exact) return new THREE.MeshBasicMaterial({ vertexColors: true });
@@ -392,7 +393,7 @@ export function buildMapMesh() {
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
     const isHeightmap = debugLayer === 'heightmap';
     const isLandHeightmap = debugLayer === 'landheightmap';
-    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData);
+    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData) ?? presentLayerColorFn(debugLayer, state.curData);
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
@@ -844,7 +845,7 @@ export function buildMesh() {
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
     const isHeightmap = debugLayer === 'heightmap';
     const isLandHeightmap = debugLayer === 'landheightmap';
-    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData);
+    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData) ?? presentLayerColorFn(debugLayer, state.curData);
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;
@@ -1029,7 +1030,7 @@ export function updateMeshColors() {
     let dbgArr = null, dbgMin = 0, dbgMax = 0;
     const isHeightmap = debugLayer === 'heightmap';
     const isLandHeightmap = debugLayer === 'landheightmap';
-    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData);
+    const climateColor = climateColorFn(debugLayer, state.climateSeason, state.curData) ?? presentLayerColorFn(debugLayer, state.curData);
     const isKoppen = debugLayer === 'koppen';
     const isBiome = debugLayer === 'biome';
     const koppenArr = (isKoppen || isBiome) ? (debugLayers && debugLayers.koppen) : null;

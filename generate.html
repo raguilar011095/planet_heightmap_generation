@@ -404,6 +404,8 @@
                 <button class="map-tab active" data-layer="">Terrain</button>
                 <button class="map-tab" data-layer="biome" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, for the year, January or July">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The climate: K&ouml;ppen zones, temperature, rain, winds and currents &mdash; and under More, pressure, upwelling, ice, aridity and more">Climate</button>
+                <button class="map-tab" data-layer="geology" data-present hidden title="The rocks the planet's past left, its ore, fuel, mineral and gem deposits, and what each technological age could mine">Geology</button>
+                <button class="map-tab" data-layer="food" data-present hidden title="What the land could grow and feed: farmland, staple foods, how people would live, and how many it could feed">Food</button>
                 <button class="map-tab" data-layer="landheightmap" title="Land heights in grey, the sea black">Heightmap</button>
                 <button class="map-tab" data-layer="plates" title="The plates in their colours &mdash; Ctrl-click (&#8984;-click on a Mac) a plate to raise or sink it, in any view">Plates</button>
             </div>
@@ -433,6 +435,116 @@
                     <option value="rainSeason">Rain Seasonality</option>
                 </optgroup>
             </select>
+            <div class="map-tabs" id="geologyTabs" hidden>
+                <button class="map-tab" data-layer="geoRocks" title="The rock at the surface: young sediment, sedimentary, volcanic, plutonic and metamorphic rock, as the planet's past left them">Rocks</button>
+                <button class="map-tab" data-layer="geoDeposits" title="Ore, fuel, mineral and gem deposits, each where its setting formed it and the land still holds it">Deposits</button>
+                <button class="map-tab" data-layer="geoAges" title="What each technological age could find and mine">Ages</button>
+            </div>
+            <select id="depositPick" aria-label="Which deposits" title="Which deposits: all the metals and minerals together (each place its richest), one metal or fuel alone — or a kind of deposit, by how it formed" hidden>
+                <option value="all" selected>All metals and minerals</option>
+                <optgroup label="Metals and minerals">
+                    <option value="m.iron">Iron</option>
+                    <option value="m.copper">Copper</option>
+                    <option value="m.gold">Gold</option>
+                    <option value="m.silver">Silver</option>
+                    <option value="m.tin">Tin</option>
+                    <option value="m.leadZinc">Lead and zinc</option>
+                    <option value="m.aluminium">Aluminium</option>
+                    <option value="m.nickel">Nickel</option>
+                    <option value="m.platinum">Platinum and chromium</option>
+                    <option value="m.diamonds">Diamonds</option>
+                    <option value="m.salt">Salt</option>
+                </optgroup>
+                <optgroup label="Fuel">
+                    <option value="m.coal">Coal</option>
+                    <option value="m.oilGas">Oil and gas</option>
+                    <option value="m.peat">Peat</option>
+                    <option value="m.wood">Wood</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: from the history">
+                    <option value="porphyry">Porphyry copper</option>
+                    <option value="epithermal">Epithermal gold-silver</option>
+                    <option value="orogenicGold">Orogenic gold</option>
+                    <option value="vms">Massive sulfide</option>
+                    <option value="skarn">Skarn</option>
+                    <option value="mvt">Lead-zinc in limestone</option>
+                    <option value="sedex">Lead-zinc-silver in shale</option>
+                    <option value="tin">Tin-tungsten</option>
+                    <option value="iocg">Iron oxide copper-gold</option>
+                    <option value="magmatic">Nickel-copper-platinum</option>
+                    <option value="layered">Layered intrusion</option>
+                    <option value="nativeCopper">Native copper</option>
+                    <option value="kimberlite">Kimberlite diamonds</option>
+                    <option value="greenstoneGold">Greenstone gold</option>
+                    <option value="bif">Banded iron</option>
+                    <option value="reef">Ancient gold reef</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: climate and rivers">
+                    <option value="bauxite">Bauxite</option>
+                    <option value="niLaterite">Nickel laterite</option>
+                    <option value="ironLaterite">Iron laterite</option>
+                    <option value="supergene">Enriched copper</option>
+                    <option value="gossan">Gossan</option>
+                    <option value="placerGold">Placer gold</option>
+                    <option value="placerTin">Placer tin</option>
+                    <option value="placerDiamond">Placer diamonds</option>
+                    <option value="salt">Salt</option>
+                    <option value="ironstone">Ironstone</option>
+                    <option value="bogIron">Bog iron</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: fuel">
+                    <option value="oil">Oil</option>
+                    <option value="gas">Gas</option>
+                    <option value="bitumen">Bitumen, tar and oil shale</option>
+                    <option value="coal">Coal</option>
+                    <option value="peat">Peat</option>
+                    <option value="wood">Wood</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: stone">
+                    <option value="flint">Flint and chert</option>
+                    <option value="obsidian">Obsidian</option>
+                    <option value="jade">Jade</option>
+                    <option value="agate">Agate and jasper</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: gems">
+                    <option value="pegmatite">Pegmatite gems</option>
+                    <option value="emerald">Emerald</option>
+                    <option value="corundum">Ruby and sapphire</option>
+                    <option value="lapis">Lapis lazuli</option>
+                    <option value="basaltGems">Sapphire and peridot in basalt</option>
+                    <option value="amethyst">Amethyst geodes</option>
+                    <option value="opal">Opal</option>
+                    <option value="turquoise">Turquoise</option>
+                    <option value="garnet">Garnet</option>
+                    <option value="gemPlacer">Gem gravels</option>
+                </optgroup>
+                <optgroup label="By kind of deposit: building stone">
+                    <option value="stoneLimestone">Limestone</option>
+                    <option value="stoneSandstone">Sandstone</option>
+                    <option value="stoneGranite">Granite</option>
+                    <option value="stoneMarble">Marble</option>
+                    <option value="stoneSlate">Slate</option>
+                    <option value="clay">Clay</option>
+                </optgroup>
+            </select>
+            <select id="agePick" aria-label="Age" title="Which technological age" hidden>
+                <option value="stone">Stone Age</option>
+                <option value="copper">Copper Age</option>
+                <option value="bronze" selected>Bronze Age</option>
+                <option value="iron">Iron Age</option>
+                <option value="industrial">Industrial</option>
+                <option value="fuel">Fuels</option>
+                <option value="gems">Gems</option>
+                <option value="building">Building stone</option>
+            </select>
+            <div class="map-tabs" id="foodTabs" hidden>
+                <button class="map-tab" data-layer="farmLand" title="How much food the land could grow, in harvests a year: by rain, or with the water flood farming and canals bring">Farmland</button>
+                <button class="map-tab" data-layer="farmStaple" title="What each place would live on most">Staple food</button>
+                <button class="map-tab" data-layer="farmLife" title="Whether its people would farm, herd or gather">Lifestyle</button>
+                <button class="map-tab" data-layer="farmPeople" title="How many people the land could feed">People</button>
+                <button class="map-tab" data-layer="farmSoil" title="The soil: what it formed from and what the climate made of it">Soil</button>
+                <button class="map-tab" data-layer="farmSeason" title="The growing season: months warm and wet enough to grow">Growing season</button>
+            </div>
             <select id="climateSeason" aria-label="Season" title="The year's average, January or July">
                 <option value="year">Year</option>
                 <option value="jan">January</option>
@@ -458,6 +570,19 @@
             <option value="aridity">Aridity</option>
             <option value="growing">Growing Season</option>
             <option value="rainSeason">Rain Seasonality</option>
+        </optgroup>
+        <optgroup label="Geology" data-present>
+            <option value="geoRocks">Rocks</option>
+            <option value="geoDeposits">Deposits</option>
+            <option value="geoAges">Ages</option>
+        </optgroup>
+        <optgroup label="Food" data-present>
+            <option value="farmLand">Farmland</option>
+            <option value="farmStaple">Staple food</option>
+            <option value="farmLife">Lifestyle</option>
+            <option value="farmPeople">People</option>
+            <option value="farmSoil">Soil</option>
+            <option value="farmSeason">Growing season</option>
         </optgroup>
         <option value="landheightmap">Heightmap</option>
         <option value="plates">Plates</option>

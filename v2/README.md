@@ -483,9 +483,13 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    sea only toward a coast), rifts (the rift valleys cut on Generate's mesh), fit (continents parting
                    across their ocean made to fit: the rotation that closes it, their coasts interlocked, their geology
                    carried across), plumes (hotspot tracks,
-                   flood basalts, the far field), knobs (the sculpting sliders), seafloor (each ocean cell's age from its
-                   ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame, identity
-                   rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh)
+                   flood basalts, the far field), record (the geological record in closed form: each cell's cover and
+                   its make-up, how deep it is worn, its shelves, inland seas and forelands, its arcs and ophiolites —
+                   what Evolution's rocks and deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
+                   age from its ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame,
+                   identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh),
+                   layers (Evolution's Geology and Food on Generate's mesh: the climate's twelve months gathered per
+                   region, then its rocks, deposits, farming and their picture, for the page's Geology and Food tabs)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older

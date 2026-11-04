@@ -88,7 +88,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, lava: G.lava, young: G.young, ms };
+    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, order: G.order, lava: G.lava, young: G.young, cut: G.cut, ms };
 }
 
 /**
@@ -106,8 +106,11 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, lava: T.lava ?? null, young: T.young ?? null, ms };
+    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, order: T.order ?? null, lava: T.lava ?? null, young: T.young ?? null, cut: T.cut ?? null, ms };
 }
+
+/** The step of the rivers' cut (km a step, a byte: Evolution's finish.js geo.cutStepKm). */
+export const CUT_STEP_KM = 0.02;
 
 /**
  * Evolution's terrain synthesis and carving (terrain/synthesize.js synthesizeTerrain, step for step — the same surface
@@ -136,13 +139,16 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     const C = carveTerrain(carveLadder(sim, tMesh, terrainMesh), { ...carveIn, z: heightKm }, carveSettings(cfg), settleFields(frame, sim, tMesh, cfg, seed));
     ms.carve = clock() - t0;
     // (G7c, as the finish keeps them: where flood basalt still caps the ground after the carving — its pile not cut
-    // through: the rocks' basalt — and how young the mountains are, 1 while a belt still rises: the food's renewed soils)
-    const lava = new Uint8Array(n), young = new Uint8Array(n);
+    // through: the rocks' basalt — how young the mountains are, 1 while a belt still rises: the food's renewed soils —
+    // and how deep the rivers cut, from the surface before the carving, in CUT_STEP_KM steps: the rocks' cover stripped
+    // where a region is cut deep, the deposits bared — finish.js's geo.cut)
+    const lava = new Uint8Array(n), young = new Uint8Array(n), cut = new Uint8Array(n);
     for (let c = 0; c < n; c++) {
         if (carveIn.lip[c] > 0) { const t = Math.min(1, Math.max(0, (C.z[c] - carveIn.lipBase[c]) / 0.05)); lava[c] = Math.round(255 * carveIn.lip[c] * t * t * (3 - 2 * t)); }
         young[c] = Math.round(255 * Math.max(0, Math.min(1, carveIn.hold[c])));
+        cut[c] = Math.min(255, Math.max(0, Math.round((heightKm[c] - C.z[c]) / CUT_STEP_KM)));
     }
-    return { heightKm: C.z, drainage: C.area, receivers: C.recv, lava, young, ms };
+    return { heightKm: C.z, drainage: C.area, receivers: C.recv, order: C.order, lava, young, cut, ms };
 }
 
 /**

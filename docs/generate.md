@@ -184,7 +184,8 @@ js/
   climate-new.js        The climate for Generate and Import — runs the new climate (v2/js/climate/) on a V1 planet: Köppen, per-region months, the 1° grid
   climate-layers.js     The climate's Inspect layers — colours, legends, hover lines, arrows, the season picker
   terrain-palette.js    The Terrain view's Colours (Generate, Import): Classic or one of Evolution's palettes, by height in km
-  layer-bar.js          The layer bar over the planet (Generate, Import): tabs, the Climate row and season, the phone's list
+  layer-bar.js          The layer bar over the planet (Generate, Import): tabs, the Climate row and season, the phone's list (and with ?next=1 the Geology and Food rows, the deposit and age pickers)
+  present-layers-view.js  The present-day world's Geology and Food tabs (?next=1): Evolution's colours, legends and readouts per region, read off the layers v2/js/present/layers.js works out
   view-strip.js         The view strip above the layer tabs (every page), folded behind an arrow: Globe | Map and what applies, the projection picker; in the sheet on phones
   map-projection.js     Generate's and Import's map view in any of the ten projections: the flat map drawn off-screen, shown through the projection's inverse; hover and Ctrl-click through it
   climate-config.js     The OLD climate's parameters (no longer run by the app; kept for the old tuning diagnostics)

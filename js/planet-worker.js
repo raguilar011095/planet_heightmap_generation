@@ -18,6 +18,7 @@ import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } fro
 import { presentLayout } from '../v2/js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentGroundOf, presentRivers } from '../v2/js/present/world.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
+import { layerClimate, presentLayers as geologyAndFood } from '../v2/js/present/layers.js';
 import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
@@ -174,11 +175,23 @@ function getClimateParams(data) {
  * The planet's climate — the new climate (js/climate-new.js; plans/V1_NEW_CLIMATE_PLAN.md) — on its final elevation,
  * with the Temperature / Precipitation sliders. Its buffers go to the main thread with the result (newClimateTransfers).
  */
-function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 0 } = {}, timing = null, pct = 80) {
+function climateFor(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 0 } = {}, timing = null, pct = 80, present = null, mesh = null) {
     progress(pct, 'Simulating the climate\u2026');
-    const t0 = performance.now();
-    const climate = runNewClimate(r_xyz, r_elevation, { greenhouse, precipitationOffset });
+    let t0 = performance.now();
+    // (the present-day world: its Geology and Food layers gather from each land region's twelve months as the climate
+    // runs — G7d, v2/js/present/layers.js)
+    const tMesh = present?.world && mesh ? presentTerrainMesh(mesh, r_xyz) : null;
+    const lc = tMesh ? layerClimate(mesh.numRegions, tMesh.xyz) : null;
+    const climate = runNewClimate(r_xyz, r_elevation, { greenhouse, precipitationOffset }, lc ? lc.onCell : null);
     if (timing) timing.push({ stage: 'Climate', ms: performance.now() - t0 }, ...climate.timing.stages.map(t => ({ stage: `  climate · ${t.stage}`, ms: t.ms })));
+    if (lc) {
+        progress(Math.min(95, pct + 15), 'Reading the rocks and the land\u2026');
+        t0 = performance.now();
+        const w = present.world;
+        climate.presentLayers = geologyAndFood({ tMesh, heightKm: w.heightKm, frame: w.frame, sim: present.L.sim, seed: present.L.seed,
+            drainage: w.drainage, receivers: w.receivers, order: w.order, lava: w.lava, young: w.young, cut: w.cut, koppen: climate.koppen, lc });
+        if (timing) timing.push({ stage: 'Geology and food (rocks, deposits, farming)', ms: performance.now() - t0 });
+    }
     return climate;
 }
 
@@ -225,7 +238,8 @@ function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 function presentReground(present, mesh, r_xyz, seed, knobs) {
     const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm });
-    present.world.heightKm = g.heightKm;
+    // (the ground and what the layers read of it: its rivers, its lava cap, its rising ranges, how deep the rivers cut)
+    Object.assign(present.world, { heightKm: g.heightKm, drainage: g.drainage, receivers: g.receivers, order: g.order, lava: g.lava, young: g.young, cut: g.cut });
     return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
 }
 const PEAK_KNEE_KM = 4.8;
@@ -444,7 +458,7 @@ function handleGenerate(data) {
             debugLayers.mantleFlow = ppd.dl_mantleFlow;
         }
 
-        const climate = skipClimate ? null : climateFor(r_xyz, r_elevation, { greenhouse, precipitationOffset }, timing, 70);
+        const climate = skipClimate ? null : climateFor(r_xyz, r_elevation, { greenhouse, precipitationOffset }, timing, 70, present, mesh);
         if (climate) debugLayers.koppen = climate.koppen;
 
         progress(skipClimate ? 75 : 90, 'Computing triangle elevations\u2026');
@@ -576,7 +590,7 @@ function handleReapply(data) {
         W.r_elevation_final = new Float32Array(r_elevation);
 
         t0 = performance.now();
-        const climate = skipClimate ? null : climateFor(W.r_xyz, r_elevation, { greenhouse, precipitationOffset }, null, 60);
+        const climate = skipClimate ? null : climateFor(W.r_xyz, r_elevation, { greenhouse, precipitationOffset }, null, 60, W.present, W.mesh);
         const tClimate = performance.now() - t0;
 
         progress(skipClimate ? 70 : 90, 'Computing triangle elevations\u2026');
@@ -675,7 +689,7 @@ function handleEditRecompute(data) {
         W.r_elevation_final = new Float32Array(r_elevation);
 
         t0 = performance.now();
-        const climate = skipClimate ? null : climateFor(r_xyz, r_elevation, { greenhouse, precipitationOffset }, null, 65);
+        const climate = skipClimate ? null : climateFor(r_xyz, r_elevation, { greenhouse, precipitationOffset }, null, 65, W.present, mesh);
         if (climate) debugLayers.koppen = climate.koppen;
         const tClimate = performance.now() - t0;
 
@@ -735,7 +749,7 @@ function handleComputeClimate(data) {
     const { greenhouse, precipitationOffset } = getClimateParams(data);
     try {
         const t0 = performance.now();
-        const climate = climateFor(W.r_xyz, W.r_elevation_final, { greenhouse, precipitationOffset }, null, 10);
+        const climate = climateFor(W.r_xyz, W.r_elevation_final, { greenhouse, precipitationOffset }, null, 10, W.present, W.mesh);
         progress(95, 'Done');
         self.postMessage({ type: 'climateDone', climate, _climateTiming: { climate: climate.timing.climate, workerTotal: performance.now() - t0 } },
             newClimateTransfers(climate));

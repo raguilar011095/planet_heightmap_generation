@@ -11,7 +11,17 @@ import { smoothAndReconnectPlates } from '../../js/plates.js';
 import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
-import { presentWorld, presentTerrainMesh, presentSynthesize } from '../js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentSynthesize, CUT_STEP_KM } from '../js/present/world.js';
+import { layerClimate, presentLayers } from '../js/present/layers.js';
+import { runNewClimate } from '../../js/climate-new.js';
+import { heightKmToElev } from '../../js/color-map.js';
+import { GEOLOGY } from '../js/geology/geology-config.js';
+import { METALS } from '../js/geology/deposits.js';
+import { AGES, resourceField, landShares, potentialField } from '../js/geology/ages.js';
+import { landPeople } from '../js/farming/people.js';
+import { partsOf } from '../js/farming/living.js';
+import { farmPlace, farmClass, harvestsAt, CROPS } from '../js/farming/farming.js';
+import { KOPPEN_ID } from '../js/climate/koppen.js';
 import { apply as rotateBy, horn, rotation as rotationAbout } from '../js/present/fit.js';
 import { addFineRelief } from '../js/present/relief.js';
 import { synthesizeTerrain } from '../js/terrain/synthesize.js';
@@ -590,24 +600,81 @@ section('G5b: continents parting across their ocean fit — ridge down its middl
 
 // ── G7c: the geological record ──
 section('G7c: the record in closed form — Evolution\'s rocks on Generate\'s worlds in an Earth-like mix');
+// (Evolution's ranges are Earth's, checked on an Earth-like world: here on the four default planets; the supercontinent and
+// the land world — collision belts over a third of their land — reported against looser ones)
+const earthLike = ({ pl }) => !['supercontinent', 'land world'].includes(pl.name);
 {
-    const famAll = {};
-    for (const { pl, L, G, mesh } of grounds) {
+    const famAll = {}, nEarth = grounds.filter(earthLike).length;
+    for (const g of grounds) {
+        const { pl, L, G, mesh } = g;
         const tm = presentTerrainMesh(mesh, renderXyz.get(mesh)), z = G.heightKm, n = z.length;
         const ocean = new Uint8Array(n), lat = new Float32Array(n), lon = new Float32Array(n);
         for (let c = 0; c < n; c++) { ocean[c] = z[c] > 0 ? 0 : 1; lat[c] = Math.asin(tm.xyz[3 * c + 2]) * 180 / Math.PI; lon[c] = Math.atan2(tm.xyz[3 * c + 1], tm.xyz[3 * c]) * 180 / Math.PI; }
         const q = G.drainage ? Float32Array.from(G.drainage, a => a * PRESENT.riverQPerKm2) : null;
-        const Rk = classifyRocks({ mesh: tm, z, ocean, frame: G.frame, simMesh: L.sim, seed: pl.seed, cfg: terrainConfig(), on: { grid: new LatLonGrid(0.25), lat, lon }, local: { q } });
+        // (the page's inputs: the carve's rivers, its lava cap and how deep it cut — v2/js/present/layers.js)
+        const Rk = classifyRocks({ mesh: tm, z, ocean, frame: G.frame, simMesh: L.sim, seed: pl.seed, cfg: terrainConfig(), on: { grid: new LatLonGrid(0.25), lat, lon },
+            local: { q, lava: G.lava, cut: G.cut, cutStepKm: CUT_STEP_KM, column: true } });
         const fam = {};
-        for (let k = 1; k < ROCK_COUNT; k++) { const f = ROCK_INFO[k].family; fam[f] = (fam[f] ?? 0) + Rk.shares[k]; famAll[f] = (famAll[f] ?? 0) + Rk.shares[k] / grounds.length; }
-        const r = G.belts.record;
+        for (let k = 1; k < ROCK_COUNT; k++) { const f = ROCK_INFO[k].family; fam[f] = (fam[f] ?? 0) + Rk.shares[k]; if (earthLike(g)) famAll[f] = (famAll[f] ?? 0) + Rk.shares[k] / nEarth; }
+        const r = G.belts.record, sedOf = (fam.loose ?? 0) + (fam.sedimentary ?? 0);
         check(`${pl.name}: ${Object.entries(fam).map(([k, v]) => `${k} ${(100 * v).toFixed(0)} %`).join(', ')}; record: ${(100 * r.covered).toFixed(0)} % covered, ${(100 * r.shield).toFixed(0)} % bare shield, forelands ${(100 * r.foreland).toFixed(0)} %, shelves ${(100 * r.shelf).toFixed(0)} %, inland seas ${(100 * r.epeiric).toFixed(0)} %`,
-            (fam.loose ?? 0) + (fam.sedimentary ?? 0) > 0.5 && (fam.metamorphic ?? 0) > 0.05, 'some of each (the mean is checked below)');
+            earthLike(g) ? sedOf > 0.5 && (fam.metamorphic ?? 0) > 0.05 : sedOf > 0.4 && (fam.metamorphic ?? 0) > 0.05 && (fam.metamorphic ?? 0) <= 0.4,
+            earthLike(g) ? 'some of each (the mean is checked below)' : 'its collision belts\' basement bared: sediment > 40 %, metamorphic ≤ 40 %');
     }
     const sed = (famAll.loose ?? 0) + (famAll.sedimentary ?? 0);
-    check(`all: sediment and sedimentary ${(100 * sed).toFixed(0)} %, metamorphic ${(100 * famAll.metamorphic).toFixed(0)} %, plutonic ${(100 * famAll.plutonic).toFixed(1)} %, volcanic ${(100 * famAll.volcanic).toFixed(1)} % (river plains ${(100 * (famAll.loose ?? 0)).toFixed(0)} %)`,
-        sed >= 0.6 && sed <= 0.8 && famAll.metamorphic >= 0.08 && famAll.metamorphic <= 0.22 && famAll.plutonic >= 0.02 && famAll.volcanic >= 0.02,
-        'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % — here ≥ 2: few flood basalts reach the land here, and no dunes, loess or till yet (G7d)');
+    check(`the default planets: sediment and sedimentary ${(100 * sed).toFixed(0)} %, metamorphic ${(100 * famAll.metamorphic).toFixed(0)} %, plutonic ${(100 * famAll.plutonic).toFixed(1)} %, volcanic ${(100 * famAll.volcanic).toFixed(1)} % (river plains ${(100 * (famAll.loose ?? 0)).toFixed(0)} %)`,
+        sed >= 0.6 && sed <= 0.8 && famAll.metamorphic >= 0.08 && famAll.metamorphic <= 0.22 && famAll.plutonic >= 0.03 && famAll.volcanic >= 0.03,
+        'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % (the river carve's cut baring them: G7d)');
+}
+
+// ── G7d: the Geology and Food layers, as the page works them out (js/planet-worker.js climateFor) ──
+section('G7d: Evolution\'s Geology and Food on Generate\'s worlds — deposits and ages within Evolution\'s own bounds, land that feeds people');
+{
+    const grades = GEOLOGY.deposits.grades, age = id => AGES.find(a => a.id === id), pc = x => `${(100 * x).toFixed(1)} %`;
+    const any = s => s[0] + s[1] + s[2], modPlus = s => s[1] + s[2], ALL = { flood: true, canal: true, terrace: true, raised: true };
+    let pplSum = 0, excSum = 0;
+    for (const { pl, L, G, mesh } of grounds) {
+        const r_xyz = renderXyz.get(mesh), tm = presentTerrainMesh(mesh, r_xyz), n = mesh.numRegions;
+        const elev = Float32Array.from(G.heightKm, h => heightKmToElev(Math.min(h, 6)));
+        const t0 = performance.now(), lc = layerClimate(n, tm.xyz), climate = runNewClimate(r_xyz, elev, {}, lc.onCell), t1 = performance.now();
+        const Ly = presentLayers({ tMesh: tm, heightKm: G.heightKm, frame: G.frame, sim: L.sim, seed: pl.seed, drainage: G.drainage, receivers: G.receivers, order: G.order,
+            lava: G.lava, young: G.young, cut: G.cut, koppen: climate.koppen, lc });
+        const ms = performance.now() - t1, Dp = Ly.deposits;
+        // the deposits: iron the commonest metal, gold and tin scarce (check-geology.mjs G3)
+        const M = id => { const i = METALS.findIndex(m => m.id === id); return [Dp.metalShares[3 * i] + Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2], Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]; };
+        const [fe] = M('iron'), [cu] = M('copper'), [, auM] = M('gold'), [, snM] = M('tin');
+        const scarce = earthLike({ pl }) ? 0.02 : 0.04;
+        check(`${pl.name}: iron on ${pc(fe)} of the land (≥ 3 × copper's ${pc(cu)}), gold ${pc(auM)} and tin ${pc(snM)} moderate or rich (≤ ${pc(scarce)} each)`, fe >= 3 * cu && auM <= scarce && snM <= scarce,
+            earthLike({ pl }) ? 'Evolution\'s bounds (check-geology.mjs G3)' : 'twice Evolution\'s: belts over a third of the land'); 
+        // the ages (check-geology.mjs G5)
+        const share = (ageId, resId) => landShares(Dp, resourceField(Dp, age(ageId).resources.find(r => r.id === resId)), grades);
+        const cuA = ['copper', 'bronze', 'iron', 'industrial'].map(a => any(share(a, 'copper'))), tin = share('bronze', 'tin');
+        const bronze = landShares(Dp, potentialField(Dp, age('bronze')), grades), feA = share('iron', 'iron');
+        const ind = age('industrial').resources.filter(r => r.id !== 'coal' && r.id !== 'oilGas').map(r => resourceField(Dp, r));
+        let lit = 0, all = 0;
+        for (let j = 0; j < Dp.cells.length; j++) { const w = Dp.land[j]; if (!w) continue; all += w; if (ind.some(f => f[j] >= grades[1])) lit += w; }
+        check(`${pl.name}: copper by age ${cuA.map(pc).join(' ≤ ')}; Bronze Age tin ${pc(modPlus(tin))} moderate+, bronze potential ${pc(any(bronze))}; Iron Age iron ${pc(any(feA))}; Industrial metals on ${pc(lit / all)}`,
+            cuA[0] <= cuA[1] && cuA[1] <= cuA[2] && cuA[2] <= cuA[3] && cuA[3] > 0.01 && modPlus(tin) <= 0.01 && any(bronze) <= 0.05 && any(feA) >= 0.1 && lit / all <= 0.35,
+            'Evolution\'s bounds (G5): copper grows with the ages, tin ≤ 1 %, bronze ≤ 5 %, iron ≥ 10 %, the Industrial map ≤ 35 %');
+        // the food: how many the land could feed, and how rare excellent land is (check-farming.mjs C2, C3)
+        const F = Ly.raster.farming, K = Ly.raster.climate, count = landPeople(F, K, ALL), ppl = count.people / count.land;
+        const p = {}, e = new Float64Array(2 * CROPS.length), r = {};
+        let ex = 0, area = 0;
+        for (let y = 0; y < F.h; y += 2) {
+            const a = Math.cos((90 - (y + 0.5) / F.h * 180) * Math.PI / 180);
+            for (let x = 0; x < F.w; x += 2) {
+                const i = y * F.w + x;
+                if (!K.koppen[i] || K.koppen[i] === KOPPEN_ID.EF) continue;
+                partsOf(F, i, p); farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, ALL, r);
+                area += a; if (farmClass(r.tech) === 4) ex += a;
+            }
+        }
+        pplSum += ppl / grounds.length; excSum += ex / area / grounds.length;
+        check(`${pl.name}: the land could feed ${ppl.toFixed(1)} people a km², excellent land ${pc(ex / area)}; the layers in ${ms.toFixed(0)} ms at 60K (the climate ${(t1 - t0).toFixed(0)} ms)`,
+            ppl > 3 && ppl < 60 && ms < 1500, 'each world reported (the mean is checked below); quick');
+    }
+    check(`all: the land could feed ${pplSum.toFixed(1)} people a km² on average, excellent land ${pc(excSum)}`, pplSum >= 10 && pplSum <= 40 && excSum >= 0.005 && excSum <= 0.08,
+        'Evolution\'s bounds (check-farming.mjs): 10–40 a km², excellent 0.5–8 % of the land');
 }
 
 // ── G5: plumes and the far field ──

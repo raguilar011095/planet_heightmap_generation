@@ -9,6 +9,7 @@ import { updateHoverHighlight, updateMapHoverHighlight, updatePendingHighlight, 
 import { KOPPEN_CLASSES } from './koppen.js';
 import { elevToHeightKm } from './color-map.js';
 import { climateReadoutLines } from './climate-layers.js';
+import { presentReadoutLines } from './present-layers-view.js';
 import { mapLonLatAt } from './map-projection.js';
 
 const raycaster = new THREE.Raycaster();
@@ -158,6 +159,8 @@ function buildHoverHTML(region, plate) {
     // Climate data (only if computed): the new climate, in real units (js/climate-layers.js)
     if (state.climateComputed && d.climate) {
         lines.push(...climateReadoutLines(d, region));
+        // (and the present-day world's Geology or Food view shown: its rock, deposits or farming here — ?next=1)
+        lines.push(...presentReadoutLines(state.debugLayer, d, region));
         if (elev > 0) {
             // Köppen (land only)
             if (d.debugLayers && d.debugLayers.koppen) {
