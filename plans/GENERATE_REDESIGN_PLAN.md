@@ -981,6 +981,23 @@ The phase gate applies as always. One phase at a time. Each has:
       - The readout's labels now take the width they need (they overlapped on long labels, on Evolution too).
       - The tutorial is unchanged while the tabs sit behind `?next=1`.
   - **G7f — their export rows** (Evolution's Geology and Food exports on Generate's mesh).
+    - **Built 2026-11-04** (`js/export-generate.js`, `js/present-layers-view.js`; Evolution's Food rows moved unchanged
+      into `v2/js/evolution/farming-export.js`, its catalogue checked identical; `geology-export.js` exports `maskField`
+      and lets the atlas name its page):
+      - **With `?next=1`, the export panel gains Evolution's rows:**
+        - Geology after Plates: Rocks; Deposits; each age's map; Districts (GeoJSON, CSV); the Resource atlas.
+        - A Food group: Farmland, Staple food, Lifestyle, People, Soil, Growing season.
+      - **How they are drawn:** from Generate's mesh, as its other rows are, each region read as its view reads it.
+        - The colour maps are the views as shown.
+        - The data maps are the same files Evolution writes: the rock type index; a richness mask per metal, fuel and
+          age resource (bilinear on the deposits' grid); the Food quantities on Evolution's scales.
+        - The README lists the rock types, staple foods and lifestyles.
+      - **The readout and the districts read the record:**
+        - The worker hands the page a slim copy of the Frame with the layers (`layers.js` storyFrame: the 17 fields and
+          3 times they read, ~1 MB). Its clock is moved onto Evolution's: the history starts with the cores' formation,
+          2000 Myr ago.
+        - The hover now reads as Evolution's: the rock and where it came from, the district here and its story, the
+          landmass's resources, and the record (sea, cover, wear, past).
 
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with

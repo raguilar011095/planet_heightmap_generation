@@ -56,8 +56,9 @@ export const layerRasterWidth = (n) => Math.max(1024, Math.min(2048, 1 << Math.r
  * @param {Object} o  { tMesh (Generate's mesh as a terrain mesh: z-up, indexed), heightKm, frame, sim, seed, drainage
  *   (km², rain-weighted), receivers + order (the carve's), lava + young (0…255: the carve's lava cap, a rising range),
  *   cut (how deep the carve's rivers cut, × CUT_STEP_KM), koppen (per region), lc (layerClimate's), width }
- * @returns {{raster: Object, deposits: Object, shares: Object, ms: Object}}  raster: finishRaster's (geology, farming,
- *   climate pictures); deposits: the deposits' grid (geology/deposits.js)
+ * @returns {{raster: Object, deposits: Object, shares: Object, story: Object, ms: Object}}  raster: finishRaster's
+ *   (geology, farming, climate pictures); deposits: the deposits' grid (geology/deposits.js); story: the record as the
+ *   readout and the districts' stories read it (storyFrame)
  */
 export function presentLayers({ tMesh, heightKm, frame, sim, seed, drainage, receivers = null, order = null, lava = null, young = null, cut = null, koppen, lc, width = 0 }, cfg = PRESENT) {
     const ms = {}, clock = () => performance.now();
@@ -82,5 +83,23 @@ export function presentLayers({ tMesh, heightKm, frame, sim, seed, drainage, rec
     const raster = finishRaster(tMesh, heightKm, ocean, width || layerRasterWidth(n), null, null, null,
         { koppen, tAnnual: lc.tAnnual, pAnnual: lc.pAnnual }, geology, farming);
     ms.raster = clock() - t0;
-    return { raster, deposits: Dp, shares: { rocks: Rk.shares }, ms };
+    return { raster, deposits: Dp, shares: { rocks: Rk.shares }, story: storyFrame(frame, cfg), ms };
+}
+
+/** The record's fields the district stories and the readout's rock and record lines read (geology/districts.js,
+ *  evolution/geology-view.js rockLine, geologyLines) — and those that are times. */
+const STORY_FIELDS = ['owner', 'type', 'flags', 'geoFlags', 'oroType', 'prevType', 'volcType', 'arcMyr', 'coverKm', 'coverMaxAge', 'coverMaxKm',
+    'exhumKm', 'unroofKm', 'facies', 'floodAge', 'floodMyr', 'thickKm'];
+const STORY_TIMES = ['oroLast', 'prevLast', 'volcAt'];
+/**
+ * The Frame as the stories read it, slim: the page has no Frame (it stays in the worker), only this (~1 MB). On
+ * Evolution's clock: the present-day world's past runs up to now at 0, Evolution's history from its start at 0 and a
+ * belt older than the start "from before the history" — so the history here starts with the oldest past, the cores'
+ * (coreAgeMyr), and now is that many Myr into it.
+ */
+export function storyFrame(frame, cfg = PRESENT) {
+    const T = cfg.coreAgeMyr[1], f = { time: T };
+    for (const k of STORY_FIELDS) f[k] = frame[k].slice();
+    for (const k of STORY_TIMES) f[k] = Float32Array.from(frame[k], t => t + T);
+    return f;
 }

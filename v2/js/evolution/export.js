@@ -13,15 +13,14 @@
 
 import { paintFinished, paintWindow, riverPaths, drawRivers, rasterAt, lakeColor } from './finish-view.js';
 import { finishedClimateColor, finishedClimateValue } from './climate-view.js';
-import { finishedFarmingColor, finishedFarmingValue, farmOptions } from './farming-view.js';
-import { STAPLE_WORDS, TECHNIQUES } from '../farming/farming.js';
-import { LIFESTYLE_WORDS, GATHER } from '../farming/living.js';
+import { finishedFarmingColor, finishedFarmingValue } from './farming-view.js';
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { canvasOf } from '../view/png.js';
 import { cloudFields, cloudGrid, cloudPicture, cloudOver, cloudStorms } from '../view/clouds.js';
 import { initExportPanel } from '../view/export-panel.js';
 import { DATA_SCALES as SC, scaled, hillshade8, climateRows, classIndexMap } from '../view/export-raster.js';
 import { GEOLOGY_GROUP, produceGeology, rockTypesList } from './geology-export.js';
+import { FOOD_GROUP, staplesList, farmingNote } from './farming-export.js';
 
 /** The heightmap's scale: black −11 km (below the deepest trench), white +9 km (above the highest peak), linear. */
 export const HEIGHT_RANGE_M = [-11000, 9000];
@@ -30,20 +29,6 @@ export const LAND_TOP_M = 9000;
 /** The widest export: 16384 px (a picture of 134 million pixels); on a phone 4096. */
 export const EXPORT_MAX = 16384, EXPORT_MAX_TOUCH = 4096;
 const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v)));
-/** The Food data maps' scales (linear, as export-raster.js's; the staple foods' and the lifestyles' indices listed in the README). */
-const FARM_SCALES = {
-    farmland:  { unit: 'farmland (0 barren … 1 the richest: the Farmland view\'s ramp)', lo: 0, hi: 1 },
-    people:    { unit: 'people a km² (pre-industrial)', lo: 0, hi: 1000 },
-    soil:      { unit: 'soil fertility (0 barren … 1 the richest)', lo: 0, hi: 1 },
-    season:    { unit: 'months crops grow', lo: 0, hi: 12 },
-    staple:    { unit: 'staple food index (0 = nothing or sea; the README lists them)', lo: 0, hi: 255 },
-    lifestyle: { unit: 'lifestyle index (0 = uninhabited or sea; the README lists them)', lo: 0, hi: 255 },
-};
-const farmData = (key, suffix, label, scale, bits = 16) => ({ key, suffix, label, scale: FARM_SCALES[scale], bits });
-/** The README's lists of the staple foods and the lifestyles (the index files' numbers), when the export has them. */
-const staplesList = files => [...(files.some(f => f.file?.key === 'staple') ? [{ title: 'Staple foods (the number in the staple food index file)', items: STAPLE_WORDS }] : []),
-    ...(files.some(f => f.file?.key === 'lifestyle') ? [{ title: 'Lifestyles (the number in the lifestyle index file)', items: LIFESTYLE_WORDS }] : [])];
-
 /** The catalogue of a moment's maps (the panel's rows): as Colour, as Data, or both. */
 export const CATALOGUE = [
     { id: 'maps', label: 'Maps', rows: [
@@ -62,15 +47,7 @@ export const CATALOGUE = [
     ] },
     { id: 'climate', label: 'Climate', rows: climateRows('climate') },
     GEOLOGY_GROUP,
-    // (the Food views as shown — with the techniques chosen in its legend; their data maps the numbers themselves)
-    { id: 'farming', label: 'Food', rows: [
-        { id: 'farmLand', label: 'Farmland', colour: true, needs: 'farming', data: [farmData('farmTech', 'watered', 'Farmland with the techniques chosen', 'farmland'), farmData('farmRain', 'rain', 'Farmland by rain alone', 'farmland')], tip: 'What the land could grow, with the farming techniques chosen in its legend; as data, with them and by rain alone' },
-        { id: 'farmStaple', label: 'Staple food', colour: true, needs: 'farming', data: [farmData('staple', 'index', 'Staple food index', 'staple', 8)], tip: 'What each place would live on most — paddy grains, cool- or warm-season grains, roots and tubers, livestock, fish or wild foods; as data, each food’s index (the README lists them)' },
-        { id: 'farmLife', label: 'Lifestyle', colour: true, needs: 'farming', data: [farmData('lifestyle', 'index', 'Lifestyle index', 'lifestyle', 8)], tip: 'How each place’s people would live — farming, herding or gathering; as data, each lifestyle’s index (the README lists them)' },
-        { id: 'farmPeople', label: 'People', colour: true, needs: 'farming', data: [farmData('people', '', 'People a km²', 'people')], tip: 'How many people the land could feed, pre-industrial, a km²' },
-        { id: 'farmSoil', label: 'Soil', colour: true, needs: 'farming', data: [farmData('soil', '', 'Soil fertility', 'soil')], tip: 'How fertile the ground is' },
-        { id: 'farmSeason', label: 'Growing season', colour: true, needs: 'farming', data: [farmData('seasonRain', 'rain', 'Growing season by rain alone', 'season'), farmData('seasonWatered', 'watered', 'Growing season, watered', 'season')], tip: 'The months crops grow, as its legend shows; as data, by rain alone and watered' },
-    ] },
+    FOOD_GROUP,
 ];
 
 /** Whether a moment has a row's data: its climate, Satellite, rivers, rocks, deposits or farming — a moment detailed by an
@@ -294,13 +271,6 @@ export function produceMap(fin, W, lk, job) {
     if (key === 'koppenIndex') return { kind: 'gray8', W, H, data: koppenIndexMap(fin, W, c) };
     if (job.row.needs === 'farming') return farmingValueMap(fin, W, job.file, c);
     return valueMap(fin, W, key, s, job.file.scale, c);
-}
-
-/** The Food views' choices, for the README: the techniques on, how firmly gatherers hold on. */
-function farmingNote() {
-    const on = TECHNIQUES.filter(k => farmOptions[k]);
-    return `Food maps: as its legend shows them — techniques ${on.length ? on.join(', ') : 'none (rain alone)'}; ` +
-        `gatherers holding on unless farming or herding feeds ${GATHER.hold}× as many`;
 }
 
 /**

@@ -1,6 +1,8 @@
 // The export of a generated or imported planet (the panel: v2/js/view/export-panel.js; the rasters: planet-mesh.js
 // beginExportRender / renderExportLayer): the catalogue of every map these pages can give — as colour, as the numbers
-// themselves, or both — and the adapter that draws each one from the mesh.
+// themselves, or both — and the adapter that draws each one from the mesh. With the present-day world (Generate,
+// ?next=1; plans/GENERATE_REDESIGN_PLAN.md G7f) Evolution's Geology and Food rows too, each region read as its view
+// reads it (js/present-layers-view.js).
 
 import { state } from './state.js';
 import { beginExportRender, renderExportLayer, endExportRender, exportSatelliteColors, koppenColor, heightmapColor, landHeightmapColor, toLinear3, exportCentreTag } from './planet-mesh.js';
@@ -9,6 +11,9 @@ import { terrainColorFn } from './terrain-palette.js';
 import { KOPPEN_CLASSES } from './koppen.js';
 import { initExportPanel } from '../v2/js/view/export-panel.js';
 import { DATA_SCALES as SC, scaled, hillshade8, climateRows } from '../v2/js/view/export-raster.js';
+import { GEOLOGY_GROUP, rockTypesList } from '../v2/js/evolution/geology-export.js';
+import { FOOD_GROUP, staplesList, farmingNote } from '../v2/js/evolution/farming-export.js';
+import { presentRowNeeds, presentExportColorFn, presentExportValueFn, presentExportFile } from './present-layers-view.js';
 
 /** The heightmaps' scales here (V1's, re-importable on the Import page): −5 … +6 km with the sea floor; 0 … 6 km on land. */
 export const HEIGHT_SCALE = { unit: 'km (sea level at 5/11 of the range)', lo: -5, hi: 6 }, LAND_SCALE = { unit: 'km above sea level (the sea 0)', lo: 0, hi: 6 };
@@ -32,6 +37,8 @@ export const CATALOGUE = [
         { id: 'plates', label: 'Plates', colour: true, data: [{ key: 'plateId', suffix: 'id', label: 'Plate number', scale: SC.plateId, bits: 8 }], tip: 'The plates in their colours (Show Plates); as data, each plate\'s number' },
     ] },
 ];
+/** The catalogue with the present-day world's: Evolution's Geology rows after the plates, and its Food group. */
+const PRESENT_CATALOGUE = CATALOGUE.map(g => (g.id === 'geology' ? { ...g, rows: [...g.rows, ...GEOLOGY_GROUP.rows] } : g)).concat([FOOD_GROUP]);
 
 /** The quantity accessors per region for a season (the sea where the layer is the sea\'s, the land where it is the land\'s). */
 function valueFns(data, s) {
@@ -54,20 +61,33 @@ function valueFns(data, s) {
  * it; `code()` the planet code (or '' on the Import page) for the file names.
  */
 export function initGenerateExport({ page, ensureClimate, code }) {
+    // (the present-day world's rows only on Generate with ?next=1: its layers come with the climate)
+    const present = page !== 'import' && new URLSearchParams(location.search).has('next');
+    const needsClimate = (r) => r.needs === 'climate' || (present && presentRowNeeds(r.needs));
     const adapter = {
         page,
         options: { hillshade: false },
         koppenClasses: KOPPEN_CLASSES,
+        readmeLists: (files) => (present ? [...rockTypesList(files), ...staplesList(files)] : []),
         widths: () => [1024, 2048, 4096, 8192, 16384, 32768, 65536].map(w => ({ w, label: w > 8192 && state.isTouchDevice ? `${w} (too large for mobile)` : String(w), disabled: w > 8192 && state.isTouchDevice, selected: w === 4096 })),
         available: () => true,
-        ensure: async (rows, progress) => { if (rows.some(r => r.needs === 'climate') && !state.climateComputed) { progress(0, 'Computing the climate…'); await ensureClimate((pct, label) => progress(0, label || 'Computing the climate…')); } },
+        ensure: async (rows, progress) => { if (rows.some(needsClimate) && !state.climateComputed) { progress(0, 'Computing the climate…'); await ensureClimate((pct, label) => progress(0, label || 'Computing the climate…')); } },
         begin: async (W, opts) => ({ render: beginExportRender(W, opts.centerLon), opts, sat: {}, values: {} }),
         end: async (rctx) => { endExportRender(rctx.render); rctx.sat = rctx.values = null; },
         names: (ctx, opts) => ({ start: ['orogen', page === 'import' ? 'import' : null], end: [code(), exportCentreTag(opts.centerLon)] }),
-        about: (ctx, opts) => { const c = code(); return { page: page === 'import' ? 'Import Heightmap' : 'Generate', planet: c ? `planet code ${c}` : 'an imported heightmap', link: c ? `https://orogen.studio/generate#${c}` : null, notes: [] }; },
+        about: (ctx, opts) => { const c = code(); return { page: page === 'import' ? 'Import Heightmap' : 'Generate', planet: c ? `planet code ${c}` : 'an imported heightmap', link: c ? `https://orogen.studio/generate#${c}` : null, notes: present ? [farmingNote()] : [] }; },
         produce: async (rctx, job, progress) => {
             const data = state.curData, { r_elevation: elev, r_plate, debugLayers } = data, koppenArr = debugLayers && debugLayers.koppen, s = job.season || 'year', id = job.row.id;
             const render = (spec) => renderExportLayer(rctx.render, spec, progress);
+            // (the present-day world's Geology and Food rows: Evolution's views, each region read as they read it; the
+            // districts and the atlas files, not maps)
+            if (present && presentRowNeeds(job.row.needs)) {
+                if (job.variant === 'colour') { const fn = presentExportColorFn(job.row, data); if (!fn) throw new Error(`no layers for ${id}`); return render({ mode: 'rgb', colorOf: (r) => toLinear3(fn(r)) }); }
+                if (job.file.ext) { const f = presentExportFile(job, data, code()); if (!f) throw new Error(`no layers for ${id}`); return f; }
+                const fn = presentExportValueFn(job.file, data, scaled); if (!fn) throw new Error(`no data for ${job.file.key}`);
+                // (an index's values whole: no blending between regions)
+                return render({ mode: 'value', smooth: !/index/i.test(job.file.key) && job.file.key !== 'staple' && job.file.key !== 'lifestyle', valueOf: fn });
+            }
             if (job.variant === 'colour') {
                 if (id === 'color') { const terrainColor = terrainColorFn(); return render({ mode: 'rgb', colorOf: (r) => terrainColor(elev[r]) }); }
                 if (id === 'satellite') { const sat = rctx.sat[s] || (rctx.sat[s] = exportSatelliteColors(s)); return render({ mode: 'rgb', colorOf: (r) => [sat[3 * r], sat[3 * r + 1], sat[3 * r + 2]] }); }
@@ -92,7 +112,7 @@ export function initGenerateExport({ page, ensureClimate, code }) {
             return render({ mode: 'value', smooth: true, valueOf: (r) => scaled(fn(r), sc) });
         },
     };
-    return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue: CATALOGUE, adapter,
+    return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue: present ? PRESENT_CATALOGUE : CATALOGUE, adapter,
         onOpen: () => (state.curData ? {} : null), getCenterLon: () => Math.round((state.mapCenterLon || 0) * 180 / Math.PI),
         getProjection: () => (state.mapMode ? { id: state.mapProjection, opts: state.mapProjOpts } : null) });
 }
