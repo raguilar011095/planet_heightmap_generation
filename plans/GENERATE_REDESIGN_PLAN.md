@@ -845,6 +845,23 @@ The phase gate applies as always. One phase at a time. Each has:
   - **Measured:** land median 0.40–0.45 km on the default planets, 23–25 % above 1 km; walled coasts 46–55 % (42–50 %
     before); the supercontinent 39 % above 1 km (its allowance now 42 %).
 
+### G3f: Rift valleys (owner, 2026-11-04)
+- **The owner's words:** rifts are "too uniform", and "its strange that they open up to like ocean in the middle of
+  continents, they should look more like the african rift valey for this tool, and particularly strong ones can pull away
+  closer to the coasts".
+- **Built 2026-11-04** (`present/belts.js` rift, new `present/rifts.js`); `check-present.mjs` 266/266.
+  - **Inland, a rift is a valley.**
+    - A graben 0.6–1.6 km deep and ~60–110 km wide is cut on Generate's mesh along a line that steps from side to side
+      of the rift in ~380 km segments (en echelon). It is deeper and wider here, shallower there, and broken where a
+      noise along it is in its lowest 12 %. It is read through the terrain's warped sampling, and the floor stays land.
+    - The valley's crust is thinned: the old ranges' root, uplift and crests there are cut to 30 %.
+    - The shoulders rise beside it, never on its line, their work × 0.4–1.6 along it. The whole sits on a broad dome
+      (0.45 km × 0.5–1.5, σ 450 km): the East African plateau.
+  - **Only a strong rift near a coast has opened a sea.** A rift opened past 140 km pulls apart only within 450 km of the
+    coast (× its opening ÷ 140, at most 2.2×). The sea is widest at the coast and narrows inland into the valley (the Red
+    Sea, the Gulf of California). Before, any such rift opened a sea along its whole length, mid-continent.
+  - **Measured:** valley floors 0.6–1.2 km under shoulders 1.8–2.6 km on the 6 planets; rift seas only toward coasts.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

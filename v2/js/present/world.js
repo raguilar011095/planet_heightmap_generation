@@ -19,6 +19,7 @@ import { addFineRelief } from './relief.js';
 import { heldCells, holdToPieces } from './hold.js';
 import { pieceSeams, sagSeams, frontDistance } from './seams.js';
 import { bentPieces } from './warp.js';
+import { cutRifts } from './rifts.js';
 import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 
 const tMeshes = new WeakMap();
@@ -74,7 +75,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
     // (G2c: the ground held to the pieces on Generate's mesh — each region by its own piece, as edited)
-    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand, PRESENT, belts.shelfSea) } : null;
+    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand, PRESENT, belts.shelfSea), rift: belts.rift } : null;
     // (G3b: the grain — how far each place lies from a closing front, today's or the past's)
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
@@ -116,6 +117,8 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     surfaceRange(plan, cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn);
     ms.surface = clock() - t0; t0 = clock();
     addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
+    // (G3f: the rift valleys cut, then the ground held to the pieces)
+    if (mask?.rift) cutRifts(heightKm, mask.rift, S);
     if (mask) holdToPieces(heightKm, mask, tMesh, S);
     ms.relief = clock() - t0;
     if (!carveIn) return { heightKm, ms };

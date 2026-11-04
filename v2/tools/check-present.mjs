@@ -519,6 +519,22 @@ section('G4d: today\'s plate edges stand above the pieces\' seams, the seams abo
         M / m > 1.25 && M / m < 2 && m / o > 1.25 && m / o < 2.1, 'each tier about 1.5 × the next (1.25–2)');
 }
 
+// ── G3f: rift valleys ──
+section('G3f: a rift inland is a valley between its shoulders; only a strong one near a coast has opened a sea');
+for (const { pl, G } of grounds) {
+    const rifts = G.belts.fronts.filter(f => f.kind === 'rift'), rf = G.mask.rift;
+    if (!rifts.length) { check(`${pl.name}: no rifts`, true, ''); continue; }
+    // the ground along the valley's line against its flanks (render regions by their sim cell's distance from the line)
+    let n0 = 0, s0 = 0, n1 = 0, s1 = 0;
+    if (rf) for (let q = 0; q < G.heightKm.length; q++) {
+        const c = G.mask.regionCell[q], d = rf.km[c];
+        if (d < 30) { n0++; s0 += G.heightKm[q]; } else if (d > 90 && d < 200) { n1++; s1 += G.heightKm[q]; }
+    }
+    const sea = rifts.reduce((s, f) => s + f.seaCells, 0), valley = rifts.reduce((s, f) => s + f.valley, 0);
+    check(`${pl.name}: ${rifts.length} rifts (opened ${rifts.map(f => Math.round(f.openKm)).join(', ')} km): ${valley} valley cells, the floor ${n0 ? (s0 / n0).toFixed(2) : '–'} km under shoulders ${n1 ? (s1 / n1).toFixed(2) : '–'} km; ${sea} cells of rift sea`,
+        !n0 || !n1 || s0 / n0 < s1 / n1 - 0.3, 'the valley ≥ 0.3 km below its flanks');
+}
+
 // ── G5: plumes and the far field ──
 section('G5: hotspot tracks age along their plate and drown downstream; intraplate ranges behind collisions');
 for (const { pl, G } of grounds) {
