@@ -36,6 +36,7 @@ import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
 import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
 import { createDegreeRing } from '../../../js/degree-ring.js';
+import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from '../../../js/open-area.js';
 import { downloadBlob } from '../view/png.js';
 import { savePlanet, planetBytes, openPlanet } from '../save/planet-file.js';
 import { PackedFrame } from '../tectonics/frame-pack.js';
@@ -195,6 +196,11 @@ const tex = { lo: texture(MAP_WIDTH), sharp: null };
 const globe = new GlobeView(ui.canvas, tex.lo.canvas, { space: true });
 globe.setSmooth(true);
 globe.controls.autoRotateSpeed = 0.6;
+// (the globe and the map placed beside the panel: centred on the window with room to spare, on the open area when
+// room is short, js/open-area.js)
+globe.setOpenArea(openLeft(), openShift());
+onOpenArea((left, shift) => globe.setOpenArea(left, shift));
+planetWidthFrom(() => globe.planetWidth());
 const gpu = url.get('gpu') !== '0' && GpuPainter.available(globe.renderer) ? new GpuPainter(globe.renderer, GPU_WIDTH, MAP_WIDTH) : null;
 console.info(`[evolution] painting ${gpu ? `on the GPU at ${GPU_WIDTH} px` : 'on the CPU'}`);
 const seaMask = texture(MAP_WIDTH);     // where the sea is, for the glint (the lighter resolution is enough for a glint)
@@ -589,7 +595,7 @@ function show(t) {
 }
 
 /** The map view (or the globe): the texture flat, turned so that the centre longitude is in the middle. */
-const showMap = () => globe.setMap(view.mode === 'map' ? ui.map : null, view.centerLon, view.projection, view.projOpts);
+const showMap = () => { globe.setMap(view.mode === 'map' ? ui.map : null, view.centerLon, view.projection, view.projOpts); planetChanged(); };
 
 function progress(b, t) {
     if (b.retexturing) return;

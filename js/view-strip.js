@@ -9,6 +9,7 @@
 import { PROJECTIONS } from '../v2/js/view/projections.js';
 import { renderProjectionOptions } from '../v2/js/view/export-panel.js';
 import { wireSpaceToggle } from './stage.js';
+import { onOpenArea } from './open-area.js';
 
 const OPEN_KEY = 'orogen.view-strip-open';
 // (one projection for the three pages; Evolution's own key, from before they shared it, read when there is none)
@@ -73,8 +74,8 @@ export function initViewStrip() {
         });
     }
     const narrow = matchMedia('(max-width: 768px)');
-    // (beside an open sidebar — a narrow window, a tablet — the bar moves right just enough to clear it, as far as the
-    // room before the help button allows; centred over the planet otherwise)
+    // (centred over the planet, js/open-area.js; if that still runs under an open sidebar — a narrow window, a tablet — it
+    // moves right just enough to clear it, as far as the room before the help button allows)
     const bar = document.getElementById('layerBar'), panel = document.getElementById('ui'), help = document.getElementById('helpBtn');
     if (bar && panel && typeof ResizeObserver !== 'undefined') {
         const clear = () => {
@@ -88,6 +89,7 @@ export function initViewStrip() {
         const watch = new ResizeObserver(clear);
         watch.observe(bar); watch.observe(panel);
         addEventListener('resize', clear);
+        onOpenArea(clear);                                 // (the bar moves with the planet: js/open-area.js)
     }
     // (a phone: at the top of the bottom sheet; wider: back where the page put it)
     const slot = document.getElementById('viewStripSlot'), home = strip.parentElement, after = strip.nextElementSibling;

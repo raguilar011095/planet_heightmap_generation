@@ -3,6 +3,7 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { stageColour, inSpace, onStage, makeAir } from './stage.js';
+import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from './open-area.js';
 
 export const canvas   = document.getElementById('canvas');
 export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -17,18 +18,38 @@ scene.background = new THREE.Color(stageColour());
 export const camera = new THREE.PerspectiveCamera(50, innerWidth/innerHeight, 0.1, 200);
 camera.position.set(0, 0.4, 2.8);
 
+const HOME = camera.position.length();                // (the globe's home zoom: its size there sets where it sits)
+const half25 = Math.tan(25 * Math.PI / 180);
+
 /**
  * Fit the globe's camera to a w × h view: 50° vertically on landscape screens; on portrait ones the horizontal field is
  * held at 50° instead, so a phone shows the whole planet rather than a close-up wider than the screen (Evolution's globe,
- * v2/js/app/globe-view.js, does the same).
+ * v2/js/app/globe-view.js, does the same). Beside the panel the fit is to the open area, `left` pixels in, and the
+ * picture moves `shift` pixels right of the view's centre (js/open-area.js).
  */
-export function fitCamera(w, h) {
-    const aspect = w / h, half = Math.tan(25 * Math.PI / 180);
-    camera.aspect = aspect;
-    camera.fov = 2 * Math.atan(half / Math.min(1, aspect)) * 180 / Math.PI;
+export function fitCamera(w, h, left = 0, shift = 0) {
+    camera.aspect = w / h;
+    camera.fov = 2 * Math.atan(half25 / Math.min(1, (w - left) / h)) * 180 / Math.PI;
+    if (shift) camera.setViewOffset(w, h, -shift, 0, w, h);
+    else camera.clearViewOffset();
     camera.updateProjectionMatrix();
 }
-fitCamera(innerWidth, innerHeight);
+
+/** The globe and the map fitted to the window and placed by the open area (after a resize, or the panel folding). */
+export function fitView() {
+    fitCamera(innerWidth, innerHeight, openLeft(), openShift());
+    updateMapCameraFrustum();
+}
+
+// (the planet's width for the open area: the map whole, or the globe at home zoom with its degree ring)
+let mapShown = false;
+function planetWidth() {
+    if (mapShown) return 2 * mapAspect / mapUnit();
+    const fov = 2 * Math.atan(half25 / Math.min(1, (innerWidth - openLeft()) / innerHeight));
+    return 1.2 * Math.tan(Math.asin(1 / HOME)) / Math.tan(fov / 2) * innerHeight;
+}
+/** The view shows the map (true) or the globe: the planet's place follows its width. */
+export function showingMap(on) { mapShown = !!on; planetChanged(); }
 
 export const ctrl = new OrbitControls(camera, canvas);
 ctrl.enableDamping = true; ctrl.dampingFactor = 0.06;
@@ -119,21 +140,33 @@ mapCamera.position.set(0, 0, 5);
 mapCamera.lookAt(0, 0, 0);
 let mapAspect = 2;
 
+/** Map units a pixel at zoom 1: the map fitted to the open area beside the panel (js/open-area.js). */
+function mapUnit() {
+    const w = innerWidth - openLeft();
+    return w / innerHeight > mapAspect ? 2.3 / innerHeight : 2.3 * mapAspect / w;
+}
+
+// (fitted to the open area; the frustum spans the whole window and the picture moves right by the open area's shift —
+// so a drag still pans one to one, and the zoom centres where the map sits)
 export function updateMapCameraFrustum() {
-    const aspect = innerWidth / innerHeight;
-    let halfW, halfH;
-    if (aspect > mapAspect) {
-        halfH = 1.15;
-        halfW = halfH * aspect;
-    } else {
-        halfW = 1.15 * mapAspect;
-        halfH = halfW / aspect;
-    }
+    const unit = mapUnit(), halfW = unit * innerWidth / 2, halfH = unit * innerHeight / 2, shift = openShift();
     mapCamera.left = -halfW; mapCamera.right = halfW;
     mapCamera.top = halfH; mapCamera.bottom = -halfH;
+    if (shift) mapCamera.setViewOffset(innerWidth, innerHeight, -shift, 0, innerWidth, innerHeight);
+    else mapCamera.clearViewOffset();
     mapCamera.updateProjectionMatrix();
 }
-updateMapCameraFrustum();
+
+/** What the map camera shows, in map units: [x0, x1, y0, y1] (the whole window, zoomed, panned and moved off centre). */
+export function mapVisible() {
+    const c = mapCamera, z = c.zoom, v = c.view;
+    let l = c.left / z, r = c.right / z;
+    if (v?.enabled) { const s = (r - l) / v.fullWidth; l += s * v.offsetX; r = l + s * v.width; }
+    return [c.position.x + l, c.position.x + r, c.position.y + c.bottom / z, c.position.y + c.top / z];
+}
+planetWidthFrom(planetWidth);
+onOpenArea(() => fitView());
+fitView();
 
 export const mapCtrl = new OrbitControls(mapCamera, canvas);
 mapCtrl.enableRotate = false;
@@ -187,6 +220,7 @@ canvas.addEventListener('touchend', () => { _mapPinchDist = 0; }, { passive: tru
 export function setMapAspect(a) {
     mapAspect = a;
     updateMapCameraFrustum();
+    if (mapShown) planetChanged();
 }
 
 /** The whole map in view again: unzoomed, centred. */

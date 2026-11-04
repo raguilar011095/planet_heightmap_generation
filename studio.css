@@ -1,5 +1,5 @@
 /* The Studio (index.html), after the style guide's page pattern (docs/style-guide/pages.md, The Studio) and the
-   6 · Hybrid II · Studio board: the hero with the globe in its degree ring, three ways in, worlds to explore, the
+   6 · Hybrid II · Studio board: the hero with the globe in its degree ring, the tools, worlds to explore, the
    resources behind the project, the footer. A scrolling page under the masthead (styles.css), on the page's ground. */
 
 body.studio {
@@ -12,7 +12,7 @@ body.studio {
 /* ── the hero: the words left, the globe right ── */
 .studio-hero {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: var(--space-8); align-items: center;
-    margin-bottom: 96px;
+    margin-bottom: 56px;
 }
 .hero-text { display: flex; flex-direction: column; gap: 22px; }
 .studio-hero h1 { margin: 0; font: 500 92px/0.95 var(--font-display); letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
@@ -21,7 +21,13 @@ body.studio {
 /* the layer highlights (docs/style-guide/components.md, Tag): a word marked in its layer's tint and ink */
 .hero-lede mark { padding: 0 4px; border-radius: var(--radius-xs); background: var(--l-tint); color: var(--l-ink); }
 .hero-actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
-.hero-note { margin: 0; font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
+/* free and open source, raised above the buttons: the promise in a gold tag, the rest beside it */
+.hero-free { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font: italic 400 17px/1.4 var(--font-text); color: var(--body); }
+.hero-free__tag {
+    display: inline-flex; align-items: center; padding: 6px 14px; border-radius: var(--radius-full);
+    background: color-mix(in srgb, var(--gold) 16%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent);
+    color: var(--gold-ink); font: 600 14px/1.2 var(--font-ui); font-style: normal; letter-spacing: 0.02em;
+}
 .hero-globe { margin: 0; display: flex; flex-direction: column; align-items: center; gap: var(--space-3); }
 .hero-globe__frame { position: relative; width: 100%; aspect-ratio: 1; }
 .hero-globe__frame img { position: absolute; inset: 11%; width: 78%; height: 78%; }
@@ -34,16 +40,10 @@ body.studio {
 
 /* ── the sections ── */
 .studio-section { margin-bottom: 96px; }
-.studio-section > h2 { margin: 10px 0 var(--space-6); font: 500 42px/1 var(--font-display); color: var(--ink); text-wrap: balance; }
-/* hachure: a few fine lines either side of a section title (the Studio's only ornament besides the ring) */
-.studio-section > h2.hachured { display: flex; align-items: center; gap: var(--space-5); text-align: center; justify-content: center; }
-.studio-section > h2.hachured::before, .studio-section > h2.hachured::after {
-    content: ''; flex: 1 1 0; max-width: 220px; height: 14px;
-    background: repeating-linear-gradient(115deg, var(--rule) 0 1px, transparent 1px 5px);
-}
+.studio-section > h2, .worlds-side > h2 { margin: 10px 0 var(--space-6); font: 500 42px/1 var(--font-display); color: var(--ink); text-wrap: balance; }
 .studio-intro { margin: -12px 0 var(--space-6); max-width: 40em; font: 400 19px/1.5 var(--font-text); color: var(--muted); }
 
-/* three ways in: the tool cards (ToolCard) */
+/* the tools: a card each (ToolCard) */
 .tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
 .tool-card {
     display: flex; flex-direction: column; gap: var(--space-3);
@@ -64,9 +64,14 @@ body.studio {
     font: 600 15px/1 var(--font-ui); color: var(--l-ink);
 }
 
-/* worlds to explore: the worlds and the views beside the picture (WorldPicker) */
-.worlds { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-6); align-items: start; }
+/* worlds to explore: the heading and the picker on the left, the map on the right, from the heading's top to the
+   picker's foot (the row takes the taller of the two: on a wide screen the map, and the picker sits at its foot; on a
+   narrower one the column, and the map fills it, trimmed at its sides), its name just below (WorldPicker) */
+.worlds { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-8); align-items: stretch; }
+.worlds-side { display: flex; flex-direction: column; min-width: 0; }
+.worlds-side > .og-eyebrow { margin: 0; }
 .worlds-panel {
+    margin-top: auto;
     display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3);
     border-radius: var(--radius-2xl); background: var(--panel);
 }
@@ -80,12 +85,12 @@ body.studio {
 .world.is-on { background: var(--surface); border-color: var(--rule); box-shadow: var(--shadow-card); }
 .worlds-panel .og-seg { margin-top: var(--space-2); align-self: flex-start; }
 .worlds-panel .og-link { align-self: flex-start; }
-.worlds-picture { margin: 0; }
+.worlds-picture { margin: 0; position: relative; min-width: 0; }
 .worlds-picture img {
-    display: block; width: 100%; height: auto; aspect-ratio: 2; border-radius: var(--radius-lg);
+    display: block; width: 100%; height: 100%; aspect-ratio: 2; object-fit: cover; border-radius: var(--radius-lg);
     border: var(--line-hair) solid var(--rule); background: var(--desk);
 }
-.worlds-picture figcaption { margin-top: var(--space-2); font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
+.worlds-picture figcaption { position: absolute; top: 100%; left: 0; margin-top: var(--space-2); font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
 .worlds-picture figcaption b { font-style: normal; font-weight: 600; color: var(--ink); }
 
 /* ── the resources: a card per link, grouped ── */
@@ -121,11 +126,14 @@ body.studio {
 @media (max-width: 1100px) {
     .studio-hero h1 { font-size: 72px; }
     .tool-grid { grid-template-columns: 1fr; max-width: 640px; }
-    .worlds { grid-template-columns: 1fr; }
+    .worlds { grid-template-columns: 1fr; gap: var(--space-6); }
+    .worlds-panel { margin-top: 0; }
+    .worlds-picture img { height: auto; }
+    .worlds-picture figcaption { position: static; }
 }
 @media (max-width: 900px) {
     .studio-page { padding: calc(var(--nav-h) + 32px) var(--space-6) var(--space-7); }
-    .studio-hero { grid-template-columns: 1fr; gap: var(--space-6); margin-bottom: 72px; }
+    .studio-hero { grid-template-columns: 1fr; gap: var(--space-6); margin-bottom: 48px; }
     .hero-globe { max-width: 440px; margin: 0 auto; width: 100%; }
     .res-list { grid-template-columns: 1fr; }
 }
@@ -135,8 +143,7 @@ body.studio {
     .hero-lede { font-size: 20px; }
     .hero-actions .og-btn { flex: 1 1 auto; }
     .studio-section { margin-bottom: 72px; }
-    .studio-section > h2 { font-size: 34px; }
-    .studio-section > h2.hachured::before, .studio-section > h2.hachured::after { max-width: 60px; }
+    .studio-section > h2, .worlds-side > h2 { font-size: 34px; }
     .worlds-panel .og-seg { align-self: stretch; }
     .worlds-panel .og-seg__opt { flex: 1 1 0; min-height: var(--size-touch); }
     .studio-follow-links a { min-height: var(--size-touch); }

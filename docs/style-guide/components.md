@@ -45,7 +45,7 @@ The page header: the lockup, the tools as tabs, actions on the right, and the pa
 
 - The double rule (`line-masthead` double, in `ink`) appears once per page, here. Nowhere else in the interface.
 - The current tool is underlined in `gold`, exactly under the word, with no other highlight.
-- Actions: quiet buttons for Inspect, a plain button for Export, an icon button for the theme. 44px tall.
+- Actions: quiet buttons for Inspect, a plain button for Export, and the theme switch: a small segmented button on `chip-track` with a hairline `rule` border, a sun and a moon, the theme in use raised on `chip-on` (a 44px target). 44px tall.
 - On phones the tabs scroll sideways and the actions fold into the bottom sheet.
 
 <details><summary>Markup</summary>

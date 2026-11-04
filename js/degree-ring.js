@@ -1,6 +1,8 @@
 // The degree ring (docs/style-guide/maps.md, Lines; README, Ornament): a gold circle round the globe at home zoom, with
 // ticks every 5°, longer every 30°. It fades as you zoom in and goes in the map view. An SVG over the canvas, sized each
-// frame to the globe on screen (the camera looks at the globe's centre, so the globe sits at the canvas's centre).
+// frame to the globe on screen (the camera looks at the globe's centre; the picture is moved right of the canvas's centre
+// by the open area's shift, js/open-area.js).
+import { openShift } from './open-area.js';
 
 const NS = 'http://www.w3.org/2000/svg';
 const C = 300, R = 268;   // (the ring in a 600 × 600 box)
@@ -27,11 +29,11 @@ export function createDegreeRing(canvas) {
             const opacity = reduce ? (fade > 0.5 ? 1 : 0) : fade;
             const globePx = Math.tan(Math.asin(Math.min(1 / distance, 0.999))) / Math.tan(fovDeg * Math.PI / 360) * height / 2;
             const size = globePx * 1.075 * 600 / R;        // (just outside the rim of air)
-            const key = `${Math.round(size)}|${width}|${height}|${opacity.toFixed(2)}`;
+            const shift = openShift(), key = `${Math.round(size)}|${width}|${height}|${shift.toFixed(1)}|${opacity.toFixed(2)}`;
             if (key === last) return;
             last = key;
             svg.style.width = svg.style.height = `${size}px`;
-            svg.style.left = `${(width - size) / 2}px`;
+            svg.style.left = `${width / 2 + shift - size / 2}px`;
             svg.style.top = `${(height - size) / 2}px`;
             svg.style.opacity = opacity.toFixed(2);
             svg.style.display = opacity > 0 ? '' : 'none';

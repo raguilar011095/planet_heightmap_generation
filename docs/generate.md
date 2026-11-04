@@ -198,6 +198,8 @@ js/
   build-error.js        A failed build, import or export shown in the build overlay, with a Close button; the controls held during a build
   stage.js              The stage round the globe (the theme's desk, or space with Stars), the air, map colours from tokens
   degree-ring.js        The gold degree ring round the globe at home zoom (an SVG over the canvas, fading as you zoom in)
+  open-area.js          The room beside the open sidebar: where the globe, the map and the bars over them sit (--open-left,
+                        --open-shift; centred on the window with room to spare, on the space beside the sidebar when short)
   theme.js              Classic script in each page's <head>: Paper or Night, the device's choice until the theme switch
                         saves one (before the first paint, so no flash); window.orogenTheme lets the globes' stage follow
   support-check.js      Classic script run before the modules: a browser that cannot run the app (no import maps, no

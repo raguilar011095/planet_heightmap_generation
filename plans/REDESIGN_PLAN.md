@@ -417,6 +417,32 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
   - [ ] Every rule in `CLAUDE.md`'s Key Rules checked at the release.
   - [ ] A real phone; Firefox and Safari as well as Chrome.
 
+### R10: detail passes (the owner's notes)
+
+On `redesign-polish`, stacked on R9: the owner's notes after looking at the whole redesign (2026-11-04), in batches,
+each checked in the browser.
+
+**Overall**
+- [x] The theme switch as a button that is easy to see: a small segmented button, a sun and a moon on a track, the theme
+  in use raised (all four pages).
+- [x] The globe, the map and what floats over them placed by the room beside the open panel (`js/open-area.js`): with
+  room to spare centred on the window; when short, centred on the space right of the panel; in between a smooth ease
+  (a smoothstep over the gap a centred planet would leave, from none to the panel's width; the owner: "smoothly
+  interpolate between the 2 (not necessarily linearly though)"). The globe's width is counted at home zoom with its ring,
+  so it doesn't slide as you zoom; a change glides there. Generate, Import and Evolution, globe and map.
+- [x] The loading spinner is the logo: its stripes still, its ring turning (Generate, Import).
+- [ ] Evolution uses the loading screen more, saying what is happening (batch 2).
+- [ ] The degree ring's numerals on the globe, where the grid lines meet it, moving as the globe turns; the same gold
+  graticule frame with numerals on every map projection (batch 3).
+
+**The Studio**
+- [x] "Free and open source" raised above the buttons, in a gold tag.
+- [x] "Three ways in" is now **Orogen tools** with a line; the hachure is gone (and from the guide), the space above it
+  smaller.
+- [ ] A new Evolution icon: options at `v2/out/evolution-icons/` (not committed), the owner to choose.
+- [x] Worlds to explore: the map from the eyebrow's top to the picker's foot, its name just below (narrower desktop
+  windows trim the map's sides to fill that height; wider ones show it whole).
+
 ## Every phase is done when
 
 - [ ] It follows the style guide; anything it bends is written back into `docs/style-guide/`, `tokens.css` and the
@@ -441,3 +467,4 @@ EssayCard, Sidenote, Callout and Tag. VISION: the learning happens in the guides
 - **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5): PR #107.
 - **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`: PR #108.
 - **2026-11-03:** R9 built and checked (all but What's New, the sitemap and the release, which wait for the owner), on `redesign-r9` (stacked on R7 and R8).
+- **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`.

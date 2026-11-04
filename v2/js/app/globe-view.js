@@ -74,6 +74,7 @@ export class GlobeView {
         this.space = space;
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, space ? 200 : 50);
         this.camera.position.set(0, 0.9, 3.2);
+        this.home = this.camera.position.length();         // (the home zoom: the globe's size there sets where it sits)
 
         // (how a canvas's texture is sampled: sim cells crisp by default — setSmooth; repeating east–west, for the map's turn;
         // zoomed out, from its mipmaps, filtered anisotropically toward the limb — each screen pixel the mean of the texels
@@ -138,17 +139,39 @@ export class GlobeView {
         this._sphere = new THREE.Sphere(new THREE.Vector3(), 1); this._hit = new THREE.Vector3();
     }
 
-    resize() {
+    resize(force = false) {
         const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
-        if (!w || !h || (w === this._w && h === this._h)) return;
+        if (!w || !h || (!force && w === this._w && h === this._h)) return;
         this._w = w; this._h = h;
         this.renderer.setSize(w, h, false);
         this._dirty = true;
         this.camera.aspect = w / h;
-        // Keep the whole globe in frame on portrait screens: hold the horizontal FOV at 40°.
-        const half = Math.tan(20 * Math.PI / 180);
-        this.camera.fov = 2 * Math.atan(half / Math.min(1, w / h)) * 180 / Math.PI;
+        // Keep the whole globe in frame on portrait screens: hold the horizontal FOV at 40° — of the open area beside the
+        // panel (js/open-area.js); the picture moves right of the canvas's centre by the open area's shift.
+        this.camera.fov = this.fovFor(w, h);
+        const shift = this.openShift || 0;
+        if (shift) this.camera.setViewOffset(w, h, -shift, 0, w, h);
+        else this.camera.clearViewOffset();
         this.camera.updateProjectionMatrix();
+    }
+
+    fovFor(w, h) {
+        return 2 * Math.atan(Math.tan(20 * Math.PI / 180) / Math.min(1, (w - (this.openLeft || 0)) / h)) * 180 / Math.PI;
+    }
+
+    /** The open area beside the panel (js/open-area.js): fitted to the canvas's part right of `left` pixels, the globe and
+     *  the map moved `shift` pixels right of its centre. */
+    setOpenArea(left, shift) {
+        if (left === (this.openLeft || 0) && shift === (this.openShift || 0)) return;
+        this.openLeft = left; this.openShift = shift;
+        this.resize(true);
+    }
+
+    /** The planet's width on screen, for the open area: the map whole, or the globe at home zoom with its degree ring. */
+    planetWidth() {
+        const w = this.canvas.clientWidth || innerWidth, h = this.canvas.clientHeight || innerHeight;
+        if (this.map) return this.mapBox().width;
+        return 1.2 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h) * Math.PI / 360) * h;
     }
 
     /** Point the camera at a geographic position (degrees), keeping its current distance. */
@@ -497,7 +520,10 @@ void main() {
 
     /** The map's box in client pixels: the frame's, letterboxed to the projection's shape (2 : 1 equirectangular). */
     mapBox() {
-        const f = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]), s = Math.min(f.width / aspect, f.height);
+        // (fitted to the frame's part right of the open area's edge, moved right of the frame's centre by its shift)
+        const r = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]);
+        const left = this.openLeft || 0, f = { left: r.left + (this.openShift || 0), top: r.top, width: r.width, height: r.height };
+        const s = Math.min((f.width - left) / aspect, f.height);
         return { left: f.left + (f.width - aspect * s) / 2, top: f.top + (f.height - s) / 2, width: aspect * s, height: s };
     }
 

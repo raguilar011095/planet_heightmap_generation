@@ -77,7 +77,6 @@ Three families, three jobs. The files are in `assets/fonts/`: one woff2 per fami
 Ornament frames the world and never the controls.
 
 - **The degree ring** circles the globe at home zoom: a `gold` circle with ticks every 5°, longer every 30°, and it fades as you zoom in. The Studio’s hero globe may carry numerals every 30° in `meta`.
-- **Hachure** (a few fine diagonal lines in `rule`) may flank a section title on the Studio (“Three ways in”).
 - **The atlas print** keeps its frames: a hairline frame, a double rule above the key, degree numerals on the map, a gold ring on the globe inset (see [Page patterns](pages.md)).
 - **The eyebrow** (`og-eyebrow`): a short gold line and small capitals in `gold-ink`, once per section at most.
 - Never: a compass rose, Roman numerals, corner squares, ornament inside a control panel or a legend.

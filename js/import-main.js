@@ -4,7 +4,7 @@
 import * as THREE from 'three';
 import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
-         tickZoom, tickMapZoom, fitCamera } from './scene.js';
+         tickZoom, tickMapZoom, fitCamera, fitView, showingMap } from './scene.js';
 import { createDegreeRing } from './degree-ring.js';
 import { state } from './state.js';
 import { initGenerateExport } from './export-generate.js';
@@ -520,6 +520,7 @@ sMapCenterLon.addEventListener('change', () => {
 // Globe / Map toggle
 document.getElementById('viewMode').addEventListener('change', (e) => {
     state.mapMode = e.target.value === 'map';
+    showingMap(state.mapMode);
     if (state.mapMode) {
         if (state.planetMesh) state.planetMesh.visible = false;
         waterMesh.visible = false;
@@ -702,8 +703,7 @@ if (state.isTouchDevice) {
 
 window.addEventListener('orientationchange', () => {
     setTimeout(() => {
-        fitCamera(innerWidth, innerHeight);
-        updateMapCameraFrustum();
+        fitView();
         renderer.setSize(innerWidth, innerHeight);
     }, 100);
 });
@@ -730,8 +730,7 @@ function animate() {
 // ─── Resize handler ───────────────────────────────────────────────
 
 window.addEventListener('resize', () => {
-    fitCamera(innerWidth, innerHeight);
-    updateMapCameraFrustum();
+    fitView();
     renderer.setSize(innerWidth, innerHeight);
 });
 
@@ -874,7 +873,7 @@ window.takePreview = function(width = 1200, height = 630) {
 
     renderer.setPixelRatio(savedPixelRatio);
     renderer.setSize(savedW / savedPixelRatio, savedH / savedPixelRatio);
-    fitCamera(innerWidth, innerHeight);
+    fitView();
     for (const { el, prev } of hiddenEls) el.style.display = prev;
     renderView(true);
     console.log('preview.png downloaded!');

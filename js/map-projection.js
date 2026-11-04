@@ -11,7 +11,7 @@
 // place through the same inverse (mapLonLatAt).
 
 import * as THREE from 'three';
-import { renderer, scene, camera, mapCamera, setMapAspect, resetMapView } from './scene.js';
+import { renderer, scene, camera, mapCamera, setMapAspect, resetMapView, mapVisible } from './scene.js';
 import { state } from './state.js';
 import { P } from '../v2/js/view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../v2/js/view/projection-glsl.js';
@@ -162,9 +162,8 @@ function ensureTarget() {
  */
 let lastKey = '', lastWindow = null;
 function viewWindow() {
-    const A = halfWidth(), b = bounds(), o = state.mapProjOpts, proj = P[state.mapProjection], z = mapCamera.zoom;
-    const x0 = Math.max(mapCamera.position.x + mapCamera.left / z, -A), x1 = Math.min(mapCamera.position.x + mapCamera.right / z, A);
-    const y0 = Math.max(mapCamera.position.y + mapCamera.bottom / z, -1), y1 = Math.min(mapCamera.position.y + mapCamera.top / z, 1);
+    const A = halfWidth(), b = bounds(), o = state.mapProjOpts, proj = P[state.mapProjection], [vx0, vx1, vy0, vy1] = mapVisible();
+    const x0 = Math.max(vx0, -A), x1 = Math.min(vx1, A), y0 = Math.max(vy0, -1), y1 = Math.min(vy1, 1);
     if (x0 >= x1 || y0 >= y1) return null;
     const key = [state.mapProjection, JSON.stringify(o), x0, x1, y0, y1].join();
     if (key === lastKey) return lastWindow;
@@ -226,7 +225,7 @@ function frameKey() {
     scene.updateMatrixWorld();
     const k = [target.width, target.height, state.mapProjection, JSON.stringify(state.mapProjOpts), state.gridEnabled, state.gridSpacing,
         state.mapCenterLon || 0, scene.background?.isColor ? scene.background.getHex() : '', mapCamera.position.x, mapCamera.position.y,
-        mapCamera.zoom, mapCamera.left, mapCamera.right, mapCamera.top, mapCamera.bottom];
+        mapCamera.zoom, mapCamera.left, mapCamera.right, mapCamera.top, mapCamera.bottom, mapCamera.view?.enabled ? mapCamera.view.offsetX : 0];
     scene.traverseVisible((o) => {
         if (!o.isMesh && !o.isLine && !o.isPoints) return;
         const e = o.matrixWorld.elements, g = o.geometry;

@@ -167,17 +167,28 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 .nav-icon:hover {
     color: var(--ink); background: var(--chip-track);
 }
-/* the theme switch, at the bar's far end (js/theme.js): the moon on Paper, the sun on Night */
-.nav-theme { position: relative; margin-left: auto; flex: none; border: 0; background: none; padding: 0; cursor: pointer; }
-.nav-theme::after { content: ''; position: absolute; inset: -7px; }   /* (a 44 px target in a 36 px bar) */
-.nav-theme:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.nav-theme .i-to-light { display: none; }
-:root[data-theme="dark"] .nav-theme .i-to-light { display: block; }
-:root[data-theme="dark"] .nav-theme .i-to-dark { display: none; }
-@media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .nav-theme .i-to-light { display: block; }
-    :root:not([data-theme="light"]) .nav-theme .i-to-dark { display: none; }
+/* the theme switch, at the bar's far end (js/theme.js): a small segmented button, the sun and the moon on a track,
+   the theme in use raised on its chip; a click anywhere on it switches */
+.nav-theme {
+    position: relative; margin-left: auto; flex: none; display: inline-flex; align-items: center; gap: 2px;
+    padding: 2px; border: var(--line-hair) solid var(--rule); border-radius: var(--radius-full);
+    background: var(--chip-track); color: var(--muted); cursor: pointer; transition: border-color 0.15s;
 }
+.nav-theme::after { content: ''; position: absolute; inset: -7px -3px; }   /* (a 44 px target in a 36 px bar) */
+.nav-theme:hover { border-color: color-mix(in srgb, var(--ink) 34%, transparent); color: var(--body); }
+.nav-theme:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.nav-theme__opt {
+    width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+    border-radius: var(--radius-full); transition: background 0.15s, color 0.15s;
+}
+.nav-theme__light { background: var(--chip-on); color: var(--ink); box-shadow: var(--shadow-chip); }
+:root[data-theme="dark"] .nav-theme__light { background: none; color: inherit; box-shadow: none; }
+:root[data-theme="dark"] .nav-theme__dark { background: var(--chip-on); color: var(--ink); box-shadow: var(--shadow-chip); }
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .nav-theme__light { background: none; color: inherit; box-shadow: none; }
+    :root:not([data-theme="light"]) .nav-theme__dark { background: var(--chip-on); color: var(--ink); box-shadow: var(--shadow-chip); }
+}
+@media (prefers-reduced-motion: reduce) { .nav-theme, .nav-theme__opt { transition: none; } }
 #topNav { overflow-x: auto; scrollbar-width: none; }
 #topNav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: none; white-space: nowrap; }
@@ -439,7 +450,7 @@ button#generate.generating {
    the layers (Terrain · Satellite · Climate, its own row of maps and the season · Heightmap · Plates) under it; and the
    legend beside the planet ── */
 .layer-bar {
-    position: fixed; top: calc(var(--nav-h) + 12px); left: 50%; transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (shift: js/view-strip.js) */
+    position: fixed; top: calc(var(--nav-h) + 12px); left: calc(50% + var(--open-shift, 0px)); transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (with the planet, js/open-area.js; the nudge clear of the panel: js/view-strip.js) */
     display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
     max-width: calc(100vw - 32px);
 }
@@ -680,7 +691,7 @@ button#generate.generating {
 .detail-warn.orange { color: var(--ui-amber); }
 .detail-warn.red { color: var(--ui-red); }
 #topInfo {
-    position: absolute; top: calc(var(--nav-h) + 12px); left: 50%; transform: translateX(-50%);
+    position: absolute; top: calc(var(--nav-h) + 12px); left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
     font: 500 13px/1.3 var(--font-ui); color: var(--muted);
     background: var(--surface);
     padding: 6px 14px; border-radius: var(--radius-sm);
@@ -688,7 +699,7 @@ button#generate.generating {
     white-space: nowrap; pointer-events: none;
 }
 #info {
-    position: absolute; bottom: 16px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 16px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
     font: 500 13px/1.3 var(--font-ui); color: var(--muted); transition: color 0.4s ease;
     pointer-events: none;
 }
@@ -700,7 +711,7 @@ button#generate.generating {
     100% { color: var(--ui-faintest); }
 }
 #hoverInfo {
-    position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%);   /* (clear of Rebuild, under it) */
+    position: absolute; bottom: 76px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);   /* (clear of Rebuild, under it) */
     font: 400 15px/1.5 var(--font-text); color: var(--body); background: var(--surface);
     padding: 10px 16px; border-radius: var(--radius-lg);
     border: var(--line-hair) solid var(--rule); box-shadow: var(--shadow-card);
@@ -838,15 +849,18 @@ button#generate.generating {
 }
 .build-overlay-inner {
     display: flex; flex-direction: column; align-items: center;
+    transform: translateX(var(--open-shift, 0px));   /* (with the planet, js/open-area.js) */
 }
-.build-overlay-spinner {
-    width: 40px; height: 40px;
-    border: 3px solid var(--rule);
-    border-top-color: var(--ink);
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
+/* the spinner is the mark: its three stripes still, its ring turning (an arc running round a faint track) */
+.build-overlay-spinner { width: 60px; height: 60px; }
+.build-overlay-spinner svg { display: block; width: 100%; height: 100%; }
+.build-overlay-spinner .spin-track { fill: none; stroke: var(--rule); stroke-width: 1.8; }
+.build-overlay-spinner .spin-arc {
+    fill: none; stroke: var(--ink); stroke-width: 1.8; stroke-linecap: round; stroke-dasharray: 22 64;
+    transform-origin: 16px 16px; animation: spin 1s linear infinite;
 }
 @keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .build-overlay-spinner .spin-arc { animation-duration: 3s; } }
 .build-overlay-title {
     margin-top: 16px; font: 600 22px/1.1 var(--font-display); color: var(--ink);
 }
@@ -1092,7 +1106,7 @@ button#generate.generating {
 
 /* Rebuild FAB — appears when pending plate edits exist */
 .rebuild-fab {
-    position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+    position: fixed; bottom: 20px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
     background: var(--accent); color: var(--on-accent);
     border: var(--line-hair) solid var(--accent); border-radius: var(--radius-full);
     min-height: var(--size-touch); padding: 0 24px;
