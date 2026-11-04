@@ -816,6 +816,35 @@ The phase gate applies as always. One phase at a time. Each has:
   - **Measured on the 6 planets:** 11 stretched continents (0.2–0.7 % of the globe under their shelf seas; Earth's Sunda
     shelf ~0.4 %), 50 arc cells meeting a continent, 17 microcontinent cells.
 
+### G4d: Ranges that vary, in tiers; the far field (owner, 2026-11-04)
+- **The owner's words:** "mountains are still a little wormy, we should warm/change them more (especially the old ones and
+  the ones from the smaller plates.) Also we should have more long range impacts from the major plates on interiors", and
+  "The major plates shoudl also be the biggest mountain ranges/rifts by a majority. Like, on average major plates = 1.5x
+  minor plates = 1.5x old orogeny".
+- **Built 2026-11-04** (`present/past.js`, `plumes.js`, `belts.js`); `check-present.mjs` 260/260.
+  - **No more even tubes.** Along its length an old range's work varies × 0.4–2.0 (over a ~550 km noise) and its width ×
+    0.5–1.7. Where the noise is in its lowest 25 % the range pinches out (its seam stays a weak line); a small terrane's
+    welt pinches out over its lowest 45 %, so it reads as broken ridges. 30 % of the pieces docked quietly, leaving a
+    suture but no range, so the old ranges are some of the pieces' outlines, not a net round every one.
+  - **The far field** (Evolution's: `tectonics/step/far-field.js` spreadPush, its costs and shares).
+    - Today's fronts push through their plates: a collision with the shortening it absorbs, a fast, strongly coupled
+      subduction coast and a flat slab with a share of their belts' work. The push fades over 1500 km of path cost
+      (Evolution's 1100: Generate's is the whole push at once).
+    - Each past docking and weld pushed through its continent at its time, with half its work.
+    - The records (grain, folds, axis) are written into the Frame (`writeCrust`), so Evolution's terrain draws the
+      lithosphere's folds and the combed grain across the interiors. 97–99 % of the land is pushed.
+    - Where today's push meets an old weak line square-on far inland (≥ 450 km of path), the strongest 5 lines a planet
+      are squeezed up again (2 before, collisions only), each varying along its length.
+  - **Tiers:** the pieces' seams (the minor plates' ranges) are younger, 30–600 Myr (60–1500), with 140–480 km of work
+    (120–420). The old orogenies wear more slowly (uplift e-folding 220 Myr, crests 900, root 420; were 200, 420, 320).
+    - Crests (90th percentile of the ground each tier last raised, 6 planets): today's continental belts 5.0 km, the
+      seams 3.0, the old orogenies 1.7 — × 1.69 and × 1.73 (the owner's 1.5 and 1.5).
+    - By planet the order holds on most; seed 6's plate edges are mostly arcs.
+  - **Fixed:** the past's event times were compared with the Float32 records exactly, so the "event lasted ~40 Myr"
+    stamp almost never applied.
+  - **Measured:** land median 0.40–0.45 km on the default planets, 23–25 % above 1 km; walled coasts 46–55 % (42–50 %
+    before); the supercontinent 39 % above 1 km (its allowance now 42 %).
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

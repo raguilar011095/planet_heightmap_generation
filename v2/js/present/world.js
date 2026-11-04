@@ -68,7 +68,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     belts.past = past;
     ms.belts = clock() - t0; t0 = clock();
     // G5: today's collisions squeezing up old sutures far inland; the plumes' tracks and flood basalts
-    belts.far = presentFarField(L, P, B, land, crust, config);
+    belts.far = presentFarField(L, P, B, land, crust, config, PRESENT, belts.pushes);
     belts.plumes = presentPlumes(L, P, land, crust);
     ms.plumes = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);

@@ -18,6 +18,7 @@
 
 import { CrustType, CrustFlag, OrogenyType, BeltSide } from '../tectonics/model/crust.js';
 import { spreadBelt, beltWidthKm } from '../tectonics/step/orogeny.js';
+import { spreadPush } from '../tectonics/step/far-field.js';
 import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
@@ -143,9 +144,12 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
                 }
             }
             if (front.length < 2) continue;
-            for (const c of front) seamRing[c] = 1;
             const work = cfg.ringWorkKm[0] + (cfg.ringWorkKm[1] - cfg.ringWorkKm[0]) * rng();
-            events.push({ age: ageOf.get(p), kind: 'ring', type: OrogenyType.URAL, side: BeltSide.NONE, front, work, allow: inMass, strength: 1 });
+            // (G4d: some pieces docked quietly — a suture, a weak line the far field can find, but no range of its own; so
+            // the old ranges are some of the pieces' outlines, not a net round every one. Its own draw)
+            const quiet = makeRng((seed ^ 0x9d0c) + p * 7919)() < cfg.ringQuietShare;
+            if (!quiet) for (const c of front) seamRing[c] = 1;
+            events.push({ age: ageOf.get(p), kind: 'ring', type: OrogenyType.URAL, side: BeltSide.NONE, front, work, allow: inMass, strength: quiet ? 0 : 1 });
         }
         // (a2) G4c: the smaller terranes each piece is made of (the "small plates"), welded before it docked or worked
         // since: a low welt along each seam between two of them (each its own age and work, most of them old and worn)
@@ -207,6 +211,10 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
     // ── replay, oldest first, the land wearing down between events ──
     events.push(...extra);
     events.sort((a, b) => b.age - a.age || a.front[0] - b.front[0]);
+    // (G4d: which kind of event last raised each cell — 1 an old orogeny, 2 a seam between two pieces of one plate (a
+    // minor plate's) — for the checks' tiers; and the old collisions' pushes through their continents, the grain they left)
+    const tier = new Uint8Array(n), pushWorld = { config: { ...config, farReachKm: cfg.farPushReachKm }, mesh: sim };
+    const vary = (c, waveKm, off) => Math.min(1, Math.max(0, 0.5 + 0.8 * nAt(c, waveKm, off)));
     let clock = -Infinity;
     for (const ev of events) {
         const t = -ev.age;
@@ -216,9 +224,29 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         const kind = ev.type === OrogenyType.HIMALAYAN ? (ev.side === BeltSide.LOWER ? 'foreland' : 'himalayan') : 'ural';
         const work = ev.work * ev.strength;
         const width = Math.min(config.belts[kind].maxKm, beltWidthKm(kind, work, cfg.pastRateCmYr, config));
-        spreadBelt({ crust }, sim, ev.front, { type: ev.type, time: t, side: ev.side, widthKm: width, workKm: work }, config, ev.allow);
+        // G4d (owner, 2026-11-04: the mountains "still a little wormy … especially the old ones and the ones from the smaller
+        // plates"): an old range is no even tube along its seam — along its length it swells into a massif here, narrows
+        // there and pinches out (its seam still a weak line), each its own way; a small terrane's welt more broken still
+        const off = 7.31 * (ev.front[0] % 997) + 3.7 * (ev.front.length % 101), gap = ev.kind === 'sub' ? cfg.pastGapSub : cfg.pastGap;
+        const works = [], widths = [];
+        for (const c of ev.front) {
+            const v = vary(c, cfg.pastVaryKm, off), w2 = vary(c, 0.6 * cfg.pastVaryKm, off + 41.9);
+            works.push(v < gap ? 0 : work * (cfg.pastVary[0] + (cfg.pastVary[1] - cfg.pastVary[0]) * (v - gap) / (1 - gap)));
+            widths.push(width * (cfg.pastWidthVary[0] + (cfg.pastWidthVary[1] - cfg.pastWidthVary[0]) * w2));
+        }
+        spreadBelt({ crust }, sim, ev.front, { type: ev.type, time: t, side: ev.side, widths, works, widthKm: 0, workKm: 0 }, config, ev.allow);
         // (the event lasted a while: it began this long before its end)
-        for (const c of ev.front) if (crust.oroLast[c] === t && crust.oroStart[c] === t) crust.oroStart[c] = t - cfg.pastEventMyr;
+        // (the records are Float32: the event's time as they hold it)
+        const tf = Math.fround(t);
+        for (const c of ev.front) if (crust.oroLast[c] === tf && crust.oroStart[c] === tf) crust.oroStart[c] = t - cfg.pastEventMyr;
+        for (let c = 0; c < n; c++) if (crust.oroLast[c] === tf && crust.oroType[c]) tier[c] = ev.kind === 'seam' ? 2 : 1;
+        // (the collision pushed through its continent: a docking piece's, two cores' — Evolution's far field, whose grain the
+        // terrain draws; tectonics/step/far-field.js spreadPush)
+        if ((ev.kind === 'weld' || ev.kind === 'ring') && cfg.farPastShare > 0) {
+            const mask = new Uint8Array(n); for (let c = 0; c < n; c++) if (ev.allow(c)) mask[c] = 1;
+            const src = new Map(); ev.front.forEach((c, i) => { if (works[i] > 0) src.set(c, works[i] * cfg.farPastShare); });
+            if (src.size) spreadPush(pushWorld, { crust: { mask, type: crust.type, flags: crust.flags, farWork: crust.farWork, farDist: crust.farDist, farFold: crust.farFold, farAt: crust.farAt, farDx: crust.farDx, farDy: crust.farDy, farDz: crust.farDz } }, src, ev.front.length * sim.edgeKm, t);
+        }
     }
     if (clock > -Infinity) wear(0 - clock);
 
@@ -238,7 +266,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         crust.baseKm[c] = Math.max(0, b);
         crust.terrane[c] = terrane[c];
     }
-    return { events, terrane, seamKm, cores: coreCount };
+    return { events, terrane, seamKm, cores: coreCount, tier };
 
     /** Δt Myr of wear on every record the past laid down (each on its own clock: the belt's uplift, its crests, its root). */
     function wear(dt) {

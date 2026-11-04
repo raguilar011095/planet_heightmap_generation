@@ -11,6 +11,7 @@
 
 import { CrustType, CrustFlag, OrogenyType, VolcanicType } from '../tectonics/model/crust.js';
 import { spreadBelt, beltWidthKm } from '../tectonics/step/orogeny.js';
+import { spreadPush, lineStrike } from '../tectonics/step/far-field.js';
 import { ISLAND_EROSION_KM_PER_MYR } from '../tectonics/measure.js';
 import { TERRAIN } from '../terrain/terrain-config.js';
 import { makeRng } from '../../../js/rng.js';
@@ -23,6 +24,7 @@ const R = 6371;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const unit = (a) => { const l = Math.hypot(a[0], a[1], a[2]); return l > 1e-15 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 0]; };
 const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
+const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 
 /** Rotate unit vector p about axis k (unit) by angle a (Rodrigues). */
 function rotate(p, k, a) {
@@ -121,39 +123,48 @@ export function presentPlumes(L, W, land, crust, cfg = PRESENT) {
 }
 
 /**
- * The far field: each of today's collisions pushes through its continents, and where the push meets an old suture far
- * inland (not on a craton, its belt long quiet) the suture is squeezed up again — an intraplate range, at most a couple
- * per collision, the nearer and the longer the stronger (records only: an INTRAPLATE belt, no root of its own).
+ * The far field (G4d; owner, 2026-11-04: "more long range impacts from the major plates on interiors"): each of today's
+ * fronts pushes through its plate — a collision with the shortening it absorbs, a fast, strongly coupled subduction coast
+ * and a flat slab with a share of their belts' work (present/belts.js pushes) — spread as Evolution's history spreads it
+ * (tectonics/step/far-field.js spreadPush: a craton passes it on, a weak line soaks it up, fading over farReachKm), and
+ * recorded: the grain and the lithosphere's folds the terrain draws across the interiors, along the fronts. And where the
+ * push lands square on an old weak line far inland — a past suture, a terrane's seam, not in a craton, long quiet — the
+ * line is squeezed up again: an intraplate range (the Tian Shan behind the Tarim block, the Ancestral Rockies), the
+ * strongest few a planet, each along its own length (records only: an INTRAPLATE belt, no root of its own).
  */
-export function presentFarField(L, W, B, land, crust, config, cfg = PRESENT) {
-    const { sim } = L, n = sim.numCells, { adjOffset, adjList } = sim;
-    const kmOf = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(at(sim.xyz, a), at(sim.xyz, b)))));
+export function presentFarField(L, W, B, land, crust, config, cfg = PRESENT, pushes = []) {
+    const { sim, seed } = L, n = sim.numCells, { adjOffset, adjList } = sim;
     const ranges = [];
-    // the push: from every collision front's land cells, over the land, in km
-    const dist = new Float64Array(n).fill(Infinity), heap = new MinHeap(1024);
-    for (let i = 0; i < B.count; i++) {
-        if (B.kind[i] !== Boundary.COLLISION) continue;
-        for (const c of [B.cellA[i], B.cellB[i]]) if (land[c] && dist[c] > 0) { dist[c] = 0; heap.push(0, c); }
-    }
-    if (!heap.size) return { ranges };
-    while (heap.size) {
-        const c = heap.pop(), dc = heap.lastKey;
-        if (dc > dist[c]) continue;
-        for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
-            const nb = adjList[k];
-            if (!land[nb]) continue;
-            // (a craton passes the push on — rigid — at a little cost; it is the weak lines beyond that take it up)
-            const nd = dc + kmOf(c, nb) * (crust.type[nb] === CrustType.CRATON ? 0.8 : 1);
-            if (nd < dist[nb] && nd <= cfg.farReachKm) { dist[nb] = nd; heap.push(nd, nb); }
+    const conf = { ...config, farReachKm: cfg.farPushReachKm };
+    const world = { config: conf, mesh: sim };
+    // the strongest push reaching each cell, how far it came and from which front cell
+    const inc = new Float32Array(n), dist = new Float32Array(n).fill(Infinity), from = new Int32Array(n).fill(-1);
+    const masks = new Map();
+    const maskOf = (p) => { if (!masks.has(p)) { const m = new Uint8Array(n); for (let c = 0; c < n; c++) if (W.cellPlate[c] === p) m[c] = 1; masks.set(p, m); } return masks.get(p); };
+    for (const push of pushes) {
+        const proxy = { mask: maskOf(push.plate), type: crust.type, flags: crust.flags, farWork: crust.farWork, farDist: crust.farDist, farFold: crust.farFold, farAt: crust.farAt, farDx: crust.farDx, farDy: crust.farDy, farDz: crust.farDz };
+        const r = spreadPush(world, { crust: proxy }, push.cells, push.frontKm, 0);
+        for (let i = 0; i < r.cells.length; i++) {
+            const c = r.cells[i];
+            if (r.inc[i] > inc[c]) { inc[c] = r.inc[i]; dist[c] = r.dist[i]; from[c] = r.from[i]; }
         }
     }
-    // the old sutures it reaches, in pieces
-    const cand = new Uint8Array(n);
+    // the old weak lines it stirs: how hard it meets each, square-on, from farNearKm of its front on
+    const take = new Float32Array(n), cand = new Uint8Array(n);
     for (let c = 0; c < n; c++) {
-        if (!land[c] || dist[c] < cfg.farMinKm || dist[c] > cfg.farReachKm) continue;
-        if (!(crust.flags[c] & CrustFlag.SUTURE) || crust.type[c] === CrustType.CRATON) continue;
+        if (!land[c] || !(inc[c] > 0) || !(crust.flags[c] & CrustFlag.SUTURE) || crust.type[c] === CrustType.CRATON) continue;
         if (crust.oroType[c] && crust.oroLast[c] > -cfg.farQuietMyr) continue;     // (a live belt is no weak line)
-        cand[c] = 1;
+        const far = smooth01((dist[c] - conf.farNearKm) / conf.farNearKm);
+        if (!(far > 0)) continue;
+        let square = 1;
+        const s = from[c], t = s >= 0 && s !== c ? lineStrike(crust, sim, c) : null;
+        if (t) {
+            const p = at(sim.xyz, c), q = at(sim.xyz, s), k = dot(p, q), a = [k * p[0] - q[0], k * p[1] - q[1], k * p[2] - q[2]], l = Math.hypot(...a) || 1;
+            const along = (a[0] * t[0] + a[1] * t[1] + a[2] * t[2]) / l;
+            square = 1 - along * along;
+        }
+        take[c] = inc[c] * square * far;
+        if (take[c] >= cfg.farMinPushKm) cand[c] = 1;
     }
     const seen = new Uint8Array(n), pieces = [];
     for (let s = 0; s < n; s++) {
@@ -161,16 +172,23 @@ export function presentFarField(L, W, B, land, crust, config, cfg = PRESENT) {
         const comp = [s]; seen[s] = 1;
         for (let q = 0; q < comp.length; q++) for (let k = adjOffset[comp[q]]; k < adjOffset[comp[q] + 1]; k++) { const nb = adjList[k]; if (cand[nb] && !seen[nb]) { seen[nb] = 1; comp.push(nb); } }
         if (comp.length < cfg.farMinCells) continue;
-        const d = comp.reduce((a, c) => a + dist[c], 0) / comp.length;
-        pieces.push({ comp, d, score: comp.length * (1 - d / cfg.farReachKm) });
+        pieces.push({ comp, score: comp.reduce((a, c) => a + take[c], 0) });
     }
     pieces.sort((a, b) => b.score - a.score || a.comp[0] - b.comp[0]);
+    const noise = new FastNoise((seed ^ 0xfa2f) >>> 0);
     for (const p of pieces.slice(0, cfg.farRanges)) {
-        const strength = 1 - p.d / cfg.farReachKm, work = cfg.farWorkKm * strength;
-        const width = Math.min(config.belts.ural.maxKm, beltWidthKm('ural', work, 3, config));
-        spreadBelt({ crust }, sim, p.comp, { type: OrogenyType.INTRAPLATE, time: 0, widthKm: width, workKm: work, noRoot: true }, config, (c) => land[c]);
+        // (each along its own length: rising and falling, pinched out here and there)
+        const off = 7.3 * (p.comp[0] % 997);
+        const works = p.comp.map(c => {
+            const pt = at(L.xyz, c), f = 6371 / cfg.farVaryKm, v = Math.min(1, Math.max(0, 0.5 + 0.8 * noise.noise3D(pt[0] * f + off, pt[1] * f - off, pt[2] * f)));
+            return cfg.farWorkKm * Math.tanh(take[c] / cfg.farPushRefKm) * (v < 0.15 ? 0 : 0.35 + 1.1 * (v - 0.15) / 0.85);
+        });
+        const widths = works.map(w => Math.min(config.belts.ural.maxKm, beltWidthKm('ural', Math.max(1, w), 3, config)));
+        spreadBelt({ crust }, sim, p.comp, { type: OrogenyType.INTRAPLATE, time: 0, widths, works, widthKm: 0, workKm: 0, noRoot: true }, config, (c) => land[c]);
         for (let c = 0; c < n; c++) if (crust.oroType[c] === OrogenyType.INTRAPLATE && crust.oroLast[c] === 0 && crust.oroStart[c] === 0) crust.oroStart[c] = -cfg.farActiveMyr;
-        ranges.push({ cells: p.comp.length, distKm: Math.round(p.d), strength });
+        let d = 0; for (const c of p.comp) d += dist[c];
+        ranges.push({ cells: p.comp.length, distKm: Math.round(d / p.comp.length), push: Math.round(p.score / p.comp.length) });
     }
-    return { ranges };
+    let pushed = 0, landN = 0; for (let c = 0; c < n; c++) if (land[c]) { landN++; if (crust.farWork[c] > 20) pushed++; }
+    return { ranges, pushes: pushes.length, pushedShare: landN ? pushed / landN : 0 };
 }

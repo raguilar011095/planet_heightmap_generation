@@ -15,6 +15,7 @@
 import { CrustRaster, CrustType, CrustFlag, OrogenyType, BeltSide } from '../tectonics/model/crust.js';
 import { spreadBelt, beltWidthKm, beltShape } from '../tectonics/step/orogeny.js';
 import { TECTONICS } from '../tectonics/config.js';
+import { recentPush } from '../tectonics/step/far-field.js';
 import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
@@ -110,6 +111,15 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         return range[0] + (range[1] - range[0]) * r();
     };
     const fronts = [];
+    // (G4d: each front's push on its plates, for the far field — present/plumes.js presentFarField; tectonics/step/far-field.js
+    // feedFarField's: a collision with the shortening it absorbs, a subduction coast with a share of its belt's work by how
+    // fast it converges, a flat slab with its belt's)
+    const pushes = [];
+    const pushOf = (p, cells, works, frontKm) => {
+        const m = new Map();
+        cells.forEach((c, i) => { if (works[i] > 0) m.set(c, Math.max(m.get(c) ?? 0, works[i])); });
+        if (m.size) pushes.push({ plate: p, cells: m, frontKm });
+    };
     // (rifts first, so a young sea opened inland is there before the belts that might reach it)
     const order = [...groups.values()].sort((a, b) => (a.kind === Boundary.RIFT ? 0 : 1) - (b.kind === Boundary.RIFT ? 0 : 1) || a.kind - b.kind || a.pa - b.pa || a.pb - b.pb);
     for (const g of order) {
@@ -134,7 +144,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
     function subduction(g, E) {
         const T = timeOf(g, cfg.andeanMyr);
         // which side rides over: per edge (B.over); the sources are the upper plate's cells at the trench
-        const andean = { cells: [], widths: [], works: [], shears: [] }, arc = { cells: [], widths: [], works: [], shears: [], slab: [], down: [] };
+        const andean = { cells: [], widths: [], works: [], shears: [], rates: [] }, arc = { cells: [], widths: [], works: [], shears: [], slab: [], down: [] };
         const laramide = { cells: [], widths: [], works: [], shears: [] }, split = { cells: [], works: [], widths: [], taper: [] };
         // the margin's style (G3c; Uyeda & Kanamori 1979's two end members): an upper plate driving at its trench over a
         // young slab is squeezed into an Andes; one holding back or pulling away over an old, sinking slab has the arc
@@ -166,7 +176,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                     laramide.cells.push(over); laramide.works.push(work * segOf(over) * beltShape(e.headOn, undefined, config)); laramide.shears.push(e.shear);
                     laramide.widths.push(Math.min(config.belts.laramide.maxKm, Math.max(steep, beltWidthKm('laramide', flatKm, rate, config)) * shape));
                 } else {
-                    andean.cells.push(over); andean.works.push(work * segOf(over) * beltShape(e.headOn, undefined, config)); andean.shears.push(e.shear);
+                    andean.cells.push(over); andean.works.push(work * segOf(over) * beltShape(e.headOn, undefined, config)); andean.shears.push(e.shear); andean.rates.push(rate);
                     andean.widths.push(Math.min(config.belts.andean.maxKm, steep));
                 }
             } else if (slabKm > config.arcMatureConsumedKm && rate >= cfg.arcMinRateCmYr && slabAge >= cfg.arcMinSlabMyr) {
@@ -182,11 +192,14 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         if (andean.cells.length) for (const p of new Set(andean.cells.map(c => plateOf[c]))) {
             const sel = andean.cells.map((c, j) => j).filter(j => plateOf[andean.cells[j]] === p);
             spreadBelt(plate, mesh, sel.map(j => andean.cells[j]), { type: OrogenyType.ANDEAN, time: 0, widths: sel.map(j => andean.widths[j]), works: sel.map(j => andean.works[j]), shears: sel.map(j => andean.shears[j]), widthKm: 0, workKm: 0 }, config, plateSide(p));
+            // (only a strongly coupled, fast margin pushes far: the Sierras Pampeanas)
+            pushOf(p, sel.map(j => andean.cells[j]), sel.map(j => andean.works[j] * config.farAndeanShare * Math.min(1, (andean.rates[j] / config.farAndeanRateCmYr) ** 2)), sel.length * mesh.edgeKm);
             stampStart(sel.map(j => andean.cells[j]), p, T);
         }
         if (laramide.cells.length) for (const p of new Set(laramide.cells.map(c => plateOf[c]))) {
             const sel = laramide.cells.map((c, j) => j).filter(j => plateOf[laramide.cells[j]] === p);
             spreadBelt(plate, mesh, sel.map(j => laramide.cells[j]), { type: OrogenyType.LARAMIDE, time: 0, widths: sel.map(j => laramide.widths[j]), works: sel.map(j => laramide.works[j]), shears: sel.map(j => laramide.shears[j]), widthKm: 0, workKm: 0 }, config, plateSide(p));
+            pushOf(p, sel.map(j => laramide.cells[j]), sel.map(j => laramide.works[j] * config.farFlatShare), sel.length * mesh.edgeKm);
             stampStart(sel.map(j => laramide.cells[j]), p, T);
         }
         let arcKept = 0, arcCollided = 0, sundaCells = 0, sundaDeep = 0, fragmentCells = 0;
@@ -342,6 +355,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             if (!cells.length) continue;
             const type = lengthKm < config.sutureMinContactKm ? OrogenyType.URAL : OrogenyType.HIMALAYAN;
             spreadBelt(plate, mesh, cells, { type, time: 0, side: type === OrogenyType.URAL ? BeltSide.NONE : side, widths, works, shears, widthKm: 0, workKm: 0 }, config, (c) => plateOf[c] === p);
+            pushOf(p, cells, works.map(w => w * config.farCollisionShare), lengthKm);
             stampStart(cells, p, T);
             for (const c of cells) crust.flags[c] |= CrustFlag.SUTURE;
         }
@@ -442,11 +456,11 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         for (let c = 0; c < n; c++) if (plateOf[c] === p && crust.oroStart[c] === 0 && crust.oroLast[c] === 0 && crust.oroType[c] !== OrogenyType.NONE) crust.oroStart[c] = -T;
     }
 
-    return { crust, config, fronts, shelfSea };
+    return { crust, config, fronts, shelfSea, pushes };
 }
 
 /** The crust raster's records into the Frame (a world-indexed raster: cell for cell). */
-export function writeCrust(frame, crust) {
+export function writeCrust(frame, crust, foldMyr = TECTONICS.farFoldMyr) {
     const n = frame.owner.length;
     for (let c = 0; c < n; c++) {
         frame.type[c] = crust.type[c];
@@ -463,5 +477,9 @@ export function writeCrust(frame, crust) {
         frame.rootKm[c] = crust.rootKm[c]; frame.upliftKm[c] = crust.upliftKm[c]; frame.baseKm[c] = crust.baseKm[c];
         frame.rugged[c] = crust.rugged[c]; frame.prevRugged[c] = crust.prevRugged[c]; frame.volcWornKm[c] = crust.volcWornKm[c];
         frame.volcType[c] = crust.volcType[c]; frame.volcAt[c] = crust.volcAt[c]; frame.volcKm[c] = crust.volcKm[c]; frame.volcSource[c] = crust.volcSource[c];
+        // (G4d: the far field — the push the crust took, now: its grain, its folds, its axis — as tectonics/snapshot.js writes it)
+        frame.farWork[c] = crust.farWork[c]; frame.farDist[c] = Math.min(65535, Math.round(crust.farDist[c]));
+        frame.farFold[c] = recentPush(crust.farFold[c], crust.farAt[c], 0, foldMyr);
+        frame.farDir[3 * c] = crust.farDx[c]; frame.farDir[3 * c + 1] = crust.farDy[c]; frame.farDir[3 * c + 2] = crust.farDz[c];
     }
 }

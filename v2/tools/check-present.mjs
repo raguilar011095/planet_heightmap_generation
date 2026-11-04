@@ -17,7 +17,7 @@ import { synthesizeTerrain } from '../js/terrain/synthesize.js';
 import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { knobOverrides } from '../js/present/knobs.js';
 import { seaDepthKm } from '../js/tectonics/measure.js';
-import { CrustType } from '../js/tectonics/model/crust.js';
+import { CrustType, OrogenyType } from '../js/tectonics/model/crust.js';
 import { PRESENT } from '../js/present/present-config.js';
 import { buildSphere } from '../../js/sphere-mesh.js';
 import { makeRng } from '../../js/rng.js';
@@ -466,7 +466,7 @@ for (const { pl, L, G, mesh } of grounds) {
     check(`${pl.name}: ${(100 * inner / landR).toFixed(1)} % of the land is highland > 800 km from any plate edge`, inner / landR > 0.01, 'ranges inside continents');
     check(`${pl.name}: land median ${hs[hs.length >> 1].toFixed(2)} km, above 1 km ${(100 * high / landR).toFixed(0)} %`,
         // (planets vary: one with few collisions stands lower — 10–38 % above 1 km)
-        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < 0.38, 'Earth: median ~0.4–0.6 km, ~¼ above 1 km');
+        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < (pl.Cn === 1 ? 0.42 : 0.38), `Earth: median ~0.4–0.6 km, ~¼ above 1 km (a single supercontinent, its interior far from any sea and pushed from every side, up to 42 %: G4d)`);
     // old ranges lower than young ones: the past belts' crest size by age
     let oldS = 0, oldN = 0, youngS = 0, youngN = 0;
     for (let c = 0; c < n; c++) {
@@ -490,6 +490,33 @@ for (const { pl, L, G } of grounds) {
     check(`${pl.name}: ${(100 * moved / land).toFixed(0)} % of the land read from another piece; ${(100 * dragged / land).toFixed(0)} % dragged by today's plates (at most ${maxDrag.toFixed(0)} km); ${(100 * off / Math.max(1, fronts)).toFixed(0)} % of the old fronts off the drawn borders; ${subs} terrane seams`,
         moved / land > 0.015 && moved / land < 0.4 && maxDrag <= PRESENT.dragMaxKm + 1 && off / Math.max(1, fronts) > 0.3 && subs > 0,
         'bent, not scrambled (1.5–40 %); the drag ≤ its cap; most old fronts off the straight borders; terranes within the pieces');
+}
+
+// ── G4d: the ranges by tier; the far field ──
+section('G4d: today\'s plate edges stand above the pieces\' seams, the seams above the old orogenies; the push reaches the interiors');
+{
+    // (owner, 2026-11-04: "on average major plates = 1.5x minor plates = 1.5x old orogeny" — each tier's crests: the
+    // 90th percentile of the ground its belts last raised; today's continental belts (not arcs, rifts or the far field's),
+    // the seams between two pieces of one plate, the old orogenies)
+    const all = { major: [], minor: [], old: [] };
+    for (const { pl, L, G, mesh } of grounds) {
+        const f = G.frame, tier = G.belts.past.tier, h = G.heightKm, xyzR = renderXyz.get(mesh);
+        for (let q = 0; q < h.length; q++) {
+            if (h[q] <= 0) continue;
+            const c = L.sim.index.nearest(xyzR[3 * q + 2], xyzR[3 * q], xyzR[3 * q + 1]), t = f.oroType[c];
+            if (!t) continue;
+            if (f.oroLast[c] === 0) { if (t !== OrogenyType.RIFT && t !== OrogenyType.ARC && t !== OrogenyType.INTRAPLATE) all.major.push(h[q]); }
+            else if (tier[c] === 2) all.minor.push(h[q]);
+            else if (tier[c] === 1) all.old.push(h[q]);
+        }
+        const far = G.belts.far;
+        check(`${pl.name}: today's fronts push ${(100 * far.pushedShare).toFixed(0)} % of the land (${far.pushes} pushes); ${far.ranges.length} old lines squeezed up far inland`,
+            far.pushedShare > 0.5 && far.ranges.length <= PRESENT.farRanges, 'the far field across the interiors; at most farRanges ranges');
+    }
+    const p90 = (a) => { const b = a.slice().sort((x, y) => x - y); return b[Math.floor(0.9 * b.length)] ?? 0; };
+    const [M, m, o] = [p90(all.major), p90(all.minor), p90(all.old)];
+    check(`all: crests ${M.toFixed(2)} km at today's plate edges, ${m.toFixed(2)} along the pieces' seams, ${o.toFixed(2)} on the old orogenies (× ${(M / m).toFixed(2)}, × ${(m / o).toFixed(2)})`,
+        M / m > 1.25 && M / m < 2 && m / o > 1.25 && m / o < 2.1, 'each tier about 1.5 × the next (1.25–2)');
 }
 
 // ── G5: plumes and the far field ──
