@@ -18,6 +18,7 @@ import { terrainConfig } from '../js/terrain/terrain-config.js';
 import { knobOverrides } from '../js/present/knobs.js';
 import { seaDepthKm } from '../js/tectonics/measure.js';
 import { CrustType } from '../js/tectonics/model/crust.js';
+import { PRESENT } from '../js/present/present-config.js';
 import { buildSphere } from '../../js/sphere-mesh.js';
 import { makeRng } from '../../js/rng.js';
 
@@ -457,6 +458,22 @@ for (const { pl, L, G, mesh } of grounds) {
     }
     if (oldN && youngN) check(`${pl.name}: past crests ${(youngS / youngN).toFixed(2)} km where < 600 Myr old, ${(oldS / oldN).toFixed(2)} km where > 1000`, youngS / youngN > oldS / oldN, 'old ranges lower');
 }
+// ── G4c: the pieces bent ──
+section('G4c: the old seams follow the pieces bent — by today\'s plates and a slow warp — and smaller terranes texture them');
+for (const { pl, L, G } of grounds) {
+    const past = G.belts.past, { tp, wp, dragKm } = past.bent, { adjOffset, adjList, numCells: n } = L.sim;
+    let land = 0, moved = 0, dragged = 0, maxDrag = 0;
+    for (let c = 0; c < n; c++) if (tp[c] >= 0) { land++; if (wp[c] !== tp[c]) moved++; if (dragKm[c] > 20) dragged++; maxDrag = Math.max(maxDrag, dragKm[c]); }
+    // the old fronts (docking rings, welds, the terranes' seams) on a piece border as drawn, or off it (bent)
+    const onBorder = (c) => { for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (tp[nb] >= 0 && tp[nb] !== tp[c]) return true; } return false; };
+    let fronts = 0, off = 0;
+    for (const ev of past.events) if (ev.kind !== 'seam') for (const c of ev.front) { fronts++; if (!onBorder(c)) off++; }
+    const subs = past.events.filter(e => e.kind === 'sub').length;
+    check(`${pl.name}: ${(100 * moved / land).toFixed(0)} % of the land read from another piece; ${(100 * dragged / land).toFixed(0)} % dragged by today's plates (at most ${maxDrag.toFixed(0)} km); ${(100 * off / Math.max(1, fronts)).toFixed(0)} % of the old fronts off the drawn borders; ${subs} terrane seams`,
+        moved / land > 0.015 && moved / land < 0.4 && maxDrag <= PRESENT.dragMaxKm + 1 && off / Math.max(1, fronts) > 0.3 && subs > 0,
+        'bent, not scrambled (1.5–40 %); the drag ≤ its cap; most old fronts off the straight borders; terranes within the pieces');
+}
+
 // ── G5: plumes and the far field ──
 section('G5: hotspot tracks age along their plate and drown downstream; intraplate ranges behind collisions');
 for (const { pl, G } of grounds) {

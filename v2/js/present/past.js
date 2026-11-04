@@ -32,8 +32,9 @@ const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
  * @param {Object} L  the layout   @param {Uint8Array} land  the land per sim cell (the coast as drawn)
  * @param {import('../tectonics/model/crust.js').CrustRaster} crust   @param {Object} config  the tectonic config
  * @param {Object[]} [extra]  more past collisions to replay with the rest (G3b: the inner seams, present/seams.js)
- * @param {{cellP: Int32Array, crustLand: Uint8Array}} pieces  each sim cell's piece, and whether its piece is land (as
- *   edited): the terranes are the pieces (G4b)
+ * @param {{wp: Int32Array, sub: Int32Array}} pieces  each land cell's piece as bent and its terrane within the piece
+ *   (present/warp.js): the terranes are the pieces (G4b), their outlines bent by today's plates and a slow warp, each
+ *   made of smaller terranes whose seams are minor welts (G4c)
  * @returns {{events: Object[], terrane: Int32Array, seamKm: Float32Array, cores: number}}
  */
 export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], pieces) {
@@ -57,19 +58,11 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
     const terrane = new Int32Array(n), coreOf = new Int32Array(n).fill(-1), ringOf = new Int32Array(n).fill(-1);
     const events = [];
     let nextTerrane = 1, coreCount = 0;
-    const seamMajor = new Uint8Array(n), seamRing = new Uint8Array(n);
+    const seamMajor = new Uint8Array(n), seamRing = new Uint8Array(n), seamSub = new Uint8Array(n);
 
-    // each land cell's piece (as edited); a land cell carried out onto an ocean piece's edge (present/coast.js) the land
-    // piece's beside it
-    const { cellP, crustLand } = pieces, tp = new Int32Array(n).fill(-1);
-    {
-        const q = [];
-        for (let c = 0; c < n; c++) if (land[c] && crustLand[c]) { tp[c] = cellP[c]; q.push(c); }
-        for (let h = 0; h < q.length; h++) {
-            const c = q[h];
-            for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && tp[nb] < 0) { tp[nb] = tp[c]; q.push(nb); } }
-        }
-    }
+    // each land cell's piece as bent (present/warp.js; a land cell carried out onto an ocean piece's edge the land
+    // piece's beside it), and its terrane within the piece
+    const tp = pieces.wp, sub = pieces.sub;
     // how far in each land cell lies from the nearest edge between two pieces (km over the land)
     const atEdge = (c) => { if (!land[c]) return false; for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && tp[nb] !== tp[c]) return true; } return false; };
     const inFromEdge = dijkstra(sim, atEdge, (c) => land[c] === 1, kmOf);
@@ -154,6 +147,32 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
             const work = cfg.ringWorkKm[0] + (cfg.ringWorkKm[1] - cfg.ringWorkKm[0]) * rng();
             events.push({ age: ageOf.get(p), kind: 'ring', type: OrogenyType.URAL, side: BeltSide.NONE, front, work, allow: inMass, strength: 1 });
         }
+        // (a2) G4c: the smaller terranes each piece is made of (the "small plates"), welded before it docked or worked
+        // since: a low welt along each seam between two of them (each its own age and work, most of them old and worn)
+        // — texture on the ranges and the plains between, none inside a craton
+        for (const p of list) {
+            const seams = new Map();
+            for (const c of pcs.get(p).cells) {
+                if (toSea[c] < cfg.pastCoastKm || crust.type[c] === CrustType.CRATON) continue;
+                for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
+                    const nb = adjList[j];
+                    if (tp[nb] !== p || sub[nb] === sub[c]) continue;
+                    const key = Math.min(sub[c], sub[nb]) * 4096 + Math.max(sub[c], sub[nb]);
+                    if (!seams.has(key)) seams.set(key, []);
+                    seams.get(key).push(c); break;
+                }
+            }
+            for (const key of [...seams.keys()].sort((a, b) => a - b)) {
+                const front = seams.get(key);
+                if (front.length < 2) continue;
+                const r = makeRng((seed ^ 0x5b5e) + key);
+                const hi = Math.min(cfg.subAgeMyr[1], (ageOf.get(p) ?? cfg.subAgeMyr[1]) + cfg.subOlderMyr);
+                const age = Math.exp(Math.log(cfg.subAgeMyr[0]) + (Math.log(Math.max(cfg.subAgeMyr[0] + 1, hi)) - Math.log(cfg.subAgeMyr[0])) * r());
+                for (const c of front) seamSub[c] = 1;
+                events.push({ age, kind: 'sub', type: OrogenyType.URAL, side: BeltSide.NONE, front, allow: inMass, strength: 1,
+                    work: cfg.subWorkKm[0] + (cfg.subWorkKm[1] - cfg.subWorkKm[0]) * r() });
+            }
+        }
         // (b) the cores welding where their growths meet — along the pieces' edges between them: the major sutures, the
         // last pair to meet the youngest
         const pairs = new Map();
@@ -205,12 +224,13 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
 
     // ── 3. swells: uplands along the seams (the worn highlands round an old range), lowlands between; cratons calm ──
     const toMajor = dijkstra(sim, (c) => seamMajor[c], (c) => land[c], kmOf), toRing = dijkstra(sim, (c) => seamRing[c], (c) => land[c], kmOf);
+    const toSub = dijkstra(sim, (c) => seamSub[c], (c) => land[c], kmOf);
     const seamKm = new Float32Array(n);
     for (let c = 0; c < n; c++) {
         if (!land[c]) continue;
         seamKm[c] = Math.min(toMajor[c], toRing[c]);
         const g = (d, s) => (d < Infinity ? Math.exp(-0.5 * (d / s) ** 2) : 0);
-        let b = cfg.swellMajorKm * g(toMajor[c], cfg.swellMajorWidthKm) + cfg.swellRingKm * g(toRing[c], cfg.swellRingWidthKm);
+        let b = cfg.swellMajorKm * g(toMajor[c], cfg.swellMajorWidthKm) + cfg.swellRingKm * g(toRing[c], cfg.swellRingWidthKm) + cfg.swellSubKm * g(toSub[c], cfg.swellSubWidthKm);
         b += cfg.swellNoiseKm * nAt(c, 2200, 21.1) + cfg.swellFloorKm;
         if (crust.type[c] === CrustType.CRATON) b *= 0.5;
         // (and the swells sink toward the coast, under the coastal plain)

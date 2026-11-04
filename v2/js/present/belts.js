@@ -61,10 +61,12 @@ export function newCrust(L, land, sea) {
  * Today's belts, written into a crust raster over the sim mesh.
  * @param {Object} L  the layout   @param {Object} W  the plates   @param {Object} B  the boundaries (on `land`)
  * @param {Uint8Array} land  the land per cell (the coast as drawn)   @param {{ageMyr}} sea  the floor's ages
+ * @param {Int32Array} [terranes]  each land cell's terrane (present/warp.js, G4c): along a range, each terrane it crosses
+ *   took up its own share of the convergence (the "small plates" texture the big plates' mountains)
  * @returns {{crust: CrustRaster, config: Object, fronts: Object[]}}  the raster (type, formedAt and the records); the
  *   fronts as built (for the checks and the readout)
  */
-export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = presentTectonics(), crust = null) {
+export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = presentTectonics(), crust = null, terranes = null) {
     const { xyz, sim, seed } = L, n = L.mesh.numRegions, mesh = sim;
     const plateOf = W.cellPlate, plates = W.plates;
     if (!crust) crust = newCrust(L, land, sea);
@@ -72,6 +74,11 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
     // (G3d: along a front's strike — a noise of the fronts' own, read as a share of its spread)
     const strikeNoise = new FastNoise((seed ^ 0xa7c5) >>> 0);
     const strike = (c, waveKm, off) => { const f = R / waveKm, p = at(xyz, c); return uniformOf(strikeNoise.noise3D(p[0] * f + off, p[1] * f - 0.7 * off, p[2] * f + 0.3 * off)); };
+    // (G4c: a terrane's share of the convergence on a range across it — the Andes' segments — its own draw)
+    const segOf = (c) => {
+        if (!terranes || terranes[c] < 0 || !(cfg.segmentVary > 0)) return 1;
+        return 1 - cfg.segmentVary * makeRng((seed ^ 0x5e63) + terranes[c] * 7919)();
+    };
     const landKm = new Map();
     /** km from plate p's own land, over its cells (as far as arcFarKm): an arc near it trails from its continent */
     const landKmOf = (p) => {
@@ -152,10 +159,10 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 const steep = beltWidthKm('andean', work, rate, config) * shape;
                 if (flat) {
                     const flatKm = toward * 10 * Math.min(T, cfg.flatSlabMyr);
-                    laramide.cells.push(over); laramide.works.push(work * beltShape(e.headOn, undefined, config)); laramide.shears.push(e.shear);
+                    laramide.cells.push(over); laramide.works.push(work * segOf(over) * beltShape(e.headOn, undefined, config)); laramide.shears.push(e.shear);
                     laramide.widths.push(Math.min(config.belts.laramide.maxKm, Math.max(steep, beltWidthKm('laramide', flatKm, rate, config)) * shape));
                 } else {
-                    andean.cells.push(over); andean.works.push(work * beltShape(e.headOn, undefined, config)); andean.shears.push(e.shear);
+                    andean.cells.push(over); andean.works.push(work * segOf(over) * beltShape(e.headOn, undefined, config)); andean.shears.push(e.shear);
                     andean.widths.push(Math.min(config.belts.andean.maxKm, steep));
                 }
             } else if (slabKm > config.arcMatureConsumedKm && rate >= cfg.arcMinRateCmYr && slabAge >= cfg.arcMinSlabMyr) {
@@ -283,7 +290,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 if (!land[c]) continue;
                 const rate = Math.abs(e.closing) / 10, W0 = Math.abs(e.closing) * T;
                 const kind = lengthKm < config.sutureMinContactKm ? 'ural' : side === BeltSide.UPPER ? 'himalayan' : 'foreland';
-                cells.push(c); works.push(W0 * beltShape(e.headOn, undefined, config)); shears.push(e.shear);
+                cells.push(c); works.push(W0 * segOf(c) * beltShape(e.headOn, undefined, config)); shears.push(e.shear);
                 widths.push(Math.min(config.belts[kind].maxKm, beltWidthKm(kind, W0, rate, config) * beltShape(e.headOn, undefined, config)));
             }
             if (!cells.length) continue;
@@ -303,7 +310,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 const c = plateOf[e.ca] === p ? e.ca : e.cb;
                 if (!land[c]) continue;
                 const W0 = Math.abs(e.closing) * T;
-                cells.push(c); works.push(W0); shears.push(e.shear);
+                cells.push(c); works.push(W0 * segOf(c)); shears.push(e.shear);
                 widths.push(Math.min(config.belts.transpression.maxKm, beltWidthKm('transpression', W0, Math.abs(e.closing) / 10, config)));
             }
             if (!cells.length) continue;

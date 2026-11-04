@@ -25,17 +25,20 @@ const R = 6371;
  * there.
  * @param {Object} L  the layout   @param {Object} W  the plates   @param {Uint8Array} land  the land per sim cell
  * @param {Uint8Array} crustLand  each sim cell's piece is land (as edited): a seam is where two land pieces meet
+ * @param {Int32Array} [wp]  each land cell's piece as bent (present/warp.js, G4c): the seams run along the bent outlines
  * @returns {{events: Object[], sags: {cells: number[], depthKm: number}[], count: number}}  events: closing seams as past
  *   collisions (present/past.js's event form); sags: parting seams
  */
-export function pieceSeams(L, W, land, crustLand, cfg = PRESENT) {
-    const { mesh, seed } = L, n = mesh.numRegions, { adjOffset, adjList } = mesh, G = W.graph, cp = G.cellP;
+export function pieceSeams(L, W, land, crustLand, cfg = PRESENT, wp = null) {
+    const { mesh, seed } = L, n = mesh.numRegions, { adjOffset, adjList } = mesh, G = W.graph, cp = wp ?? G.cellP;
     const pairs = new Map();
     for (let c = 0; c < n; c++) {
         if (!land[c] || !crustLand[c]) continue;
         for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
             const nb = adjList[k];
             if (!land[nb] || !crustLand[nb] || cp[nb] === cp[c] || W.cellPlate[nb] !== W.cellPlate[c]) continue;
+            // (two pieces of one plate: a bent outline can bring another plate's piece across a plate edge — not a seam)
+            if (W.piecePlate[cp[nb]] !== W.piecePlate[cp[c]] || W.piecePlate[cp[c]] < 0) continue;
             const key = Math.min(cp[c], cp[nb]) * 4096 + Math.max(cp[c], cp[nb]);
             if (!pairs.has(key)) pairs.set(key, new Set());
             pairs.get(key).add(c);

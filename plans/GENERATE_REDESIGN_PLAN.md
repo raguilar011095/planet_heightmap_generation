@@ -767,6 +767,31 @@ The phase gate applies as always. One phase at a time. Each has:
     arc crust at sea within 1000 km of land (the supercontinent's 35 %: its ocean plates carry no land); ocean pieces
     above the sea 0.12–0.33 % of the globe (0.3–0.9 % before); 49 split margins beside 58 Andean.
 
+### G4c: The pieces bent, and smaller terranes (owner, 2026-11-04)
+- **The owner's words:** "We should still have some of the old mountain building especially to add more texture. ANd even
+  the inner plate stuff should be more warped and twisted too (as should the old mountain building) so the big plates
+  really drive it (and the smally plates give texture to the big plates mountains)".
+- **Built 2026-11-04** (`present/warp.js`; `past.js`, `seams.js`, `belts.js` read it); `check-present.mjs` 246/246.
+  - **The pieces' outlines are bent before the past is read from them.** The plate edges and coasts stay on the pieces;
+    only the past and the inner seams follow the bent outlines.
+    - **The drag of today's plates:** at every front where a plate is pushed (a collision, a trench's upper plate, a
+      transform pressed together), the ground is carried along the other plate's motion, 10 Myr of it, at most 350 km,
+      fading inland over 450 km and smoothed over 300 km. An old seam that runs into the front bends toward it (an
+      orocline); one beside its end swings round it. 36–53 % of the land is dragged, at most ~300 km.
+    - **A slow warp at two scales:** 240 km over waves of 2400 km bends a seam's course, and 100 km over 1100 km,
+      read at the broadly warped point, twists it. Kept under the amplitude that folds a seam over itself, so the
+      ranges stay lines, not blobs.
+    - About 3–5 % of the land reads its piece from a neighbour; 60–74 % of the old fronts lie off the drawn borders.
+  - **Each piece is made of smaller terranes** (the "small plates"): one per 1.6 Mkm², at most 4, their outlines bent
+    alike (the nearest of the piece's seeds at each cell's bent point).
+    - The seams between them are low welts: 150–1800 Myr old (log-uniform, at most 300 Myr older than the piece's
+      docking), 100–260 km of convergence, a 0.08 km swell. None inside a craton or within 300 km of the coast.
+      76–188 per planet.
+    - Along today's ranges each terrane took up its own share of the convergence (× 0.65–1, its own draw): the Andes'
+      segments. Only lower, never higher, so no peak passes what its front built.
+  - **Measured:** land median 0.41–0.45 km on the default planets (0.34–0.36 before), 20–23 % above 1 km (13–15 %:
+    Earth's ~25 %); peaks 5.7–7.9 km; walled coasts 41–47 % (35–46 % before), the supercontinent's 66 % (58 %).
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

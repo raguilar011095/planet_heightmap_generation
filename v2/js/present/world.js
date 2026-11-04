@@ -18,6 +18,7 @@ import { knobOverrides, reliefShareOf } from './knobs.js';
 import { addFineRelief } from './relief.js';
 import { heldCells, holdToPieces } from './hold.js';
 import { pieceSeams, sagSeams, frontDistance } from './seams.js';
+import { bentPieces } from './warp.js';
 import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 
 const tMeshes = new WeakMap();
@@ -55,12 +56,15 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     // the continents' past first (G4: old orogenies replayed), then today's belts over it
     const config = presentTectonics(), crust = newCrust(L, land, sea);
     // (G3b: the inner seams — where two land pieces of one plate meet — replayed with the past, or sagged)
-    const seams = pieceSeams(L, P, land, crustLand);
-    const past = presentPast(L, land, crust, config, PRESENT, seams.events, { cellP: P.graph.cellP, crustLand });
+    // (G4c: the pieces' outlines bent — by today's plates' drag and a slow warp — and the smaller terranes within them)
+    const bent = bentPieces(L, P, B, land, crustLand);
+    const seams = pieceSeams(L, P, land, crustLand, PRESENT, bent.wp);
+    const past = presentPast(L, land, crust, config, PRESENT, seams.events, bent);
+    past.bent = bent;
     sagSeams(L, land, crust, seams.sags);
     past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
     ms.past = clock() - t0; t0 = clock();
-    const belts = presentBelts(L, P, B, land, sea, undefined, config, crust);
+    const belts = presentBelts(L, P, B, land, sea, undefined, config, crust, bent.sub);
     belts.past = past;
     ms.belts = clock() - t0; t0 = clock();
     // G5: today's collisions squeezing up old sutures far inland; the plumes' tracks and flood basalts
