@@ -624,7 +624,7 @@ const earthLike = ({ pl }) => !['supercontinent', 'land world'].includes(pl.name
     const sed = (famAll.loose ?? 0) + (famAll.sedimentary ?? 0);
     check(`the default planets: sediment and sedimentary ${(100 * sed).toFixed(0)} %, metamorphic ${(100 * famAll.metamorphic).toFixed(0)} %, plutonic ${(100 * famAll.plutonic).toFixed(1)} %, volcanic ${(100 * famAll.volcanic).toFixed(1)} % (river plains ${(100 * (famAll.loose ?? 0)).toFixed(0)} %)`,
         sed >= 0.6 && sed <= 0.8 && famAll.metamorphic >= 0.08 && famAll.metamorphic <= 0.22 && famAll.plutonic >= 0.03 && famAll.volcanic >= 0.03,
-        'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % (the river carve's cut baring them: G7d)');
+        'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % (the river carve’s cut baring them: G7d)');
 }
 
 // ── G7d: the Geology and Food layers, as the page works them out (js/planet-worker.js climateFor) ──
