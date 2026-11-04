@@ -35,7 +35,9 @@ says it was made with the old ones.
 
 ## Watch and scrub
 
-- The history builds while you watch: the planet changes as it is simulated.
+- The history builds while you watch: the planet changes as it is simulated. Until its first moment is drawn (a second
+  or two), a loading screen says what is happening ("Starting a world", the seed, laying out the plates, building the
+  start world); then it steps aside, and the rest builds in view.
 - Every moment on the timeline is a **Preview**, a quick look at the planet at that time. Drag the timeline or press
   play; the shaded part of the rail is the history computed so far, and you can scrub through all of it while the rest
   fills in. Playback speed is on the timeline.
@@ -49,7 +51,10 @@ says it was made with the old ones.
 Found a moment you like? Press **Add detail**. It sculpts that moment again, much more finely: rivers and lakes
 (permanent, flooding each year or dry for months, fed by the moment's own rain), glaciers and fjords, sand seas, its own
 climate, and the Satellite, Geology and Food views. Its **Detail** is 160K, 640K, 2.5M (the default) or 10M cells
-(about a minute); phones go up to 640K. It takes from a few seconds to about a minute.
+(about a minute); phones go up to 640K. It takes from a few seconds to about a minute. Meanwhile a loading screen over
+the planet names each step as it comes (shaping the surface, working out the climate, carving the rivers, carving with
+the last ice age, mapping the rocks, finding the ore deposits, painting the picture…) with how far along it is; Cancel
+stays on the timeline.
 
 One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card
 tells you when it will.
@@ -62,7 +67,9 @@ coasts. The rivers' options (Rivers & Lakes, By Regime, density) are in the view
 ## Look around
 
 Switch views with the tabs over the planet: **Terrain**, **Satellite** (on detailed moments), **Climate**, **Geology**,
-**Food**, **Heightmap** and **Plates**.
+**Food**, **Heightmap** and **Plates**. On a detailed moment, a view whose picture takes a moment to paint (the Satellite
+view's season before it has been drawn ahead, Geology and Food at full detail) puts up the loading screen first
+("Painting the Food view"), so the page never just stops.
 
 - **Climate** shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure with the ITCZ,
   upwelling, ice, temperature range, rain shadow, aridity, growing season, rain seasonality) under **More…**, for the
@@ -130,7 +137,8 @@ described in [shared.md](shared.md#export).
 ## Keep a planet
 
 In Export, **Save planet** puts the whole history and its detailed moment in one `.orogen` file. **Load planet…** (in
-World) opens it again later, or drop the file anywhere on the page, with no waiting for either. The file holds the
+World) opens it again later, or drop the file anywhere on the page, with no waiting for either; a loading screen shows
+it opening (the history, the detailed moment, the terrain) until its moment is drawn. The file holds the
 history itself, so it opens exactly as it was saved, in any browser. **Extend history** on an opened planet first runs the
 history again from its seed (as long as it took to build), then goes on from where the file ends, if it comes out the
 same in this browser.

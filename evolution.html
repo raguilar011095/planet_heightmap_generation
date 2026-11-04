@@ -87,6 +87,15 @@
     </nav>
     <canvas id="canvas"></canvas>
     <canvas id="mapCanvas" hidden></canvas>
+    <!-- the loading screen, over the planet and behind the controls (v2/js/evolution/loading.js) -->
+    <div id="buildOverlay" class="build-overlay hidden" role="status" aria-live="polite">
+        <div class="build-overlay-inner">
+            <div class="build-overlay-spinner" aria-hidden="true"><svg class="og-mark" viewBox="0 0 32 32" width="60" height="60"><defs><clipPath id="spinMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#spinMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="spin-track" cx="16" cy="16" r="13.6"/><circle class="spin-arc" cx="16" cy="16" r="13.6"/></svg></div>
+            <div class="build-overlay-title"></div>
+            <div class="progress-bar-container"><div class="progress-bar-fill"></div></div>
+            <div class="progress-label"></div>
+        </div>
+    </div>
     <div id="ui">
         <div id="sheetHandle" class="sheet-handle"><span></span></div>
         <div id="sheetLine" class="evo-sheet-line"></div>

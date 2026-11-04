@@ -431,7 +431,14 @@ each checked in the browser.
   interpolate between the 2 (not necessarily linearly though)"). The globe's width is counted at home zoom with its ring,
   so it doesn't slide as you zoom; a change glides there. Generate, Import and Evolution, globe and map.
 - [x] The loading spinner is the logo: its stripes still, its ring turning (Generate, Import).
-- [ ] Evolution uses the loading screen more, saying what is happening (batch 2).
+- [x] Evolution uses the loading screen more, saying what is happening (`v2/js/evolution/loading.js`, Generate's overlay
+  and the logo spinner): a world starting until its first moment is drawn (the history then builds in view, never
+  covered); a planet file opening (the history, the detailed moment, the terrain, painting) until drawn; Add detail
+  with each stage in words ("Carving the rivers…") and its share, Cancel still on the timeline; a view's slow picture on
+  a detailed moment (the Satellite season not drawn ahead; Geology and Food the first time; any view that took over a
+  quarter of a second last time), the screen up two frames before the page is held; the terrain built again at another
+  detail (not over a history being built). The card no longer says "A new world is starting" while a file opens, and
+  says the finish's stages in words.
 - [ ] The degree ring's numerals on the globe, where the grid lines meet it, moving as the globe turns; the same gold
   graticule frame with numerals on every map projection (batch 3).
 
@@ -467,4 +474,4 @@ each checked in the browser.
 - **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5): PR #107.
 - **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`: PR #108.
 - **2026-11-03:** R9 built and checked (all but What's New, the sitemap and the release, which wait for the owner), on `redesign-r9` (stacked on R7 and R8).
-- **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`.
+- **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`: PR #121; batch 2 (Evolution's loading screens).
