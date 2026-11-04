@@ -16,6 +16,7 @@ import { CrustRaster, CrustType, CrustFlag, OrogenyType, BeltSide } from '../tec
 import { spreadBelt, beltWidthKm, beltShape } from '../tectonics/step/orogeny.js';
 import { TECTONICS } from '../tectonics/config.js';
 import { recentPush } from '../tectonics/step/far-field.js';
+import { encodeCoverKm, encodeExhumKm, encodeUnroofKm, encodeFloodMyr, encodeFloodAge, encodeArcMyr, encodeAge, encodeFacies } from '../tectonics/model/geology.js';
 import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
@@ -559,5 +560,14 @@ export function writeCrust(frame, crust, foldMyr = TECTONICS.farFoldMyr) {
         frame.farWork[c] = crust.farWork[c]; frame.farDist[c] = Math.min(65535, Math.round(crust.farDist[c]));
         frame.farFold[c] = recentPush(crust.farFold[c], crust.farAt[c], 0, foldMyr);
         frame.farDir[3 * c] = crust.farDx[c]; frame.farDir[3 * c + 1] = crust.farDy[c]; frame.farDir[3 * c + 2] = crust.farDz[c];
+        // (G7c: the geological record — present/record.js — packed as tectonics/snapshot.js packs it, at time 0)
+        if (crust.type[c] !== CrustType.OCEAN) {
+            frame.geoFlags[c] = crust.geoFlags[c]; frame.arcMyr[c] = encodeArcMyr(crust.arcMyr[c]);
+            frame.coverKm[c] = encodeCoverKm(crust.coverKm[c]); frame.coverMaxKm[c] = encodeCoverKm(crust.coverMaxKm[c]);
+            frame.coverMaxAge[c] = crust.coverMaxKm[c] > 0 ? encodeAge(-crust.coverMaxAt[c]) : 0;
+            frame.facies[c] = crust.coverKm[c] > 0 ? encodeFacies(crust.coverCarb[c], crust.coverSalt[c], crust.coverCoal[c], crust.coverOrganic[c]) : 0;
+            frame.exhumKm[c] = encodeExhumKm(crust.exhumKm[c]); frame.unroofKm[c] = encodeUnroofKm(crust.unroofKm[c]);
+            frame.floodMyr[c] = encodeFloodMyr(crust.floodMyr[c]); frame.floodAge[c] = encodeFloodAge(crust.floodLast[c], 0, crust.floodMyr[c] > 0);
+        }
     }
 }

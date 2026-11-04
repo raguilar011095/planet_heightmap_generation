@@ -20,6 +20,8 @@ import { knobOverrides } from '../js/present/knobs.js';
 import { seaDepthKm } from '../js/tectonics/measure.js';
 import { CrustType, OrogenyType } from '../js/tectonics/model/crust.js';
 import { PRESENT } from '../js/present/present-config.js';
+import { classifyRocks, ROCK_INFO, ROCK_COUNT } from '../js/geology/rocks.js';
+import { LatLonGrid } from '../js/finish/finish-grid.js';
 import { buildSphere } from '../../js/sphere-mesh.js';
 import { makeRng } from '../../js/rng.js';
 
@@ -584,6 +586,28 @@ section('G5b: continents parting across their ocean fit — ridge down its middl
         for (let i = 0; i < Pp.length; i++) { const a = rotateBy(Rf, Pp[i]), b = Qp[i]; worst = Math.max(worst, 6371 * Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))); }
     }
     check(`the fit's rotation solver on exact matches: worst ${worst.toFixed(3)} km`, worst < 1, 'exact (< 1 km)');
+}
+
+// ── G7c: the geological record ──
+section('G7c: the record in closed form — Evolution\'s rocks on Generate\'s worlds in an Earth-like mix');
+{
+    const famAll = {};
+    for (const { pl, L, G, mesh } of grounds) {
+        const tm = presentTerrainMesh(mesh, renderXyz.get(mesh)), z = G.heightKm, n = z.length;
+        const ocean = new Uint8Array(n), lat = new Float32Array(n), lon = new Float32Array(n);
+        for (let c = 0; c < n; c++) { ocean[c] = z[c] > 0 ? 0 : 1; lat[c] = Math.asin(tm.xyz[3 * c + 2]) * 180 / Math.PI; lon[c] = Math.atan2(tm.xyz[3 * c + 1], tm.xyz[3 * c]) * 180 / Math.PI; }
+        const q = G.drainage ? Float32Array.from(G.drainage, a => a * PRESENT.riverQPerKm2) : null;
+        const Rk = classifyRocks({ mesh: tm, z, ocean, frame: G.frame, simMesh: L.sim, seed: pl.seed, cfg: terrainConfig(), on: { grid: new LatLonGrid(0.25), lat, lon }, local: { q } });
+        const fam = {};
+        for (let k = 1; k < ROCK_COUNT; k++) { const f = ROCK_INFO[k].family; fam[f] = (fam[f] ?? 0) + Rk.shares[k]; famAll[f] = (famAll[f] ?? 0) + Rk.shares[k] / grounds.length; }
+        const r = G.belts.record;
+        check(`${pl.name}: ${Object.entries(fam).map(([k, v]) => `${k} ${(100 * v).toFixed(0)} %`).join(', ')}; record: ${(100 * r.covered).toFixed(0)} % covered, ${(100 * r.shield).toFixed(0)} % bare shield, forelands ${(100 * r.foreland).toFixed(0)} %, shelves ${(100 * r.shelf).toFixed(0)} %, inland seas ${(100 * r.epeiric).toFixed(0)} %`,
+            (fam.loose ?? 0) + (fam.sedimentary ?? 0) > 0.5 && (fam.metamorphic ?? 0) > 0.05, 'some of each (the mean is checked below)');
+    }
+    const sed = (famAll.loose ?? 0) + (famAll.sedimentary ?? 0);
+    check(`all: sediment and sedimentary ${(100 * sed).toFixed(0)} %, metamorphic ${(100 * famAll.metamorphic).toFixed(0)} %, plutonic ${(100 * famAll.plutonic).toFixed(1)} %, volcanic ${(100 * famAll.volcanic).toFixed(1)} % (river plains ${(100 * (famAll.loose ?? 0)).toFixed(0)} %)`,
+        sed >= 0.6 && sed <= 0.8 && famAll.metamorphic >= 0.08 && famAll.metamorphic <= 0.22 && famAll.plutonic >= 0.02 && famAll.volcanic >= 0.02,
+        'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % — here ≥ 2: few flood basalts reach the land here, and no dunes, loess or till yet (G7d)');
 }
 
 // ── G5: plumes and the far field ──

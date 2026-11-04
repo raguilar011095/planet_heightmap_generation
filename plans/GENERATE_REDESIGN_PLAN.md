@@ -894,6 +894,55 @@ The phase gate applies as always. One phase at a time. Each has:
     - One failed rift arm (500–1000 km) runs inland from a well-fitting point of the join, on one side (the Benue trough).
   - Scratch diagnostic `v2/out/g5b-recon.mjs <seed>` draws each pair with its ocean closed.
 
+### G7b: Rocks and Food on Generate (owner, 2026-11-04)
+- **The owner's words:** "implement the other layers in evolution here. The rocks and food".
+- **The approach:** compute Evolution's geology and farming layers on Generate's own mesh, from the ground it already
+  draws, its climate and the present-day Frame. This is the fast-approximation route the vision asks of Generate.
+  Running Evolution's whole finish (its own mesh, its own surface: 7–12 s) would redraw a different surface than
+  Generate shows.
+- **The gap:** Evolution's history keeps a geological record as it goes (`tectonics/step/geology.js`): each piece's
+  sediment cover and its make-up, how deep it has been worn, its time under shallow sea and in a live arc, its settings
+  (foreland, shelf, inland sea, ophiolite, born in an arc). The rocks (`geology/rocks.js`) and the deposits
+  (`geology/deposits.js`) read it off the Frame. The present-day world has no record yet.
+- **Phases** (each a stacked PR, behind `?next=1`):
+  - **G7c — the record in closed form** (`present/record.js`), from what the present-day world already knows:
+    - its past events (their ages and work: how deep each belt is worn);
+    - its cratons (shields worn deepest);
+    - its swells and sags (basins hold cover, swells shed it);
+    - today's belts (forelands beside them; arcs' time live);
+    - its coasts and lowlands (shelves, and inland seas at the high stands);
+    - its sutures (ophiolite slivers), its split-off and accreted arcs (born in an arc), its rifts (rift basins);
+    - the cover's make-up by latitude, as the history lays it.
+
+    Written into the Frame as the history's frames hold it. Check: the rock families' shares on the test planets near
+    Evolution's Earth target (loose 28 %, sedimentary 42 %, metamorphic 15 %, plutonic 7.5 %, volcanic 7.5 %).
+    - **Built 2026-11-04** (`present/record.js`; `belts.js` writeCrust packs it as `snapshot.js` does; `world.js` hands
+      back the carve's lava cap and young ranges as the finish does); `check-present.mjs` 281/281.
+      - Without a record, Evolution's rocks read Generate's land as 95 % metamorphic.
+      - Worn depths: shields 16–28 km; an old belt's core 3 → 22 km with its age (e-folding 700 Myr); a live belt's core
+        2.2 km per km it stands (≤ 14).
+      - Cover: the platform's 0.25–3.5 km by its swell, bared off a shield where a ~1100 km noise says (≈ 11–17 % of
+        the land), stripped off a belt's core and thickened ×5 in its outer zone; forelands (+3 km), passive coastal
+        plains and shelves (+3 km, e-folding 220 km), rift basins (+3.5 km).
+      - Its make-up by latitude ± 12° of drift (Evolution's bands).
+      - Inland seas on the low interiors, up to 220 Myr.
+      - Arcs: today's live arcs (their front bared), the arcs' own crust, docked arc terranes (30 %, worn 1–7 km).
+      - Ophiolite slivers along 12 % of the sutures.
+      - **Measured** (6 planets, the rivers' plains from Generate's drainage at 0.015 m³/s per km²): sediment and
+        sedimentary 74 %, metamorphic 21 %, plutonic 2.8 %, volcanic 2.4 % (river plains 12 %). Within Evolution's own
+        ranges but for plutonic and volcanic (Evolution asks ≥ 3 %). Few flood basalts reach Generate's land, and the
+        dunes, loess and till come with the climate (G7d). A supercontinent and a land world stand higher: ~29 %
+        metamorphic.
+  - **G7d — the layers' data on Generate's mesh**, in the worker after the climate:
+    - the rocks (`classifyRocks`, with the river plains from Generate's own drainage), the deposits (`depositFields`);
+    - the food (`farmCells`, its climate gathered from the climate's own twelve months per region, as the finish
+      does: the growing season, the soil's climate, the deposits' climate tests);
+    - the same fields the finished moment holds.
+  - **G7e — the Geology and Food tabs on Generate's layer bar:** Evolution's colours, legends (with their toggles) and
+    hover readouts reused through a finished-moment-shaped adapter on Generate's mesh; the phone list; the tutorial and
+    docs.
+  - **G7f — their export rows** (Evolution's Geology and Food exports on Generate's mesh).
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

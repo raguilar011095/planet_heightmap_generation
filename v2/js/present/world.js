@@ -21,6 +21,7 @@ import { pieceSeams, sagSeams, frontDistance } from './seams.js';
 import { bentPieces } from './warp.js';
 import { cutRifts } from './rifts.js';
 import { continentFits, interlockCoasts } from './fit.js';
+import { presentRecord } from './record.js';
 import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 
 const tMeshes = new WeakMap();
@@ -74,6 +75,8 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     // G5: today's collisions squeezing up old sutures far inland; the plumes' tracks and flood basalts
     belts.far = presentFarField(L, P, B, land, crust, config, PRESENT, belts.pushes);
     belts.plumes = presentPlumes(L, P, land, crust);
+    // (G7c: the geological record, in closed form — what the rocks, the deposits and the food read)
+    belts.record = presentRecord(L, land, crust, past, config.geology);
     ms.plumes = clock() - t0; t0 = clock();
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
@@ -85,7 +88,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, ms };
+    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, lava: G.lava, young: G.young, ms };
 }
 
 /**
@@ -103,7 +106,7 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, ms };
+    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, lava: T.lava ?? null, young: T.young ?? null, ms };
 }
 
 /**
@@ -132,7 +135,14 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     t0 = clock();
     const C = carveTerrain(carveLadder(sim, tMesh, terrainMesh), { ...carveIn, z: heightKm }, carveSettings(cfg), settleFields(frame, sim, tMesh, cfg, seed));
     ms.carve = clock() - t0;
-    return { heightKm: C.z, drainage: C.area, receivers: C.recv, ms };
+    // (G7c, as the finish keeps them: where flood basalt still caps the ground after the carving — its pile not cut
+    // through: the rocks' basalt — and how young the mountains are, 1 while a belt still rises: the food's renewed soils)
+    const lava = new Uint8Array(n), young = new Uint8Array(n);
+    for (let c = 0; c < n; c++) {
+        if (carveIn.lip[c] > 0) { const t = Math.min(1, Math.max(0, (C.z[c] - carveIn.lipBase[c]) / 0.05)); lava[c] = Math.round(255 * carveIn.lip[c] * t * t * (3 - 2 * t)); }
+        young[c] = Math.round(255 * Math.max(0, Math.min(1, carveIn.hold[c])));
+    }
+    return { heightKm: C.z, drainage: C.area, receivers: C.recv, lava, young, ms };
 }
 
 /**
