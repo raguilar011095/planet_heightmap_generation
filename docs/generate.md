@@ -124,7 +124,7 @@ World Orogen is fully usable on phones and tablets:
 - **Hotspot volcanism** — dual-component mantle plume model (broad thermal swell + volcanic peak) with drift-trail island chains, domain-warped shape distortion, drift-direction elongation, summit calderas on active domes, radial rift-zone ridges, age-dependent volcanic texture, and per-hotspot variation in strength/decay/spacing
 - **Terrain post-processing** — noise-based domain warping (FBM simplex noise with greedy mesh walk) to deform the elevation field for organic coastlines and mountain ridges, independently controllable bilateral smoothing to blend harsh BFS distance-field boundaries, glacial erosion that carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes via latitude-driven ice flow with drainage accumulation, priority-flood pit resolution with canyon carving (Barnes et al. algorithm that ensures every land cell drains to the ocean, carving dramatic canyons through mountain saddle points rather than filling basins), iterative implicit stream power hydraulic erosion (Braun-Willett style) that carves self-reinforcing river valleys with automatic sediment deposition in flat receivers, thermal erosion that softens ridges via talus-angle material transport, ridge sharpening that accentuates mountain ridgelines, and always-on soil creep (Laplacian diffusion) that rounds off hillslopes
 - **Coastal roughening** — fractal noise with active/passive margin differentiation, domain warping for bays/headlands, and offshore island scattering
-- **3D globe rendering** with a thin rim of air, translucent water sphere, terrain displacement, the light carried with the camera from the upper left, a gold degree ring at home zoom, and an optional starfield (**Stars**)
+- **3D globe rendering** with a thin rim of air, translucent water sphere, terrain displacement, the light carried with the camera from the upper left, a gold degree ring at home zoom (its ticks and degrees where the grid lines meet the globe's edge; on the map, a gold frame in every projection), and an optional starfield (**Stars**)
 - **Equirectangular map projection** with antimeridian wrapping
 - **Interactive editing** — Ctrl-click (Cmd-click on a Mac) plates to mark them for reshaping (multi-select with visual tinting), then click Rebuild to apply all changes at once. Ctrl-click again to undo a pending selection. Press Escape to cancel all pending edits
 - **Map type switcher** — first-class Terrain / Satellite / Climate / Heightmap tabs with color legends for each view
@@ -197,7 +197,9 @@ js/
   detail-scale.js       Non-linear (power-curve) detail slider mapping
   build-error.js        A failed build, import or export shown in the build overlay, with a Close button; the controls held during a build
   stage.js              The stage round the globe (the theme's desk, or space with Stars), the air, map colours from tokens
-  degree-ring.js        The gold degree ring round the globe at home zoom (an SVG over the canvas, fading as you zoom in)
+  graticule-frame.js    The gold ring round the globe (at home zoom) and the gold frame round a map, in every projection:
+                        ticks and degrees where the grid lines meet them, in step as the view turns, pans and zooms
+  graticule-view.js     Generate's and Import's globe and map, handed to the graticule frame each frame
   open-area.js          The room beside the open sidebar: where the globe, the map and the bars over them sit (--open-left,
                         --open-shift; centred on the window with room to spare, on the space beside the sidebar when short)
   theme.js              Classic script in each page's <head>: Paper or Night, the device's choice until the theme switch

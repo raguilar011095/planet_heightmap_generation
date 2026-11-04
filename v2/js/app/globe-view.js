@@ -170,8 +170,8 @@ export class GlobeView {
     /** The planet's width on screen, for the open area: the map whole, or the globe at home zoom with its degree ring. */
     planetWidth() {
         const w = this.canvas.clientWidth || innerWidth, h = this.canvas.clientHeight || innerHeight;
-        if (this.map) return this.mapBox().width;
-        return 1.2 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h) * Math.PI / 360) * h;
+        if (this.map) return this.mapBox().width + 2 * (this.mapPad?.side ?? 0);
+        return 1.3 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h) * Math.PI / 360) * h;
     }
 
     /** Point the camera at a geographic position (degrees), keeping its current distance. */
@@ -520,11 +520,46 @@ void main() {
 
     /** The map's box in client pixels: the frame's, letterboxed to the projection's shape (2 : 1 equirectangular). */
     mapBox() {
-        // (fitted to the frame's part right of the open area's edge, moved right of the frame's centre by its shift)
+        // (fitted to the frame's part right of the open area's edge, inside the room kept round it — the tabs above, the
+        // timeline below, the frame's numerals all round: setMapPad — and moved right of the frame's centre by the open
+        // area's shift)
         const r = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]);
-        const left = this.openLeft || 0, f = { left: r.left + (this.openShift || 0), top: r.top, width: r.width, height: r.height };
-        const s = Math.min((f.width - left) / aspect, f.height);
+        const left = this.openLeft || 0, pad = this.mapPad ?? { top: 0, bottom: 0, side: 0 };
+        const f = { left: r.left + (this.openShift || 0), top: r.top + pad.top, width: r.width, height: Math.max(1, r.height - pad.top - pad.bottom) };
+        const s = Math.max(1, Math.min((f.width - left - 2 * pad.side) / aspect, f.height));
         return { left: f.left + (f.width - aspect * s) / 2, top: f.top + (f.height - s) / 2, width: aspect * s, height: s };
+    }
+
+    /** The room kept round the map (px): above it (from the frame's top), below it, and at each side. */
+    setMapPad(pad) {
+        const p = this.mapPad;
+        if (p && p.top === pad.top && p.bottom === pad.bottom && p.side === pad.side) return;
+        this.mapPad = pad; this._dirty = true;
+    }
+
+    /**
+     * What the graticule frame (js/graticule-frame.js) needs: the globe's centre and rim on screen, its camera and how a
+     * point of it lands on screen — or the map's projection and how its coordinates land on screen, zoomed and panned.
+     */
+    frameView() {
+        const c = this.canvas.getBoundingClientRect();
+        if (this.map) {
+            const box = this.mapBox(), v = this.mapView, pb = this.map.bounds, pw = pb[1] - pb[0], ph = pb[3] - pb[2];
+            const toClient = (X, Y) => [box.left + box.width / 2 + ((X - pb[0]) / pw - 0.5 - v.panX) * box.width * v.zoom,
+                box.top + box.height / 2 + ((pb[3] - Y) / ph - 0.5 - v.panY) * box.height * v.zoom];
+            const fromClient = (x, y) => { const m = this.mapFrac(x, y); return [pb[0] + m[0] * pw, pb[3] - m[1] * ph]; };
+            const eq = this.map.projection === 'equirect';
+            return { kind: 'map', id: this.map.projection, opts: this.map.projOpts || {}, centre: this.map.centerLon * Math.PI / 180, toClient, fromClient,
+                xRange: eq ? [pb[0] + v.panX * pw, pb[0] + (v.panX + 1) * pw] : null,
+                key: [this.map.projection, JSON.stringify(this.map.projOpts), this.map.centerLon, v.zoom, v.panX, v.panY, box.left, box.top, box.width, box.height].join('|') };
+        }
+        const cam = this.camera, d = cam.position.length(), q = new THREE.Vector3();
+        const toScreen = (p) => { q.set(p[0], p[1], p[2]).project(cam); return [c.left + (q.x + 1) / 2 * c.width, c.top + (1 - q.y) / 2 * c.height]; };
+        const [cx, cy] = toScreen([0, 0, 0]);
+        return { kind: 'globe', cx, cy, d, cam: [cam.position.x, cam.position.y, cam.position.z], toScreen,
+            r: Math.tan(Math.asin(Math.min(1 / d, 0.999))) / Math.tan(cam.fov * Math.PI / 360) * c.height / 2,
+            // (SphereGeometry and an equirectangular texture: longitude 0 faces +x, 90°E faces −z, north is +y)
+            local: (lon, lat) => [Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)] };
     }
 
     /** The place in the map's box (fractions: x west → east, y north → south) under a client-space point, zoomed and panned. */

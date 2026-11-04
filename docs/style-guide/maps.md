@@ -10,7 +10,7 @@ The globe is the product. These defaults decide how every world looks in every t
 - **Nothing here:** land with nothing to show is `map-paper`; ice is `map-ice`; lakes `map-lake`.
 - **Around the globe:** the stage follows the page theme (`desk`: paper by day, navy at night). Black space with stars (`stage-space`) is an option, never the default.
 - **Air:** a thin rim of `map-air`. No heavy glow.
-- **Lines:** the 30° graticule in `map-grid`; the equator and tropics dashed in `map-tropics`, optional and useful in Climate; the degree ring in `gold` at home zoom.
+- **Lines:** the 30° graticule in `map-grid`; the equator and tropics dashed in `map-tropics`, optional and useful in Climate; the degree ring in `gold` at home zoom, and the same in a map's frame: ticks where the grid lines meet the globe's edge or leave the map's outline, their degrees every 30° in `meta` beside them (`muted`; on the map itself, `map-label` over `map-halo`), always in step with the grid as the view turns, pans and zooms; a map zoomed past the view framed at the view's edge, matted in `desk`.
 - **Names:** `map-land`, `map-sea`, `map-range`, white with `map-halo`.
 - **Pins:** numbered, `pin-fill` and `pin-ink`, an open pin filled; a founder’s ring in `pin-founder`; a crop’s home ◆.
 - Flat maps use the same colours and relief, with no globe light.

@@ -35,7 +35,8 @@ import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
 import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
-import { createDegreeRing } from '../../../js/degree-ring.js';
+import { createGraticuleFrame } from '../../../js/graticule-frame.js';
+import { inSpace } from '../../../js/stage.js';
 import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from '../../../js/open-area.js';
 import { createLoading } from './loading.js';
 import { downloadBlob } from '../view/png.js';
@@ -205,6 +206,7 @@ planetWidthFrom(() => globe.planetWidth());
 // (the loading screen, for the waits with nothing to watch: loading.js; the first world's over nothing yet)
 const loading = createLoading($('buildOverlay'));
 let firstWorld = true;
+let mapRect = null, mapRectKey = '';                       // (the map frame's rectangle: layoutMap, below)
 // (Add detail's stages, as the loading screen and the card say them)
 const STAGE_WORDS = { starting: 'Starting', mesh: 'Laying out the fine mesh', surface: 'Shaping the surface', climate: 'Working out the climate',
     bedrock: 'Reading the bedrock', rivers: 'Carving the rivers', sediment: 'Settling the sediment', hillslopes: 'Wearing down the hillslopes',
@@ -651,7 +653,7 @@ function show(t) {
 }
 
 /** The map view (or the globe): the texture flat, turned so that the centre longitude is in the middle. */
-const showMap = () => { globe.setMap(view.mode === 'map' ? ui.map : null, view.centerLon, view.projection, view.projOpts); planetChanged(); };
+const showMap = () => { layoutMap(); globe.setMap(view.mode === 'map' ? ui.map : null, view.centerLon, view.projection, view.projOpts); planetChanged(); };
 
 function progress(b, t) {
     if (b.retexturing) return;
@@ -1285,9 +1287,36 @@ function tick(now) {
     updatePatch(now);
     globe.resize();
     globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
-    degreeRing.update(globe.camera.position.length(), globe.camera.fov, innerWidth, innerHeight, !globe.map && !!B?.frames?.length);
+    showFrame();
 }
-const degreeRing = createDegreeRing(ui.canvas);
+// ── the graticule frame (js/graticule-frame.js): the gold ring round the globe, its ticks and degrees where the grid lines
+// meet its edge, fading as you zoom in; the gold frame round the map, its degrees where the lines leave it ──
+const graticule = createGraticuleFrame(ui.canvas);
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function showFrame() {
+    if (!B?.frames?.length) { graticule.hide(); return; }
+    const fv = globe.frameView(), spacing = view.grid ? view.gridStep : 30;
+    if (fv.kind === 'map') { graticule.map({ ...fv, rect: mapFrameRect(), spacing, key: `${fv.key}|${spacing}|${innerWidth}|${innerHeight}|${mapRectKey}` }); return; }
+    const fade = Math.max(0, Math.min(1, (fv.d - 1.9) / 0.7));
+    graticule.globe({ ...fv, spacing, space: inSpace(), opacity: reduceMotion.matches ? (fade > 0.5 ? 1 : 0) : fade });
+}
+// (the room kept round the map — below the layer tabs, above the timeline, the frame's numerals at the sides — and the
+// rectangle its frame keeps within when zoomed in: measured when the layout changes, not each frame)
+function layoutMap() {
+    const narrow = matchMedia('(max-width: 768px)').matches, m = narrow ? 22 : 56;
+    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56;
+    const row = document.querySelector('#layerBar .layer-row')?.getBoundingClientRect(), tl = $('timeline').getBoundingClientRect();
+    const top = narrow || !row?.height ? 22 : Math.max(22, row.bottom + 30 - navH);
+    const bottom = tl.height ? Math.max(22, innerHeight - tl.top + 26) : 48;
+    globe.setMapPad({ top, bottom, side: m });
+    const side = Math.max(16, m - 4);
+    mapRect = { l: openLeft() + side, t: navH + top - 8, r: innerWidth - side, b: innerHeight - bottom + 8 };
+    mapRectKey = [mapRect.l, mapRect.t, mapRect.r, mapRect.b].join(',');
+}
+function mapFrameRect() { if (!mapRect) layoutMap(); return mapRect; }
+addEventListener('resize', () => { layoutMap(); planetChanged(); });
+onOpenArea(() => layoutMap());
+if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { layoutMap(); planetChanged(); }).observe($('timeline'));
 requestAnimationFrame(tick);
 
 // ── the timeline ──

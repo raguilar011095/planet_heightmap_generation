@@ -439,8 +439,12 @@ each checked in the browser.
   quarter of a second last time), the screen up two frames before the page is held; the terrain built again at another
   detail (not over a history being built). The card no longer says "A new world is starting" while a file opens, and
   says the finish's stages in words.
-- [ ] The degree ring's numerals on the globe, where the grid lines meet it, moving as the globe turns; the same gold
-  graticule frame with numerals on every map projection (batch 3).
+- [x] The graticule frame (`js/graticule-frame.js`, replacing `js/degree-ring.js`): the globe's gold ring with a tick
+  wherever a grid line meets the globe's edge and its degrees every 30°, turning with the globe; on the map, in every
+  projection, a gold frame along the outline (traced exactly; the orthographic's and azimuthal's circles by rays) with
+  ticks and degrees where the lines leave it, the view's edge as the frame when zoomed in (the map beyond matted in
+  `desk`), the degrees on the map itself for lines that meet at a pole or never reach the outline. The map fitted below
+  the layer tabs and above the hint or timeline, with room for the numerals. Generate, Import and Evolution.
 
 **The Studio**
 - [x] "Free and open source" raised above the buttons, in a gold tag.
@@ -474,4 +478,4 @@ each checked in the browser.
 - **2026-11-03:** R6, first part (ore families and the inventory), on `redesign-r6` (stacked on R5): PR #107.
 - **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`: PR #108.
 - **2026-11-03:** R9 built and checked (all but What's New, the sitemap and the release, which wait for the owner), on `redesign-r9` (stacked on R7 and R8).
-- **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`: PR #121; batch 2 (Evolution's loading screens).
+- **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`: PR #121; batch 2 (Evolution's loading screens); batch 3 (the graticule frame).

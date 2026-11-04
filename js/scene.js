@@ -41,12 +41,13 @@ export function fitView() {
     updateMapCameraFrustum();
 }
 
-// (the planet's width for the open area: the map whole, or the globe at home zoom with its degree ring)
+// (the planet's width for the open area: the map whole with its frame's numerals, or the globe at home zoom with its
+// ring and numerals)
 let mapShown = false;
 function planetWidth() {
-    if (mapShown) return 2 * mapAspect / mapUnit();
+    if (mapShown) return 2 * mapAspect / mapUnit() + 2 * MAP_MARGIN_PX();
     const fov = 2 * Math.atan(half25 / Math.min(1, (innerWidth - openLeft()) / innerHeight));
-    return 1.2 * Math.tan(Math.asin(1 / HOME)) / Math.tan(fov / 2) * innerHeight;
+    return 1.3 * Math.tan(Math.asin(1 / HOME)) / Math.tan(fov / 2) * innerHeight;
 }
 /** The view shows the map (true) or the globe: the planet's place follows its width. */
 export function showingMap(on) { mapShown = !!on; planetChanged(); }
@@ -140,19 +141,43 @@ mapCamera.position.set(0, 0, 5);
 mapCamera.lookAt(0, 0, 0);
 let mapAspect = 2;
 
-/** Map units a pixel at zoom 1: the map fitted to the open area beside the panel (js/open-area.js). */
-function mapUnit() {
-    const w = innerWidth - openLeft();
-    return w / innerHeight > mapAspect ? 2.3 / innerHeight : 2.3 * mapAspect / w;
+// (room round the map for its frame's ticks and numerals, js/graticule-frame.js; less on a phone)
+const narrowView = matchMedia('(max-width: 768px)');
+export const MAP_MARGIN_PX = () => (narrowView.matches ? 22 : 56);
+/** The masthead's height (--nav-h), the map kept below it. */
+export function navHeight() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56; }
+/** The band the map is fitted in at zoom 1: below the masthead and the layer tabs, above the hint, beside the panel,
+ *  with room all round for its frame's numerals. */
+function mapBand() {
+    const m = MAP_MARGIN_PX();
+    let top = navHeight() + 22, bottom = 22;
+    if (!narrowView.matches) {
+        const row = document.querySelector('#layerBar .layer-row')?.getBoundingClientRect(), info = document.getElementById('info')?.getBoundingClientRect();
+        if (row?.height) top = Math.max(top, row.bottom + 30);
+        if (info?.height) bottom = Math.max(bottom, innerHeight - info.top + 24);
+    }
+    return { w: Math.max(1, innerWidth - openLeft() - 2 * m), h: Math.max(1, innerHeight - top - bottom), drop: (top - bottom) / 2, top, bottom, m };
+}
+/** The rectangle the map's frame keeps within (client px), zoomed in: the band, a little wider, its numerals outside
+ *  (measured when the map was last fitted, not each frame). */
+let lastBand = null;
+export function mapFrameRect() {
+    const { top, bottom, m } = lastBand ?? mapBand(), side = Math.max(16, m - 4);
+    return { l: openLeft() + side, t: top - 8, r: innerWidth - side, b: innerHeight - bottom + 8 };
+}
+/** Map units a pixel at zoom 1: the map fitted to that band (js/open-area.js for the panel). */
+function mapUnit(band = mapBand()) {
+    const { w, h } = band;
+    return Math.max(2 * mapAspect / w, 2 / h);
 }
 
-// (fitted to the open area; the frustum spans the whole window and the picture moves right by the open area's shift —
+// (the frustum spans the whole window; the picture moves right by the open area's shift and down by half the masthead —
 // so a drag still pans one to one, and the zoom centres where the map sits)
 export function updateMapCameraFrustum() {
-    const unit = mapUnit(), halfW = unit * innerWidth / 2, halfH = unit * innerHeight / 2, shift = openShift();
+    const band = lastBand = mapBand(), unit = mapUnit(band), halfW = unit * innerWidth / 2, halfH = unit * innerHeight / 2, shift = openShift(), drop = band.drop;
     mapCamera.left = -halfW; mapCamera.right = halfW;
     mapCamera.top = halfH; mapCamera.bottom = -halfH;
-    if (shift) mapCamera.setViewOffset(innerWidth, innerHeight, -shift, 0, innerWidth, innerHeight);
+    if (shift || drop) mapCamera.setViewOffset(innerWidth, innerHeight, -shift, -drop, innerWidth, innerHeight);
     else mapCamera.clearViewOffset();
     mapCamera.updateProjectionMatrix();
 }
@@ -160,10 +185,15 @@ export function updateMapCameraFrustum() {
 /** What the map camera shows, in map units: [x0, x1, y0, y1] (the whole window, zoomed, panned and moved off centre). */
 export function mapVisible() {
     const c = mapCamera, z = c.zoom, v = c.view;
-    let l = c.left / z, r = c.right / z;
-    if (v?.enabled) { const s = (r - l) / v.fullWidth; l += s * v.offsetX; r = l + s * v.width; }
-    return [c.position.x + l, c.position.x + r, c.position.y + c.bottom / z, c.position.y + c.top / z];
+    let l = c.left / z, r = c.right / z, t = c.top / z, b = c.bottom / z;
+    if (v?.enabled) {
+        const sw = (r - l) / v.fullWidth, sh = (t - b) / v.fullHeight;
+        l += sw * v.offsetX; r = l + sw * v.width; t -= sh * v.offsetY; b = t - sh * v.height;
+    }
+    return [c.position.x + l, c.position.x + r, c.position.y + b, c.position.y + t];
 }
+/** The map's width ÷ height (its projection's shape). */
+export function mapAspectNow() { return mapAspect; }
 planetWidthFrom(planetWidth);
 onOpenArea(() => fitView());
 fitView();

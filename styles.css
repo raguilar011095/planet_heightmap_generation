@@ -113,12 +113,21 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 .og-seg__opt:hover { color: var(--ink); }
 .og-link:hover { text-decoration: underline; }
 
-/* the degree ring round the globe at home zoom (js/degree-ring.js): gold, ticks every 5°, longer every 30° */
-.degree-ring { position: fixed; pointer-events: none; overflow: visible; transition: opacity 0.2s ease; }
-.degree-ring .ring-line { fill: none; stroke: var(--gold); stroke-width: 1.2px; vector-effect: non-scaling-stroke; }
-.degree-ring .tick { stroke: var(--gold); stroke-width: 1px; vector-effect: non-scaling-stroke; }
-.degree-ring .tick-long { stroke: var(--gold); stroke-width: 1.4px; vector-effect: non-scaling-stroke; }
-@media (prefers-reduced-motion: reduce) { .degree-ring { transition: none; } }
+/* the graticule frame (js/graticule-frame.js): the gold ring round the globe at home zoom, the gold frame round a map,
+   ticks where the grid lines meet them and their degrees beside; a map zoomed past the view matted in the stage's colour */
+.graticule-frame { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; overflow: visible; transition: opacity 0.2s ease; }
+.graticule-frame .gf-ring, .graticule-frame .gf-frame { fill: none; stroke: var(--gold); stroke-width: 1.2px; stroke-linejoin: round; }
+.graticule-frame .gf-tick { stroke: var(--gold); stroke-width: 1px; }
+.graticule-frame .gf-tick--long { stroke-width: 1.3px; }
+.graticule-frame .gf-mat { fill: var(--desk); fill-opacity: 0.92; }
+.graticule-frame .gf-num {
+    fill: var(--muted); font: 500 10.5px/1 var(--font-ui); letter-spacing: 0.02em; font-variant-numeric: lining-nums tabular-nums;
+    text-anchor: middle; dominant-baseline: central;
+}
+.graticule-frame.in-space .gf-num { fill: var(--map-label); fill-opacity: 0.72; }
+/* (a meridian's degrees along the equator, on the map itself: the map's label colours) */
+.graticule-frame .gf-num--on-map { fill: var(--map-label); fill-opacity: 1; stroke: var(--map-halo); stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; }
+@media (prefers-reduced-motion: reduce) { .graticule-frame { transition: none; } }
 
 /* ─── The masthead (docs/style-guide/components.md: Masthead, Logo, Tabs) ─── */
 :root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 36 px on phones) */
