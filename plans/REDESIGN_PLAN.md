@@ -450,7 +450,8 @@ each checked in the browser.
 - [x] "Free and open source" raised above the buttons, in a gold tag.
 - [x] "Three ways in" is now **Orogen tools** with a line; the hachure is gone (and from the guide), the space above it
   smaller.
-- [ ] A new Evolution icon: options at `v2/out/evolution-icons/` (not committed), the owner to choose.
+- [x] A new Evolution icon, the owner's pick of five ("i love th mountain!"): a range risen over a timeline, its thumb on
+  the moment — the history you scrub (`assets/brand/icons/evolution.svg`, the Studio's tool card, the style guide).
 - [x] Worlds to explore: the map from the eyebrow's top to the picker's foot, its name just below (narrower desktop
   windows trim the map's sides to fill that height; wider ones show it whole).
 
