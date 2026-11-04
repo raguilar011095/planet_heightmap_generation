@@ -128,6 +128,8 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 /* (a meridian's degrees along the equator, on the map itself: the map's label colours) */
 .graticule-frame .gf-num--on-map { fill: var(--map-label); fill-opacity: 1; stroke: var(--map-halo); stroke-width: 3px; paint-order: stroke; stroke-linejoin: round; }
 @media (prefers-reduced-motion: reduce) { .graticule-frame { transition: none; } }
+/* (not over the loading screen: on Generate and Import it comes first in the page, the frame after the canvas) */
+.build-overlay:not(.hidden) ~ .graticule-frame { visibility: hidden; }
 
 /* ─── The masthead (docs/style-guide/components.md: Masthead, Logo, Tabs) ─── */
 :root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 36 px on phones) */

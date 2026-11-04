@@ -39,6 +39,9 @@ export function createGraticuleView(canvas) {
                 return;
             }
             if (!state.planetMesh) { frame.hide(); return; }
+            // (the camera's matrices brought up to date first: the controls have moved it this frame, but its matrices
+            // are the last render's — projected through them, a fast spin left the ring trailing off to the side)
+            camera.updateMatrixWorld();
             const d = camera.position.distanceTo(ctrl.target), rot = state.planetMesh.rotation.y;
             const fade = Math.max(0, Math.min(1, (d - 1.9) / 0.7)), opacity = reduce.matches ? (fade > 0.5 ? 1 : 0) : fade;
             const [cx, cy] = client(0, 0, 0);

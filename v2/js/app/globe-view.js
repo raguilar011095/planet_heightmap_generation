@@ -554,6 +554,7 @@ void main() {
                 key: [this.map.projection, JSON.stringify(this.map.projOpts), this.map.centerLon, v.zoom, v.panX, v.panY, box.left, box.top, box.width, box.height].join('|') };
         }
         const cam = this.camera, d = cam.position.length(), q = new THREE.Vector3();
+        cam.updateMatrixWorld();                           // (this frame's camera, not the last render's: else a fast spin trails)
         const toScreen = (p) => { q.set(p[0], p[1], p[2]).project(cam); return [c.left + (q.x + 1) / 2 * c.width, c.top + (1 - q.y) / 2 * c.height]; };
         const [cx, cy] = toScreen([0, 0, 0]);
         return { kind: 'globe', cx, cy, d, cam: [cam.position.x, cam.position.y, cam.position.z], toScreen,

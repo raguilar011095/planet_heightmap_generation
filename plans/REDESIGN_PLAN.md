@@ -449,6 +449,9 @@ each checked in the browser.
   time"): one family at a time by the camera's latitude — the parallels near the equator (still as the globe spins),
   the meridians over a pole (a turning dial), a smoothstep crossfade from 35° to 55°; and redrawn when the globe spins
   under a camera straight over a pole (the owner: the graticules weren't moving there).
+- [x] The ring stays on the globe through a fast spin (the owner: "the whole ring runs off to the side"): the camera's
+  matrices brought up to this frame before the ring is placed (the controls move it before the render does). And no
+  ring over the loading screen.
 
 **The Studio**
 - [x] "Free and open source" raised above the buttons, in a gold tag.
