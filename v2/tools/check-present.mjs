@@ -287,9 +287,11 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
     // (owner, 2026-11-03: a land piece never deep, an ocean piece above the sea only where orogeny raised it — so the
     // coast and the shelf's edge follow the pieces' outlines)
     const h = G.heightKm, nR = h.length, { adjOffset, adjList } = mesh;
-    let pieces = 0, land = 0, deep = 0, oceanUp = 0, opened = 0, fore = 0, foreSea = 0;
+    let pieces = 0, land = 0, shelfSea = 0, deep = 0, oceanUp = 0, opened = 0, fore = 0, foreSea = 0;
     for (let q = 0; q < nR; q++) {
         pieces += regionLand[q]; land += h[q] > 0;
+        // (G3e: a stretched continent's shelf sea — the Java Sea — is continental crust drowned on purpose: counted with the land)
+        if (regionLand[q] && h[q] <= 0 && G.mask.shelf?.[G.mask.regionCell[q]]) shelfSea++;
         if (regionLand[q]) {
             // (a sea the crust opened, and its rim: the hold blends into it over a sim triangle)
             const c = G.mask.regionCell[q], sim = results[0].L.sim;
@@ -313,8 +315,10 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
     check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');
     // Land Coverage held (G6): the land as drawn against the pieces' share (the slider's) — less the fore-arcs drowned and
     // a little coastal lowland: within 3 points, or 6 % of it (a world mostly land has more active margins)
-    const drawn = land / nR, want = pieces / nR;
-    check(`${pl.name}: land as drawn ${(100 * drawn).toFixed(1)} %, the pieces' ${(100 * want).toFixed(1)} %`, Math.abs(drawn - want) < Math.max(0.03, 0.06 * want), 'within 3 points, or 6 % of the share');
+    // (G3e: with a stretched continent's shelf seas — Sundaland's — counted as the continent they are)
+    const drawn = (land + shelfSea) / nR, want = pieces / nR;
+    check(`${pl.name}: land as drawn ${(100 * land / nR).toFixed(1)} % (+ ${(100 * shelfSea / nR).toFixed(1)} % stretched continent under a shelf sea), the pieces' ${(100 * want).toFixed(1)} %`,
+        Math.abs(drawn - want) < Math.max(0.03, 0.06 * want), 'within 3 points, or 6 % of the share');
 }
 
 // ── G6d: detail that holds up close ──
@@ -373,6 +377,20 @@ section('G3d: arcs at sea mostly trail from land, along part of their trench');
     }
     check(`all: ${(100 * nearAll / Math.max(1, arcAll)).toFixed(0)} % of the arc crust at sea within 1000 km of land, along ${(100 * keptAll / Math.max(1, trenchAll)).toFixed(0)} % of the trenches`,
         nearAll >= 0.6 * arcAll && keptAll <= 0.7 * trenchAll, '≥ 60 % near land; ≤ 70 % of the trenches');
+}
+section('G3e: Indonesia — continents stretched into blocks and shelf seas, arcs meeting continents, microcontinents');
+{
+    let zonesAll = 0, collidedAll = 0, fragmentsAll = 0;
+    for (const { pl, G } of grounds) {
+        const subs = G.belts.fronts.filter(f => f.kind === 'subduction');
+        const zones = subs.filter(f => f.sunda > 0).length, cells = subs.reduce((s, f) => s + f.sunda, 0), deepC = subs.reduce((s, f) => s + f.sundaDeep, 0);
+        const collided = subs.reduce((s, f) => s + f.collided, 0), fragments = subs.reduce((s, f) => s + f.fragments, 0);
+        let shelf = 0; for (const v of G.belts.shelfSea) shelf += v;
+        zonesAll += zones; collidedAll += collided; fragmentsAll += fragments;
+        check(`${pl.name}: ${zones} stretched continents (${cells} sim cells of sea between the blocks, ${shelf} on their shelves, ${deepC} deep basins); ${collided} arc cells where a continent meets an arc; ${fragments} of microcontinent`,
+            zones <= PRESENT.sundaMax && shelf <= cells, `at most ${PRESENT.sundaMax} a planet; the shelf seas within them`);
+    }
+    check(`all: ${zonesAll} stretched continents, ${collidedAll} arc cells meeting a continent, ${fragmentsAll} of microcontinent`, zonesAll >= 3 && collidedAll > 0 && fragmentsAll > 0, 'each somewhere');
 }
 
 // ── G3: today's mountains ──

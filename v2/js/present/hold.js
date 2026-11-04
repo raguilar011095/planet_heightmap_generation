@@ -24,12 +24,14 @@ const softCeil = (h, c, s) => (h <= c - s ? h : c - s * Math.exp(-(h - c + s) / 
  * Per sim cell: where a land piece's crust opened a sea (ocean crust on a land piece: 1 in `opened`), and where orogeny
  * raised an ocean piece (island-arc crust, and every cell within volcanoReachKm of a volcano: 1 in `raised`).
  * @param {Uint8Array} crustLand  each sim cell's piece is land (as edited)
+ * @param {Uint8Array} [shelfSea]  G3e: the seas between a stretched continent's blocks on their shelves (present/belts.js):
+ *   not opened — held on the land pieces' floor, a shelf sea (the Java Sea), and counted with the sea, not the land
  */
-export function heldCells(frame, sim, crustLand, cfg = PRESENT) {
+export function heldCells(frame, sim, crustLand, cfg = PRESENT, shelfSea = null) {
     const n = frame.type.length, { adjOffset, adjList } = sim, opened = new Uint8Array(n), raised = new Uint8Array(n);
     let front = [];
     for (let c = 0; c < n; c++) {
-        if (crustLand[c]) { if (frame.type[c] === CrustType.OCEAN) opened[c] = 1; continue; }
+        if (crustLand[c]) { if (frame.type[c] === CrustType.OCEAN && !shelfSea?.[c]) opened[c] = 1; continue; }
         if (frame.type[c] === CrustType.ARC) raised[c] = 1;
         if (frame.volcType[c]) { raised[c] = 1; front.push(c); }
     }
@@ -39,19 +41,20 @@ export function heldCells(frame, sim, crustLand, cfg = PRESENT) {
         for (const c of front) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (!raised[nb] && !crustLand[nb]) { raised[nb] = 1; next.push(nb); } }
         front = next;
     }
-    return { opened, raised };
+    return { opened, raised, shelf: shelfSea ?? null };
 }
 
 /**
  * Holds a terrain surface to the pieces, in place.
  * @param {Float32Array} heightKm  the surface on Generate's mesh (km)
- * @param {{regionLand: Uint8Array, regionPlate: Int16Array, opened: Uint8Array, raised: Uint8Array}} m  regionLand: each
- *   region's piece is land (as edited); regionPlate: its plate; opened, raised: heldCells (per sim cell)
+ * @param {{regionLand: Uint8Array, regionPlate: Int16Array, opened: Uint8Array, raised: Uint8Array, shelf?: Uint8Array}} m
+ *   regionLand: each region's piece is land (as edited); regionPlate: its plate; opened, raised, shelf: heldCells (per
+ *   sim cell)
  * @param {{adjOffset, adjList, edgeKm: number}} mesh  Generate's mesh (its terrain mesh)
  * @param {{cells: Int32Array, weights: Float32Array}} S  each region's three sim cells and weights (sampleOnto)
  */
 export function holdToPieces(heightKm, m, mesh, S, cfg = PRESENT) {
-    const { regionLand, regionPlate, opened, raised } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
+    const { regionLand, regionPlate, opened, raised, shelf = null } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
     const read = (field, r) => { const o = 3 * r; return S.weights[o] * field[S.cells[o]] + S.weights[o + 1] * field[S.cells[o + 1]] + S.weights[o + 2] * field[S.cells[o + 2]]; };
     // the fore-arc: a land piece's edge where another plate's ocean piece meets it (an active margin, present/plates.js
     // G1c), drowned over foreArcDrownKm so the trench lies offshore — on the pieces' own outline, at any Detail
@@ -82,10 +85,16 @@ export function holdToPieces(heightKm, m, mesh, S, cfg = PRESENT) {
         const h = heightKm[r];
         if (foreArc[r]) { heightKm[r] = Math.max(cfg.foreArcFloorKm, Math.min(cfg.foreArcDepthKm, h)); pieces++; flooded++; continue; }
         if (regionLand[r]) {
-            pieces++;
             const o = read(opened, r);                    // (1 inside a sea the crust opened, 0 outside, blended between)
-            const held = o * h + (1 - o) * softFloor(h, cfg.landFloorKm, soft);
+            // (a stretched continent's shelf sea: held on a deeper, softer floor — shallow by its islands, deepening a little
+            // away from them, as the Java Sea does)
+            const sh = shelf ? read(shelf, r) : 0;
+            const floor = sh > 0 ? sh * softFloor(h, cfg.shelfSeaFloorKm, cfg.shelfSeaSoftKm) + (1 - sh) * softFloor(h, cfg.landFloorKm, soft) : softFloor(h, cfg.landFloorKm, soft);
+            const held = o * h + (1 - o) * floor;
             heightKm[r] = held;
+            // (a stretched continent's shelf sea is sea — Land Coverage counts the land beside it, and never lifts it)
+            if (sh > 0.3) continue;
+            pieces++;
             if (held <= 0) { flooded++; if (o < 0.5) fringe.push(r); }
             continue;
         }

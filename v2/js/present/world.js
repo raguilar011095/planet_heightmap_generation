@@ -74,7 +74,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
     // (G2c: the ground held to the pieces on Generate's mesh — each region by its own piece, as edited)
-    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand) } : null;
+    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand, PRESENT, belts.shelfSea) } : null;
     // (G3b: the grain — how far each place lies from a closing front, today's or the past's)
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });

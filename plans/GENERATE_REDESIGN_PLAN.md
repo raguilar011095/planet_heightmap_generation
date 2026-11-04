@@ -792,6 +792,30 @@ The phase gate applies as always. One phase at a time. Each has:
   - **Measured:** land median 0.41–0.45 km on the default planets (0.34–0.36 before), 20–23 % above 1 km (13–15 %:
     Earth's ~25 %); peaks 5.7–7.9 km; walled coasts 41–47 % (35–46 % before), the supercontinent's 66 % (58 %).
 
+### G3e: Indonesia (owner, 2026-11-04)
+- **The owner's words:** "lets figure out a way for indonesia".
+- **Built 2026-11-04** (`present/belts.js`, `hold.js`); `check-present.mjs` 253/253. Three of the settings that make
+  Indonesia and the Philippines:
+  - **A continent stretched behind its arc** (Sundaland; the Aegean). A split margin's back-arc (G3c) either spreads
+    into one sea floored by new ocean crust (Japan), or, with a 30 % chance and at most 2 a planet, stretches the
+    continent behind the arc and breaks it.
+    - 600–1200 km behind the arc, blocks stand where a noise about 750 km across is high (~38 % of it; more toward the
+      zone's far edge, back to the mainland). These are the Borneos and Sulawesis.
+    - Between the blocks lies young sea floor. In the Frame it is sea, so Evolution's terrain draws its coasts, and the
+      arc in front gets straits: a chain of long islands where a noise along it is in its lowest 22 % (Sumatra, Java,
+      Bali).
+    - On Generate's mesh those seas are held on a shelf (above −0.25 km, softly: shallow by the islands, a little deeper
+      away from them, as the Java Sea is). Where a sea lies farther than 260 km from every block, a deep basin opens (the
+      Banda, Celebes, Sulu seas).
+    - Land Coverage counts these shelf seas with the land (drowned continent); the land drawn falls by ~0.5 point.
+  - **Microcontinents:** a spread back-arc sea leaves slivers of the continent in it (patches ~350 km, ~14 % of the sea),
+    like Corsica and Sardinia or eastern Indonesia's slivers.
+  - **Arcs meeting continents:** an ocean arc whose diving plate brings a continent within 700 km of its trench (fully
+    within 250) stands along all of it there, mature, 60 % wider and raised by twice the convergence (Timor before
+    Australia, Taiwan, New Guinea's north).
+  - **Measured on the 6 planets:** 11 stretched continents (0.2–0.7 % of the globe under their shelf seas; Earth's Sunda
+    shelf ~0.4 %), 50 arc cells meeting a continent, 17 microcontinent cells.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

@@ -478,7 +478,8 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    fronts — the grain), warp (the pieces' outlines bent by today's plates' drag and a slow warp, and the
                    smaller terranes within each piece), past (the continents' past replayed along the bent pieces: craton
                    cores, docking rings, welds, the terranes' seams), belts (today's belts where plates meet: Andean or
-                   split-off arcs along continents, arcs at sea near land, collisions, rifts), plumes (hotspot tracks,
+                   split-off arcs along continents — some with the continent behind stretched into blocks and shelf seas,
+                   an Indonesia — arcs at sea near land, collisions, rifts), plumes (hotspot tracks,
                    flood basalts, the far field), knobs (the sculpting sliders), seafloor (each ocean cell's age from its
                    ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame, identity
                    rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh)
