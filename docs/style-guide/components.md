@@ -341,7 +341,7 @@ The globe as Orogen draws it by default: atlas light from the upper left, gentle
 **Consumer provides:** the world’s picture (an orthographic disc), the light mask (`light-atlas.webp` in Maps, multiplied over it), and any pins inside `og-globe__marks` (positions in % of the disc). Size it with `--globe`.
 
 - Stage: `desk` (it follows the page theme: paper by day, navy at night). `stage-space` with stars is the optional cinematic look, never the default.
-- Ring: `gold`, 300 / 680 of the frame, a tick where each grid line meets the globe’s edge and its degrees every 30° beside it, turning with the globe; it fades as you zoom in. (The Studio’s still globe: ticks every 5°, numerals every 30°.)
+- Ring: `gold`, 300 / 680 of the frame, a tick where each grid line meets the globe’s edge and its degrees every 30° beside it (the parallels from near the equator, the meridians from over a pole); it fades as you zoom in. (The Studio’s still globe: ticks every 5°, numerals every 30°.)
 - Air: `map-air`, thin. No heavy glow on paper.
 - The globe is the star: nothing sits on it but pins, the place marker and names.
 - In the app this is the Three.js scene; these are the defaults it should reach (see Maps and the globe).

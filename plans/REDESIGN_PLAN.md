@@ -445,6 +445,10 @@ each checked in the browser.
   ticks and degrees where the lines leave it, the view's edge as the frame when zoomed in (the map beyond matted in
   `desk`), the degrees on the map itself for lines that meet at a pole or never reach the outline. The map fitted below
   the layer tabs and above the hint or timeline, with room for the numerals. Generate, Import and Evolution.
+- [x] The globe's marks calmer (the owner: "correct, but look crazy… disorienting moving everything around all the
+  time"): one family at a time by the camera's latitude — the parallels near the equator (still as the globe spins),
+  the meridians over a pole (a turning dial), a smoothstep crossfade from 35° to 55°; and redrawn when the globe spins
+  under a camera straight over a pole (the owner: the graticules weren't moving there).
 
 **The Studio**
 - [x] "Free and open source" raised above the buttons, in a gold tag.

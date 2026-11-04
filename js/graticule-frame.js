@@ -4,8 +4,10 @@
 //
 // - The globe: a gold ring just outside its rim, at home zoom (it fades as you zoom in, and goes in the map view). A tick
 //   wherever a grid line meets the globe's edge (its limb, as the camera sees it), carried straight out to the ring, and
-//   the line's degrees beside it: the meridians where they run over the edge (°E, °W), the parallels (°N, °S). They move
-//   round the ring as the globe turns.
+//   the line's degrees beside it — one family at a time, so it stays calm (the owner: "correct, but look crazy… It is
+//   disorienting moving everything around all the time"): seen from near the equator, the parallels (°N, °S), which stay
+//   put as the globe spins; seen from over a pole, the meridians (°E, °W), round the ring like a dial. Tilting toward a
+//   pole crossfades from one to the other (between 35° and 55° of the camera's latitude).
 // - A map: a gold frame along the map's own outline (a rectangle, an ellipse, a circle, two discs…), or along the edge of
 //   the view where the map runs past it when zoomed in — then the map beyond is matted out in the stage's colour, an
 //   atlas plate's window. A tick and the degrees wherever a grid line leaves the frame. Where the meridians all meet at a
@@ -125,14 +127,21 @@ export function createGraticuleFrame(canvas) {
         globe({ cx, cy, r, opacity, cam, toScreen, local, spacing, space = false }) {
             lastMapKey = null;
             if (!(opacity > 0) || !(r > 0)) { lastGlobeKey = null; return draw('', 0); }
-            const gk = `${cam.map(v => v.toFixed(5))}|${r1(cx)}|${r1(cy)}|${r1(r)}|${spacing}|${opacity.toFixed(2)}|${space}|${innerWidth}x${innerHeight}`;
+            // (redrawn when the view moves — the camera's place over the planet, and how the planet sits on screen: seen
+            // straight down a pole, a spin moves no camera, only the picture turning about its middle)
+            const n0 = toScreen(local(0, PI / 2)), e0 = toScreen(local(0, 0));
+            const gk = `${cam.map(v => v.toFixed(5))}|${r1(n0[0])},${r1(n0[1])}|${r1(e0[0])},${r1(e0[1])}|${r1(cx)}|${r1(cy)}|${r1(r)}|${spacing}|${opacity.toFixed(2)}|${space}|${innerWidth}x${innerHeight}`;
             if (gk === lastGlobeKey) return;
             lastGlobeKey = gk;
             const d = Math.hypot(cam[0], cam[1], cam[2]), c = cam.map(v => v / d), k = 1 / d;
             const f = (p) => p[0] * c[0] + p[1] * c[1] + p[2] * c[2] - k;
             const step = Math.max(5, spacing), R = r * 1.075, hits = [];
+            // (which family shows: by the camera's latitude over the planet — the parallels near the equator, the
+            // meridians over a pole, crossfading between)
+            const n = local(0, PI / 2), camLat = Math.abs(Math.asin(Math.max(-1, Math.min(1, c[0] * n[0] + c[1] * n[1] + c[2] * n[2])))) / D;
+            const t = Math.max(0, Math.min(1, (camLat - 35) / 20)), weight = { lon: t * t * (3 - 2 * t), lat: 1 - t * t * (3 - 2 * t) };
             // the meridians where they run over the edge (not at the poles, where they all meet)
-            for (let lon = -180; lon < 180 - 1e-6; lon += step) {
+            if (weight.lon > 0.01) for (let lon = -180; lon < 180 - 1e-6; lon += step) {
                 let pa = local(lon * D, -88 * D), fa = f(pa);
                 for (let lat = -87; lat <= 88; lat += 1) {
                     const pb = local(lon * D, lat * D), fb = f(pb);
@@ -141,7 +150,7 @@ export function createGraticuleFrame(canvas) {
                 }
             }
             // the parallels where they run over it
-            for (let lat = -90 + step; lat < 90 - 1e-6; lat += step) {
+            if (weight.lat > 0.01) for (let lat = -90 + step; lat < 90 - 1e-6; lat += step) {
                 let pa = local(-PI, lat * D), fa = f(pa);
                 for (let lon = -179; lon <= 180; lon += 1) {
                     const pb = local(lon * D, lat * D), fb = f(pb);
@@ -149,19 +158,20 @@ export function createGraticuleFrame(canvas) {
                     pa = pb; fa = fb;
                 }
             }
-            let ticks = '', labels = [];
+            let ticks = '';
+            const labels = { lon: [], lat: [] }, op = (w) => (w < 0.99 ? ` opacity="${w.toFixed(2)}"` : '');
             for (const h of hits) {
                 const s = toScreen(h.p), a = Math.atan2(s[1] - cy, s[0] - cx), ca = Math.cos(a), sa = Math.sin(a);
                 const lab = labelled(h.deg, spacing), len = lab ? 10 : 6;
-                ticks += `<line class="gf-tick${lab ? ' gf-tick--long' : ''}" x1="${r1(cx + R * ca)}" y1="${r1(cy + R * sa)}" x2="${r1(cx + (R + len) * ca)}" y2="${r1(cy + (R + len) * sa)}"/>`;
+                ticks += `<line class="gf-tick${lab ? ' gf-tick--long' : ''}"${op(weight[h.kind])} x1="${r1(cx + R * ca)}" y1="${r1(cy + R * sa)}" x2="${r1(cx + (R + len) * ca)}" y2="${r1(cy + (R + len) * sa)}"/>`;
                 if (lab) {
                     const text = h.kind === 'lon' ? lonText(h.deg) : latText(h.deg), x = cx + (R + 22) * ca, y = cy + (R + 22) * sa;
-                    labels.push({ text, x, y, rank: rank(h.deg), box: boxOf(text, x, y) });
+                    labels[h.kind].push({ text, x, y, rank: rank(h.deg), box: boxOf(text, x, y) });
                 }
             }
-            labels = place(labels);
+            // (each family placed on its own: while they crossfade, one doesn't push the other's numerals out)
             const html = `<circle class="gf-ring" cx="${r1(cx)}" cy="${r1(cy)}" r="${r1(R)}"/>${ticks}` +
-                labels.map(l => `<text class="gf-num" x="${r1(l.x)}" y="${r1(l.y)}">${l.text}</text>`).join('');
+                ['lat', 'lon'].map(kind => place(labels[kind]).map(l => `<text class="gf-num"${op(weight[kind])} x="${r1(l.x)}" y="${r1(l.y)}">${l.text}</text>`).join('')).join('');
             draw(html, opacity, space);
         },
 
