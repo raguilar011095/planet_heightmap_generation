@@ -93,7 +93,7 @@ export function holdToPieces(heightKm, m, mesh, S, cfg = PRESENT) {
             const held = o * h + (1 - o) * floor;
             heightKm[r] = held;
             // (a stretched continent's shelf sea is sea — Land Coverage counts the land beside it, and never lifts it)
-            if (sh > 0.3) continue;
+            if (sh > 0.3 || m.fitShelf?.[r]) continue;      // (G5b: nor a fitting coast's edge drowned to interlock)
             pieces++;
             if (held <= 0) { flooded++; if (o < 0.5) fringe.push(r); }
             continue;

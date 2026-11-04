@@ -434,6 +434,55 @@ function buildPlatesWith(L, cfg, forced) {
             splitPiece[q] = 1;
         }
     }
+    // ── G5b (owner, 2026-11-04: "create more of an illusion that some of these continents would have fit together like a
+    // puzzle in the past"): two continents on plates that border each other at sea and part there were one, and the ocean
+    // between them opened from a ridge down its middle — so the ridge runs there, midway between the two coasts (the
+    // Mid-Atlantic Ridge mirrors both): each ocean cell of the two plates goes to the plate of the nearer coast, as the
+    // narrow sea's cells are split above, and the floor's ages (present/seafloor.js) stripe parallel to both coasts ──
+    const conjugates = [];
+    {
+        const po = (c) => (override[c] >= 0 ? override[c] : Math.max(0, piecePlate[cellP[c]]));
+        const meet = new Map();
+        for (let c = 0; c < n; c++) {
+            const a = po(c);
+            if (cellLand[c] || a >= U) continue;
+            for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+                const nb = adjList[k], b = po(nb);
+                if (cellLand[nb] || b >= U || b <= a || units[a].continent === units[b].continent) continue;
+                const pc = at(xyz, c), pn = at(xyz, nb), m = unit([pc[0] + pn[0], pc[1] + pn[1], pc[2] + pn[2]]);
+                const d0 = [pn[0] - pc[0], pn[1] - pc[1], pn[2] - pc[2]], dm = dot(d0, m), d = unit([d0[0] - dm * m[0], d0[1] - dm * m[1], d0[2] - dm * m[2]]);
+                const wa = plates[a].euler, wb = plates[b].euler, rel = cross([wb[0] - wa[0], wb[1] - wa[1], wb[2] - wa[2]], m);
+                const open = dot(rel, d), slip = norm([rel[0] - open * d[0], rel[1] - open * d[1], rel[2] - open * d[2]]);
+                const key = a * 64 + b, s = meet.get(key) ?? [0, 0, 0];
+                s[0] += open; s[1] += slip; s[2]++;
+                meet.set(key, s);
+            }
+        }
+        for (const [key, [o, sl, cnt]] of [...meet.entries()].sort((x, y) => x[0] - y[0])) {
+            const open = o / cnt, slip = sl / cnt;
+            if (cnt >= cfg.fitMinEdges && open * R > cfg.minRateCmYr * 10 && open >= cfg.transformRatio * slip) conjugates.push({ a: Math.floor(key / 64), b: key % 64 });
+        }
+        const sd = new Float64Array(n), lab = new Int16Array(n), heap = new MinHeap(1024);
+        for (const { a, b } of conjugates) {
+            sd.fill(Infinity); lab.fill(-1);
+            for (let c = 0; c < n; c++) { const p = po(c); if (cellLand[c] && (p === a || p === b)) { sd[c] = 0; lab[c] = p; heap.push(0, c); } }
+            while (heap.size) {
+                const c = heap.pop(), dc = heap.lastKey;
+                if (dc > sd[c]) continue;
+                for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) {
+                    const nb = adjList[k];
+                    if (cellLand[nb]) continue;
+                    const p = po(nb);
+                    if (p !== a && p !== b) continue;
+                    const nd = dc + gcKm(at(xyz, c), at(xyz, nb));
+                    if (nd < sd[nb] && nd <= cfg.fitBasinKm) { sd[nb] = nd; lab[nb] = lab[c]; heap.push(nd, nb); }
+                }
+            }
+            for (let c = 0; c < n; c++) if (!cellLand[c] && lab[c] >= 0 && lab[c] !== po(c)) { override[c] = lab[c]; splitPiece[cellP[c]] = 1; }
+        }
+        // (every piece of a plate the split touched keeps its plate on its other cells)
+        if (conjugates.length) for (let c = 0; c < n; c++) if (splitPiece[cellP[c]] && override[c] < 0) override[c] = Math.max(0, piecePlate[cellP[c]]);
+    }
     // out at sea, far from any coast, the edge between two plates is smoothed: the pieces' outlines wiggle a few hundred
     // km across, and a trench and its island arc should sweep in arcs (the Plates tab still draws the pieces' own
     // outlines; within ~seaSmoothKm of land, where an active margin runs along the coast, the edge stays on them)
@@ -571,7 +620,7 @@ function buildPlatesWith(L, cfg, forced) {
         return plates;
     }
 
-    return { M: NPk, units: U, continents, cellPlate: plateOf, piecePlate, splitPiece, plates, graph: G, land, cellLand, oceanSeeds };
+    return { M: NPk, units: U, continents, cellPlate: plateOf, piecePlate, splitPiece, plates, graph: G, land, cellLand, oceanSeeds, conjugates };
 }
 
 /** Distance in km from the cells flagged in `src` (a plain Dijkstra over the mesh). */

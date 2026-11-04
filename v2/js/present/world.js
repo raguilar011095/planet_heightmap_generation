@@ -20,6 +20,7 @@ import { heldCells, holdToPieces } from './hold.js';
 import { pieceSeams, sagSeams, frontDistance } from './seams.js';
 import { bentPieces } from './warp.js';
 import { cutRifts } from './rifts.js';
+import { continentFits, interlockCoasts } from './fit.js';
 import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 
 const tMeshes = new WeakMap();
@@ -59,8 +60,10 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     // (G3b: the inner seams — where two land pieces of one plate meet — replayed with the past, or sagged)
     // (G4c: the pieces' outlines bent — by today's plates' drag and a slow warp — and the smaller terranes within them)
     const bent = bentPieces(L, P, B, land, crustLand);
+    // (G5b: the continents that fit across their ocean, and the rotation that closes it)
+    const fits = continentFits(L, P, land);
     const seams = pieceSeams(L, P, land, crustLand, PRESENT, bent.wp);
-    const past = presentPast(L, land, crust, config, PRESENT, seams.events, bent);
+    const past = presentPast(L, land, crust, config, PRESENT, seams.events, { ...bent, fits });
     past.bent = bent;
     sagSeams(L, land, crust, seams.sags);
     past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
@@ -75,7 +78,9 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frame = presentFrame(L, P, B, land, sea, belts.crust);
     ms.frame = clock() - t0; t0 = clock();
     // (G2c: the ground held to the pieces on Generate's mesh — each region by its own piece, as edited)
-    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand, PRESENT, belts.shelfSea), rift: belts.rift } : null;
+    const mask = o.regionLand ? { regionLand: o.regionLand, regionCell: o.regionCell, regionPlate: o.regionPlate ?? null, ...heldCells(frame, L.sim, crustLand, PRESENT, belts.shelfSea), rift: belts.rift,
+        fit: fits.pairs.some(p => p.ok) ? { pairs: fits.pairs.map(p => ({ R: p.R, Rinv: p.Rinv, Rh: p.Rh, Rhinv: p.Rhinv, massA: p.massA, massB: p.massB })), side: fits.side, mass: fits.mass } : null, seed: o.seed } : null;
+    belts.fits = fits;
     // (G3b: the grain — how far each place lies from a closing front, today's or the past's)
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
@@ -119,6 +124,8 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
     // (G3f: the rift valleys cut, then the ground held to the pieces)
     if (mask?.rift) cutRifts(heightKm, mask.rift, S);
+    // (G5b: the coasts of the continents that fit, made to interlock)
+    if (mask?.fit) mask.fitShelf = interlockCoasts(heightKm, mask, tMesh);
     if (mask) holdToPieces(heightKm, mask, tMesh, S);
     ms.relief = clock() - t0;
     if (!carveIn) return { heightKm, ms };

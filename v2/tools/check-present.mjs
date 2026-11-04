@@ -12,6 +12,7 @@ import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentSynthesize } from '../js/present/world.js';
+import { apply as rotateBy } from '../js/present/fit.js';
 import { addFineRelief } from '../js/present/relief.js';
 import { synthesizeTerrain } from '../js/terrain/synthesize.js';
 import { terrainConfig } from '../js/terrain/terrain-config.js';
@@ -291,7 +292,7 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
     for (let q = 0; q < nR; q++) {
         pieces += regionLand[q]; land += h[q] > 0;
         // (G3e: a stretched continent's shelf sea — the Java Sea — is continental crust drowned on purpose: counted with the land)
-        if (regionLand[q] && h[q] <= 0 && G.mask.shelf?.[G.mask.regionCell[q]]) shelfSea++;
+        if (regionLand[q] && h[q] <= 0 && (G.mask.shelf?.[G.mask.regionCell[q]] || G.mask.fitShelf?.[q])) shelfSea++;   // (G5b: and a fitting coast's edge drowned to interlock)
         if (regionLand[q]) {
             // (a sea the crust opened, and its rim: the hold blends into it over a sim triangle)
             const c = G.mask.regionCell[q], sim = results[0].L.sim;
@@ -533,6 +534,44 @@ for (const { pl, G } of grounds) {
     const sea = rifts.reduce((s, f) => s + f.seaCells, 0), valley = rifts.reduce((s, f) => s + f.valley, 0);
     check(`${pl.name}: ${rifts.length} rifts (opened ${rifts.map(f => Math.round(f.openKm)).join(', ')} km): ${valley} valley cells, the floor ${n0 ? (s0 / n0).toFixed(2) : '–'} km under shoulders ${n1 ? (s1 / n1).toFixed(2) : '–'} km; ${sea} cells of rift sea`,
         !n0 || !n1 || s0 / n0 < s1 / n1 - 0.3, 'the valley ≥ 0.3 km below its flanks');
+}
+
+// ── G5b: continents that fit ──
+section('G5b: continents parting across their ocean fit — ridge down its middle, coasts that interlock, geology carried across');
+{
+    let pairsAll = 0, okAll = 0, beforeAll = 0, afterAll = 0;
+    for (const { pl, L, G, mesh } of grounds) {
+        const fits = G.belts.fits, h = G.heightKm, xyzR = renderXyz.get(mesh), tm = presentTerrainMesh(mesh, xyzR), rc = G.mask.regionCell;
+        const ok = fits.pairs.filter(p => p.ok);
+        pairsAll += fits.pairs.length; okAll += ok.length;
+        // the ridge between each fitting pair: how far from either coast (an Atlantic's lies midway)
+        const sim = L.sim, n = sim.numCells, dist = (src) => { const d = new Float64Array(n).fill(Infinity), q = []; for (const c of src) { d[c] = 0; q.push(c); } for (let i = 0; i < q.length; i++) { const c = q[i]; for (let k = sim.adjOffset[c]; k < sim.adjOffset[c + 1]; k++) { const nb = sim.adjList[k]; if (d[nb] === Infinity) { d[nb] = d[c] + sim.edgeKm; q.push(nb); } } } return d; };
+        let skew = 0, skewN = 0;
+        for (const pr of ok) {
+            const dA = dist(pr.facingA), dB = dist(pr.facingB);
+            for (let i = 0; i < G.B.count; i++) {
+                if (G.B.kind[i] !== Boundary.RIDGE) continue;
+                const pa = G.B.a[i], pb = G.B.b[i];
+                if (!((pa === pr.a && pb === pr.b) || (pa === pr.b && pb === pr.a))) continue;
+                const c = G.B.cellA[i], s = dA[c] + dB[c];
+                if (s > 0 && s < 1e4) { skew += Math.abs(dA[c] - dB[c]) / s; skewN++; }
+            }
+        }
+        // the coasts overlaid by each pair's rotation: B's land laid on A's before the drowning, and after
+        let before = 0, after = 0;
+        for (let q = 0; q < h.length; q++) {
+            const s = G.mask.fit?.side[rc[q]] ?? -1;
+            if (s < 0 || !(s & 1) || !G.mask.regionLand[q]) continue;
+            const pr = G.mask.fit.pairs[s >> 1], x = [tm.xyz[3 * q], tm.xyz[3 * q + 1], tm.xyz[3 * q + 2]], y = rotateBy(pr.R, x), r = tm.index.nearest(y[0], y[1], y[2]);
+            if (!G.mask.regionLand[r] || G.mask.fit.mass[rc[r]] !== pr.massA) continue;
+            before++; if (h[q] > 0 && h[r] > 0) after++;
+        }
+        beforeAll += before; afterAll += after;
+        const geo = G.belts.past.fit;
+        check(`${pl.name}: ${fits.pairs.length} pairs parting across their ocean, ${ok.length} fitting (misfit ${ok.map(p => Math.round(p.fitKm)).join(', ') || '–'} km); their ridge ${skewN ? (100 * skew / skewN).toFixed(0) : '–'} % off the midline; overlaid coasts overlapping ${before} → ${after} regions; ${geo.events} ranges and ${geo.shields} shield cells carried across, ${geo.arms} cells of failed arm`,
+            !skewN || skew / skewN < 0.3, 'the ridge near the midline (< 30 % off)');
+    }
+    check(`all: ${okAll} of ${pairsAll} pairs fit; their overlaid coasts' overlap ${beforeAll} → ${afterAll} regions`, okAll > 0 && afterAll < 0.35 * beforeAll, 'some fit; most of the overlap drowned to interlock');
 }
 
 // ── G5: plumes and the far field ──

@@ -862,6 +862,38 @@ The phase gate applies as always. One phase at a time. Each has:
     Sea, the Gulf of California). Before, any such rift opened a sea along its whole length, mid-continent.
   - **Measured:** valley floors 0.6–1.2 km under shoulders 1.8–2.6 km on the 6 planets; rift seas only toward coasts.
 
+### G5b: Continents that fit (owner, 2026-11-04)
+- **The owner's words:** "Do you think there is anything we can do to create more of an illusion that some of these
+  continents would have fit together like as puzzle in the past", then, of the five ideas proposed: "it all in 1 pr now".
+- **The limit:** the continents' outlines are the layout's (old planet codes keep them), and the coasts follow the pieces
+  (a land piece may drown, an ocean piece never rises).
+- **Built 2026-11-04** (`present/plates.js` conjugates, new `present/fit.js`, `past.js`, `hold.js`);
+  `check-present.mjs` 273/273.
+  - **The pairs:** two continent plates bordering each other at sea over ≥ 6 sim edges and parting there (as a ridge
+    is classed). 2–3 per default planet, 6 on the land world, none on the supercontinent.
+  - **An Atlantic between them:** their ocean's cells each go to the plate of the nearer coast, within 6000 km (the
+    narrow-sea split, G1c, for a whole ocean). The ridge runs down its middle, mirroring both coasts (4–11 % off the
+    midline), and the floor's ages stripe parallel to both.
+  - **The closing rotation:** fitted to the facing coasts (within the narrowest gap + 1500 km of each other).
+    - B's coast centroid is carried onto A's, then refined by ICP (each point to the nearest of the other's; the best
+      rotation by Horn's quaternion method; 12 rounds).
+    - Never one that lays B's land over A's. A pair fitting no closer than 450 km (mean) keeps only its ridge: 14 of 17
+      fit, at 207–423 km.
+  - **Coasts that interlock:**
+    - The rotation is pushed 120 km further, so the coasts overlap more than they gap.
+    - Within 320 km of a facing coast, where one's land lies on the other's, one side is drowned to a shelf (−0.08 km).
+      Which side is chosen by a noise read at the join (the same point from either side, patches ~500 km), so the two
+      are cut as one line.
+    - 70 % of the overlap is resolved. Land Coverage counts these drowned edges with the land.
+  - **Geology carried across:**
+    - On a facing coast the past's ranges and shields run to within 60 km of the coast (300 and 400 elsewhere).
+    - Each docking or weld reaching within 500 km of one facing coast carries on from the matching point of the other,
+      along its own trend, 1000 km either side of the join (the Appalachians and the Caledonides).
+    - Each craton cell within 500 km of one facing coast makes the matching cell on the other craton (the São Francisco
+      and the Congo).
+    - One failed rift arm (500–1000 km) runs inland from a well-fitting point of the join, on one side (the Benue trough).
+  - Scratch diagnostic `v2/out/g5b-recon.mjs <seed>` draws each pair with its ocean closed.
+
 ### G7: Add detail parity
 - **Build:** the finish on Generate worlds: rivers and lakes, the ice age, sand seas, the zoom detail, Satellite (with
   clouds), Geology and Food, and their export rows. Automatic or a button (question 3). Phones up to 640K, as in

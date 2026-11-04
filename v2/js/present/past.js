@@ -27,6 +27,10 @@ import { PRESENT } from './present-config.js';
 const R = 6371;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
 const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
+const crossV = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const unitV = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
+const rotate = (M, p) => [M[0] * p[0] + M[1] * p[1] + M[2] * p[2], M[3] * p[0] + M[4] * p[1] + M[5] * p[2], M[6] * p[0] + M[7] * p[1] + M[8] * p[2]];
+const kmBetween = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
 
 /**
  * Replay the continents' past into the crust raster (before today's belts are written over it).
@@ -64,6 +68,10 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
     // each land cell's piece as bent (present/warp.js; a land cell carried out onto an ocean piece's edge the land
     // piece's beside it), and its terrane within the piece
     const tp = pieces.wp, sub = pieces.sub;
+    // (G5b: on a coast that fits another across its ocean — present/fit.js — the old ranges and shields run to the coast,
+    // cut by it as the ocean opened, not kept back from it)
+    const fits = pieces.fits ?? null, fitCoast = fits?.fitCoast ?? null;
+    const coastOk = (c, km) => toSea[c] >= (fitCoast && fitCoast[c] ? cfg.fitCoastKm : km);
     // how far in each land cell lies from the nearest edge between two pieces (km over the land)
     const atEdge = (c) => { if (!land[c]) return false; for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (land[nb] && tp[nb] !== tp[c]) return true; } return false; };
     const inFromEdge = dijkstra(sim, atEdge, (c) => land[c] === 1, kmOf);
@@ -124,7 +132,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
             ageOf.set(p, ring ? Math.max(cfg.youngestRingMyr, coreAge[pCore.get(p)] - ring * ringStep * (0.85 + 0.3 * rng())) : coreAge[pCore.get(p)]);
         }
         // the cratons: a core piece's interior, cratonRimKm in from its edges and cratonCoastKm from the sea
-        for (const p of coreP) for (const c of pcs.get(p).cells) if (inFromEdge[c] >= cfg.cratonRimKm && toSea[c] >= cfg.cratonCoastKm) crust.type[c] = CrustType.CRATON;
+        for (const p of coreP) for (const c of pcs.get(p).cells) if (inFromEdge[c] >= cfg.cratonRimKm && coastOk(c, cfg.cratonCoastKm)) crust.type[c] = CrustType.CRATON;
         for (const p of list) {
             const id = nextTerrane++;
             for (const c of pcs.get(p).cells) { terrane[c] = id; coreOf[c] = pCore.get(p) ?? -1; ringOf[c] = ringOfP.get(p); }
@@ -137,7 +145,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
             if (!pDist.has(p) || coreP.includes(p)) continue;
             const front = [];
             for (const c of pcs.get(p).cells) {
-                if (toSea[c] < cfg.pastCoastKm) continue;
+                if (!coastOk(c, cfg.pastCoastKm)) continue;
                 for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
                     const nb = adjList[j], q = tp[nb];
                     if (inMass(nb) && q !== p && q >= 0 && pCore.get(q) === pCore.get(p) && (pDist.get(q) ?? Infinity) < pDist.get(p)) { front.push(c); break; }
@@ -157,7 +165,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         for (const p of list) {
             const seams = new Map();
             for (const c of pcs.get(p).cells) {
-                if (toSea[c] < cfg.pastCoastKm || crust.type[c] === CrustType.CRATON) continue;
+                if (!coastOk(c, cfg.pastCoastKm) || crust.type[c] === CrustType.CRATON) continue;
                 for (let j = adjOffset[c]; j < adjOffset[c + 1]; j++) {
                     const nb = adjList[j];
                     if (tp[nb] !== p || sub[nb] === sub[c]) continue;
@@ -199,7 +207,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
             const plateau = age < cfg.plateauBelowMyr;
             const big = weights[i0] >= weights[i1] ? i0 : i1;
             for (const side of [i0, i1]) {
-                const front = [...new Set(seam.filter(c => coreOf[c] === side && toSea[c] >= cfg.pastCoastKm))];
+                const front = [...new Set(seam.filter(c => coreOf[c] === side && coastOk(c, cfg.pastCoastKm)))];
                 if (front.length < 2) continue;
                 events.push({ age, kind: 'weld', type: plateau ? OrogenyType.HIMALAYAN : OrogenyType.URAL,
                     side: plateau ? (side === big ? BeltSide.UPPER : BeltSide.LOWER) : BeltSide.NONE,
@@ -208,8 +216,53 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         });
     });
 
+    // ── G5b: across a fitting pair's ocean, what was one carries on — each old range or weld that reaches one facing coast
+    // carries on from the matching point of the other (the closing rotation's), along its own trend, into that continent
+    // (the Appalachians and the Caledonides); a shield cut by one coast carries on at the other's (the São Francisco and the
+    // Congo cratons); and a failed rift arm points inland from the join on one side (the Benue trough) ──
+    const fitEvents = [];
+    let fitShields = 0, fitArms = 0;
+    if (fits) fits.pairs.forEach((pr, pi) => {
+        if (!pr.ok) return;
+        for (const [from, to, M, kmFrom, kmTo] of [[pr.massB, pr.massA, pr.R, pr.kmB, pr.kmA], [pr.massA, pr.massB, pr.Rinv, pr.kmA, pr.kmB]]) {
+            for (const ev of events) {
+                if ((ev.kind !== 'ring' && ev.kind !== 'weld') || !(ev.strength > 0) || fits.mass[ev.front[0]] !== from) continue;
+                const nearC = ev.front.filter(c => kmFrom[c] <= cfg.fitGeoBandKm);
+                if (nearC.length < 2) continue;
+                const pts = nearC.map(c => rotate(M, at(sim.xyz, c)));
+                const front = continueAlong(pts, to, cfg.fitGeoExtendKm);
+                if (front.length >= 3) fitEvents.push({ ...ev, front, allow: (c) => fits.mass[c] === to, fit: true });
+            }
+            // the shields
+            for (let c = 0; c < n; c++) {
+                if (fits.mass[c] !== from || crust.type[c] !== CrustType.CRATON || !(kmFrom[c] <= cfg.fitGeoBandKm)) continue;
+                const p = rotate(M, at(sim.xyz, c)), s = sim.index.nearest(p[0], p[1], p[2]);
+                if (fits.mass[s] === to && kmTo[s] <= cfg.fitGeoBandKm && crust.type[s] !== CrustType.CRATON) { crust.type[s] = CrustType.CRATON; fitShields++; }
+            }
+        }
+        // the failed arm: from a point of A's facing coast where B's fits closest, inland on one side or the other
+        const r = makeRng((seed ^ 0xa4a7) + pi * 7919);
+        const good = pr.facingA.filter(c => { const p = rotate(pr.Rinv, at(sim.xyz, c)); for (const o of pr.facingB) if (kmBetween(p, at(sim.xyz, o)) < cfg.fitArmFitKm) return true; return false; });
+        if (!good.length) return;
+        const ca = good[Math.floor(r() * good.length)];
+        const onA = r() < 0.5, start = onA ? ca : sim.index.nearest(...rotate(pr.Rinv, at(sim.xyz, ca)));
+        const m = onA ? pr.massA : pr.massB, km = onA ? pr.kmA : pr.kmB;
+        if (fits.mass[start] !== m) return;
+        // (inland: down the gradient of the distance from its facing coast, step by step)
+        let c = start;
+        const L = cfg.fitArmKm[0] + (cfg.fitArmKm[1] - cfg.fitArmKm[0]) * r();
+        for (let step = 0; step < 200; step++) {
+            crust.flags[c] |= CrustFlag.FAILED_RIFT; fitArms++;
+            if (km[c] >= L) break;
+            let best = -1, bk = km[c];
+            for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (fits.mass[nb] === m && km[nb] > bk) { bk = km[nb]; best = nb; } }
+            if (best < 0) break;
+            c = best;
+        }
+    });
+
     // ── replay, oldest first, the land wearing down between events ──
-    events.push(...extra);
+    events.push(...fitEvents, ...extra);
     events.sort((a, b) => b.age - a.age || a.front[0] - b.front[0]);
     // (G4d: which kind of event last raised each cell — 1 an old orogeny, 2 a seam between two pieces of one plate (a
     // minor plate's) — for the checks' tiers; and the old collisions' pushes through their continents, the grain they left)
@@ -266,7 +319,24 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         crust.baseKm[c] = Math.max(0, b);
         crust.terrane[c] = terrane[c];
     }
-    return { events, terrane, seamKm, cores: coreCount, tier };
+    return { events, terrane, seamKm, cores: coreCount, tier, fit: { events: fitEvents.length, shields: fitShields, arms: fitArms } };
+
+    /** The cells of landmass `to` along the trend of points `pts` (a great circle through their middle), within `km` of it. */
+    function continueAlong(pts, to, km) {
+        const mid = unitV(pts.reduce((s, p) => [s[0] + p[0], s[1] + p[1], s[2] + p[2]], [0, 0, 0]));
+        const up = Math.abs(mid[2]) > 0.9 ? [1, 0, 0] : [0, 0, 1];
+        const e = unitV(crossV(up, mid)), f = crossV(mid, e);
+        let suu = 0, svv = 0, suv = 0;
+        for (const p of pts) { const u = dot(p, e), v = dot(p, f); suu += u * u; svv += v * v; suv += u * v; }
+        const th = 0.5 * Math.atan2(2 * suv, suu - svv), t = [e[0] * Math.cos(th) + f[0] * Math.sin(th), e[1] * Math.cos(th) + f[1] * Math.sin(th), e[2] * Math.cos(th) + f[2] * Math.sin(th)];
+        const out = new Set(), step = 0.5 * sim.edgeKm;
+        for (let s = -km; s <= km; s += step) {
+            const a = s / R, p = [mid[0] * Math.cos(a) + t[0] * Math.sin(a), mid[1] * Math.cos(a) + t[1] * Math.sin(a), mid[2] * Math.cos(a) + t[2] * Math.sin(a)];
+            const c = sim.index.nearest(p[0], p[1], p[2]);
+            if (fits.mass[c] === to && land[c]) out.add(c);
+        }
+        return [...out].sort((a, b) => a - b);
+    }
 
     /** Δt Myr of wear on every record the past laid down (each on its own clock: the belt's uplift, its crests, its root). */
     function wear(dt) {
