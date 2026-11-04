@@ -28,7 +28,7 @@ const softCeil = (h, c, s) => (h <= c - s ? h : c - s * Math.exp(-(h - c + s) / 
  *   not opened — held on the land pieces' floor, a shelf sea (the Java Sea), and counted with the sea, not the land
  */
 export function heldCells(frame, sim, crustLand, cfg = PRESENT, shelfSea = null) {
-    const n = frame.type.length, { adjOffset, adjList } = sim, opened = new Uint8Array(n), raised = new Uint8Array(n);
+    const n = frame.type.length, { adjOffset, adjList } = sim, opened = new Uint8Array(n), raised = new Uint8Array(n), trench = new Uint8Array(n);
     let front = [];
     for (let c = 0; c < n; c++) {
         if (crustLand[c]) { if (frame.type[c] === CrustType.OCEAN && !shelfSea?.[c]) opened[c] = 1; continue; }
@@ -41,7 +41,16 @@ export function heldCells(frame, sim, crustLand, cfg = PRESENT, shelfSea = null)
         for (const c of front) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (!raised[nb] && !crustLand[nb]) { raised[nb] = 1; next.push(nb); } }
         front = next;
     }
-    return { opened, raised, shelf: shelfSea ?? null };
+    // (the trenches' upper sides, and a couple of sim cells round them: where a land piece's edge is a fore-arc — not a
+    // coast where another plate's ocean meets it at a ridge, a transform or an inactive seam)
+    let tf = [];
+    for (let c = 0; c < n; c++) if (frame.trench[c]) { trench[c] = 1; tf.push(c); }
+    for (let r = 0; r < cfg.foreArcTrenchRings; r++) {
+        const next = [];
+        for (const c of tf) for (let k = adjOffset[c]; k < adjOffset[c + 1]; k++) { const nb = adjList[k]; if (!trench[nb]) { trench[nb] = 1; next.push(nb); } }
+        tf = next;
+    }
+    return { opened, raised, shelf: shelfSea ?? null, trench };
 }
 
 /**
@@ -54,14 +63,14 @@ export function heldCells(frame, sim, crustLand, cfg = PRESENT, shelfSea = null)
  * @param {{cells: Int32Array, weights: Float32Array}} S  each region's three sim cells and weights (sampleOnto)
  */
 export function holdToPieces(heightKm, m, mesh, S, cfg = PRESENT) {
-    const { regionLand, regionPlate, opened, raised, shelf = null } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
+    const { regionLand, regionPlate, opened, raised, shelf = null, trench = null } = m, { adjOffset, adjList } = mesh, n = heightKm.length;
     const read = (field, r) => { const o = 3 * r; return S.weights[o] * field[S.cells[o]] + S.weights[o + 1] * field[S.cells[o + 1]] + S.weights[o + 2] * field[S.cells[o + 2]]; };
     // the fore-arc: a land piece's edge where another plate's ocean piece meets it (an active margin, present/plates.js
     // G1c), drowned over foreArcDrownKm so the trench lies offshore — on the pieces' own outline, at any Detail
     const foreArc = new Uint8Array(n);
     let front = [];
     if (regionPlate) for (let r = 0; r < n; r++) {
-        if (!regionLand[r]) continue;
+        if (!regionLand[r] || (trench && !(read(trench, r) > 0.2))) continue;     // (only along a trench)
         for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) { const nb = adjList[k]; if (!regionLand[nb] && regionPlate[nb] !== regionPlate[r]) { foreArc[r] = 1; front.push(r); break; } }
     }
     for (let ring = 1; ring < Math.round(cfg.foreArcDrownKm / mesh.edgeKm); ring++) {

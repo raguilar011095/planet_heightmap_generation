@@ -33,7 +33,7 @@ const genXyzCache = new WeakMap();
 
 /**
  * Generate's layout on the sim mesh.
- * @param {Object} o  { seed, P (pieces), coarse: generateCoarsePlates' output, pieceOcean (Set — UNEDITED), pieceVec
+ * @param {Object} o  { seed, P (pieces), coarse: generateCoarsePlates' output, pieceOcean (Set — as edited: G1d), pieceVec
  *   (the pieces' motion today on the unedited layout), sim (optional sim mesh) }
  * @returns {Object} L: { mesh: {numRegions, adjOffset, adjList}, xyz (Generate's frame), sim, cellPiece, pieceIds,
  *   pieceOcean, pieceVec, seed }

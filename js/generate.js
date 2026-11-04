@@ -228,6 +228,7 @@ if (worker) {
                 d.t_elevation = msg.t_elevation;
                 d.debugLayers.erosionDelta = msg.erosionDelta;
                 if (msg.present) d.present = msg.present;
+                else if (msg.presentUpdate && d.present) Object.assign(d.present, msg.presentUpdate);
                 applyClimate(d, msg);
 
                 const tBuildStart = performance.now();
@@ -542,9 +543,11 @@ export function reapplyViaWorker(onDone, skipClimate = false) {
     const precipitationOffset = +(document.getElementById('sPrc')?.value ?? 0);
     const landCoverage = +(document.getElementById('sLc')?.value ?? 0.3);
 
+    // (Roughness too: the present-day world's sculpting knobs read it — v2/js/present/knobs.js)
+    const nMag = document.getElementById('sNs') ? +document.getElementById('sNs').value : undefined;
     worker.postMessage({
         cmd: 'reapply',
-        ...s, greenhouse, precipitationOffset, landCoverage,
+        ...s, nMag, greenhouse, precipitationOffset, landCoverage,
         skipClimate
     });
 }

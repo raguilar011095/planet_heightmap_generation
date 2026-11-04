@@ -233,12 +233,15 @@ function regionColors(n, colorOf) {
  * — so the relief shows and the coast is not the cells' staircase.
  */
 function smoothGreys(mesh, colorFn, t_elevation, r_elevation, shadeR = null) {
-    const nt = mesh.numTriangles, nr = mesh.numRegions, t = new Float32Array(3 * nt), r = new Float32Array(3 * nr);
+    const nt = mesh.numTriangles, nr = mesh.numRegions;
+    // (a plain grey: one channel per vertex — k its stride, g and b its green and blue offsets — as before the shaded view)
     if (!shadeR) {
-        for (let i = 0; i < nt; i++) t[3 * i] = t[3 * i + 1] = t[3 * i + 2] = srgbToLinear(colorFn(t_elevation[i])[0]);
-        for (let i = 0; i < nr; i++) r[3 * i] = r[3 * i + 1] = r[3 * i + 2] = srgbToLinear(colorFn(r_elevation[i])[0]);
-        return { t, r };
+        const t = new Float32Array(nt), r = new Float32Array(nr);
+        for (let i = 0; i < nt; i++) t[i] = srgbToLinear(colorFn(t_elevation[i])[0]);
+        for (let i = 0; i < nr; i++) r[i] = srgbToLinear(colorFn(r_elevation[i])[0]);
+        return { t, r, k: 1, g: 0, b: 0 };
     }
+    const t = new Float32Array(3 * nt), r = new Float32Array(3 * nr);
     const k = (sh) => 0.35 + 0.65 * sh;
     for (let i = 0; i < nr; i++) { const c = colorFn(r_elevation[i]), f = k(shadeR[i]); r[3 * i] = c[0] * f; r[3 * i + 1] = c[1] * f; r[3 * i + 2] = c[2] * f; }
     for (let i = 0; i < nt; i++) {
@@ -246,7 +249,7 @@ function smoothGreys(mesh, colorFn, t_elevation, r_elevation, shadeR = null) {
         const c = colorFn(t_elevation[i]), f = k(sh);
         t[3 * i] = c[0] * f; t[3 * i + 1] = c[1] * f; t[3 * i + 2] = c[2] * f;
     }
-    return { t, r };
+    return { t, r, k: 3, g: 1, b: 2 };
 }
 /** The present-day world's Terrain view: shaded and smooth (its hillshade from the worker), on the plain Terrain tab. */
 const shadedTerrain = (debugLayer, showPlates) => !debugLayer && !showPlates && !!state.curData?.present?.shade;
@@ -301,17 +304,22 @@ function presentRegionRGB(d) {
     let front = [];
     for (let r = 0; r < n; r++) {
         const p = plateOf[r];
+        let other = false;
         for (let k = adjOffset[r]; k < adjOffset[r + 1]; k++) {
             const q = plateOf[adjList[k]];
             if (q === p) continue;
+            // (two plates whose edge here the sim has no boundary for — its edges smoothed at sea — read the next neighbour)
             const list = pairs.get(Math.min(p, q) * 1024 + Math.max(p, q));
-            if (!list) break;
+            if (!list) { other = true; continue; }
             let best = -2, kind = 6;
             const x = r_xyz[3 * r], y = r_xyz[3 * r + 1], z = r_xyz[3 * r + 2];
             for (const i of list) { const dd = x * B.mid[3 * i] + y * B.mid[3 * i + 1] + z * B.mid[3 * i + 2]; if (dd > best) { best = dd; kind = B.kind[i]; } }
             kindOf[r] = kind; front.push(r);
+            other = false;
             break;
         }
+        // (none of its neighbours' pairs has one: an inactive seam's grey)
+        if (other && !kindOf[r]) { kindOf[r] = 6; front.push(r); }
     }
     const edgeKm = Math.PI * 6371 / Math.sqrt(n);
     const rings = Math.max(0, Math.round(30 / edgeKm) - 1);
@@ -433,9 +441,9 @@ export function buildMapMesh() {
         // Per-vertex colors for smooth heightmaps, flat for everything else
         let c0r, c0g, c0b, c1r, c1g, c1b, c2r, c2g, c2b;
         if (isSmooth) {
-            c0r = grey.t[3 * it]; c0g = grey.t[3 * it + 1]; c0b = grey.t[3 * it + 2];
-            c1r = grey.t[3 * ot]; c1g = grey.t[3 * ot + 1]; c1b = grey.t[3 * ot + 2];
-            c2r = grey.r[3 * br]; c2g = grey.r[3 * br + 1]; c2b = grey.r[3 * br + 2];
+            c0r = grey.t[grey.k * it]; c0g = grey.t[grey.k * it + grey.g]; c0b = grey.t[grey.k * it + grey.b];
+            c1r = grey.t[grey.k * ot]; c1g = grey.t[grey.k * ot + grey.g]; c1b = grey.t[grey.k * ot + grey.b];
+            c2r = grey.r[grey.k * br]; c2g = grey.r[grey.k * br + grey.g]; c2b = grey.r[grey.k * br + grey.b];
         } else {
             const cr = rgb[3 * br], cg = rgb[3 * br + 1], cb = rgb[3 * br + 2];
             c0r = c1r = c2r = cr;
@@ -914,10 +922,10 @@ export function buildMesh() {
             // Smooth heightmap: per-vertex colors from averaged triangle elevations
             // (after the winding fix, v1/v2 may have swapped: outer_t ↔ begin_r)
             const A = grey.t, B = swapped ? grey.r : grey.t, C = swapped ? grey.t : grey.r;
-            const a = 3 * it, b = 3 * (swapped ? br : ot), c = 3 * (swapped ? ot : br);
-            col[off] = A[a]; col[off+1] = A[a+1]; col[off+2] = A[a+2];
-            col[off+3] = B[b]; col[off+4] = B[b+1]; col[off+5] = B[b+2];
-            col[off+6] = C[c]; col[off+7] = C[c+1]; col[off+8] = C[c+2];
+            const K = grey.k, G1 = grey.g, B2 = grey.b, a = K * it, b = K * (swapped ? br : ot), c = K * (swapped ? ot : br);
+            col[off] = A[a]; col[off+1] = A[a+G1]; col[off+2] = A[a+B2];
+            col[off+3] = B[b]; col[off+4] = B[b+G1]; col[off+5] = B[b+B2];
+            col[off+6] = C[c]; col[off+7] = C[c+G1]; col[off+8] = C[c+B2];
         } else {
             const cr = rgb[3 * br], cg = rgb[3 * br + 1], cb = rgb[3 * br + 2];
             for (let j = 0; j < 3; j++) {
@@ -1064,10 +1072,10 @@ export function updateMeshColors() {
             const br = mesh.s_begin_r(s);
             const swapped = sideSwapped && sideSwapped[s];
             const A = grey.t, B = swapped ? grey.r : grey.t, C = swapped ? grey.t : grey.r;
-            const a = 3 * it, b = 3 * (swapped ? br : ot), c = 3 * (swapped ? ot : br);
-            colors[off] = A[a]; colors[off+1] = A[a+1]; colors[off+2] = A[a+2];
-            colors[off+3] = B[b]; colors[off+4] = B[b+1]; colors[off+5] = B[b+2];
-            colors[off+6] = C[c]; colors[off+7] = C[c+1]; colors[off+8] = C[c+2];
+            const K = grey.k, G1 = grey.g, B2 = grey.b, a = K * it, b = K * (swapped ? br : ot), c = K * (swapped ? ot : br);
+            colors[off] = A[a]; colors[off+1] = A[a+G1]; colors[off+2] = A[a+B2];
+            colors[off+3] = B[b]; colors[off+4] = B[b+G1]; colors[off+5] = B[b+B2];
+            colors[off+6] = C[c]; colors[off+7] = C[c+G1]; colors[off+8] = C[c+B2];
         } else {
             const br = mesh.s_begin_r(s);
             const cr = rgb[3 * br], cg = rgb[3 * br + 1], cb = rgb[3 * br + 2];
@@ -1096,9 +1104,9 @@ export function updateMeshColors() {
                 const it = mesh.s_inner_t(s);
                 const ot = mesh.s_outer_t(s);
                 const br = mesh.s_begin_r(s);
-                mapColors[off] = grey.t[3 * it]; mapColors[off+1] = grey.t[3 * it + 1]; mapColors[off+2] = grey.t[3 * it + 2];
-                mapColors[off+3] = grey.t[3 * ot]; mapColors[off+4] = grey.t[3 * ot + 1]; mapColors[off+5] = grey.t[3 * ot + 2];
-                mapColors[off+6] = grey.r[3 * br]; mapColors[off+7] = grey.r[3 * br + 1]; mapColors[off+8] = grey.r[3 * br + 2];
+                mapColors[off] = grey.t[grey.k * it]; mapColors[off+1] = grey.t[grey.k * it + grey.g]; mapColors[off+2] = grey.t[grey.k * it + grey.b];
+                mapColors[off+3] = grey.t[grey.k * ot]; mapColors[off+4] = grey.t[grey.k * ot + grey.g]; mapColors[off+5] = grey.t[grey.k * ot + grey.b];
+                mapColors[off+6] = grey.r[grey.k * br]; mapColors[off+7] = grey.r[grey.k * br + grey.g]; mapColors[off+8] = grey.r[grey.k * br + grey.b];
             } else {
                 const br = mesh.s_begin_r(s);
                 const cr = rgb[3 * br], cg = rgb[3 * br + 1], cb = rgb[3 * br + 2];

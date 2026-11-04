@@ -70,6 +70,7 @@ export const PRESENT = {
     foreArcDrownKm: 70,            // a land piece's edge along another plate's ocean piece drowned this far in (the fore-arc:
     foreArcDepthKm: -0.2,          // the Andes' coast ~100 km from the trench), to at least this deep
     foreArcFloorKm: -1.2,          // …and no deeper than this (the trench itself is on the ocean piece)
+    foreArcTrenchRings: 2,         // (only where a trench's upper side lies within this many sim cells: not at a ridge, a transform)
 
     // ── G6d: detail that holds up close (present/relief.js) — a ridged fractal on the uplands and mountains, its octaves
     // from reliefFromKm down to what the terrain mesh can show, laid down before the rivers carve ──

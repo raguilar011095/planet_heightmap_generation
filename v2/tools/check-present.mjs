@@ -302,7 +302,8 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
             else if (h[q] < -1.25) deep++;     // (the fore-arc drowned before a trench reaches −1.2 km, no deeper)
             let beside = false;
             for (let k = adjOffset[q]; k < adjOffset[q + 1]; k++) { const nb = adjList[k]; if (!regionLand[nb] && regionPlate[nb] !== regionPlate[q]) { beside = true; break; } }
-            if (beside) { fore++; foreSea += h[q] <= 0; }
+            // (only along a trench: a ridge's, a transform's coast is no fore-arc — the hold drowns only these)
+            if (beside && (!G.mask.trench || G.mask.trench[c])) { fore++; foreSea += h[q] <= 0; }
         } else if (h[q] > 0) oceanUp++;
     }
     // (G3c: mature island arcs are chains of islands — Earth's arcs, Indonesia to the Aleutians, ~0.5 % of the globe — and
@@ -310,7 +311,7 @@ for (const { pl, G, mesh, regionLand, regionPlate } of grounds) {
     check(`${pl.name}: land pieces deeper than a shelf ${deep}, ocean pieces above the sea ${(100 * oceanUp / nR).toFixed(2)} % of the globe (arcs, volcanoes)`,
         deep === 0 && oceanUp / nR < 0.012, 'none deeper than the fore-arc (1.2 km) but the seas the crust opened; < 1.2 %');
     // the fore-arc: a land piece's edge along another plate's ocean piece drowned, the trench offshore
-    if (fore) check(`${pl.name}: ${(100 * foreSea / fore).toFixed(0)} % of a land piece's edge along another plate's ocean under the sea`, foreSea / fore > 0.95, 'the fore-arc drowned');
+    if (fore) check(`${pl.name}: ${(100 * foreSea / fore).toFixed(0)} % of a land piece's edge along another plate's ocean at a trench under the sea`, foreSea / fore > 0.95, 'the fore-arc drowned');
     let bad = 0, hi = -99, lo = 99;
     for (const v of h) { if (!Number.isFinite(v)) bad++; else { hi = Math.max(hi, v); lo = Math.min(lo, v); } }
     check(`${pl.name}: heights ${lo.toFixed(1)}…${hi.toFixed(1)} km`, !bad && lo > -11 && hi < 9, 'finite, within −11…+9 km');

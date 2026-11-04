@@ -9,9 +9,11 @@
 // so that plate's edge runs along the coast: an active margin, like the Andes (owner: "some/a lot of the edges of plates
 // should be on the sides of the ocean/land boundaries"). The coast hugs such an edge (present/coast.js).
 //
-// Everything is decided on the UNEDITED layout (the land each piece had before any Ctrl-click), so an edit changes only
-// the crust, never the plates: raising one piece changes only its own neighbourhood. The boundaries' kinds
-// (classifyBoundaries) read the crust as edited.
+// The plates are grouped on the layout AS EDITED (G1d, owner 2026-11-03: an edit regroups them, as loading its planet
+// code would): a raised piece rides its continent's plate, whose motion is fitted again. Only the pieces' own motion
+// comes from the unedited layout (js/plate-physics.js run again on an edit moved all of them), and the draws are keyed
+// per piece, so an edit changes little beyond its own neighbourhood. The boundaries' kinds (classifyBoundaries) read the
+// crust as edited.
 //
 // The plates' motion is seeded from the pieces' own motion today (js/plate-physics.js, on the unedited layout), so the
 // big convergent seams — today's big ranges — stay loosely where they were (owner, 2026-11-02).
@@ -137,7 +139,7 @@ function componentsOf(G, members) {
 /**
  * Divide the sphere into plates that move.
  * @param {Object} L  the layout (present/layout.js): { mesh: {numRegions, adjOffset, adjList}, xyz (Generate's frame),
- *   cellPiece, pieceIds (the planet code's toggle order), pieceOcean (Set — UNEDITED), pieceVec ({id: {pole, omega}}:
+ *   cellPiece, pieceIds (the planet code's toggle order), pieceOcean (Set — as edited), pieceVec ({id: {pole, omega}}:
  *   the pieces' motion today on the unedited layout), seed }
  * @returns {Object} W: { M, units, continents, cellPlate (plate per cell), piecePlate (plate per piece index; −1 for a
  *   piece too small to hold a sim cell), plates[], graph, land (per piece, unedited), cellLand (per cell, unedited),

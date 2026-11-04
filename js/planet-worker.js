@@ -228,13 +228,19 @@ function presentReground(present, mesh, r_xyz, seed, knobs) {
     present.world.heightKm = g.heightKm;
     return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
 }
+const PEAK_KNEE_KM = 4.8;
 function presentHeights(present, heightKm, mesh, r_xyz, ms, drainage, receivers) {
     // its hillshade, as Evolution shades its terrain (v2/js/view/terrain-shade.js; flat ground 1): the page paints by it
     present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), heightKm);
     // its rivers (G7a): the carving's own network, drawn as lines
     present.world.rivers = presentRivers(heightKm, drainage, receivers);
-    const r_elevation = new Float32Array(mesh.numRegions);
-    for (let r = 0; r < r_elevation.length; r++) r_elevation[r] = heightKmToElev(heightKm[r]);
+    // (the page's elevation reads at most 6 km: the peaks above PEAK_KNEE_KM eased into it, not cut flat — until the page
+    // reads km itself, plans/GENERATE_REDESIGN_PLAN.md G6c)
+    const r_elevation = new Float32Array(mesh.numRegions), top = 6 - PEAK_KNEE_KM;
+    for (let r = 0; r < r_elevation.length; r++) {
+        const h = heightKm[r];
+        r_elevation[r] = heightKmToElev(h > PEAK_KNEE_KM ? PEAK_KNEE_KM + top * Math.tanh((h - PEAK_KNEE_KM) / top) : h);
+    }
     return { r_elevation, debugLayers: presentLayers(present, mesh.numRegions), timing: Object.entries(ms).map(([stage, t]) => ({ stage, ms: t })) };
 }
 /** The Inspect list's layers of the present-day world's past (G6b), per render region off its sim cell. */
@@ -425,8 +431,8 @@ function handleGenerate(data) {
         debugLayers.erosionDelta = post.dl_erosionDelta;
         }
 
-        // Expand plate physics diagnostics to hi-res mesh
-        {
+        // Expand plate physics diagnostics to hi-res mesh (not for the present-day world: the page drops their Inspect group)
+        if (!present) {
             const ppd = expandPlatePhysicsDebug(
                 plateDebug, mantleField, velDelta, r_plate, mesh.numRegions,
                 coarse_r_plate, coarseMesh.numRegions
@@ -562,7 +568,7 @@ function handleReapply(data) {
         t0 = performance.now();
         // the present-day world: the same Frame, its ground drawn again with the sculpting knobs (G6); else the old passes
         let dl_erosionDelta = null, postTiming = [];
-        if (W.present) r_elevation = presentReground(W.present, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag)).r_elevation;
+        if (W.present) { if (data.nMag !== undefined) W.nMag = data.nMag; r_elevation = presentReground(W.present, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag)).r_elevation; }
         else ({ dl_erosionDelta, postTiming } = runPostProcessing(W.mesh, W.r_xyz, r_elevation, data, W.neighborDist, W.seed, undefined, W.r_dampen, W.r_orogenic));
         const tPost = performance.now() - t0;
 
@@ -587,7 +593,8 @@ function handleReapply(data) {
             t_elevation,
             erosionDelta: dl_erosionDelta,
             climate,
-            present: W.present ? presentMessage(W.present, W.plateIsOcean) : null,
+            // (Reapply keeps the Frame and the plates: only what the ground changed — its hillshade and its rivers)
+            presentUpdate: W.present ? { shade: W.present.world.shade, rivers: W.present.world.rivers } : null,
             _reapplyTiming: {
                 clone: tClone,
                 postProcessing: tPost,
@@ -622,6 +629,7 @@ function handleEditRecompute(data) {
 
         const { mesh, r_xyz, plateIsOcean, r_plate, plateVec, plateSeeds, noise, seed } = W;
         const nMag = data.nMag;
+        W.nMag = nMag;                                    // (Reapply after a Rebuild reads the Roughness it was built with)
         const spread = 5;
 
         let t0 = performance.now(), tElev, tPost = 0;

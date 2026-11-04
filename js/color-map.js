@@ -13,14 +13,20 @@ export function elevToHeightKm(elev) {
 
 /**
  * The raw elevation whose height is `km` — elevToHeightKm's inverse (the present-day world, plans/GENERATE_REDESIGN_PLAN.md,
- * makes heights in km; the page still reads raw elevations until it reads km itself). Land above 6 km reads as 6 km.
+ * makes heights in km; the page still reads raw elevations until it reads km itself). Land above 6 km reads as 6 km — the
+ * present-day world eases its peaks into that first (js/planet-worker.js presentHeights). Read off a table of the curve
+ * (elevToHeightKm rises monotonically on (0, 1]), interpolated: within ~1 m of the exact inverse.
  */
+let invTable = null;
+const INV_N = 8192;
 export function heightKmToElev(km) {
     if (km <= 0) return km / 10;
     if (km >= 6) return 1;
-    let lo = 0, hi = 1;                                   // elevToHeightKm rises monotonically on (0, 1]
-    for (let i = 0; i < 40; i++) { const mid = 0.5 * (lo + hi); if (elevToHeightKm(mid) < km) lo = mid; else hi = mid; }
-    return Math.max(1e-6, 0.5 * (lo + hi));
+    if (!invTable) { invTable = new Float64Array(INV_N + 1); for (let i = 0; i <= INV_N; i++) invTable[i] = elevToHeightKm(i / INV_N); }
+    let lo = 0, hi = INV_N;
+    while (hi - lo > 1) { const mid = (lo + hi) >> 1; if (invTable[mid] < km) lo = mid; else hi = mid; }
+    const a = invTable[lo], b = invTable[hi], f = b > a ? (km - a) / (b - a) : 0;
+    return Math.max(1e-6, (lo + f) / INV_N);
 }
 
 // Biome base colors indexed by Köppen class ID (satellite-view palette).
