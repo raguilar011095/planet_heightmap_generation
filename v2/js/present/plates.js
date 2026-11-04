@@ -453,14 +453,14 @@ function buildPlatesWith(L, cfg, forced) {
                 const d0 = [pn[0] - pc[0], pn[1] - pc[1], pn[2] - pc[2]], dm = dot(d0, m), d = unit([d0[0] - dm * m[0], d0[1] - dm * m[1], d0[2] - dm * m[2]]);
                 const wa = plates[a].euler, wb = plates[b].euler, rel = cross([wb[0] - wa[0], wb[1] - wa[1], wb[2] - wa[2]], m);
                 const open = dot(rel, d), slip = norm([rel[0] - open * d[0], rel[1] - open * d[1], rel[2] - open * d[2]]);
-                const key = a * 64 + b, s = meet.get(key) ?? [0, 0, 0];
+                const key = a * 4096 + b, s = meet.get(key) ?? [0, 0, 0];
                 s[0] += open; s[1] += slip; s[2]++;
                 meet.set(key, s);
             }
         }
         for (const [key, [o, sl, cnt]] of [...meet.entries()].sort((x, y) => x[0] - y[0])) {
             const open = o / cnt, slip = sl / cnt;
-            if (cnt >= cfg.fitMinEdges && open * R > cfg.minRateCmYr * 10 && open >= cfg.transformRatio * slip) conjugates.push({ a: Math.floor(key / 64), b: key % 64 });
+            if (cnt >= cfg.fitMinEdges && open * R > cfg.minRateCmYr * 10 && open >= cfg.transformRatio * slip) conjugates.push({ a: Math.floor(key / 4096), b: key % 4096 });
         }
         const sd = new Float64Array(n), lab = new Int16Array(n), heap = new MinHeap(1024);
         for (const { a, b } of conjugates) {
@@ -480,8 +480,6 @@ function buildPlatesWith(L, cfg, forced) {
             }
             for (let c = 0; c < n; c++) if (!cellLand[c] && lab[c] >= 0 && lab[c] !== po(c)) { override[c] = lab[c]; splitPiece[cellP[c]] = 1; }
         }
-        // (every piece of a plate the split touched keeps its plate on its other cells)
-        if (conjugates.length) for (let c = 0; c < n; c++) if (splitPiece[cellP[c]] && override[c] < 0) override[c] = Math.max(0, piecePlate[cellP[c]]);
     }
     // out at sea, far from any coast, the edge between two plates is smoothed: the pieces' outlines wiggle a few hundred
     // km across, and a trench and its island arc should sweep in arcs (the Plates tab still draws the pieces' own

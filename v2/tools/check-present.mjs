@@ -12,7 +12,7 @@ import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentSynthesize } from '../js/present/world.js';
-import { apply as rotateBy } from '../js/present/fit.js';
+import { apply as rotateBy, horn, rotation as rotationAbout } from '../js/present/fit.js';
 import { addFineRelief } from '../js/present/relief.js';
 import { synthesizeTerrain } from '../js/terrain/synthesize.js';
 import { terrainConfig } from '../js/terrain/terrain-config.js';
@@ -572,6 +572,17 @@ section('G5b: continents parting across their ocean fit — ridge down its middl
             !skewN || skew / skewN < 0.3, 'the ridge near the midline (< 30 % off)');
     }
     check(`all: ${okAll} of ${pairsAll} pairs fit; their overlaid coasts' overlap ${beforeAll} → ${afterAll} regions`, okAll > 0 && afterAll < 0.35 * beforeAll, 'some fit; most of the overlap drowned to interlock');
+    // the fit's rotation solver (Horn's method) on points matched exactly: any coast length, any turn and twist
+    let worst = 0;
+    const unitV = (a) => { const l = Math.hypot(...a); return a.map(v => v / l); };
+    for (const arc of [500, 3000, 6000]) for (const ang of [10, 90, 150]) for (const tw of [0, 120]) {
+        const Pp = []; for (let i = 0; i < 30; i++) { const a = (i / 29 - 0.5) * arc / 6371; Pp.push(unitV([Math.cos(a), Math.sin(a), 0.01 * Math.sin(3 * i)])); }
+        const A = rotationAbout(unitV([0.3, 0.2, 1]), ang * Math.PI / 180), Bm = rotationAbout([1, 0, 0], tw * Math.PI / 180);
+        const Rt = A.map((_, k) => { const i = Math.floor(k / 3), j = k % 3; return A[3 * i] * Bm[j] + A[3 * i + 1] * Bm[3 + j] + A[3 * i + 2] * Bm[6 + j]; });
+        const Qp = Pp.map(p => rotateBy(Rt, p)), Rf = horn(Pp, Qp);
+        for (let i = 0; i < Pp.length; i++) { const a = rotateBy(Rf, Pp[i]), b = Qp[i]; worst = Math.max(worst, 6371 * Math.acos(Math.min(1, a[0] * b[0] + a[1] * b[1] + a[2] * b[2]))); }
+    }
+    check(`the fit's rotation solver on exact matches: worst ${worst.toFixed(3)} km`, worst < 1, 'exact (< 1 km)');
 }
 
 // ── G5: plumes and the far field ──

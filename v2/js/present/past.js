@@ -224,20 +224,22 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
     let fitShields = 0, fitArms = 0;
     if (fits) fits.pairs.forEach((pr, pi) => {
         if (!pr.ok) return;
-        for (const [from, to, M, kmFrom, kmTo] of [[pr.massB, pr.massA, pr.R, pr.kmB, pr.kmA], [pr.massA, pr.massB, pr.Rinv, pr.kmA, pr.kmB]]) {
+        for (const [from, to, M, Minv, kmFrom, kmTo] of [[pr.massB, pr.massA, pr.R, pr.Rinv, pr.kmB, pr.kmA], [pr.massA, pr.massB, pr.Rinv, pr.R, pr.kmA, pr.kmB]]) {
             for (const ev of events) {
                 if ((ev.kind !== 'ring' && ev.kind !== 'weld') || !(ev.strength > 0) || fits.mass[ev.front[0]] !== from) continue;
-                const nearC = ev.front.filter(c => kmFrom[c] <= cfg.fitGeoBandKm);
-                if (nearC.length < 2) continue;
-                const pts = nearC.map(c => rotate(M, at(sim.xyz, c)));
-                const front = continueAlong(pts, to, cfg.fitGeoExtendKm);
-                if (front.length >= 3) fitEvents.push({ ...ev, front, allow: (c) => fits.mass[c] === to, fit: true });
+                // (each stretch of the front within the band on its own: a docked piece's outline can reach the coast twice)
+                for (const run of runsOf(ev.front.filter(c => kmFrom[c] <= cfg.fitGeoBandKm))) {
+                    if (run.length < 2) continue;
+                    const front = continueAlong(run.map(c => rotate(M, at(sim.xyz, c))), to, cfg.fitGeoExtendKm);
+                    if (front.length >= 3) fitEvents.push({ ...ev, front, allow: (c) => fits.mass[c] === to, fit: true });
+                }
             }
-            // the shields
+            // the shields: each cell of the other side's band read back through the rotation (so the shield carried across
+            // is whole, not the speckle a push of each source cell to its nearest would leave)
             for (let c = 0; c < n; c++) {
-                if (fits.mass[c] !== from || crust.type[c] !== CrustType.CRATON || !(kmFrom[c] <= cfg.fitGeoBandKm)) continue;
-                const p = rotate(M, at(sim.xyz, c)), s = sim.index.nearest(p[0], p[1], p[2]);
-                if (fits.mass[s] === to && kmTo[s] <= cfg.fitGeoBandKm && crust.type[s] !== CrustType.CRATON) { crust.type[s] = CrustType.CRATON; fitShields++; }
+                if (fits.mass[c] !== to || !(kmTo[c] <= cfg.fitGeoBandKm) || crust.type[c] === CrustType.CRATON) continue;
+                const p = rotate(Minv, at(sim.xyz, c)), s = sim.index.nearest(p[0], p[1], p[2]);
+                if (fits.mass[s] === from && kmFrom[s] <= cfg.fitGeoBandKm && crust.type[s] === CrustType.CRATON) { crust.type[c] = CrustType.CRATON; fitShields++; }
             }
         }
         // the failed arm: from a point of A's facing coast where B's fits closest, inland on one side or the other
@@ -320,6 +322,18 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         crust.terrane[c] = terrane[c];
     }
     return { events, terrane, seamKm, cores: coreCount, tier, fit: { events: fitEvents.length, shields: fitShields, arms: fitArms } };
+
+    /** Cells in connected runs (over the sim mesh's adjacency). */
+    function runsOf(cells) {
+        const inSet = new Set(cells), seen = new Set(), out = [];
+        for (const s of cells) {
+            if (seen.has(s)) continue;
+            const run = [s]; seen.add(s);
+            for (let h = 0; h < run.length; h++) for (let k = adjOffset[run[h]]; k < adjOffset[run[h] + 1]; k++) { const nb = adjList[k]; if (inSet.has(nb) && !seen.has(nb)) { seen.add(nb); run.push(nb); } }
+            out.push(run);
+        }
+        return out;
+    }
 
     /** The cells of landmass `to` along the trend of points `pts` (a great circle through their middle), within `km` of it. */
     function continueAlong(pts, to, km) {

@@ -24,6 +24,7 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const unit = (a) => { const l = Math.hypot(a[0], a[1], a[2]); return l > 1e-15 ? [a[0] / l, a[1] / l, a[2] / l] : [0, 0, 0]; };
 const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
 const kmOf = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+const smooth01 = (x) => { const t = Math.min(1, Math.max(0, x)); return t * t * (3 - 2 * t); };
 
 /** A rotation matrix (row-major, 9) about unit `k` by `t` radians. */
 export function rotation(k, t) {
@@ -40,7 +41,7 @@ function axisAngle(M) {
     return { k: unit([M[7] - M[5], M[2] - M[6], M[3] - M[1]]), t };
 }
 /** Horn (1987): the rotation taking points p onto q best (unit vectors, no translation), as a matrix. */
-function horn(P, Q) {
+export function horn(P, Q) {
     let Sxx = 0, Sxy = 0, Sxz = 0, Syx = 0, Syy = 0, Syz = 0, Szx = 0, Szy = 0, Szz = 0;
     for (let i = 0; i < P.length; i++) {
         const p = P[i], q = Q[i];
@@ -54,27 +55,42 @@ function horn(P, Q) {
         [Szx - Sxz, Sxy + Syx, -Sxx + Syy - Szz, Syz + Szy],
         [Sxy - Syx, Szx + Sxz, Syz + Szy, -Sxx - Syy + Szz],
     ];
-    // (the largest eigenvector, by power iteration on N shifted positive)
-    let shift = 0; for (const row of N) for (const v of row) shift += Math.abs(v);
-    let q = [1, 0.1, 0.1, 0.1];
-    for (let it = 0; it < 200; it++) {
-        const r = [0, 0, 0, 0];
-        for (let i = 0; i < 4; i++) { for (let j = 0; j < 4; j++) r[i] += N[i][j] * q[j]; r[i] += shift * q[i]; }
-        const l = Math.hypot(...r) || 1; q = r.map(v => v / l);
-    }
-    const [w, x, y, z] = q;
+    // (the eigenvector of N's largest eigenvalue, by Jacobi's method — exact for a symmetric 4 × 4: a power iteration
+    // stalls where the two largest are close, as they are for a coast nearly along one great circle)
+    const [w, x, y, z] = topEigenvector(N);
     return [w * w + x * x - y * y - z * z, 2 * (x * y - w * z), 2 * (x * z + w * y),
         2 * (x * y + w * z), w * w - x * x + y * y - z * z, 2 * (y * z - w * x),
         2 * (x * z - w * y), 2 * (y * z + w * x), w * w - x * x - y * y + z * z];
+}
+
+/** The unit eigenvector of a symmetric 4 × 4 matrix's largest eigenvalue (cyclic Jacobi rotations). */
+export function topEigenvector(N) {
+    const A = N.map(r => r.slice()), V = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]];
+    for (let sweep = 0; sweep < 50; sweep++) {
+        let off = 0;
+        for (let p = 0; p < 3; p++) for (let q = p + 1; q < 4; q++) off += A[p][q] * A[p][q];
+        if (off < 1e-24) break;
+        for (let p = 0; p < 3; p++) for (let q = p + 1; q < 4; q++) {
+            if (Math.abs(A[p][q]) < 1e-300) continue;
+            const th = (A[q][q] - A[p][p]) / (2 * A[p][q]), t = Math.sign(th || 1) / (Math.abs(th) + Math.sqrt(th * th + 1));
+            const c = 1 / Math.sqrt(t * t + 1), s = t * c;
+            for (let k = 0; k < 4; k++) { const akp = A[k][p], akq = A[k][q]; A[k][p] = c * akp - s * akq; A[k][q] = s * akp + c * akq; }
+            for (let k = 0; k < 4; k++) { const apk = A[p][k], aqk = A[q][k]; A[p][k] = c * apk - s * aqk; A[q][k] = s * apk + c * aqk; }
+            for (let k = 0; k < 4; k++) { const vkp = V[k][p], vkq = V[k][q]; V[k][p] = c * vkp - s * vkq; V[k][q] = s * vkp + c * vkq; }
+        }
+    }
+    let best = 0; for (let i = 1; i < 4; i++) if (A[i][i] > A[best][best]) best = i;
+    const v = [V[0][best], V[1][best], V[2][best], V[3][best]], l = Math.hypot(...v) || 1;
+    return v.map(x => x / l);
 }
 
 /**
  * The continents that fit: for each conjugate pair of plates, the two landmasses facing each other across their ocean,
  * their facing coasts, and the rotation that closes the ocean (B onto A).
  * @param {Object} L  the layout   @param {Object} W  the plates (W.conjugates)   @param {Uint8Array} land  as drawn
- * @returns {{pairs: Object[], mass: Int32Array, side: Int16Array, facingKm: Float32Array, fitCoast: Uint8Array}}  per sim
- *   cell: its landmass; side: pair × 2 + (0: A, 1: B) within fitCarveKm of that pair's facing coast (−1: none); facingKm:
- *   km from its own facing coast (Infinity: none); fitCoast: within fitGeoBandKm of a facing coast
+ * @returns {{pairs: Object[], mass: Int32Array, side: Int16Array, fitCoast: Uint8Array}}  per sim cell: its landmass;
+ *   side: pair × 2 + (0: A, 1: B) within fitCarveKm of a fitting pair's facing coast (−1: none); fitCoast: within
+ *   fitGeoBandKm of a fitting pair's facing coast
  */
 export function continentFits(L, W, land, cfg = PRESENT) {
     const { sim } = L, n = sim.numCells, { adjOffset, adjList, xyz } = sim;
@@ -85,7 +101,7 @@ export function continentFits(L, W, land, cfg = PRESENT) {
         for (let h = 0; h < q.length; h++) for (let k = adjOffset[q[h]]; k < adjOffset[q[h] + 1]; k++) { const nb = adjList[k]; if (land[nb] && mass[nb] < 0) { mass[nb] = masses.length; q.push(nb); } }
         masses.push(q);
     }
-    const side = new Int16Array(n).fill(-1), facingKm = new Float32Array(n).fill(Infinity), fitCoast = new Uint8Array(n);
+    const side = new Int16Array(n).fill(-1), fitCoast = new Uint8Array(n);
     const pairs = [];
     for (const { a, b } of W.conjugates ?? []) {
         const plateOf = W.cellPlate, basin = (c) => !land[c] && (plateOf[c] === a || plateOf[c] === b);
@@ -133,22 +149,23 @@ export function continentFits(L, W, land, cfg = PRESENT) {
         for (const [cellsF, m, s] of [[fa, A.mass, 0], [fb, B.mass, 1]]) {
             const d = dijkstra(sim, cellsF, (c) => mass[c] === m, cfg.fitGeoBandKm * 2);
             pr[s ? 'kmB' : 'kmA'] = d;
-            for (let c = 0; c < n; c++) {
+            // (a pair that does not fit keeps its coasts as they were: only its ridge)
+            if (pr.ok) for (let c = 0; c < n; c++) {
                 if (!(d[c] < Infinity)) continue;
-                facingKm[c] = Math.min(facingKm[c], d[c]);
                 if (d[c] <= cfg.fitGeoBandKm) fitCoast[c] = 1;
-                if (pr.ok && d[c] <= cfg.fitCarveKm) side[c] = 2 * pairs.length + s;
+                if (d[c] <= cfg.fitCarveKm) side[c] = 2 * pairs.length + s;
             }
         }
         pairs.push(pr);
     }
-    return { pairs, mass, side, facingKm, fitCoast };
+    return { pairs, mass, side, fitCoast };
 }
 
 /**
  * The coasts made to interlock, on Generate's mesh (before the hold): within fitCarveKm of a fitting pair's facing coast,
  * where the closing rotation lays one's land on the other's, one of the two is drowned to a shelf — which, by a noise
- * read at the join (the same point from either side), so the two are cut along one line.
+ * read at the join (the same point from either side), so the two are cut along one line; eased over the noise's own
+ * band about the line (fitCutSoft), so a range cut there slopes into the sea rather than standing as a wall.
  * @param {Float32Array} heightKm  the surface (km)   @param {Object} m  the hold's mask: regionLand, regionCell, fit, seed
  * @param {{xyz: Float32Array, index: {nearest}}} tMesh  Generate's mesh as a terrain mesh (z-up)
  * @returns {Uint8Array}  1 where a region was drowned
@@ -165,7 +182,12 @@ export function interlockCoasts(heightKm, m, tMesh, cfg = PRESENT) {
         const y = apply(isB ? pr.R : pr.Rinv, x), q = tMesh.index.nearest(y[0], y[1], y[2]);
         if (!regionLand[q] || fit.mass[regionCell[q]] !== (isB ? pr.massA : pr.massB)) continue;
         const j = apply(isB ? pr.Rh : pr.Rhinv, x), v = noise.noise3D(j[0] * f + 7.1, j[1] * f - 3.3, j[2] * f + 1.9);
-        if (isB ? v > 0 : v <= 0) { heightKm[r] = Math.min(heightKm[r], cfg.fitShelfKm); drowned[r] = 1; }
+        const sd = isB ? v : -v;
+        if (!(sd > -cfg.fitCutSoft)) continue;
+        // (fully drowned past the band; at the line itself half way, on both sides; the land past it kept)
+        const w = smooth01((sd + cfg.fitCutSoft) / (2 * cfg.fitCutSoft)), h = heightKm[r];
+        heightKm[r] = h + (Math.min(h, cfg.fitShelfKm) - h) * w;
+        if (heightKm[r] <= 0) drowned[r] = 1;
     }
     return drowned;
 }
