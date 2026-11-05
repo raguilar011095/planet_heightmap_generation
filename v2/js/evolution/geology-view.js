@@ -263,7 +263,8 @@ function depositsLegendHTML(fin, pick, sw, head) {
     // (each grade's swatch at the middle of its range, as the wash inks it)
     const [p0, p1, p2] = GEOLOGY.deposits.grades, mids = [(p0 + p1) / 2, (p1 + p2) / 2, (p2 + 1) / 2];
     const from = p.metal >= 0 ? ` From: ${d.sources.map(([id]) => DEPOSITS.find(s => s.id === id).name.toLowerCase()).join(', ')}.` : '';
-    return head(p.metal >= 0 ? d.name : `${d.name} — ${d.yields}`) + `<div class="evo-koppen">${mids.map((v, g) => sw(inkRgb(d.rgb, v), GRADE_WORDS[g], pct(sh[at3 + g]))).join('')}</div>` +
+    const rgb = p.metal >= 0 ? METAL_INK[p.metal] : d.rgb;                         // (a metal in its family's colour, as on the map)
+    return head(p.metal >= 0 ? d.name : `${d.name} — ${d.yields}`) + `<div class="evo-koppen">${mids.map((v, g) => sw(inkRgb(rgb, v), GRADE_WORDS[g], pct(sh[at3 + g]))).join('')}</div>` +
         `<div class="evo-legend-note">${d.words[0].toUpperCase()}${d.words.slice(1)}.${from} % of the land</div>`;
 }
 
@@ -438,10 +439,10 @@ export function subjectsOf(fin, layer, pick = DEP_ALL, age = 'bronze', agePick =
                 .filter(s => agePick === DEP_ALL ? s.id !== 'wood' : s.id === agePick);
         }
     } else if (pick === DEP_ALL) {
-        out = ALL_METALS.map(i => { const m = METALS[i]; return { id: m.id, name: m.name, rgb: m.rgb, field: row(SYS + i), bytes: true, from: m.sources }; });
+        out = ALL_METALS.map(i => { const m = METALS[i]; return { id: m.id, name: m.name, rgb: METAL_INK[i], field: row(SYS + i), bytes: true, from: m.sources }; });
     } else {
         const p = pickOf(pick);
-        if (p && !NO_DISTRICTS.has(p.item.id)) out = [{ id: p.item.id, name: p.item.name, rgb: p.item.rgb, field: row(p.row), bytes: true, from: p.metal >= 0 ? p.item.sources : [[p.item.id, 1]] }];
+        if (p && !NO_DISTRICTS.has(p.item.id)) out = [{ id: p.item.id, name: p.item.name, rgb: p.metal >= 0 ? METAL_INK[p.metal] : p.item.rgb, field: row(p.row), bytes: true, from: p.metal >= 0 ? p.item.sources : [[p.item.id, 1]] }];
     }
     byKey.set(key, out);
     return out;

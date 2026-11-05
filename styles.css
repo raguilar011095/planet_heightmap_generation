@@ -115,7 +115,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 
 /* the graticule frame (js/graticule-frame.js): the gold ring round the globe at home zoom, the gold frame round a map,
    ticks where the grid lines meet them and their degrees beside; a map zoomed past the view matted in the stage's colour */
-.graticule-frame { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; overflow: visible; transition: opacity 0.2s ease; }
+.graticule-frame { position: fixed; left: 0; top: 0; pointer-events: none; overflow: visible; transition: opacity 0.2s ease; }
 .graticule-frame .gf-ring, .graticule-frame .gf-frame { fill: none; stroke: var(--gold); stroke-width: 1.2px; stroke-linejoin: round; }
 .graticule-frame .gf-tick { stroke: var(--gold); stroke-width: 1px; }
 .graticule-frame .gf-tick--long { stroke-width: 1.3px; }
@@ -132,7 +132,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 .build-overlay:not(.hidden) ~ .graticule-frame { visibility: hidden; }
 
 /* ─── The masthead (docs/style-guide/components.md: Masthead, Logo, Tabs) ─── */
-:root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 36 px on phones) */
+:root { --nav-h: 56px; }   /* (everything placed under the masthead follows it: 47 px on phones, its tabs 44 px tall over its 3 px rule) */
 #topNav {
     position: fixed; top: 0; left: 0; right: 0;
     height: var(--nav-h); z-index: 60;
@@ -185,7 +185,7 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
     padding: 2px; border: var(--line-hair) solid var(--rule); border-radius: var(--radius-full);
     background: var(--chip-track); color: var(--muted); cursor: pointer; transition: border-color 0.15s;
 }
-.nav-theme::after { content: ''; position: absolute; inset: -7px -3px; }   /* (a 44 px target in a 36 px bar) */
+.nav-theme::after { content: ''; position: absolute; inset: -6px -3px; }   /* (a 44 px target: the phone bar's whole height) */
 .nav-theme:hover { border-color: color-mix(in srgb, var(--ink) 34%, transparent); color: var(--body); }
 .nav-theme:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .nav-theme__opt {
@@ -1193,12 +1193,12 @@ button#generate.generating {
 
 /* ───── Mobile: tablets + phones ───── */
 @media (max-width: 768px) {
-    :root { --nav-h: 36px; }
+    :root { --nav-h: 47px; }                                  /* (the tabs a finger's height: 44 px above the rule) */
     .section summary { min-height: var(--size-touch); }
     #topNav { padding: 0 8px; }
     .nav-logo { display: none; }
     .nav-tab { padding: 0 10px; }
-    .nav-tab.active::after { left: 10px; right: 10px; bottom: 5px; }
+    .nav-tab.active::after { left: 10px; right: 10px; bottom: 9px; }
     .nav-tab { font-size: 13px; }
     .nav-follow { display: none; }
     #repoLink a { min-height: 44px; }

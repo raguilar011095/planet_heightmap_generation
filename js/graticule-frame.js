@@ -102,6 +102,13 @@ function clipToRect(poly, R) {
 const pathOf = (poly) => (poly.length < 3 ? '' : 'M' + poly.map(p => `${r1(p[0])} ${r1(p[1])}`).join('L') + 'Z');
 const inRect = (p, R) => p[0] >= R.l - 0.5 && p[0] <= R.r + 0.5 && p[1] >= R.t - 0.5 && p[1] <= R.b + 0.5;
 
+// (the ring at home zoom and out, fading as the camera comes in from 2.6 to 1.9 globe radii — at once, with reduced motion)
+const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
+function ringOpacity(d) {
+    const fade = Math.max(0, Math.min(1, (d - 1.9) / 0.7));
+    return reduceMotion.matches ? (fade > 0.5 ? 1 : 0) : fade;
+}
+
 export function createGraticuleFrame(canvas) {
     const svg = document.createElementNS(NS, 'svg');
     svg.setAttribute('class', 'graticule-frame');
@@ -110,7 +117,8 @@ export function createGraticuleFrame(canvas) {
     let shown = '', lastMapKey = null, lastGlobeKey = null, size = '';
     const draw = (html, opacity = 1, space = false) => {
         const w = innerWidth, h = innerHeight;
-        if (size !== `${w}x${h}`) { size = `${w}x${h}`; svg.setAttribute('viewBox', `0 0 ${w} ${h}`); }
+        // (sized as the canvas is, in px: 100vh is taller than the window on a phone while its address bar shows)
+        if (size !== `${w}x${h}`) { size = `${w}x${h}`; svg.setAttribute('viewBox', `0 0 ${w} ${h}`); svg.style.width = `${w}px`; svg.style.height = `${h}px`; }
         svg.classList.toggle('in-space', space);
         svg.style.opacity = opacity.toFixed(2);
         svg.style.display = opacity > 0 && html ? '' : 'none';
@@ -119,13 +127,14 @@ export function createGraticuleFrame(canvas) {
 
     return {
         /**
-         * The globe: its centre and rim on screen (cx, cy, r: client px), the frame's opacity (its fade with zoom), the
-         * camera's place in the planet's own frame (cam: [x, y, z], the globe's radius 1), toScreen(p) for a point of the
-         * planet's own frame → [x, y] client px, local(lonRad, latRad) → the planet's own [x, y, z], the grid's spacing
-         * (degrees), and whether the stage is space.
+         * The globe: its centre and rim on screen (cx, cy, r: client px), the camera's place in the planet's own frame
+         * (cam: [x, y, z], the globe's radius 1 — its distance fades the ring as you zoom in), toScreen(p) for a point of
+         * the planet's own frame → [x, y] client px, local(lonRad, latRad) → the planet's own [x, y, z], the grid's
+         * spacing (degrees), and whether the stage is space.
          */
-        globe({ cx, cy, r, opacity, cam, toScreen, local, spacing, space = false }) {
+        globe({ cx, cy, r, cam, toScreen, local, spacing, space = false }) {
             lastMapKey = null;
+            const opacity = ringOpacity(Math.hypot(cam[0], cam[1], cam[2]));
             if (!(opacity > 0) || !(r > 0)) { lastGlobeKey = null; return draw('', 0); }
             // (redrawn when the view moves — the camera's place over the planet, and how the planet sits on screen: seen
             // straight down a pole, a spin moves no camera, only the picture turning about its middle)

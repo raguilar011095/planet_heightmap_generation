@@ -13,6 +13,7 @@
 import * as THREE from 'three';
 import { renderer, scene, camera, mapCamera, setMapAspect, resetMapView, mapVisible } from './scene.js';
 import { state } from './state.js';
+import { tokenRGBA } from './stage.js';
 import { P } from '../v2/js/view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../v2/js/view/projection-glsl.js';
 
@@ -57,11 +58,11 @@ function setUp() {
     const u = projectionUniforms();
     plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShaderMaterial({
         uniforms: {
-            map: { value: null }, uWin: { value: new THREE.Vector4() }, uGrid: { value: 0 }, uCentre: { value: 0 },
+            map: { value: null }, uWin: { value: new THREE.Vector4() }, uGrid: { value: 0 }, uGridInk: { value: new THREE.Vector4(1, 1, 1, 0.22) }, uCentre: { value: 0 },
             uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) },
         },
         vertexShader: 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-        fragmentShader: `uniform sampler2D map; uniform vec4 uWin; uniform float uGrid; uniform float uCentre; varying vec2 vUv;
+        fragmentShader: `uniform sampler2D map; uniform vec4 uWin; uniform float uGrid; uniform vec4 uGridInk; uniform float uCentre; varying vec2 vUv;
 ${PROJECTION_GLSL}
 // how near a line of the grid (every uGrid radians) the value v is, in pixels: 1 on the line, 0 a pixel or more away
 float gridLine(float v) {
@@ -77,8 +78,8 @@ void main() {
     float lon = ll.x < uWin.x ? ll.x + 2.0 * PI : ll.x;               // (the picture may run past the map's edge, wrapped)
     gl_FragColor = texture2D(map, vec2((lon - uWin.x) / uWin.y, (ll.y - uWin.z) / uWin.w));
     #include <colorspace_fragment>
-    // (the grid as the flat map's: white at 12 %, blended on the screen's colours)
-    if (uGrid > 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, vec3(1.0), 0.12 * max(gridLine(ll.x + uCentre), gridLine(ll.y)));
+    // (the grid as the flat map's and the globe's: the map-grid token, blended on the screen's colours)
+    if (uGrid > 0.0) gl_FragColor.rgb = mix(gl_FragColor.rgb, uGridInk.rgb, uGridInk.a * max(gridLine(ll.x + uCentre), gridLine(ll.y)));
 }`,
         extensions: { derivatives: true },
         depthTest: false, depthWrite: false,
@@ -271,6 +272,8 @@ function renderProjected() {
     plane.visible = !!win;
     u.map.value = target.texture;
     u.uGrid.value = state.gridEnabled ? state.gridSpacing * PI / 180 : 0;
+    const ink = tokenRGBA('map-grid', 'rgba(255,255,255,0.22)');
+    u.uGridInk.value.set(ink.r, ink.g, ink.b, ink.a);
     u.uCentre.value = state.mapCenterLon || 0;
     const pu = projectionUniforms(state.mapProjection, state.mapProjOpts);
     u.uProj.value = pu.uProj; u.uBounds.value.set(...pu.uBounds); u.uOpt.value.set(...pu.uOpt);

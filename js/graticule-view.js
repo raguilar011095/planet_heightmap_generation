@@ -15,7 +15,6 @@ const turn = (p, a) => [p[0] * Math.cos(a) + p[2] * Math.sin(a), p[1], -p[0] * M
 
 export function createGraticuleView(canvas) {
     const frame = createGraticuleFrame(canvas), v = new THREE.Vector3();
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)');
     const client = (x, y, z) => { v.set(x, y, z).project(camera); return [(v.x + 1) / 2 * innerWidth, (1 - v.y) / 2 * innerHeight]; };
     return {
         update() {
@@ -43,11 +42,10 @@ export function createGraticuleView(canvas) {
             // are the last render's — projected through them, a fast spin left the ring trailing off to the side)
             camera.updateMatrixWorld();
             const d = camera.position.distanceTo(ctrl.target), rot = state.planetMesh.rotation.y;
-            const fade = Math.max(0, Math.min(1, (d - 1.9) / 0.7)), opacity = reduce.matches ? (fade > 0.5 ? 1 : 0) : fade;
             const [cx, cy] = client(0, 0, 0);
             const r = Math.tan(Math.asin(Math.min(1 / d, 0.999))) / Math.tan(camera.fov * Math.PI / 360) * innerHeight / 2;
             const cam = turn([camera.position.x, camera.position.y, camera.position.z], -rot);
-            frame.globe({ cx, cy, r, opacity, cam, local, spacing, space: inSpace(),
+            frame.globe({ cx, cy, r, cam, local, spacing, space: inSpace(),
                 toScreen: (p) => { const q = turn(p, rot); return client(q[0], q[1], q[2]); } });
         },
     };

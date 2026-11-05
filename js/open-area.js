@@ -37,7 +37,7 @@ function glide(now) {
 
 // (`moved`: the open area itself changed, so the cameras refit even if the planet stays put)
 function retarget(moved = false) {
-    const w = widthOf();
+    const w = widthOf(left);
     target = left > 0 ? (left / 2) * (1 - smoothstep(((innerWidth - w) / 2 - left) / Math.max(1, room))) : 0;
     if (!settled || reduce.matches) {
         if (frame) { cancelAnimationFrame(frame); frame = 0; lastT = 0; }
@@ -71,8 +71,9 @@ export function openShift() { return shift; }
 /** fn(left, shift) whenever either moves (each frame of a glide). */
 export function onOpenArea(fn) { listeners.push(fn); }
 
-/** The page's planet: fn() → its width on screen in CSS pixels, fitted to the open area (the globe at home zoom with its
- *  ring, or the whole map). Called again whenever the open area changes. */
+/** The page's planet: fn(left) → its width on screen in CSS pixels, fitted to the open area whose edge is `left` px in
+ *  (the new edge: the page may not have heard of it yet) — the globe at home zoom with its ring, or the whole map.
+ *  Called again whenever the open area changes. */
 export function planetWidthFrom(fn) { widthOf = fn; retarget(); settled = true; }
 
 /** The planet's width has changed (the globe swapped for the map, another projection): the planet moves to suit. */

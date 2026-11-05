@@ -2,8 +2,9 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
-import { stageColour, inSpace, onStage, makeAir } from './stage.js';
+import { stageColour, deskColour, inSpace, onStage, makeAir } from './stage.js';
 import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from './open-area.js';
+import { createMapBand } from './map-band.js';
 
 export const canvas   = document.getElementById('canvas');
 export const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -45,12 +46,14 @@ export function fitView() {
 // ring and numerals)
 let mapShown = false;
 function planetWidth() {
-    if (mapShown) return 2 * mapAspect / mapUnit() + 2 * MAP_MARGIN_PX();
+    if (mapShown) return 2 * mapAspect / mapUnit() + 2 * band.now().m;
     const fov = 2 * Math.atan(half25 / Math.min(1, (innerWidth - openLeft()) / innerHeight));
     return 1.3 * Math.tan(Math.asin(1 / HOME)) / Math.tan(fov / 2) * innerHeight;
 }
-/** The view shows the map (true) or the globe: the planet's place follows its width. */
-export function showingMap(on) { mapShown = !!on; planetChanged(); }
+/** The view shows the map (true) or the globe: the planet's place follows its width, and the background its stage. */
+export function showingMap(on) { mapShown = !!on; paintStage(); planetChanged(); }
+// (the background: the globe's stage, the desk or space; a flat map always on the desk, as in Evolution)
+function paintStage() { scene.background = new THREE.Color(mapShown ? deskColour() : stageColour()); }
 
 export const ctrl = new OrbitControls(camera, canvas);
 ctrl.enableDamping = true; ctrl.dampingFactor = 0.06;
@@ -124,7 +127,7 @@ export let starsMesh;
 const air = makeAir(THREE, 1.03);
 export const atmosMesh = air.mesh;
 scene.add(atmosMesh);
-onStage(() => { scene.background = new THREE.Color(stageColour()); starsMesh.material.visible = inSpace(); air.update(); });
+onStage(() => { paintStage(); starsMesh.material.visible = inSpace(); air.update(); });
 
 // Water sphere — the sun's glint on it broad and soft, a sheen the sea still shows through (a tight, bright one hid it)
 const waterMat = new THREE.MeshPhongMaterial({
@@ -141,40 +144,27 @@ mapCamera.position.set(0, 0, 5);
 mapCamera.lookAt(0, 0, 0);
 let mapAspect = 2;
 
-// (room round the map for its frame's ticks and numerals, js/graticule-frame.js; less on a phone)
-const narrowView = matchMedia('(max-width: 768px)');
-export const MAP_MARGIN_PX = () => (narrowView.matches ? 22 : 56);
-/** The masthead's height (--nav-h), the map kept below it. */
-export function navHeight() { return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56; }
-/** The band the map is fitted in at zoom 1: below the masthead and the layer tabs, above the hint, beside the panel,
- *  with room all round for its frame's numerals. */
-function mapBand() {
-    const m = MAP_MARGIN_PX();
-    let top = navHeight() + 22, bottom = 22;
-    if (!narrowView.matches) {
-        const row = document.querySelector('#layerBar .layer-row')?.getBoundingClientRect(), info = document.getElementById('info')?.getBoundingClientRect();
-        if (row?.height) top = Math.max(top, row.bottom + 30);
-        if (info?.height) bottom = Math.max(bottom, innerHeight - info.top + 24);
-    }
-    return { w: Math.max(1, innerWidth - openLeft() - 2 * m), h: Math.max(1, innerHeight - top - bottom), drop: (top - bottom) / 2, top, bottom, m };
+// The band the map is fitted in at zoom 1 (js/map-band.js, shared with Evolution): below the masthead and the layer tabs,
+// above the hint, beside the panel, with room all round for its frame's numerals; gliding when the tabs' rows change
+const band = createMapBand({ below: document.getElementById('info'), gap: 24 });
+/** The rectangle the map's frame keeps within (client px), zoomed in: the band, a little wider, its numerals outside. */
+export function mapFrameRect() { return band.frameRect(); }
+/** Map units a pixel at zoom 1: the map fitted to the band, right of the panel (js/open-area.js). */
+function mapUnit() {
+    const { top, bottom, m } = band.now();
+    return Math.max(2 * mapAspect / Math.max(1, innerWidth - openLeft() - 2 * m), 2 / Math.max(1, innerHeight - top - bottom));
 }
-/** The rectangle the map's frame keeps within (client px), zoomed in: the band, a little wider, its numerals outside
- *  (measured when the map was last fitted, not each frame). */
-let lastBand = null;
-export function mapFrameRect() {
-    const { top, bottom, m } = lastBand ?? mapBand(), side = Math.max(16, m - 4);
-    return { l: openLeft() + side, t: top - 8, r: innerWidth - side, b: innerHeight - bottom + 8 };
-}
-/** Map units a pixel at zoom 1: the map fitted to that band (js/open-area.js for the panel). */
-function mapUnit(band = mapBand()) {
-    const { w, h } = band;
-    return Math.max(2 * mapAspect / w, 2 / h);
+/** Once a frame: the band eased towards its place, the map refitted while it moves. */
+export function tickMapBand() {
+    if (!band.tick()) return;
+    updateMapCameraFrustum();
+    if (mapShown) planetChanged();
 }
 
 // (the frustum spans the whole window; the picture moves right by the open area's shift and down by half the masthead —
 // so a drag still pans one to one, and the zoom centres where the map sits)
 export function updateMapCameraFrustum() {
-    const band = lastBand = mapBand(), unit = mapUnit(band), halfW = unit * innerWidth / 2, halfH = unit * innerHeight / 2, shift = openShift(), drop = band.drop;
+    const { top, bottom } = band.now(), unit = mapUnit(), halfW = unit * innerWidth / 2, halfH = unit * innerHeight / 2, shift = openShift(), drop = (top - bottom) / 2;
     mapCamera.left = -halfW; mapCamera.right = halfW;
     mapCamera.top = halfH; mapCamera.bottom = -halfH;
     if (shift || drop) mapCamera.setViewOffset(innerWidth, innerHeight, -shift, -drop, innerWidth, innerHeight);

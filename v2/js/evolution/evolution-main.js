@@ -38,6 +38,7 @@ import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
 import { createGraticuleFrame } from '../../../js/graticule-frame.js';
 import { inSpace } from '../../../js/stage.js';
 import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from '../../../js/open-area.js';
+import { createMapBand, navHeight } from '../../../js/map-band.js';
 import { createLoading } from './loading.js';
 import { downloadBlob } from '../view/png.js';
 import { savePlanet, planetBytes, openPlanet } from '../save/planet-file.js';
@@ -202,11 +203,10 @@ globe.controls.autoRotateSpeed = 0.6;
 // room is short, js/open-area.js)
 globe.setOpenArea(openLeft(), openShift());
 onOpenArea((left, shift) => globe.setOpenArea(left, shift));
-planetWidthFrom(() => globe.planetWidth());
+planetWidthFrom(left => globe.planetWidth(left));
 // (the loading screen, for the waits with nothing to watch: loading.js; the first world's over nothing yet)
 const loading = createLoading($('buildOverlay'));
 let firstWorld = true;
-let mapRect = null, mapRectKey = '';                       // (the map frame's rectangle: layoutMap, below)
 // (Add detail's stages, as the loading screen and the card say them)
 const STAGE_WORDS = { starting: 'Starting', mesh: 'Laying out the fine mesh', surface: 'Shaping the surface', climate: 'Working out the climate',
     bedrock: 'Reading the bedrock', rivers: 'Carving the rivers', sediment: 'Settling the sediment', hillslopes: 'Wearing down the hillslopes',
@@ -288,6 +288,7 @@ function newWorld(o) {
 /** The world shown goes (its history's worker, its detail under way, its terrain's): another takes its place. */
 function leaveWorld() {
     $('loadNote').hidden = true;
+    loading.clear();                                       // (the old world's waits — Add detail, a terrain — go with it)
     if (B?.finishJob) finisher.cancel();
     B?.controller.abort();
     B?.player?.dispose();
@@ -598,36 +599,6 @@ async function loadPlanet(file) {
     }
 }
 
-// ── a view's picture on a detailed moment, painted here at its full size — the Satellite view a few seconds a season
-// until drawn ahead, Geology and Food pixel by pixel: when it will be slow (the Satellite season not drawn yet; a view
-// that took over a quarter of a second last time, or Geology and Food the first time), the loading screen first and the
-// paint two frames later, so the screen is up before the page is held ──
-const paintMs = new Map();                                  // (how long each view's picture took, last time)
-let paintHeld = null;                                       // (the paint waiting for the loading screen: its key, frames left)
-const VIEW_WORDS = { satellite: 'Satellite', geology: 'Geology', farming: 'Food', climate: 'Climate' };
-function paintKind(frame) {
-    if (!finishedShown(frame)) return null;
-    const L = view.layer;
-    return L === 'satellite' ? 'satellite' : GEOLOGY_LAYERS.has(L) ? 'geology' : FARMING_LAYERS.has(L) ? 'farming' : CLIMATE_LAYERS.has(L) ? 'climate' : null;
-}
-function paintKey(frame, sharp) {
-    const kind = paintKind(frame);
-    return kind && `${view.layer}|${view.season}|${sharp}|${view.deposit}|${view.age}|${view.ageRes}`;
-}
-function holdForPaint(frame, sharp) {
-    const kind = paintKind(frame), key = kind && paintKey(frame, sharp);
-    if (!key) { paintHeld = null; return false; }
-    if (paintHeld?.key === key) { if (--paintHeld.frames > 0) return true; paintHeld = null; return false; }
-    const R = finishedShown(frame).climate?.raster;
-    const drawing = kind === 'satellite' && !!R?.sat && SEASONS.includes(view.season) && !satelliteReady(R, view.season);
-    const slow = drawing || (paintMs.get(key) ?? (kind === 'climate' || kind === 'satellite' ? 0 : 400)) > 250;
-    if (!slow) return false;
-    loading.show('paint', { title: `Painting the ${VIEW_WORDS[kind]} view`, share: null,
-        label: drawing ? 'This season as seen from orbit — a few seconds' : 'At its full detail — a moment' });
-    paintHeld = { key, frames: 2 };
-    return true;
-}
-
 /** A plain sea, while a new world starts. */
 function blank() {
     const px = new Uint8Array(3), t = tex.lo;
@@ -757,11 +728,7 @@ function paint(frame, sharpTable = null, sharp = !!sharpTable) {
         legend.dataset.key = legendKey;
     }
     updateClimateUi();
-    if (B.retexturing && B.retexturing === B.terrainCells) {
-        console.info(`[evolution] terrain at ${B.retexturing} cells drawn in ${((performance.now() - B.retextureAt) / 1000).toFixed(1)} s`);
-        B.retexturing = null; if (B.doneText) status(B.doneText, 1);
-        loading.hide('terrain');
-    }
+    terrainDrawn();
     ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;
     rail();
     stats(T, frame);
@@ -810,6 +777,14 @@ function finishedShown(frame) {
     return fin && (!CLIMATE_LAYERS.has(view.layer) || fin.climate) && (!FINISHED_ONLY_LAYERS.has(view.layer) || fin.climate?.raster?.sat) && (!GEOLOGY_LAYERS.has(view.layer) || fin.raster.geology) ? fin : null;
 }
 
+/** Terrain Detail's new terrain drawn (under a preview, or under a detailed moment's picture): its wait over. */
+function terrainDrawn() {
+    if (!B.retexturing || B.retexturing !== B.terrainCells) return;
+    console.info(`[evolution] terrain at ${B.retexturing} cells drawn in ${((performance.now() - B.retextureAt) / 1000).toFixed(1)} s`);
+    B.retexturing = null; if (B.doneText) status(B.doneText, 1);
+    loading.hide('terrain');
+}
+
 /** A finished moment: its picture, coloured and shaded as the live terrain is — or its climate, per pixel. */
 function paintFinishedFrame(frame, fin, T, sharp) {
     const t = sharp ? (tex.sharp ??= texture(SHARP_WIDTH)) : tex.lo;
@@ -830,6 +805,7 @@ function paintFinishedFrame(frame, fin, T, sharp) {
     show(t);
     loading.hide('start'); loading.hide('open');
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
+    terrainDrawn();
     const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
     if (legend.dataset.key !== legendKey) {
         if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
@@ -1079,9 +1055,12 @@ function updateCard() {
     for (const el of [$('cardBadge'), $('momentBadge')]) {
         if (showIf(el, !!badge)) { el.textContent = badge; el.classList.toggle('detailed', isDet); }
     }
-    $('cardTitle').textContent = frame ? `${t} Myr` : b?.loading || b?.opened ? 'Opening…' : 'Starting…';
+    // (before its first moment: a planet file opening, until it is drawn; a world starting; or either failed — the note
+    // below says why)
+    const failed = !!b?.error, opening = !!b?.opened && !failed;
+    $('cardTitle').textContent = frame ? `${t} Myr` : failed ? (b.opened ? 'Could not open' : 'Could not start') : opening ? 'Opening…' : 'Starting…';
     const computing = !!b?.live && !b.going;
-    $('cardText').textContent = !frame ? (b?.loading || b?.opened ? 'Opening a planet file…' : b?.problem ? '' : 'A new world is starting…')
+    $('cardText').textContent = !frame ? (b?.problem ? '' : opening ? 'Opening a planet file…' : 'A new world is starting…')
         : job ? `Adding detail to ${job.frame.time.toFixed(0)} Myr: ${stageWords(job.stage).toLowerCase()}…`
         : isDet ? 'This moment, sculpted in detail. Look around — Satellite, Climate and Geology show it at its detail — then export it as map files.'
         : playing ? (computing ? 'Computing the history — scrub through any of it as it fills in. Pause on a moment you like, then add detail.' : 'Pause on a moment you like, then add detail.')
@@ -1259,14 +1238,7 @@ function tick(now) {
         // sharp, but a detailed moment's picture is painted on a canvas still)
         const settled = !playing && now - lastScrub > SHARP_AFTER_MS;
         const sharpTable = settled && !gpu ? sharpTableOf(B.tMesh) : null, sharp = gpu ? settled && SHARP_WIDTH > 0 : !!sharpTable;
-        if (B.player.isReady(frame)) {
-            if ((frame !== painted || dirty || sharp !== paintedSharp) && !holdForPaint(frame, sharp)) {
-                const t0 = performance.now(), key = paintKey(frame, sharp);
-                try { paint(frame, sharpTable, sharp); } finally { loading.hide('paint'); }
-                if (key) paintMs.set(key, performance.now() - t0);
-                dirty = false;
-            }
-        }
+        if (B.player.isReady(frame)) { if (frame !== painted || dirty || sharp !== paintedSharp) { paint(frame, sharpTable, sharp); dirty = false; } }
         else if (!preparing && !(B.drawFailed?.frame === frame && now < B.drawFailed.retryAt)) {
             const b = B;
             const p = preparing = b.player.prepare(frame)
@@ -1286,37 +1258,30 @@ function tick(now) {
     globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
     updatePatch(now);
     globe.resize();
+    if (band.tick(now)) { layoutMap(); planetChanged(); }   // (the map's band gliding: the tabs' rows or the timeline changed)
     globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
     showFrame();
 }
 // ── the graticule frame (js/graticule-frame.js): the gold ring round the globe, its ticks and degrees where the grid lines
 // meet its edge, fading as you zoom in; the gold frame round the map, its degrees where the lines leave it ──
 const graticule = createGraticuleFrame(ui.canvas);
-const reduceMotion = matchMedia('(prefers-reduced-motion: reduce)');
 function showFrame() {
-    if (!B?.frames?.length) { graticule.hide(); return; }
+    if (!B?.frames?.length || loading.showing) { graticule.hide(); return; }      // (none under the loading screen)
     const fv = globe.frameView(), spacing = view.grid ? view.gridStep : 30;
-    if (fv.kind === 'map') { graticule.map({ ...fv, rect: mapFrameRect(), spacing, key: `${fv.key}|${spacing}|${innerWidth}|${innerHeight}|${mapRectKey}` }); return; }
-    const fade = Math.max(0, Math.min(1, (fv.d - 1.9) / 0.7));
-    graticule.globe({ ...fv, spacing, space: inSpace(), opacity: reduceMotion.matches ? (fade > 0.5 ? 1 : 0) : fade });
+    if (fv.kind === 'map') {
+        const rect = band.frameRect();
+        graticule.map({ ...fv, rect, spacing, key: `${fv.key}|${spacing}|${innerWidth}|${innerHeight}|${rect.l},${rect.t},${rect.r},${rect.b}` });
+        return;
+    }
+    graticule.globe({ ...fv, spacing, space: inSpace() });
 }
-// (the room kept round the map — below the layer tabs, above the timeline, the frame's numerals at the sides — and the
-// rectangle its frame keeps within when zoomed in: measured when the layout changes, not each frame)
+// (the band the map is fitted in, as on Generate's — js/map-band.js: below the layer tabs and their rows, above the
+// timeline, the frame's numerals at the sides — handed to the globe view as the room kept round its frame)
+const band = createMapBand({ below: $('timeline'), gap: 26, phones: true });
 function layoutMap() {
-    const narrow = matchMedia('(max-width: 768px)').matches, m = narrow ? 22 : 56;
-    const navH = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--nav-h')) || 56;
-    const row = document.querySelector('#layerBar .layer-row')?.getBoundingClientRect(), tl = $('timeline').getBoundingClientRect();
-    const top = narrow || !row?.height ? 22 : Math.max(22, row.bottom + 30 - navH);
-    const bottom = tl.height ? Math.max(22, innerHeight - tl.top + 26) : 48;
-    globe.setMapPad({ top, bottom, side: m });
-    const side = Math.max(16, m - 4);
-    mapRect = { l: openLeft() + side, t: navH + top - 8, r: innerWidth - side, b: innerHeight - bottom + 8 };
-    mapRectKey = [mapRect.l, mapRect.t, mapRect.r, mapRect.b].join(',');
+    const { top, bottom, m } = band.now();
+    globe.setMapPad({ top: top - navHeight(), bottom, side: m });
 }
-function mapFrameRect() { if (!mapRect) layoutMap(); return mapRect; }
-addEventListener('resize', () => { layoutMap(); planetChanged(); });
-onOpenArea(() => layoutMap());
-if (typeof ResizeObserver !== 'undefined') new ResizeObserver(() => { layoutMap(); planetChanged(); }).observe($('timeline'));
 requestAnimationFrame(tick);
 
 // ── the timeline ──

@@ -349,7 +349,6 @@
     .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
-    #mapCanvas { top: 36px; height: calc(100vh - 36px); }
     #info { display: none; }
     #hoverInfo { bottom: 176px; }
     /* (the Geology row's views are in the layer list there, as the Climate row's are; its pickers stay, under the list) */

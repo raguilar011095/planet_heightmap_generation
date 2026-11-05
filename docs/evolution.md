@@ -67,9 +67,7 @@ coasts. The rivers' options (Rivers & Lakes, By Regime, density) are in the view
 ## Look around
 
 Switch views with the tabs over the planet: **Terrain**, **Satellite** (on detailed moments), **Climate**, **Geology**,
-**Food**, **Heightmap** and **Plates**. On a detailed moment, a view whose picture takes a moment to paint (the Satellite
-view's season before it has been drawn ahead, Geology and Food at full detail) puts up the loading screen first
-("Painting the Food view"), so the page never just stops.
+**Food**, **Heightmap** and **Plates**.
 
 - **Climate** shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure with the ITCZ,
   upwelling, ice, temperature range, rain shadow, aridity, growing season, rain seasonality) under **More…**, for the

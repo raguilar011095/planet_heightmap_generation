@@ -1,9 +1,8 @@
 // Entry point — wires UI controls, animation loop, and kicks off initial generation.
 
-import * as THREE from 'three';
 import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
          mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
-         tickZoom, tickMapZoom, fitCamera, fitView, showingMap } from './scene.js';
+         tickZoom, tickMapZoom, tickMapBand, fitCamera, fitView, showingMap } from './scene.js';
 import { createGraticuleView } from './graticule-view.js';
 import { state } from './state.js';
 import { initGenerateExport } from './export-generate.js';
@@ -675,7 +674,6 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
                 if (c.name === 'oceanMap') c.visible = true;
             });
         }
-        scene.background = new THREE.Color(0x1a1a2e);
         ctrl.enabled = false;
         mapCtrl.enabled = true;
         mapCamera.position.set(0, 0, 5);
@@ -706,7 +704,6 @@ document.getElementById('viewMode').addEventListener('change', (e) => {
             });
         }
         waterMesh.visible = !state.showPlates && !state.debugLayer;
-        scene.background = new THREE.Color(0x030308);
         mapCtrl.enabled = false;
         ctrl.enabled = true;
     }
@@ -982,6 +979,7 @@ const graticule = createGraticuleView(renderer.domElement);
 function animate() {
     requestAnimationFrame(animate);
     if (state.mapMode) { tickMapZoom(); mapCtrl.update(); } else { tickZoom(); ctrl.update(); }
+    tickMapBand();
     graticule.update();
     if (!state.mapMode && state.planetMesh && document.getElementById('chkRotate').checked) {
         state.planetMesh.rotation.y += 0.0008;

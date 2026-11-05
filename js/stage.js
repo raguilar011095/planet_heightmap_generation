@@ -16,6 +16,9 @@ export function inSpace() { return space; }
 /** The stage's colour, as CSS: the desk, or space. */
 export function stageColour() { return space ? token('stage-space', '#04060C') : token('desk', '#0B1420'); }
 
+/** The desk's colour, as CSS: what a flat map always sits on, whatever the globe's stage. */
+export function deskColour() { return token('desk', '#0B1420'); }
+
 /** A token's colour as { r, g, b, a } in 0…1 (sRGB), from #rrggbb or rgb()/rgba(). */
 export function tokenRGBA(name, fallback = '#ffffff') {
     const v = token(name, fallback).trim();

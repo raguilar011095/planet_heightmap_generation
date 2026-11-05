@@ -202,6 +202,8 @@ js/
   graticule-view.js     Generate's and Import's globe and map, handed to the graticule frame each frame
   open-area.js          The room beside the open sidebar: where the globe, the map and the bars over them sit (--open-left,
                         --open-shift; centred on the window with room to spare, on the space beside the sidebar when short)
+  map-band.js           The band a flat map is fitted in (every page, Evolution too): below all that sits over the planet,
+                        above the hint or the timeline, room for its frame's numerals; it glides when the tabs' rows change
   theme.js              Classic script in each page's <head>: Paper or Night, the device's choice until the theme switch
                         saves one (before the first paint, so no flash); window.orogenTheme lets the globes' stage follow
   support-check.js      Classic script run before the modules: a browser that cannot run the app (no import maps, no

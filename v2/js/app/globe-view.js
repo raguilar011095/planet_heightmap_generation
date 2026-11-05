@@ -144,6 +144,13 @@ export class GlobeView {
         if (!w || !h || (!force && w === this._w && h === this._h)) return;
         this._w = w; this._h = h;
         this.renderer.setSize(w, h, false);
+        this.fitCamera();
+    }
+
+    /** The camera fitted to the canvas and the open area (the canvas's size as last resized). */
+    fitCamera() {
+        const w = this._w, h = this._h;
+        if (!w || !h) { this.resize(); return; }
         this._dirty = true;
         this.camera.aspect = w / h;
         // Keep the whole globe in frame on portrait screens: hold the horizontal FOV at 40° — of the open area beside the
@@ -155,23 +162,24 @@ export class GlobeView {
         this.camera.updateProjectionMatrix();
     }
 
-    fovFor(w, h) {
-        return 2 * Math.atan(Math.tan(20 * Math.PI / 180) / Math.min(1, (w - (this.openLeft || 0)) / h)) * 180 / Math.PI;
+    fovFor(w, h, left = this.openLeft || 0) {
+        return 2 * Math.atan(Math.tan(20 * Math.PI / 180) / Math.min(1, (w - left) / h)) * 180 / Math.PI;
     }
 
     /** The open area beside the panel (js/open-area.js): fitted to the canvas's part right of `left` pixels, the globe and
-     *  the map moved `shift` pixels right of its centre. */
+     *  the map moved `shift` pixels right of its centre (each frame of its glide: the camera refitted, the canvas kept). */
     setOpenArea(left, shift) {
         if (left === (this.openLeft || 0) && shift === (this.openShift || 0)) return;
         this.openLeft = left; this.openShift = shift;
-        this.resize(true);
+        this.fitCamera();
     }
 
-    /** The planet's width on screen, for the open area: the map whole, or the globe at home zoom with its degree ring. */
-    planetWidth() {
+    /** The planet's width on screen, for the open area — its edge `left` px in (the new one, while the open area is
+     *  working out where the planet goes): the map whole, or the globe at home zoom with its ring. */
+    planetWidth(left = this.openLeft || 0) {
         const w = this.canvas.clientWidth || innerWidth, h = this.canvas.clientHeight || innerHeight;
-        if (this.map) return this.mapBox().width + 2 * (this.mapPad?.side ?? 0);
-        return 1.3 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h) * Math.PI / 360) * h;
+        if (this.map) return this.mapBox(left).width + 2 * (this.mapPad?.side ?? 0);
+        return 1.3 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h, left) * Math.PI / 360) * h;
     }
 
     /** Point the camera at a geographic position (degrees), keeping its current distance. */
@@ -519,12 +527,12 @@ void main() {
     }
 
     /** The map's box in client pixels: the frame's, letterboxed to the projection's shape (2 : 1 equirectangular). */
-    mapBox() {
+    mapBox(left = this.openLeft || 0) {
         // (fitted to the frame's part right of the open area's edge, inside the room kept round it — the tabs above, the
         // timeline below, the frame's numerals all round: setMapPad — and moved right of the frame's centre by the open
         // area's shift)
         const r = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]);
-        const left = this.openLeft || 0, pad = this.mapPad ?? { top: 0, bottom: 0, side: 0 };
+        const pad = this.mapPad ?? { top: 0, bottom: 0, side: 0 };
         const f = { left: r.left + (this.openShift || 0), top: r.top + pad.top, width: r.width, height: Math.max(1, r.height - pad.top - pad.bottom) };
         const s = Math.max(1, Math.min((f.width - left - 2 * pad.side) / aspect, f.height));
         return { left: f.left + (f.width - aspect * s) / 2, top: f.top + (f.height - s) / 2, width: aspect * s, height: s };
@@ -547,7 +555,8 @@ void main() {
             const box = this.mapBox(), v = this.mapView, pb = this.map.bounds, pw = pb[1] - pb[0], ph = pb[3] - pb[2];
             const toClient = (X, Y) => [box.left + box.width / 2 + ((X - pb[0]) / pw - 0.5 - v.panX) * box.width * v.zoom,
                 box.top + box.height / 2 + ((pb[3] - Y) / ph - 0.5 - v.panY) * box.height * v.zoom];
-            const fromClient = (x, y) => { const m = this.mapFrac(x, y); return [pb[0] + m[0] * pw, pb[3] - m[1] * ph]; };
+            const fromClient = (x, y) => [pb[0] + (0.5 + (x - box.left - box.width / 2) / (box.width * v.zoom) + v.panX) * pw,
+                pb[3] - (0.5 + (y - box.top - box.height / 2) / (box.height * v.zoom) + v.panY) * ph];   // (as mapFrac, from this box)
             const eq = this.map.projection === 'equirect';
             return { kind: 'map', id: this.map.projection, opts: this.map.projOpts || {}, centre: this.map.centerLon * Math.PI / 180, toClient, fromClient,
                 xRange: eq ? [pb[0] + v.panX * pw, pb[0] + (v.panX + 1) * pw] : null,

@@ -434,11 +434,10 @@ each checked in the browser.
 - [x] Evolution uses the loading screen more, saying what is happening (`v2/js/evolution/loading.js`, Generate's overlay
   and the logo spinner): a world starting until its first moment is drawn (the history then builds in view, never
   covered); a planet file opening (the history, the detailed moment, the terrain, painting) until drawn; Add detail
-  with each stage in words ("Carving the rivers…") and its share, Cancel still on the timeline; a view's slow picture on
-  a detailed moment (the Satellite season not drawn ahead; Geology and Food the first time; any view that took over a
-  quarter of a second last time), the screen up two frames before the page is held; the terrain built again at another
-  detail (not over a history being built). The card no longer says "A new world is starting" while a file opens, and
-  says the finish's stages in words.
+  with each stage in words ("Carving the rivers…") and its share, Cancel still on the timeline; the terrain built again
+  at another detail (not over a history being built). The waits stack: when one ends, the one beneath comes back. No
+  screen on a change of view (built, then taken out: the owner, "not needed… and looks bad"). The card no longer says
+  "A new world is starting" while a file opens, says when one failed to open, and says the finish's stages in words.
 - [x] The graticule frame (`js/graticule-frame.js`, replacing `js/degree-ring.js`): the globe's gold ring with a tick
   wherever a grid line meets the globe's edge and its degrees every 30°, turning with the globe; on the map, in every
   projection, a gold frame along the outline (traced exactly; the orthographic's and azimuthal's circles by rays) with
@@ -452,6 +451,12 @@ each checked in the browser.
 - [x] The ring stays on the globe through a fast spin (the owner: "the whole ring runs off to the side"): the camera's
   matrices brought up to this frame before the ring is placed (the controls move it before the render does). And no
   ring over the loading screen.
+- [x] The stack's review (all 15 findings fixed): the Globe/Map toggle keeps the theme's stage (Generate, Import); the
+  terrain's screen ends on a detailed moment too; the frame sized as the canvas is (not 100vh) on phones; a single
+  metal's swatches and district dots in its family's colour; the projected map's grid in `map-grid`; the map's band
+  (`js/map-band.js`, shared by every page) below everything over the planet — the view options when open, the tabs, a
+  layer's own row — gliding when that changes; Evolution's panel fold refits the camera only and measures the map at
+  the new edge; the phone masthead 47 px so its tabs are 44 px tall; the Studio's text links 44 px tall on phones.
 
 **The Studio**
 - [x] "Free and open source" raised above the buttons, in a gold tag.

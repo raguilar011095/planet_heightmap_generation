@@ -147,4 +147,7 @@ body.studio {
     .worlds-panel .og-seg { align-self: stretch; }
     .worlds-panel .og-seg__opt { flex: 1 1 0; min-height: var(--size-touch); }
     .studio-follow-links a { min-height: var(--size-touch); }
+    /* (the links in running text — a resource's name, the footer's Ideas and bug reports — a finger's height to tap,
+       their padding reaching over the lines beside them rather than spacing the text out) */
+    .res-link, .studio-footer p a { padding: 13px 0; }
 }
