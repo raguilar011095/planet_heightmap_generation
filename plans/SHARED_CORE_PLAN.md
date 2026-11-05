@@ -44,10 +44,12 @@ the finish, the views, the controls over the planet, the picture, the export —
   synthesize.js `kAlt`), its first picture unchanged. Hydraulic Erosion scales the finish's carve too
   (`knobs.js finishOverrides`). Evolution byte-identical (finishPlanet's whole result hashed before and after).
   Measured: Generate's ground through the finish at 204K, Node, one thread: 8.3 s after the 2.2 s first picture.
-- [ ] **U2 — one viewer.** Evolution's picture, views and controls out of `evolution-main.js` into shared modules:
-  the planet view (globe, GPU painter, textures, glint, clouds, Satellite ahead, Add detail's tiles, overlays, legend,
-  hover) and the layer bar (tabs, sub-tabs, deposit / age / resource pickers, season, phone list — its markup built from
-  one list, not written in each page). Evolution moves onto them, its pictures unchanged.
+- [x] **U2 — one viewer.** Evolution's picture, views and controls out of `evolution-main.js` (−527 lines) into
+  `v2/js/view/planet-view.js` (globe, GPU painter, textures, glint, clouds, Satellite ahead, Add detail's tiles, lines,
+  legend, hover lines; the page's own layers as cell colours and its own lines through hooks) and `v2/js/view/layer-bar.js`
+  (view strip, tabs, rows, pickers, phone list, legend card — markup made once; the deposit and age menus from their
+  lists, which adds the three deposits the hand-written menu had missed: Iron veins, Magnetite-apatite, Basalt and tuff).
+  Evolution moves onto them: its painting code moved verbatim, every view checked in the browser.
 - [ ] **U3 — Generate on the shared viewer and finish (`?next=1`).** A new Generate page module on the planet view and
   layer bar: the worker's first picture (the ground on Generate's mesh, GPU-painted), then Evolution's finish in the
   background (FinishService, cancelled by a new build, edit or Reapply). Generate's own: sliders, plate editing (picked
