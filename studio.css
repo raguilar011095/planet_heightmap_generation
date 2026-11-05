@@ -11,11 +11,13 @@ body.studio {
 
 /* ── the hero: the words left, the globe right ── */
 .studio-hero {
-    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 520px); gap: var(--space-8); align-items: center;
+    display: grid; grid-template-columns: minmax(min-content, 1fr) minmax(0, 520px); gap: var(--space-8); align-items: center;
     margin-bottom: 56px;
 }
 .hero-text { display: flex; flex-direction: column; gap: 22px; }
-.studio-hero h1 { margin: 0; font: 500 92px/0.95 var(--font-display); letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
+/* three lines on every screen but a phone's (Build your / world, from / the ground up.): the hero is measured on them,
+   so its column is never narrower than the widest line (the globe gives way instead) */
+.studio-hero h1 { margin: 0; min-width: max-content; font: 500 92px/0.95 var(--font-display); letter-spacing: -0.01em; color: var(--ink); text-wrap: balance; }
 .studio-hero h1 em { font-style: italic; font-weight: 400; color: var(--accent); }
 .hero-lede { margin: 0; max-width: 34em; font: 400 23px/1.55 var(--font-text); color: var(--body); }
 /* the layer highlights (docs/style-guide/components.md, Tag): a word marked in its layer's tint and ink */
@@ -52,7 +54,7 @@ body.studio {
     transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 .tool-card:hover { transform: translateY(-2px); }
-.tool-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.tool-card__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
 .tool-tile { width: var(--size-tile); height: var(--size-tile); flex: none; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--l-tint); color: var(--l-ink); }
 .tool-card .og-tag { align-self: center; }
 .tool-card h3 { margin: 4px 0 0; font: 600 28px/1.05 var(--font-display); color: var(--ink); }
@@ -150,4 +152,11 @@ body.studio {
     /* (the links in running text — a resource's name, the footer's Ideas and bug reports — a finger's height to tap,
        their padding reaching over the lines beside them rather than spacing the text out) */
     .res-link, .studio-footer p a { padding: 13px 0; }
+}
+/* a phone's: two lines, set further apart, as there the y of "your" falls over the h of "the" */
+@media (max-width: 600px) {
+    .studio-hero h1 { min-width: 0; line-height: 1.1; }
+    .hero-break { display: none; }
+    /* room for the longest tag beside its tile on a 360 px phone (narrower ones put it under the tile) */
+    .tool-card { padding-left: 20px; padding-right: 20px; }
 }

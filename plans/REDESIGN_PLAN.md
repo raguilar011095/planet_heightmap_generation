@@ -468,6 +468,11 @@ each checked in the browser.
   the moment — the history you scrub (`assets/brand/icons/evolution.svg`, the Studio's tool card, the style guide).
 - [x] Worlds to explore: the map from the eyebrow's top to the picker's foot, its name just below (narrower desktop
   windows trim the map's sides to fill that height; wider ones show it whole).
+- [x] The headline always on its three lines above 600 px, Build your / world, from / the ground up. (the owner: wide
+  windows set it on two, where the h in "the" overlapped the y in "your", and the hero is measured on three): its
+  column never narrower than the widest line, so from 901 to 1200 px the globe gives way instead of the title breaking
+  onto four lines (or one word a line); on phones two lines at 1.1 leading, the least that clears the y's tail. And the
+  tool cards' tags fit beside their tiles on a 360 px phone ("Your map brought to life" had pushed the page 1 px wide).
 
 ## Every phase is done when
 
