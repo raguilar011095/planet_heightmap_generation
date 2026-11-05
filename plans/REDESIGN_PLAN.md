@@ -457,6 +457,8 @@ each checked in the browser.
   (`js/map-band.js`, shared by every page) below everything over the planet — the view options when open, the tabs, a
   layer's own row — gliding when that changes; Evolution's panel fold refits the camera only and measures the map at
   the new edge; the phone masthead 47 px so its tabs are 44 px tall; the Studio's text links 44 px tall on phones.
+- [x] The layer tabs as wide as they need, up to the room beside the panel: placed from the middle, the bar had shrunk to
+  the half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen.
 
 **The Studio**
 - [x] "Free and open source" raised above the buttons, in a gold tag.

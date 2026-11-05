@@ -463,7 +463,9 @@ button#generate.generating {
 .layer-bar {
     position: fixed; top: calc(var(--nav-h) + 12px); left: calc(50% + var(--open-shift, 0px)); transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (with the planet, js/open-area.js; the nudge clear of the panel: js/view-strip.js) */
     display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
-    max-width: calc(100vw - 32px);
+    /* (as wide as its tabs, up to the room beside the panel: placed from the middle, the bar otherwise shrank to the
+       half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen) */
+    width: max-content; max-width: calc(100vw - var(--open-left, 0px) - 32px);
 }
 .layer-bar > * { pointer-events: auto; }
 .layer-bar .map-tabs {
