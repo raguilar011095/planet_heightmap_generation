@@ -4,6 +4,8 @@
 // Evolution's terrain tunables Generate's present-day world draws differently (G3c): an open-ocean island arc, mature,
 // stands at the sea's surface — its islands a chain (the Philippines, the Lesser Antilles) — where Evolution's stays a
 // submerged ridge its volcanoes break (kept low there, so its arcs never grow huge over a long history)
+import { OrogenyType, BeltSide } from '../tectonics/model/crust.js';
+
 export const PRESENT_TERRAIN = {
     arcOceanMatureKm: -0.35,       // (Evolution's −1.5: its islands the ridge's high points, not the whole ridge)
     arcMatureKm: 0.5,              // (0.3)
@@ -123,6 +125,11 @@ export const PRESENT = {
     riftDomeKm: 0.45,              // …on a broad dome about this high (× 0.5–1.5 along it; the East African plateau)…
     riftDomeWidthKm: 450,          // …this wide (σ)
     riftFloorKm: 0.08,             // (a graben's floor stays land: at least this high where the ground was above it)
+    riftOpenMin: 10,               // (M2: a rift's valley where its plates open faster than this, km/Myr…
+    riftOpenFull: 35,              // …full depth from this; none where its depth share is under riftLineMin: a gap, a sag)
+    riftLineMin: 0.12,
+    riftBorderHigh: 1.15,          // (M2: a half-graben's border-fault shoulder × this of its height, the other side's × riftBorderLow)
+    riftBorderLow: 0.3,
     riftThinShare: 0.3,            // the valley's crust thinned: the old ranges' root, uplift and crests there × this
     arcMaxKm: 280,                 // an island arc's crust at most this wide…
     arcMinRateCmYr: 2,             // …only where the slab goes down at least this fast…
@@ -219,7 +226,7 @@ export const PRESENT = {
     recFloodAgoMyr: [70, 450],     // …last this long ago (a noise)
     recDriftDeg: 12,               // the latitude the cover lay at: today's ± this (the continents drifted)
     recArcMaxMyr: 150,             // an arc's own crust in a live arc this long at most
-    recAccretedArcShare: 0.45,     // this share of the docked pieces came as island arcs (was 0.3)…
+    recAccretedArcShare: 0.36,     // this share of the docked pieces came as island arcs (was 0.3, then 0.45: below)…
     recAccretedArcMyr: 40,         // …each this long in one…
     recAccretedCover: 0.02,        // …its platform's cover this share…
     recArcCover: 0.01,             // an arc's own crust (a split-off arc, an arc at sea grown into land): its cover this share…
@@ -229,7 +236,9 @@ export const PRESENT = {
     // [0.45, 0.65]: 2.3 % of the default planets' land volcanic once Evolution's finish laid its dunes, loess and till over
     // Generate's ground — Evolution's bound, Earth's, is ≥ 3 %; now 2.9 %, the arcs less worn and nearly half the docked
     // pieces arcs, as many of the North American Cordillera's were. More arcs bring their copper too: at 60 % copper
-    // passed a third of iron, Evolution's other bound)
+    // passed a third of iron, Evolution's other bound. M2, 2026-11-05: the reshaped ranges — spines, blocks, slivers —
+    // bare more of the docked arcs' rock, so 45 % → 36 %: the supercontinent's copper back under a third of its iron
+    // (16.3 % → 12.6 %), the default planets' volcanic 3.2 %)
     recBeltThicken: 5,             // a belt's outer zone's cover thickened this much (its sheets thrust over one another)
     recOphioliteShare: 0.12,       // ophiolite slivers along this share of the sutures (in patches ~600 km)
     recOphioliteKm: 600,
@@ -283,14 +292,58 @@ export const PRESENT = {
     subWorkKm: [100, 260],         // …with this much convergence…
     swellSubKm: 0.08,              // …and a low swell along it
     swellSubWidthKm: 250,
-    // G4d: along its length an old range varies (owner, 2026-11-04: "still a little wormy"): its work × pastVary over a noise
-    // about pastVaryKm long (its width × 0.6–1.4 over a shorter one), and none where the noise is in its lowest pastGap —
-    // a small terrane's welt pastGapSub (broken ridges)
-    pastVaryKm: 550,
-    pastVary: [0.4, 2.0],
-    pastGap: 0.25,
-    pastWidthVary: [0.5, 1.7],
-    pastGapSub: 0.45,
+    // M1–M2 (present/ranges.js; owner, 2026-11-05: the ranges were "worm like … they all look the same and have no
+    // variety"): each past range is a range in its own right — its pieces' outline smoothed into a curve (by a Gaussian of
+    // at least rangeSmoothKm, or its style's share of its width), cut into overlapping lens-shaped segments stepped en
+    // echelon, and written as its style's kind of belt
+    rangeStepKm: 25,               // (the curve's points this far apart)
+    rangeSmoothKm: 260,
+    rangeSmoothShare: 0.045,        // …and at least this share of its length (a long range bends in long arcs)
+    rangeMinKm: 320,               // a range whose curve is shorter than this is none (but a knot)
+    rangeCoastKm: 150,
+    // the styles. type: the kind of belt (Evolution's: its cross-section, ridges, rock); sides: a suture's two sides each its
+    // own kind ([type, side, width share], the upper first); width, work: × the range's own (its kind's width from its work);
+    // smooth: its curve smoothed by at least this share of its width; segKm: its segments this long, overlapping by
+    // overlap (negative: apart), turned en echelon by echelonDeg, set off sideways by up to offset × its width, gap: this
+    // share of them left out; segWidth, strength: each segment's width and work × these, the massif's (one segment)
+    // × massif; a segment's lens: its width tipWidth…1 (× sin^lensPow), its work 0…1 (× sin^workPow), its height tipAmp…1
+    // (× sin^ampPow); amp: the whole range's height × this (a belt's relief is its kind's whatever its work: this varies it);
+    // bow: each segment bowed into an arc by up to this share of its length
+    rangeStyles: {
+        // one high spine, a long slope on one side and a short steep one on the other (the Alps, the Caucasus, the Pyrenees)
+        spine: { bow: 0.06, amp: [1.3, 1.9], tipAmp: 0.2, ampPow: 0.7, sides: [[OrogenyType.URAL, BeltSide.NONE, 1], [OrogenyType.URAL, BeltSide.NONE, 0.35]], width: [1.1, 1.7], work: [1.0, 1.5],
+            smooth: 0.8, segKm: [700, 1500], overlap: 0.2, echelonDeg: [3, 10], offset: 0.15, gap: 0.08, segWidth: [0.75, 1.15],
+            strength: [0.6, 1.0], massif: 1.3, tipWidth: 0.3, lensPow: 0.7, workPow: 0.6 },
+        // a plateau behind a rim range, the high range of the side thrust under before it (Tibet, the Altiplano, Anatolia)
+        plateau: { bow: 0.05, amp: [0.95, 1.2], tipAmp: 0.35, ampPow: 0.5, sides: [[OrogenyType.HIMALAYAN, BeltSide.UPPER, 1], [OrogenyType.HIMALAYAN, BeltSide.LOWER, 0.55]], width: [1.8, 2.6], work: [1.0, 1.4],
+            smooth: 1.0, segKm: [1500, 3200], overlap: 0.1, echelonDeg: [0, 4], offset: 0.05, gap: 0, segWidth: [0.85, 1.1],
+            strength: [0.85, 1.0], massif: 1.1, tipWidth: 0.45, lensPow: 0.5, workPow: 0.4 },
+        // a broad fold belt: parallel ridges and valleys (the Appalachians' Valley and Ridge, the Zagros)
+        folds: { bow: 0.07, amp: [0.75, 1.15], tipAmp: 0.25, ampPow: 0.8, type: OrogenyType.URAL, width: [1.4, 2.3], work: [0.7, 1.1], smooth: 0.9, segKm: [900, 2200], overlap: 0.15,
+            echelonDeg: [0, 6], offset: 0.2, gap: 0.1, segWidth: [0.7, 1.2], strength: [0.5, 1.0], massif: 1.2, tipWidth: 0.25, lensPow: 0.8, workPow: 0.7 },
+        // short basement-cored blocks stepped across the land, basins between (the Tian Shan, the Laramide ranges)
+        blocks: { bow: 0.03, amp: [0.7, 1.3], tipAmp: 0.15, ampPow: 1.0, type: OrogenyType.INTRAPLATE, width: [0.55, 0.9], work: [0.6, 1.0], smooth: 1.2, segKm: [380, 750], overlap: 0.05,
+            echelonDeg: [15, 35], offset: 0.9, gap: 0.25, segWidth: [0.6, 1.2], strength: [0.4, 1.0], massif: 1.3, tipWidth: 0.2, lensPow: 1, workPow: 0.8 },
+        // a narrow, straight sliver along an oblique seam, its ridges en echelon (the Transverse Ranges, the Southern Alps)
+        sliver: { bow: 0.02, amp: [0.8, 1.2], tipAmp: 0.2, ampPow: 0.7, type: OrogenyType.TRANSPRESSION, width: [0.5, 0.9], work: [0.8, 1.2], smooth: 2, segKm: [500, 1200], overlap: 0.25,
+            echelonDeg: [8, 18], offset: 0.3, gap: 0.12, segWidth: [0.7, 1.1], strength: [0.6, 1.0], massif: 1.2, tipWidth: 0.25, lensPow: 0.6, workPow: 0.6 },
+        // a rift: its valley in basins stepped en echelon, each deepest toward its middle, an accommodation zone between
+        // (the East African rift's), its shoulders beside them (width: its shoulders' reach; work: the valley's depth share)
+        rift: { bow: 0.04, amp: [1, 1], tipAmp: 0.2, ampPow: 0.7, type: OrogenyType.RIFT, width: [1, 1], work: [1, 1], smooth: 1.2, segKm: [200, 600], overlap: 0.0, echelonDeg: [4, 12],
+            offset: 0.2, gap: 0.32, segWidth: [0.7, 1.2], strength: [0.5, 1.0], massif: 1.0, tipWidth: 0.3, lensPow: 0.7, workPow: 0.6 },
+        // a knot of short ridges round a massif (the Massif Central, the Hoggar's ranges)
+        knots: { bow: 0.0, amp: [0.75, 1.25], tipAmp: 0.3, ampPow: 0.6, type: OrogenyType.URAL, width: [0.7, 1.1], work: [0.8, 1.2], smooth: 1.0, segKm: [380, 650], overlap: -0.35,
+            echelonDeg: [20, 55], offset: 0.6, gap: 0.35, segWidth: [0.8, 1.3], strength: [0.5, 1.1], massif: 1.4, tipWidth: 0.35, lensPow: 0.7, workPow: 0.5 },
+    },
+    // each kind of past range's styles (weights): a young weld of two cores is a plateau or a spine; an old one, and a piece
+    // docking, most often a fold belt; two pieces of one plate closing, any; a small terrane's welt, blocks and knots
+    rangeStyleWeights: {
+        weldYoung: { plateau: 0.55, spine: 0.45 },
+        weld: { spine: 0.35, folds: 0.45, blocks: 0.2 },
+        ring: { folds: 0.4, spine: 0.2, blocks: 0.2, sliver: 0.1, knots: 0.1 },
+        seam: { spine: 0.3, blocks: 0.3, sliver: 0.2, folds: 0.1, knots: 0.1 },
+        sub: { blocks: 0.45, knots: 0.35, folds: 0.2 },
+    },
     farPastShare: 0.5,             // …and an old collision pushed through its continent with this share of its work (its grain)
     segmentVary: 0.35,             // …and along today's ranges each terrane took up its own share of the convergence (× 0.65–1:
                                    // a range lower along some, never above what its front built)

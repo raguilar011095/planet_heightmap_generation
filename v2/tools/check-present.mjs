@@ -541,7 +541,7 @@ for (const { pl, G } of grounds) {
     // the ground along the valley's line against its flanks (render regions by their sim cell's distance from the line)
     let n0 = 0, s0 = 0, n1 = 0, s1 = 0;
     if (rf) for (let q = 0; q < G.heightKm.length; q++) {
-        const c = G.mask.regionCell[q], d = rf.km[c];
+        const c = G.mask.regionCell[q], d = Math.abs(rf.km[c]);      // (M2: signed, across the line)
         if (d < 30) { n0++; s0 += G.heightKm[q]; } else if (d > 90 && d < 200) { n1++; s1 += G.heightKm[q]; }
     }
     const sea = rifts.reduce((s, f) => s + f.seaCells, 0), valley = rifts.reduce((s, f) => s + f.valley, 0);

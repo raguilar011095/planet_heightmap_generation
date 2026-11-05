@@ -22,6 +22,7 @@ import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { Boundary } from './plates.js';
 import { PRESENT } from './present-config.js';
+import { shapeRange, normalAt } from './ranges.js';
 
 const R = 6371, DEG = 180 / Math.PI;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -78,6 +79,9 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
     const shelfSea = new Uint8Array(n);
     // (G3f: a rift valley's line — how deep and how wide its graben, per sim cell — and km from the sea, once)
     const riftDepth = new Float32Array(n), riftHalf = new Float32Array(n);
+    // (M2: and where its smooth line passes the cell — a point on it and its normal there, in the sim mesh's frame — so the
+    // valley follows the line itself, not the cells it was written on)
+    const riftPt = new Float32Array(3 * n), riftNrm = new Float32Array(3 * n);
     let seaKm = null;
     let sundaFronts = 0;                    // (G3e: at most sundaMax stretched continents a planet — an Indonesia, not many)
     // (G3d: along a front's strike — a noise of the fronts' own, read as a share of its spread)
@@ -410,19 +414,35 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
                 crust.formedAt[c] = -T * Math.min(1, d.km[c] / Math.max(1, d.reach[c]));
             }
         }
-        // the valley: a graben along the rift, its line stepping from one side to the other along the strike (en echelon
-        // segments, riftSegKm), deeper and wider here, shallower there, broken in places (present/rifts.js cuts it)
-        const line = [];
-        for (const e of E) {
-            const c = strike(e.ca, cfg.riftSegKm, off[0]) < 0.5 ? e.ca : e.cb;
-            if (!land[c] || crust.type[c] === CrustType.OCEAN) continue;
-            const v = strike(c, cfg.riftVaryKm, off[1]);
-            if (v < cfg.riftGap) continue;
-            const k = (v - cfg.riftGap) / (1 - cfg.riftGap);
+        // the valley: a graben along the rift — M1–M2 (present/ranges.js; owner, 2026-11-05: the worms were its valley and
+        // shoulders tracing the plates' zigzag edge): its line the plates' edge smoothed into a curve, in segments stepped en
+        // echelon (the rift's basins, an accommodation zone between each two), each deepest and widest toward its middle,
+        // broken now and then (present/rifts.js cuts it)
+        const open = (c) => land[c] === 1 && crust.type[c] !== CrustType.OCEAN && (plateOf[c] === g.pa || plateOf[c] === g.pb);
+        const edge = [...new Set(E.flatMap(e => [e.ca, e.cb]).filter(open))].sort((a, b) => a - b);
+        const shaped = edge.length >= 2 ? shapeRange(mesh, { kind: 'rift', front: edge, work: 1, age: T + g.pa * 0.01 + g.pb * 0.0001, style: 'rift', asBuilt: true }, { source: open, reach: open }, config.riftShoulderKm, seed)
+            : { front: [], works: [], widths: [] };
+        // (and as deep as the plates open there: a rift dies out toward its slow end — the pole the plates turn about — into a
+        // broad sag, as East Africa's does into the Okavango; each line cell read off its nearest edge)
+        const openAt = (c) => {
+            const p = at(mesh.xyz, c);
+            let best = 0, bd = -2;
+            for (const e of E) { const d = dot(p, at(mesh.xyz, e.ca)); if (d > bd) { bd = d; best = -e.closing; } }
+            return smooth01((best - cfg.riftOpenMin) / (cfg.riftOpenFull - cfg.riftOpenMin));
+        };
+        const line = [], lineAt = new Map();
+        shaped.front.forEach((c, i) => {
+            const fo = openAt(c), k = Math.min(1, shaped.works[i]) * fo;
+            if (!(k > cfg.riftLineMin)) return;
+            const wk = Math.min(1, shaped.widths[i] / config.riftShoulderKm);
             const depth = cfg.riftValleyKm[0] + (cfg.riftValleyKm[1] - cfg.riftValleyKm[0]) * k;
-            if (depth > riftDepth[c]) { riftDepth[c] = depth; riftHalf[c] = cfg.riftHalfKm[0] + (cfg.riftHalfKm[1] - cfg.riftHalfKm[0]) * strike(c, cfg.riftVaryKm, off[2]); }
-            line.push(c);
-        }
+            if (depth > riftDepth[c]) {
+                riftDepth[c] = depth; riftHalf[c] = cfg.riftHalfKm[0] + (cfg.riftHalfKm[1] - cfg.riftHalfKm[0]) * wk;
+                const e = shaped.at.get(c), nrm = normalAt(e);
+                for (let j = 0; j < 3; j++) { riftPt[3 * c + j] = e.pt[j]; riftNrm[3 * c + j] = nrm[j]; }
+            }
+            line.push(c); lineAt.set(c, { k, wk });
+        });
         // the dome the rift sits on (the East African plateau: the mantle swelling under it), its own height along the rift
         if (line.length) {
             const d = distanceFrom(line, line.map(() => 3 * cfg.riftDomeWidthKm), (c) => land[c] && crust.type[c] !== CrustType.OCEAN);
@@ -440,27 +460,31 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             crust.rootKm[c] *= cfg.riftThinShare; crust.upliftKm[c] *= cfg.riftThinShare;
             crust.rugged[c] *= cfg.riftThinShare; crust.prevRugged[c] *= cfg.riftThinShare;
         }
-        // the shoulders: from the rift's own edge cells (the new sea's coast, or the rift line), both flanks — never on the
-        // valley's line (they rise beside it), higher and lower along it
-        for (const p of [g.pa, g.pb]) {
-            const cells = [];
-            for (let c = 0; c < n; c++) {
-                if (plateOf[c] !== p || crust.type[c] === CrustType.OCEAN || isLine[c]) continue;
-                // a land cell of this plate on the rift: beside the other plate, beside the sea the rift opened, or beside
-                // the valley's line
-                let edge = false;
-                for (let k = mesh.adjOffset[c]; k < mesh.adjOffset[c + 1]; k++) {
-                    const nb = mesh.adjList[k];
-                    if ((plateOf[nb] === (p === g.pa ? g.pb : g.pa) && land[nb]) || (land[nb] && crust.type[nb] === CrustType.OCEAN) || isLine[nb]) { edge = true; break; }
-                }
-                if (edge) cells.push(c);
+        // the shoulders: from beside the valley's line (and the new sea's coast), both flanks — never on the line (they rise
+        // beside it), as high and as wide as the valley's segment there; each segment a half-graben, its border fault's
+        // shoulder high and the other side's low, the high side flipping from segment to segment
+        const src = new Map();
+        const add = (c, wk, k) => { const was = src.get(c); if (!was || wk > was.wk) src.set(c, { wk, k: Math.max(k, was?.k ?? 0) }); else was.k = Math.max(was.k, k); };
+        for (const c of line) {
+            const { k, wk } = lineAt.get(c), e = shaped.at.get(c), nrm = normalAt(e);
+            for (let j = mesh.adjOffset[c]; j < mesh.adjOffset[c + 1]; j++) {
+                const nb = mesh.adjList[j];
+                if (!open(nb) || isLine[nb]) continue;
+                const high = Math.sign(dot(at(mesh.xyz, nb), nrm)) === e.seg.polarity;      // (the segments are in the sim mesh's frame)
+                add(nb, wk * (high ? 1.1 : 0.6), (0.4 + 0.6 * k) * (high ? cfg.riftBorderHigh : cfg.riftBorderLow));
             }
-            if (!cells.length) continue;
+        }
+        for (const e of E) for (const c of [e.ca, e.cb]) {
+            if (!open(c) || isLine[c]) continue;
+            for (let j = mesh.adjOffset[c]; j < mesh.adjOffset[c + 1]; j++) { const nb = mesh.adjList[j]; if (land[nb] && crust.type[nb] === CrustType.OCEAN) { add(c, 0.8, 0.8); break; } }
+        }
+        const cells = [...src.keys()].sort((a, b) => a - b);
+        if (cells.length) {
             const work = config.riftShoulderWorkKm * cfg.riftShoulderShare;
-            spreadBelt(plate, mesh, cells, { type: OrogenyType.RIFT, time: 0, widths: cells.map(c => config.riftShoulderKm * (0.7 + 0.6 * strike(c, cfg.riftVaryKm, off[2]))),
-                works: cells.map(c => work * (cfg.riftShoulderVary[0] + (cfg.riftShoulderVary[1] - cfg.riftShoulderVary[0]) * strike(c, cfg.riftVaryKm, off[1]))), widthKm: 0, workKm: 0 }, config, (c) => plateOf[c] === p && !isLine[c]);
+            spreadBelt(plate, mesh, cells, { type: OrogenyType.RIFT, time: 0, widths: cells.map(c => config.riftShoulderKm * (0.5 + 0.6 * src.get(c).wk)),
+                works: cells.map(() => work), amps: cells.map(c => src.get(c).k), widthKm: 0, workKm: 0 }, config, (c) => open(c) && !isLine[c]);
             for (const c of cells) crust.flags[c] |= CrustFlag.RIFT_MARGIN;
-            stampStart(cells, p, T);
+            for (const p of [g.pa, g.pb]) stampStart(cells.filter(c => plateOf[c] === p), p, T);
         }
         fronts.push({ kind: 'rift', T, openKm, seaCells, valley: line.length });
     }
@@ -527,14 +551,24 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
 
     return { crust, config, fronts, shelfSea, pushes, rift: riftField() };
 
-    /** The rift valleys as the ground reads them: per sim cell, km from the nearest valley line, and its depth and half-width. */
+    /** The rift valleys as the ground reads them: per sim cell, km from the nearest valley line — signed, across the line
+     *  where it passes its nearest line cell (M2: so the valley, read between the cells, follows the smooth line itself) —
+     *  and its depth and half-width. */
     function riftField() {
         const src = []; for (let c = 0; c < n; c++) if (riftDepth[c] > 0) src.push(c);
         if (!src.length) return null;
         const d = distanceFrom(src, src.map(c => 3 * riftHalf[c] + 2 * mesh.edgeKm), (c) => land[c] === 1);
         const km = new Float32Array(n).fill(1e4), depth = new Float32Array(n), half = new Float32Array(n);
-        for (let c = 0; c < n; c++) if (d.reach[c] > 0 && d.km[c] <= d.reach[c]) { const s = src[d.src[c]]; km[c] = d.km[c]; depth[c] = riftDepth[s]; half[c] = riftHalf[s]; }
-        return { km, depth, half, lines: src.length };
+        for (let c = 0; c < n; c++) {
+            if (!(d.reach[c] > 0) || d.km[c] > d.reach[c]) continue;
+            const s = src[d.src[c]], o = 3 * s, p = at(mesh.xyz, c), q = [riftPt[o], riftPt[o + 1], riftPt[o + 2]], nv = [riftNrm[o], riftNrm[o + 1], riftNrm[o + 2]];
+            const dv = [p[0] - q[0], p[1] - q[1], p[2] - q[2]], across = R * dot(dv, nv), along = R * Math.abs(dot(dv, cross(nv, q)));
+            // (across the line where its cell stands; past a line cell's own stretch of it, along it too — a gap stays a gap)
+            const beyond = Math.max(0, along - 0.7 * mesh.edgeKm);
+            km[c] = Math.sign(across || 1) * Math.hypot(across, beyond);
+            depth[c] = riftDepth[s]; half[c] = riftHalf[s];
+        }
+        return { km, depth, half, lines: src.length, signed: true };
     }
 }
 

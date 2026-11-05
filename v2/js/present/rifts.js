@@ -11,8 +11,8 @@ import { PRESENT } from './present-config.js';
 /**
  * Cuts the rift valleys into a terrain surface, in place.
  * @param {Float32Array} heightKm  the surface on Generate's mesh (km)
- * @param {{km: Float32Array, depth: Float32Array, half: Float32Array}} rift  per sim cell: km from the nearest valley
- *   line, and that line's depth and half-width (present/belts.js riftField)
+ * @param {{km: Float32Array, depth: Float32Array, half: Float32Array, signed?: boolean}} rift  per sim cell: km from the
+ *   nearest valley line (signed: across it), and that line's depth and half-width (present/belts.js riftField)
  * @param {{cells: Int32Array, weights: Float32Array}} S  each region's three sim cells and weights (sampleOnto)
  */
 export function cutRifts(heightKm, rift, S, cfg = PRESENT) {
@@ -22,8 +22,10 @@ export function cutRifts(heightKm, rift, S, cfg = PRESENT) {
         if (!(h > 0)) continue;
         const o = 3 * r, a = cells[o], b = cells[o + 1], c = cells[o + 2], wa = weights[o], wb = weights[o + 1], wc = weights[o + 2];
         if (km[a] >= 1e4 && km[b] >= 1e4 && km[c] >= 1e4) continue;
-        // (a corner the valley does not reach reads as far from it)
-        const d = wa * Math.min(km[a], 1e3) + wb * Math.min(km[b], 1e3) + wc * Math.min(km[c], 1e3);
+        // (a corner the valley does not reach reads as far from it; M2: with all three reached, the signed distances read
+        // across — the valley on the line itself, between the cells)
+        const d = rift.signed && km[a] < 1e4 && km[b] < 1e4 && km[c] < 1e4 ? Math.abs(wa * km[a] + wb * km[b] + wc * km[c])
+            : wa * Math.min(Math.abs(km[a]), 1e3) + wb * Math.min(Math.abs(km[b]), 1e3) + wc * Math.min(Math.abs(km[c]), 1e3);
         const dep = wa * depth[a] + wb * depth[b] + wc * depth[c], hw = wa * half[a] + wb * half[b] + wc * half[c];
         if (!(dep > 0) || !(hw > 0) || d > 3 * hw) continue;
         const cut = dep * Math.exp(-((d / hw) ** 2));

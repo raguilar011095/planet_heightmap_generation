@@ -19,6 +19,7 @@ import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { Boundary } from './plates.js';
 import { PRESENT } from './present-config.js';
+import { shapeRange } from './ranges.js';
 
 const R = 6371;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -184,7 +185,12 @@ export function presentFarField(L, W, B, land, crust, config, cfg = PRESENT, pus
             return cfg.farWorkKm * Math.tanh(take[c] / cfg.farPushRefKm) * (v < 0.15 ? 0 : 0.35 + 1.1 * (v - 0.15) / 0.85);
         });
         const widths = works.map(w => Math.min(config.belts.ural.maxKm, beltWidthKm('ural', Math.max(1, w), 3, config)));
-        spreadBelt({ crust }, sim, p.comp, { type: OrogenyType.INTRAPLATE, time: 0, widths, works, widthKm: 0, workKm: 0, noRoot: true }, config, (c) => land[c]);
+        // (M2, present/ranges.js: the line squeezed up as basement blocks stepped along its smoothed course, not cell by cell
+        // along its outline)
+        const med = (a) => [...a].sort((x, y) => x - y)[a.length >> 1], onLand = (c) => land[c] === 1;
+        const shaped = shapeRange(sim, { kind: 'far', front: p.comp, work: Math.max(1, med(works)), age: p.comp.length, style: 'blocks', asBuilt: true }, { source: onLand, reach: onLand }, med(widths), seed);
+        for (const part of shaped.parts)
+            spreadBelt({ crust }, sim, part.front, { type: OrogenyType.INTRAPLATE, time: 0, widths: part.widths, works: part.works, amps: part.amps, widthKm: 0, workKm: 0, noRoot: true }, config, part.allow);
         for (let c = 0; c < n; c++) if (crust.oroType[c] === OrogenyType.INTRAPLATE && crust.oroLast[c] === 0 && crust.oroStart[c] === 0) crust.oroStart[c] = -cfg.farActiveMyr;
         let d = 0; for (const c of p.comp) d += dist[c];
         ranges.push({ cells: p.comp.length, distKm: Math.round(d / p.comp.length), push: Math.round(p.score / p.comp.length) });

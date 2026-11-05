@@ -121,6 +121,13 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
 - **The past in closed form** — the continents assembled from their pieces as old orogenies, worn by their age; cratons;
   seams closing into ranges or sagging into gulfs; the pieces' outlines bent by today's plates; continents that fit
   across their ocean; plumes, hotspot tracks and flood basalts; the far field pushing ranges inland; a geological record.
+- **Ranges shaped, not traced** (plans/GENERATE_RANGES_PLAN.md) — each range of the past, each rift and each range the far
+  field squeezes up runs where its pieces met, but as a range in its own right: its outline smoothed into broad arcs, cut
+  into overlapping segments stepped en echelon that swell toward their middles and taper at their ends, now and then a
+  gap, and one of several kinds by what raised it and a roll of its own — a high spine with a long slope and a short one,
+  a plateau behind a rim range, a broad belt of parallel folds, short basement blocks with basins between, a narrow
+  straight sliver, a knot of short ridges. A rift is a chain of basins, each a half-graben whose high shoulder flips side
+  to side, deepest where its plates open fastest and dying out where they barely part.
 - **A Frame** written from all of it, as Evolution's history writes one — so Evolution's terrain draws the ground on
   Generate's mesh (fine relief, rift valleys, interlocking coasts, the ground held to the pieces), carved by its rivers:
   the first picture, in seconds.
@@ -134,14 +141,17 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
 
 1. **The mesh** — a Fibonacci sphere of Detail regions (`js/sphere-mesh.js`).
 2. **The layout** — Generate's pieces on a fixed ~20K reference grid, projected onto the mesh (`js/coarse-plates.js`, `js/plates.js`, `js/ocean-land.js`) and their motion (`js/plate-physics.js`); a planet code's edits toggle pieces.
-3. **The present-day world** — on Evolution's 40K sim mesh (`v2/js/present/`): plates, boundaries, sea floor, coast, past, belts, plumes and far field, record, Frame.
+3. **The present-day world** — on Evolution's 40K sim mesh (`v2/js/present/`): plates, boundaries, sea floor, coast, past, belts, plumes and far field (their ranges shaped by `ranges.js`), record, Frame.
 4. **The ground** — Evolution's synthesis and carving (`v2/js/terrain/`) on Generate's mesh, with Generate's fine relief, rift valleys, interlocking coasts and hold to the pieces (`v2/js/present/world.js`); the uncarved surface kept for the finish.
 5. **The first picture** — the ground and its hillshade, painted on the GPU (`v2/js/view/planet-view.js`).
 6. **The finish** — Evolution's (`v2/js/finish/finish.js`), in its own worker, from that surface: the climate (`v2/js/climate/`), bedrock, rivers, sediment, hillslopes, the ice age, wind, sea, water, detail drivers, geology, the land's climate and cover, deposits, farming — then its pictures.
 
 ## Code
 
-Generate and Import Heightmap live in ```
+Generate and Import Heightmap live in `js/` (the climate they run is `v2/js/climate/`; Generate's present-day world is
+`v2/js/present/`, listed in `v2/README.md`):
+
+```
 js/
   main.js               Generate's page, on the shared core (plans/SHARED_CORE_PLAN.md): the worker's present-day world as
                         the first picture, Evolution's finish in the background, on Evolution's planet view, layer bar and
@@ -179,54 +189,4 @@ js/
   elevation.js, super-plates.js, koppen.js, climate-config.js, climate-util.js, wind.js … temperature.js
                         The old pipeline (terrain and climate) — no longer run by the pages; kept as the climate's tuning
                         tools' synthetic planets (tuning/climate/lib/gen-planets.mjs) and the climate lab
-```the climate they run is `v2/js/climate/`):
-
-```
-js/
-  entry.js              Generate's and Import's entry: the page on the shared core with ?next=1 (generate-next.js,
-                        import-next.js), today's (main.js, import-main.js) without
-  import-next.js        Import Heightmap on the shared core (?next=1): the image's heights as the first picture, Evolution's
-                        finish in the background (its climate, rivers, lakes, ice, dunes, Satellite, Food — no Frame, so no Geology)
-  page-chrome.js        The chrome both pages on the shared core use: slider bubbles, the Detail warning, the side panel and
-                        bottom sheet, the build overlay, the tutorial
-  generate-next.js      Generate on the shared core (plans/SHARED_CORE_PLAN.md; ?next=1): the worker's present-day world as
-                        the first picture, Evolution's finish in the background, on Evolution's planet view, layer bar and export;
-                        the sliders, planet code, plate edits and build overlay its own
-  generate-plates.js    Generate's own layers on the shared planet view: the Plates view (colours, boundaries, arrows), the
-                        Inspect list's layers of the world's past, the edits pending drawn over the picture
-  present-crust.js      The present-day world's crust in words (the hover's Crust line)
-  main.js               Generator entry point — UI wiring, animation loop
-  import-main.js        Import page entry point — file upload, import dispatch
-  state.js              Shared mutable application state
-  generate.js           Worker dispatcher — posts jobs, handles results
-  planet-worker.js      Web Worker — runs geology pipeline off main thread
-  planet-code.js        Planet code encode/decode (seed + sliders → base36)
-  rng.js                Seeded PRNG (Park-Miller LCG)
-  simplex-noise.js      3D Simplex noise with fBm and ridged fBm
-  color-map.js          Elevation → RGB colour mapping + satellite biome colors
-  sphere-mesh.js        Fibonacci sphere, Delaunay, SphereMesh dual-mesh
-  plates.js             Tectonic plate generation (farthest-point seeding, round-robin flood fill, compactness constraints)
-  coarse-plates.js      Resolution-independent plate pipeline — coarse reference grid, projection, boundary smoothing
-  super-plates.js       Groups same-type plates into ~20 super plates for broad orogenic belts
-  ocean-land.js         Ocean/land assignment with continent seeding
-  elevation.js          Collisions, stress propagation, distance fields, elevation
-  terrain-post.js       Domain warping, bilateral smoothing, glacial/hydraulic/thermal erosion, ridge sharpening, soil creep
-  climate-new.js        The climate for Generate and Import — runs the new climate (v2/js/climate/) on a V1 planet: Köppen, per-region months, the 1° grid
-  climate-layers.js     The climate's Inspect layers — colours, legends, hover lines, arrows, the season picker
-  terrain-palette.js    The Terrain view's Colours (Generate, Import): Classic or one of Evolution's palettes, by height in km
-  layer-bar.js          The layer bar over the planet (Generate, Import): tabs, the Climate row and season, the phone's list (and with ?next=1 the Geology and Food rows, the deposit and age pickers)
-  present-layers-view.js  The present-day world's Geology and Food tabs (?next=1): Evolution's colours, legends and readouts per region, read off the layers v2/js/present/layers.js works out
-  view-strip.js         The view strip above the layer tabs (every page), folded behind an arrow: Globe | Map and what applies, the projection picker; in the sheet on phones
-  map-projection.js     Generate's and Import's map view in any of the ten projections: the flat map drawn off-screen, shown through the projection's inverse; hover and Ctrl-click through it
-  climate-config.js     The OLD climate's parameters (no longer run by the app; kept for the old tuning diagnostics)
-  climate-util.js       Shared climate utilities — smoothing, ITCZ lookup, percentile selection
-  wind.js … temperature.js  The OLD climate (wind, ocean, precipitation, heuristic-precip, temperature) — no longer run by the app
-  scene.js              Three.js scene, cameras, controls, lights; fitCamera keeps the whole globe in view on portrait screens
-  planet-mesh.js        Voronoi mesh, map projection, hover highlight, the export's rasters (the mesh drawn flat in tiles, as colours or numbers)
-  export-generate.js    The export panel on Generate and Import: the catalogue of maps and how each is drawn from the mesh
-  edit-mode.js          Ctrl-click plate multi-select + hover info
-  detail-scale.js       Non-linear (power-curve) detail slider mapping
-  build-error.js        A failed build, import or export shown in the build overlay, with a Close button; the controls held during a build
-  support-check.js      Classic script run before the modules: a browser that cannot run the app (no import maps, no
-                        WebGL) or app code that fails to load gets a plain message instead of a blank page
 ```

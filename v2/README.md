@@ -470,7 +470,7 @@ js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the sta
                    regimes, lakes), finish-cover (the land's cover and its colours from space), finish-drivers (what the detail
                    finer than the mesh is drawn from) and fine-detail (that detail: any window of a detailed moment at any
                    resolution — plans/V2_FINE_DETAIL_PLAN.md)
-js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md; on the page with `?next=1` while it is built):
+js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md, plans/GENERATE_RANGES_PLAN.md):
                    one moment of a believable history with its past in closed form, written as the records Evolution's
                    terrain reads — present-config (its tunables, km / Myr / cm·yr⁻¹), layout (Generate's pieces on the
                    sim mesh; its y-up frame and Evolution's z-up), plates (the pieces grouped whole into plates that move
@@ -482,7 +482,9 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    one plate meet: a past range or a sag, by the pieces' own motion; the distance from the closing
                    fronts — the grain), warp (the pieces' outlines bent by today's plates' drag and a slow warp, and the
                    smaller terranes within each piece), past (the continents' past replayed along the bent pieces: craton
-                   cores, docking rings, welds, the terranes' seams), belts (today's belts where plates meet: Andean or
+                   cores, docking rings, welds, the terranes' seams), ranges (each range shaped from its outline: smoothed into a curve,
+                   cut into lens-shaped segments stepped en echelon, written as its style's kind of belt — a spine, a
+                   plateau, a fold belt, basement blocks, a sliver, a knot; a rift's basins), belts (today's belts where plates meet: Andean or
                    split-off arcs along continents — some with the continent behind stretched into blocks and shelf seas,
                    an Indonesia — arcs at sea near land, collisions, rifts: a valley line and its shoulders on a dome, a
                    sea only toward a coast), rifts (the rift valleys cut on Generate's mesh), fit (continents parting
@@ -493,8 +495,7 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    what Evolution's rocks and deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
                    age from its ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame,
                    identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh),
-                   layers (Evolution's Geology and Food on Generate's mesh: the climate's twelve months gathered per
-                   region, then its rocks, deposits, farming and their picture, for the page's Geology and Food tabs)
+                   layers (the slim copy of the record the page's hover stories read)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
