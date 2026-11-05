@@ -165,7 +165,12 @@ Generate and Import Heightmap live in `js/` (the climate they run is `v2/js/clim
 
 ```
 js/
-  entry.js              Generate's entry: the page on the shared core with ?next=1 (generate-next.js), today's (main.js) without
+  entry.js              Generate's and Import's entry: the page on the shared core with ?next=1 (generate-next.js,
+                        import-next.js), today's (main.js, import-main.js) without
+  import-next.js        Import Heightmap on the shared core (?next=1): the image's heights as the first picture, Evolution's
+                        finish in the background (its climate, rivers, lakes, ice, dunes, Satellite, Food — no Frame, so no Geology)
+  page-chrome.js        The chrome both pages on the shared core use: slider bubbles, the Detail warning, the side panel and
+                        bottom sheet, the build overlay, the tutorial
   generate-next.js      Generate on the shared core (plans/SHARED_CORE_PLAN.md; ?next=1): the worker's present-day world as
                         the first picture, Evolution's finish in the background, on Evolution's planet view, layer bar and export;
                         the sliders, planet code, plate edits and build overlay its own

@@ -22,7 +22,11 @@ import { layerClimate, presentLayers as geologyAndFood, storyFrame } from '../v2
 import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
 import { FRAME_FIELDS } from '../v2/js/terrain/terrain-pool.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../v2/js/tectonics/model/geology.js';
-import { heightKmToElev } from './color-map.js';
+import { heightKmToElev, elevToHeightKm } from './color-map.js';
+import { buildSimMesh } from '../v2/js/core/sim-mesh.js';
+import { plainCarveInputs } from '../v2/js/terrain/synthesize.js';
+import { surfaceConfig } from '../v2/js/finish/finish.js';
+import { terrainConfig } from '../v2/js/terrain/terrain-config.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
 setDelaunator(Delaunator);
@@ -599,6 +603,7 @@ function handleGenerate(data) {
 
 function handleReapply(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for reapply' }); return; }
+    if (W.importShared) { try { importShared(data, true); } catch (err) { self.postMessage({ type: 'error', message: err.message, stack: err.stack }); } return; }
 
     const skipClimate = !!data.skipClimate || !!W.present?.shared;
     const { greenhouse, precipitationOffset, landCoverage } = getClimateParams(data);
@@ -889,7 +894,48 @@ function deriveSyntheticPlates(mesh, r_elevation) {
     return { r_plate, plateSeeds, plateIsOcean, plateVec };
 }
 
+// ── An imported heightmap on the shared page (js/import-next.js; plans/SHARED_CORE_PLAN.md U4): the image's heights on
+// Generate's mesh, shaped by the sliders that shape an image (Terrain Warp, Smoothing, Ridge Sharpening: terrain-post.js),
+// as the first picture — then Evolution's finish erodes it by its climate (the erosion sliders read there), with the
+// carving's inputs of ground with no history (synthesize.js plainCarveInputs) and no Frame: no rocks, the rest as Generate ──
+const IMPORT_SIM_CELLS = 20000;
+let importSim = null;
+function importShared(data, again = false) {
+    const t0 = performance.now();
+    if (!again) {
+        progress(0, 'Building sphere mesh…');
+        const seed = data.seed ?? Math.floor(Math.random() * SEED_MAX);
+        const { mesh, r_xyz } = buildSphere(data.N, data.jitter, makeRng(seed));
+        progress(25, 'Sampling heightmap…');
+        const raw = sampleHeightmap(mesh, r_xyz, data.grayscale, data.imageWidth, data.imageHeight);
+        W = { mesh, r_xyz, neighborDist: computeNeighborDist(mesh, r_xyz), seed, prePostElev: raw, importShared: true };
+    }
+    progress(50, 'Shaping the ground…');
+    const { mesh, r_xyz, seed } = W, elev = new Float32Array(W.prePostElev);
+    // (the image's own shape: warped, smoothed, its ridges sharpened — its erosion the finish's)
+    runPostProcessing(mesh, r_xyz, elev, { terrainWarp: data.terrainWarp, smoothing: data.smoothing, ridgeSharpening: data.ridgeSharpening, hydraulicErosion: 0, thermalErosion: 0, glacialErosion: 0 }, W.neighborDist, seed);
+    const tm = presentTerrainMesh(mesh, r_xyz), n = mesh.numRegions, heightKm = new Float32Array(n);
+    for (let r = 0; r < n; r++) heightKm[r] = elevToHeightKm(elev[r]);
+    importSim ??= buildSimMesh(IMPORT_SIM_CELLS, 12345);
+    const knobs = knobsOf(data, 0.4), F = finishConfigOf(knobs), cfg = terrainConfig(presentTerrainOverrides({ knobs }));
+    const surface = { heightKm: heightKm.slice(), carveIn: plainCarveInputs(tm.xyz, n, surfaceConfig(F, cfg), seed), recCell: null, cues: null };
+    const transfer = [], copy = (a) => { const c = a.slice(); transfer.push(c.buffer); return c; };
+    for (const a of Object.values(surface.carveIn)) transfer.push(a.buffer);
+    transfer.push(surface.heightKm.buffer);
+    const shade = hillshade(tm, heightKm);
+    const shared = {
+        mesh: { numCells: n, xyz: copy(tm.xyz), adjOffset: copy(tm.adjOffset), adjList: copy(tm.adjList) },
+        heightKm, shade, story: null, regionCell: null,
+        finish: { frame: null, simMesh: { numCells: importSim.numCells, xyz: copy(importSim.xyz), adjOffset: copy(importSim.adjOffset), adjList: copy(importSim.adjList) }, seed, surface,
+            terrain: presentTerrainOverrides({ knobs }), finish: finishOverrides(knobs) },
+    };
+    transfer.push(heightKm.buffer, shade.buffer);
+    progress(95, 'Done');
+    self.postMessage({ type: again ? 'reapplyDone' : 'done', seed, shared, _workerTotal: performance.now() - t0 }, transfer);
+}
+
 function handleImportHeightmap(data) {
+    if (data.shared) { try { importShared(data); } catch (err) { self.postMessage({ type: 'error', message: err.message, stack: err.stack }); } return; }
     const { N, jitter, grayscale, imageWidth, imageHeight, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, greenhouse = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, skipClimate } = data;
     const timing = [];
 

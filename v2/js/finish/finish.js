@@ -150,7 +150,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     // carve's stream power and critical slope by the rock. A moment without the record: none of it ──
     const grid = new LatLonGrid(0.25);
     let rocks0 = null, lithoDz = null;
-    if (frame.coverKm && recCell) {
+    if (frame?.coverKm && recCell) {
         onStage('bedrock');
         rocks0 = rocksBefore({ mesh, z, frame, simMesh, seed, cfg, recCell, cues, lat, lon, rain: pAnn, temp: tAnn, grid });
         lithoDz = differentialRelief(mesh, z, rocks0, { frame, recCell, lat, lon, hold: carveIn.hold, lip: carveIn.lip }, F);
@@ -220,7 +220,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     onStage('sediment');
     // (for the geology: how deep the rivers cut here — the carving and its dissection, from the surface before — and how
     // much sediment they lay; a byte each: 20 m, and 2 m, steps)
-    const geo = frame.coverKm ? { cut: new Uint8Array(n), cutStepKm: 0.02, alluv: new Uint8Array(n), alluvStepKm: 0.002 } : null;
+    const geo = frame?.coverKm ? { cut: new Uint8Array(n), cutStepKm: 0.02, alluv: new Uint8Array(n), alluvStepKm: 0.002 } : null;
     if (geo) for (let c = 0; c < n; c++) geo.cut[c] = Math.min(255, Math.max(0, Math.round((before[c] - C.z[c]) / geo.cutStepKm)));
     let zPre = geo ? C.z.slice() : null;
     stats.deltas = depositSediment(mesh, before, C, B.sink, cellKm2, F).deltas;

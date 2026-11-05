@@ -79,6 +79,25 @@ export function carveInputs(n) {
 }
 
 /**
+ * The carving's inputs for ground with no history — an imported heightmap, finished as a Frame's surface is
+ * (plans/SHARED_CORE_PLAN.md U4): what surfaceRange gives a place outside every belt, shield and lava field — the
+ * background uplift, the base erodibility, the rain by latitude, the hill slope and the micro-relief by the same noise.
+ * `xyz`: the mesh's positions (z-up), n of them; `cfg`: the terrain config (finish.js surfaceConfig's, for the finish).
+ */
+export function plainCarveInputs(xyz, n, cfg, seed) {
+    const carve = carveInputs(n), noise = new SimplexNoise(seed * 31 + 9), slopeF = R / 300, microF = R / cfg.carveMicroScaleKm;
+    for (let i = 0; i < n; i++) {
+        const x = xyz[3 * i], y = xyz[3 * i + 1], z = xyz[3 * i + 2];
+        carve.u[i] = cfg.carveBgUplift;
+        carve.k[i] = cfg.carveK;
+        carve.rain[i] = rainAtLatitude(Math.asin(Math.max(-1, Math.min(1, z))) * 180 / Math.PI, cfg) / cfg.rainRefMm;
+        carve.slope[i] = cfg.carveHillSlope * (1 + cfg.carveHillNoise * noise.fbm(x * slopeF + 4.4, y * slopeF + 8.2, z * slopeF + 1.6, 2, 0.5) * 1.6);
+        carve.micro[i] = cfg.carveMicroKm * noise.fbm(x * microF + 7.3, y * microF + 2.9, z * microF + 5.1, 3, 0.5) * 1.6;
+    }
+    return carve;
+}
+
+/**
  * The surface the big rivers are settled on (terrain-config carveSettleCells): on a terrain mesh finer than that, the
  * carving's level of that many cells is given the surface synthesized there — exactly what that terrain detail itself
  * would carve — rather than the finer surface averaged onto it (which differs with the detail: a crest sampled or

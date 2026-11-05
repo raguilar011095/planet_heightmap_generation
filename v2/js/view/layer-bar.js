@@ -33,7 +33,7 @@ function depositOptions() {
  * #legendCard. `o.comes`: how the detailed layers come (Evolution: "Comes with Add detail"); `o.platesTip`: the Plates tab's
  * title.
  */
-export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '' } = {}) {
+export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '', without = [] } = {}) {
     const $ = id => document.getElementById(id);
     $('layerBar').innerHTML = `
         <div id="viewStrip" class="view-strip" role="toolbar" aria-label="View">
@@ -146,6 +146,13 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '' 
         <optgroup id="mobileFarming" label="Food">${[['farmLand', 'Farmland'], ['farmStaple', 'Staple food'], ['farmLife', 'Lifestyle'], ['farmPeople', 'People'], ['farmSoil', 'Soil'], ['farmSeason', 'Growing season']].map(([v, l]) => opt(v, l)).join('')}</optgroup>
         <optgroup label="Climate: more">${CLIMATE_MORE.flatMap(([, list]) => list).map(([v, l]) => opt(v, l)).join('')}</optgroup>`;
     $('legendCard').innerHTML = '<div id="climateLegend" class="viz-legend"></div><div id="regimeLegend" class="evo-koppen evo-regime-legend" hidden></div>';
+    // (the layers a page has nothing for — an imported heightmap has no plates and no history for its rocks: `without`)
+    for (const id of without) {
+        document.querySelector(`#mapTabs [data-layer="${id}"]`)?.remove();
+        $('mobileViewSwitch').querySelector(`option[value="${id}"]`)?.remove();
+        if (id === 'geology') $('mobileGeology')?.remove();
+        if (id === 'farming') $('mobileFarming')?.remove();
+    }
 }
 
 /**

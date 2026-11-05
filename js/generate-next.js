@@ -20,19 +20,16 @@ import { GEOLOGY_LAYERS } from '../v2/js/evolution/geology-view.js';
 import { FARMING_LAYERS } from '../v2/js/evolution/farming-view.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
-import { showBuildError, clearBuildError, describeFailure, holdControls } from './build-error.js';
+import { showBuildError, describeFailure, holdControls } from './build-error.js';
 import { presentCrustLine } from './present-crust.js';
 import { plateColors, platesLegendHTML, INSPECT, inspectColors, drawPlateLines } from './generate-plates.js';
 import { state } from './state.js';
+import { store, sliderTooltip, detailWarning, redrawFoldedSliders, sidePanel, buildOverlay, tutorial } from './page-chrome.js';
 
 setDelaunator(Delaunator);
 
 const $ = (id) => document.getElementById(id);
 const IS_TOUCH = state.isTouchDevice;
-const store = {
-    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
-    set(key, value) { try { localStorage.setItem(key, value); } catch { /* not remembered where the browser forbids it */ } },
-};
 
 // ── the page: the map's frame beside the globe's canvas, the canvas the window's, the bar over it ──
 if (!$('mapCanvas')) { const m = document.createElement('canvas'); m.id = 'mapCanvas'; m.hidden = true; $('canvas').after(m); }
@@ -97,7 +94,7 @@ function generate(seed, toggledIndices = []) {
 }
 function failed(message) {
     console.error('[generate] build failed:', message);
-    building = null; overlayActive = false; holdControls(false);
+    building = null; overlay.active = false; holdControls(false);
     resetBuildButton();
     showBuildError(describeFailure(message), message);
 }
@@ -278,34 +275,13 @@ function checkStale() {
     else if (detailChanged) { btn.classList.add('stale'); btn.textContent = 'Rebuild'; }
     else btn.textContent = 'Build New World';
 }
-const WARN_ORANGE = IS_TOUCH ? 200000 : 640000, WARN_RED = IS_TOUCH ? 500000 : 1280000;
-function updateDetailWarning(detail) {
-    const cg = $('sN').closest('.cg'), warn = $('detailWarn');
-    cg.classList.remove('detail-orange', 'detail-red'); warn.className = 'detail-warn';
-    if (detail > WARN_RED) { cg.classList.add('detail-red'); warn.classList.add('red'); warn.textContent = '⚠ Very high — generation may be slow and unstable'; }
-    else if (detail > WARN_ORANGE) { cg.classList.add('detail-orange'); warn.classList.add('orange'); warn.textContent = '⚠ High detail — generation may be slow and unstable'; }
-    else warn.textContent = '';
-}
-function initSliderTooltip(slider) {
-    const cg = slider.closest('.cg');
-    if (!cg) return;
-    cg.style.position = 'relative';
-    const tip = document.createElement('div');
-    tip.className = 'slider-tooltip'; cg.appendChild(tip);
-    const label = $(slider.id.replace('s', 'v'));
-    const show = () => { tip.textContent = label ? label.textContent : slider.value; tip.style.left = ((+slider.value - +slider.min) / (+slider.max - +slider.min) * slider.offsetWidth) + 'px'; };
-    slider.addEventListener('pointerdown', () => { show(); tip.classList.add('visible'); });
-    slider.addEventListener('input', () => queueMicrotask(show));
-    const hide = () => tip.classList.remove('visible');
-    slider.addEventListener('pointerup', hide); slider.addEventListener('pointercancel', hide);
-}
 const reapplyBtn = $('reapplyBtn');
 for (const s of ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc', ...SCULPT, 'sTmp', 'sPrc']) {
     const slider = $(s), v = s.replace('s', 'v');
-    initSliderTooltip(slider);
+    sliderTooltip(slider);
     slider.addEventListener('input', (e) => {
         const val = +e.target.value;
-        if (s === 'sN') { const d = detailFromSlider(val); $(v).textContent = d.toLocaleString(); updateDetailWarning(d); }
+        if (s === 'sN') { const d = detailFromSlider(val); $(v).textContent = d.toLocaleString(); detailWarning(d, IS_TOUCH); }
         else if (s === 'sTmp') $(v).textContent = `${val > 0 ? '+' : val === 0 ? '±' : '−'}${Math.abs(val)} W/m²`;
         else if (s === 'sPrc') { const pct = Math.round(val * 50); $(v).textContent = `${pct > 0 ? '+' : pct === 0 ? '±' : ''}${pct}%`; }
         else if (s === 'sLc') $(v).textContent = `${Math.round(val * 100)}%`;
@@ -316,9 +292,7 @@ for (const s of ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc', ...SCULPT, 'sTmp
     // (the climate: the finish again, with the ground it has — on release, not every step of a drag)
     if (s === 'sTmp' || s === 'sPrc') slider.addEventListener('change', () => { if (world) { updatePlanetCode(false); finish(world); } });
 }
-document.querySelectorAll('details.section').forEach((det) => det.addEventListener('toggle', () => {
-    if (det.open) det.querySelectorAll('input[type="range"]').forEach((s) => { const v = s.value; s.value = ''; s.value = v; });
-}));
+redrawFoldedSliders();
 reapplyBtn.addEventListener('click', () => {
     if (reapplyBtn.disabled || !world || building) return;
     reapplyBtn.disabled = true; reapplyBtn.classList.remove('ready'); reapplyBtn.classList.add('spinning');
@@ -327,33 +301,15 @@ reapplyBtn.addEventListener('click', () => {
 });
 
 // ── the build overlay ──
-const buildOverlay = $('buildOverlay'), buildBarFill = $('buildBarFill'), buildBarLabel = $('buildBarLabel');
-let overlayActive = true;
-holdControls(true);
-function onProgress(pct, label) {
-    if (!overlayActive) return;
-    buildBarFill.style.transform = `scaleX(${pct / 100})`;
-    buildBarLabel.textContent = label;
-}
-function showBuildOverlay() {
-    clearBuildError();
-    buildBarFill.style.transition = 'none'; buildBarFill.style.transform = 'scaleX(0)'; buildBarLabel.textContent = '';
-    buildBarFill.offsetWidth;                                       // (the bar snapped to 0 before it eases again)
-    buildBarFill.style.transition = '';
-    overlayActive = true;
-    buildOverlay.classList.remove('hidden');
-    holdControls(true);
-}
-function hideBuildOverlay() {
-    setTimeout(() => { overlayActive = false; holdControls(false); buildOverlay.classList.add('hidden'); buildOverlay.classList.remove('initial'); }, 300);
-}
+const overlay = buildOverlay();
+const onProgress = (pct, label) => overlay.progress(pct, label), showBuildOverlay = () => overlay.show(), hideBuildOverlay = () => overlay.hide();
 
 // ── Build New World, the planet code ──
 const genBtn = $('generate'), seedInput = $('seedCode'), copyBtn = $('copyBtn'), loadBtn = $('loadBtn'), seedError = $('seedError');
 let currentCode = '';
 genBtn.addEventListener('click', () => {
     reapplyBtn.disabled = true; reapplyBtn.classList.remove('ready');
-    if (innerWidth <= 768) $('ui').classList.add('collapsed');       // (a phone: the sheet down, the planet in view)
+    panel.collapse();                                                // (a phone: the sheet down, the planet in view)
     // (Rebuild: the same seed and edits, only the resolution and noise; the plate sliders: a fresh world)
     const plateChanged = PLATE_SLIDERS.some((id) => $(id).value !== lastGenValues[id]);
     const rebuild = genBtn.classList.contains('stale') && world && !plateChanged;
@@ -430,44 +386,7 @@ function stats(msg) {
 }
 
 // ── the side panel: collapse on a desktop, a bottom sheet on a phone (as before) ──
-const uiPanel = $('ui'), isMobileLayout = () => innerWidth <= 768;
-if (isMobileLayout()) uiPanel.classList.add('collapsed');
-$('sidebarToggle').addEventListener('click', () => {
-    const collapsed = uiPanel.classList.toggle('collapsed');
-    $('sidebarToggle').innerHTML = collapsed ? '»' : '«';
-    $('sidebarToggle').title = collapsed ? 'Show panel' : 'Collapse panel';
-});
-(function bottomSheet() {
-    const handle = $('sheetHandle');
-    if (!handle) return;
-    let startY = 0, startT = 0, dragging = false, lastY = 0, lastTime = 0, velocity = 0, didDrag = false;
-    const translateY = () => new DOMMatrix(getComputedStyle(uiPanel).transform).m42, collapsedY = () => uiPanel.offsetHeight - 60;
-    handle.addEventListener('pointerdown', (e) => {
-        if (!isMobileLayout()) return;
-        e.preventDefault(); handle.setPointerCapture(e.pointerId);
-        dragging = true; didDrag = false; startY = lastY = e.clientY; lastTime = performance.now(); velocity = 0;
-        startT = uiPanel.classList.contains('collapsed') ? translateY() : 0;
-        uiPanel.style.transition = 'none'; uiPanel.classList.add('dragging');
-    });
-    handle.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        const now = performance.now(), dt = now - lastTime;
-        if (dt > 0) velocity = (e.clientY - lastY) / dt;
-        lastY = e.clientY; lastTime = now;
-        if (Math.abs(e.clientY - startY) > 5) didDrag = true;
-        uiPanel.style.transform = `translateY(${Math.max(0, Math.min(collapsedY(), startT + e.clientY - startY))}px)`;
-    });
-    const end = (e) => {
-        if (!dragging) return;
-        try { handle.releasePointerCapture(e.pointerId); } catch { /* (already released) */ }
-        dragging = false; uiPanel.style.transition = ''; uiPanel.classList.remove('dragging');
-        const progress = collapsedY() > 0 ? 1 - translateY() / collapsedY() : 0;
-        uiPanel.classList.toggle('collapsed', velocity > 0.3 || (velocity > -0.3 && progress < 0.3));
-        uiPanel.style.transform = '';
-    };
-    handle.addEventListener('pointerup', end); handle.addEventListener('pointercancel', end);
-    handle.addEventListener('click', () => { if (!isMobileLayout()) return; if (didDrag) { didDrag = false; return; } uiPanel.classList.toggle('collapsed'); });
-})();
+const panel = sidePanel();
 // (a phone's refresh button: two taps for a new world)
 (function refreshFab() {
     const btn = $('refreshFab');
@@ -477,31 +396,14 @@ $('sidebarToggle').addEventListener('click', () => {
     btn.addEventListener('click', () => {
         if (!armed) { armed = true; btn.classList.add('armed'); timer = setTimeout(disarm, 3000); return; }
         disarm();
-        if (isMobileLayout()) uiPanel.classList.add('collapsed');
+        panel.collapse();
         generate(undefined, []);
     });
 })();
 
 // ── the tutorial, What's New and the survey (as before) ──
-(function tutorial() {
-    const overlay = $('tutorialOverlay'), card = $('tutorialCard'), steps = card.querySelectorAll('.tutorial-step'), dots = card.querySelectorAll('.dot'), LS_KEY = 'atlas-engine-tutorial-seen';
-    let current = 0;
-    const show = (i) => { current = i; steps.forEach((s, k) => s.classList.toggle('active', k === i)); dots.forEach((d, k) => d.classList.toggle('active', k === i)); $('tutorialBack').disabled = i === 0; $('tutorialNext').textContent = i === steps.length - 1 ? 'Get Started' : 'Next'; card.scrollTop = 0; };
-    const open = () => { show(0); overlay.classList.remove('hidden'); };
-    const close = () => { overlay.classList.add('hidden'); store.set(LS_KEY, '1'); };
-    $('tutorialNext').addEventListener('click', () => (current < steps.length - 1 ? show(current + 1) : close()));
-    $('tutorialBack').addEventListener('click', () => { if (current > 0) show(current - 1); });
-    $('tutorialClose').addEventListener('click', close);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
-    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.classList.contains('hidden')) close(); });
-    $('helpBtn').addEventListener('click', open);
-    if (IS_TOUCH) {
-        const p = card.querySelector('.tutorial-step[data-step="2"] p');
-        if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.';
-    }
-    overlay.classList.add('hidden');
-    if (!store.get(LS_KEY)) genBtn.addEventListener('generate-done', () => setTimeout(open, 600), { once: true });
-})();
+tutorial({ key: 'atlas-engine-tutorial-seen', firstDone: genBtn, isTouch: IS_TOUCH,
+    touchStep2: '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.' });
 (function whatsNew() {
     const VERSION = '5', LS_KEY = 'wo-whatsnew-seen', overlay = $('whatsNewOverlay'), card = $('whatsNewCard');
     if (!overlay || !card) return;

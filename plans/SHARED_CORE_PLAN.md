@@ -61,8 +61,12 @@ the finish, the views, the controls over the planet, the picture, the export —
   `v2/evolution.css` to `styles.css`. The old page's `?next=1` code (`present/layers.js`, `js/present-layers-view.js`,
   the present rows of `js/export-generate.js`) is unreachable now and goes with the old page in U5. Not yet: a Plates row
   in the export (U5).
-- [ ] **U4 — Import on the shared viewer and finish.** The imported heights as the surface (no Frame: no Geology),
-  the rest as Generate.
+- [x] **U4 — Import on the shared viewer and finish.** `js/import-next.js` (`?next=1`): the image's heights on
+  Generate's mesh, shaped by Terrain Warp, Smoothing and Ridge Sharpening (terrain-post.js), as the first picture; the
+  finish then erodes it by its climate (the erosion sliders read there; at their defaults, 0, no carving: the heightmap
+  as drawn) — the carving's inputs those of ground with no history (`synthesize.js plainCarveInputs`), no Frame (the
+  finish skips the rocks; `finish-drivers.js` the belts). No Plates or Geology tab (`mountLayerBar` `without`). The two
+  new pages share their chrome (`js/page-chrome.js`). Evolution's finish hashed identical again.
 - [ ] **U5 — switch-over.** The new page is Generate's default; the old pipeline, renderer and climate leftovers go
   (`js/elevation.js`, `terrain-post.js`, `terrain-metrics.js`, `planet-mesh.js`, `scene.js`, `map-projection.js`,
   the old climate files); docs, tutorial, SEO, `llms.txt`, sitemap. What's New: ask the owner.
