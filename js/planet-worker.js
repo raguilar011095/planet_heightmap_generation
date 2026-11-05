@@ -17,11 +17,9 @@ import { elevToHeightKm } from './color-map.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentGroundOf, presentTerrainOverrides } from '../v2/js/present/world.js';
-import { storyFrame } from '../v2/js/present/layers.js';
+import { storyFrame, finishFrame } from '../v2/js/present/layers.js';
 import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
-import { FRAME_FIELDS } from '../v2/js/terrain/terrain-pool.js';
-import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../v2/js/tectonics/model/geology.js';
 import { buildSimMesh } from '../v2/js/core/sim-mesh.js';
 import { plainCarveInputs } from '../v2/js/terrain/synthesize.js';
 import { surfaceConfig } from '../v2/js/finish/finish.js';
@@ -115,9 +113,10 @@ function presentMessage(present, plateIsOcean) {
 function sharedPayload(present, mesh, r_xyz, seed) {
     const w = present.world, tm = presentTerrainMesh(mesh, r_xyz), sim = present.L.sim, transfer = [];
     const copy = (a) => { const c = a.slice(); transfer.push(c.buffer); return c; };
-    const frame = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS, ...GEOLOGY_READS].filter(k => w.frame[k]).map(k => [k, copy(w.frame[k])]));
-    frame.plates = w.frame.plates.map(p => p && { quat: p.quat });
-    const story = storyFrame(w.frame);
+    // (the Frame on the history's clock, as Evolution's finish reads it — its `time` the history's length: v2/js/present/layers.js)
+    const ff = finishFrame(w.frame, w.belts.record);
+    const frame = Object.fromEntries(Object.entries(ff).map(([k, v]) => [k, ArrayBuffer.isView(v) ? copy(v) : v]));
+    const story = storyFrame(ff);
     for (const v of Object.values(story)) if (ArrayBuffer.isView(v)) transfer.push(v.buffer);
     const s = w.surface, surface = { heightKm: copy(s.heightKm), recCell: copy(s.recCell), cues: copy(s.cues), carveIn: Object.fromEntries(Object.entries(s.carveIn).map(([k, a]) => [k, copy(a)])) };
     const payload = {

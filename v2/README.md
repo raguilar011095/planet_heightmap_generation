@@ -490,12 +490,16 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    sea only toward a coast), rifts (the rift valleys cut on Generate's mesh), fit (continents parting
                    across their ocean made to fit: the rotation that closes it, their coasts interlocked, their geology
                    carried across), plumes (hotspot tracks,
-                   flood basalts, the far field), record (the geological record in closed form: each cell's cover and
-                   its make-up, how deep it is worn, its shelves, inland seas and forelands, its arcs and ophiolites —
-                   what Evolution's rocks and deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
+                   flood basalts, the far field), record (the geological record in closed form, the history's own steps
+                   in order — plans/GENERATE_DEPOSITS_PLAN.md: the old crust worn deep, each belt since; a foreland in
+                   front of every belt, a rift basin along every passive margin and failed rift, shelves and inland
+                   seas; the cover's make-up laid layer on layer by the latitude it lay at; the arcs, docked and swept
+                   inland, their time; ophiolites; old flood basalts worn to their feeders — what Evolution's rocks and
+                   deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
                    age from its ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame,
                    identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh),
-                   layers (the slim copy of the record the page's hover stories read)
+                   layers (the Frame on the history's clock — its time the history's length, so a deposit's age reads
+                   as Evolution's — for the finish, and the slim copy of it the page's hover stories read)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older

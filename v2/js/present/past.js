@@ -63,6 +63,8 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
 
     const terrane = new Int32Array(n), coreOf = new Int32Array(n).fill(-1), ringOf = new Int32Array(n).fill(-1);
     const events = [];
+    // (each terrane's age: a core's, else when its piece docked — the record's docked arcs, present/record.js)
+    const terraneAge = new Map();
     let nextTerrane = 1, coreCount = 0;
     const seamMajor = new Uint8Array(n), seamRing = new Uint8Array(n), seamSub = new Uint8Array(n);
 
@@ -84,6 +86,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
             // a microcontinent or an island: one young terrane, no history of its own
             const id = nextTerrane++;
             for (const c of cells) terrane[c] = id;
+            terraneAge.set(id, cfg.youngestRingMyr);
             return;
         }
         const inMass = (c) => mass[c] === mi;
@@ -137,6 +140,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         for (const p of list) {
             const id = nextTerrane++;
             for (const c of pcs.get(p).cells) { terrane[c] = id; coreOf[c] = pCore.get(p) ?? -1; ringOf[c] = ringOfP.get(p); }
+            terraneAge.set(id, ageOf.get(p));
         }
         coreCount += coreP.length;
         // ── the events ──
@@ -325,7 +329,7 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         crust.baseKm[c] = Math.max(0, b);
         crust.terrane[c] = terrane[c];
     }
-    return { events, terrane, seamKm, cores: coreCount, tier, fit: { events: fitEvents.length, shields: fitShields, arms: fitArms } };
+    return { events, terrane, terraneAge, seamKm, cores: coreCount, tier, fit: { events: fitEvents.length, shields: fitShields, arms: fitArms } };
 
     /** Cells in connected runs (over the sim mesh's adjacency). */
     function runsOf(cells) {

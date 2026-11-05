@@ -69,6 +69,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     past.bent = bent;
     sagSeams(L, land, crust, seams.sags);
     past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
+    past.sagCells = seams.sags.flatMap(s => s.cells);         // (the parting seams: old failed rifts — the record's rift basins)
     ms.past = clock() - t0; t0 = clock();
     const belts = presentBelts(L, P, B, land, sea, undefined, config, crust, bent.sub);
     belts.past = past;

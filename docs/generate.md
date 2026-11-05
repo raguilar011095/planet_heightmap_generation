@@ -120,7 +120,14 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
   transforms — and the sea floor's age away from its ridges.
 - **The past in closed form** — the continents assembled from their pieces as old orogenies, worn by their age; cratons;
   seams closing into ranges or sagging into gulfs; the pieces' outlines bent by today's plates; continents that fit
-  across their ocean; plumes, hotspot tracks and flood basalts; the far field pushing ranges inland; a geological record.
+  across their ocean; plumes, hotspot tracks and flood basalts; the far field pushing ranges inland.
+- **A geological record** (plans/GENERATE_DEPOSITS_PLAN.md) — written by the history's own steps, in shortcut: the old
+  crust worn deep before anything else, each range since by its age; a foreland basin in front of every range, today's
+  and the past's; rift basins along every coast where an ocean opened and in the old failed rifts; shelves and inland
+  seas; each place's sediment laid layer on layer by the latitude it lay at (limestone in warm seas, salt in the dry
+  belts, coal in the wet ones, black mud where the sea was cut off); the arcs docked in the past and those swept inland
+  behind today's; old flood basalts worn to their roots. Evolution's rocks, deposits and food read it on Evolution's
+  clock, so Generate's ores sit where Evolution's would and in about its shares.
 - **Ranges carved into massifs** (plans/GENERATE_RANGES_PLAN.md) — each range of the past, each rift and each range the
   far field squeezes up runs where its pieces met, on its own outline, but swells and pinches and rises and falls along
   it, and a fractal mask of its own carves it into massifs, lobes and spurs (the original Generate's way); where the mask

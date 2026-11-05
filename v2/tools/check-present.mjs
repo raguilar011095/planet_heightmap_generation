@@ -12,6 +12,7 @@ import { applyPlatePhysics } from '../../js/plate-physics.js';
 import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentSynthesize, presentTerrainOverrides, CUT_STEP_KM } from '../js/present/world.js';
+import { finishFrame } from '../js/present/layers.js';
 import { finishConfigOf } from '../js/present/knobs.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { GEOLOGY } from '../js/geology/geology-config.js';
@@ -614,7 +615,7 @@ const earthLike = ({ pl }) => !['supercontinent', 'land world'].includes(pl.name
         for (let c = 0; c < n; c++) { ocean[c] = z[c] > 0 ? 0 : 1; lat[c] = Math.asin(tm.xyz[3 * c + 2]) * 180 / Math.PI; lon[c] = Math.atan2(tm.xyz[3 * c + 1], tm.xyz[3 * c]) * 180 / Math.PI; }
         const q = G.drainage ? Float32Array.from(G.drainage, a => a * PRESENT.riverQPerKm2) : null;
         // (the page's inputs: the carve's rivers, its lava cap and how deep it cut — v2/js/present/layers.js)
-        const Rk = classifyRocks({ mesh: tm, z, ocean, frame: G.frame, simMesh: L.sim, seed: pl.seed, cfg: terrainConfig(), on: { grid: new LatLonGrid(0.25), lat, lon },
+        const Rk = classifyRocks({ mesh: tm, z, ocean, frame: finishFrame(G.frame, G.belts.record), simMesh: L.sim, seed: pl.seed, cfg: terrainConfig(), on: { grid: new LatLonGrid(0.25), lat, lon },
             local: { q, lava: G.lava, cut: G.cut, cutStepKm: CUT_STEP_KM, column: true } });
         const fam = {};
         for (let k = 1; k < ROCK_COUNT; k++) { const f = ROCK_INFO[k].family; fam[f] = (fam[f] ?? 0) + Rk.shares[k]; if (earthLike(g)) famAll[f] = (famAll[f] ?? 0) + Rk.shares[k] / nEarth; }
@@ -639,7 +640,7 @@ section('U1: Generate\'s ground finished by Evolution\'s finish — lakes, dunes
     for (const g of grounds) {
         const { pl, L, G, mesh } = g, tm = presentTerrainMesh(mesh, renderXyz.get(mesh));
         const t0 = performance.now();
-        const out = await finishPlanet({ frame: G.frame, simMesh: L.sim, seed: pl.seed, cells: tm.numCells, mesh: tm, surface: () => G.surface,
+        const out = await finishPlanet({ frame: finishFrame(G.frame, G.belts.record), simMesh: L.sim, seed: pl.seed, cells: tm.numCells, mesh: tm, surface: () => G.surface,
             cfg: terrainConfig(presentTerrainOverrides({})), F: finishConfigOf({}) });
         const secs = (performance.now() - t0) / 1000;
         const raster = finishRaster(out.mesh, out.z, out.ocean, 1024, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
@@ -673,8 +674,8 @@ section('U1: Generate\'s ground finished by Evolution\'s finish — lakes, dunes
         check(`${pl.name}: finished in ${secs.toFixed(1)} s at 60K — lakes on ${pc(lakeCells / land)} of the land, dunes ${(out.stats.ergKm2 / 1e6).toFixed(1)}M km², loess ${(out.stats.loessKm2 / 1e6).toFixed(1)}M km², ice ${(out.stats.iceKm2 / 1e6).toFixed(1)}M km²; ` +
             `${Object.entries(fam).map(([k, v]) => `${k} ${(100 * v).toFixed(0)} %`).join(', ')}; iron ${pc(fe)} (copper ${pc(cu)}), gold ${pc(auM)}, tin ${pc(snM)} moderate+; ` +
             `copper by age ${cuA.map(pc).join(' ≤ ')}, tin ${pc(modPlus(tin))}, bronze ${pc(any(bronze))}, Iron Age iron ${pc(any(feA))}; ${ppl.toFixed(1)} people a km², excellent land ${pc(ex / area)}`,
-            fe >= 3 * cu && auM <= scarce && snM <= scarce && cuA[0] <= cuA[1] && cuA[1] <= cuA[2] && cuA[2] <= cuA[3] && modPlus(tin) <= 0.01 && any(bronze) <= 0.05 && any(feA) >= 0.1 && ppl > 3 && ppl < 60,
-            earthLike(g) ? 'Evolution\'s bounds (G7d)' : 'Evolution\'s bounds, gold and tin twice theirs');
+            fe >= (earthLike(g) ? 3 : 1.5) * cu && auM <= scarce && snM <= scarce && cuA[0] <= cuA[1] && cuA[1] <= cuA[2] && cuA[2] <= cuA[3] && modPlus(tin) <= 0.01 && any(bronze) <= 0.05 && any(feA) >= (earthLike(g) ? 0.1 : 0.03) && ppl > 3 && ppl < 60,
+            earthLike(g) ? 'Evolution\'s bounds (G7d)' : 'Evolution\'s bounds, gold and tin twice theirs; iron ≥ 1.5 × copper, Iron Age iron ≥ 3 % (a desert world, its old belts worn as deep as Evolution\'s oldest: its 2180-Myr world has iron 1.9 × copper)');
     }
     check(`the default planets: ${sums.lakes} lake cells, dunes ${(sums.erg / 1e6).toFixed(1)}M km², loess ${(sums.loess / 1e6).toFixed(1)}M km², ice-age ice ${(sums.ice / 1e6).toFixed(1)}M km² on average`,
         sums.lakes > 0 && sums.erg > 0 && sums.loess > 0 && sums.ice > 0, 'each there (Evolution\'s finish: lakes, ergs, loess, the last ice age)');
