@@ -165,6 +165,13 @@ Generate and Import Heightmap live in `js/` (the climate they run is `v2/js/clim
 
 ```
 js/
+  entry.js              Generate's entry: the page on the shared core with ?next=1 (generate-next.js), today's (main.js) without
+  generate-next.js      Generate on the shared core (plans/SHARED_CORE_PLAN.md; ?next=1): the worker's present-day world as
+                        the first picture, Evolution's finish in the background, on Evolution's planet view, layer bar and export;
+                        the sliders, planet code, plate edits and build overlay its own
+  generate-plates.js    Generate's own layers on the shared planet view: the Plates view (colours, boundaries, arrows), the
+                        Inspect list's layers of the world's past, the edits pending drawn over the picture
+  present-crust.js      The present-day world's crust in words (the hover's Crust line)
   main.js               Generator entry point — UI wiring, animation loop
   import-main.js        Import page entry point — file upload, import dispatch
   state.js              Shared mutable application state

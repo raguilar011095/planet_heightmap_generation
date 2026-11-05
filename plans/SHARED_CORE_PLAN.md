@@ -50,12 +50,17 @@ the finish, the views, the controls over the planet, the picture, the export —
   (view strip, tabs, rows, pickers, phone list, legend card — markup made once; the deposit and age menus from their
   lists, which adds the three deposits the hand-written menu had missed: Iron veins, Magnetite-apatite, Basalt and tuff).
   Evolution moves onto them: its painting code moved verbatim, every view checked in the browser.
-- [ ] **U3 — Generate on the shared viewer and finish (`?next=1`).** A new Generate page module on the planet view and
-  layer bar: the worker's first picture (the ground on Generate's mesh, GPU-painted), then Evolution's finish in the
-  background (FinishService, cancelled by a new build, edit or Reapply). Generate's own: sliders, plate editing (picked
-  through the globe: uv → region), the Plates view and Inspect layers as cell colours, planet codes. Evolution's export
-  panel (its catalogue and scales; Generate adds Plates). Retires Generate's copies for `?next=1`
-  (`present/layers.js`, `js/present-layers-view.js`, the present rows of `js/export-generate.js`).
+- [x] **U3 — Generate on the shared viewer and finish (`?next=1`).** `js/entry.js` loads `js/generate-next.js` with
+  `?next=1` (today's page without). The worker sends that page its mesh (z-up), the first picture (the ground in km and
+  its hillshade, GPU-painted on Generate's mesh), the story frame and the finish's job (`planet-worker.js`
+  sharedPayload); Evolution's finish runs in the background (FinishService; a new build, edit or Reapply cancels it; the
+  climate sliders re-run only the finish). Generate's own: sliders, planet codes, plate edits picked through the globe
+  (uv → region; the pieces pending and the one under the pointer drawn over the picture), the Plates view and the
+  Inspect layers as cell colours (`js/generate-plates.js`). Evolution's export panel and catalogue, with Generate's file
+  names and words (`initEvolutionExport` page/names/about/titleNote). The planet view's and layer bar's CSS moved from
+  `v2/evolution.css` to `styles.css`. The old page's `?next=1` code (`present/layers.js`, `js/present-layers-view.js`,
+  the present rows of `js/export-generate.js`) is unreachable now and goes with the old page in U5. Not yet: a Plates row
+  in the export (U5).
 - [ ] **U4 — Import on the shared viewer and finish.** The imported heights as the surface (no Frame: no Geology),
   the rest as Generate.
 - [ ] **U5 — switch-over.** The new page is Generate's default; the old pipeline, renderer and climate leftovers go

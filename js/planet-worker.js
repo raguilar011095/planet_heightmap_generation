@@ -16,9 +16,12 @@ import { applyPlatePhysics, expandPlatePhysicsDebug } from './plate-physics.js';
 import { SUPER_PLATE_PHYSICS_MULT, DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld, presentTerrainMesh, presentGroundOf, presentRivers } from '../v2/js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentGroundOf, presentRivers, presentTerrainOverrides } from '../v2/js/present/world.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
-import { layerClimate, presentLayers as geologyAndFood } from '../v2/js/present/layers.js';
+import { layerClimate, presentLayers as geologyAndFood, storyFrame } from '../v2/js/present/layers.js';
+import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
+import { FRAME_FIELDS } from '../v2/js/terrain/terrain-pool.js';
+import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../v2/js/tectonics/model/geology.js';
 import { heightKmToElev } from './color-map.js';
 import Delaunator from 'https://cdn.jsdelivr.net/npm/delaunator@5.0.1/+esm';
 
@@ -231,16 +234,41 @@ function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     // (G2c: each region's own piece as edited — the ground is held to the pieces' outlines at this Detail)
     const regionLand = new Uint8Array(mesh.numRegions);
     for (let r = 0; r < regionLand.length; r++) regionLand[r] = plateIsOcean.has(present.r_plate[r]) ? 0 : 1;
-    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate });
-    present.world = w;
+    // (the shared page — plans/SHARED_CORE_PLAN.md U3 — keeps the uncarved surface too: Evolution's finish starts from it)
+    const w = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: present.shared ? finishConfigOf(knobs) : null });
+    present.world = w; present.knobs = knobs;
     return presentHeights(present, w.heightKm, mesh, r_xyz, w.ms, w.drainage, w.receivers);
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 function presentReground(present, mesh, r_xyz, seed, knobs) {
-    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm });
+    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm, finish: present.shared ? finishConfigOf(knobs) : null });
     // (the ground and what the layers read of it: its rivers, its lava cap, its rising ranges, how deep the rivers cut)
-    Object.assign(present.world, { heightKm: g.heightKm, drainage: g.drainage, receivers: g.receivers, order: g.order, lava: g.lava, young: g.young, cut: g.cut });
+    Object.assign(present.world, { heightKm: g.heightKm, drainage: g.drainage, receivers: g.receivers, order: g.order, lava: g.lava, young: g.young, cut: g.cut, surface: g.surface });
+    present.knobs = knobs;
     return presentHeights(present, g.heightKm, mesh, r_xyz, g.ms, g.drainage, g.receivers);
+}
+/**
+ * What the shared page (js/generate-next.js; plans/SHARED_CORE_PLAN.md U3) needs of the present-day world: its mesh in
+ * Evolution's z-up frame (the planet view paints it, the hover locates on it), the first picture (the ground in km and its
+ * hillshade), the record the hover's stories read (layers.js storyFrame), each region's sim cell, and the finish's job —
+ * the Frame, the sim mesh, the uncarved surface and the configs it was drawn with (finish/finish-worker.js). Copies, sent
+ * as transfers (the worker keeps its own).
+ */
+function sharedPayload(present, mesh, r_xyz, seed) {
+    const w = present.world, tm = presentTerrainMesh(mesh, r_xyz), sim = present.L.sim, transfer = [];
+    const copy = (a) => { const c = a.slice(); transfer.push(c.buffer); return c; };
+    const frame = Object.fromEntries([...FRAME_FIELDS, ...GEO_FRAME_FIELDS, ...GEOLOGY_READS].filter(k => w.frame[k]).map(k => [k, copy(w.frame[k])]));
+    frame.plates = w.frame.plates.map(p => p && { quat: p.quat });
+    const story = storyFrame(w.frame);
+    for (const v of Object.values(story)) if (ArrayBuffer.isView(v)) transfer.push(v.buffer);
+    const s = w.surface, surface = s ? { heightKm: copy(s.heightKm), recCell: copy(s.recCell), cues: copy(s.cues), carveIn: Object.fromEntries(Object.entries(s.carveIn).map(([k, a]) => [k, copy(a)])) } : null;
+    const payload = {
+        mesh: { numCells: tm.numCells, xyz: copy(tm.xyz), adjOffset: copy(tm.adjOffset), adjList: copy(tm.adjList) },
+        heightKm: copy(w.heightKm), shade: copy(w.shade), story, regionCell: copy(present.regionCell),
+        finish: surface && { frame, simMesh: { numCells: sim.numCells, xyz: copy(sim.xyz), adjOffset: copy(sim.adjOffset), adjList: copy(sim.adjList) }, seed, surface,
+            terrain: presentTerrainOverrides({ knobs: present.knobs }), finish: finishOverrides(present.knobs ?? {}) },
+    };
+    return { payload, transfer };
 }
 const PEAK_KNEE_KM = 4.8;
 function presentHeights(present, heightKm, mesh, r_xyz, ms, drainage, receivers) {
@@ -291,7 +319,9 @@ function presentMessage(present, plateIsOcean) {
 }
 
 function handleGenerate(data) {
-    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, greenhouse = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices, skipClimate } = data;
+    const { N, P, jitter, nMag, numContinents, smoothing, hydraulicErosion, thermalErosion, ridgeSharpening, glacialErosion, terrainWarp, continentSizeVariety = 0, greenhouse = 0, precipitationOffset = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices } = data;
+    // (the shared page: its climate, rocks and food come from Evolution's finish, after the first picture)
+    const skipClimate = data.skipClimate || !!data.shared;
     const spread = 5;
     const timing = []; // top-level pipeline timing
 
@@ -371,6 +401,7 @@ function handleGenerate(data) {
             present = presentPlatesFor({ coarse, P, pieceOcean: plateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate });
             // (kept for an edit: the coarse layout and the pieces' motion — G1d)
             present.edit = { pieceVec, coarse, P };
+            present.shared = !!data.shared;
             timing.push({ stage: `Present-day plates (${present.P.M} plates from ${P} pieces)`, ms: performance.now() - t0 });
         }
 
@@ -500,7 +531,7 @@ function handleGenerate(data) {
         // Compute terrain quality metrics using retained-state clones
         // (the originals will be transferred and neutered below).
         let terrainMetrics = null;
-        try {
+        if (!present?.shared) try {
             terrainMetrics = computeTerrainMetrics({
                 mesh: W.mesh,
                 r_xyz: W.r_xyz,
@@ -548,12 +579,15 @@ function handleGenerate(data) {
             terrainMetrics,
             present: present ? presentMessage(present, plateIsOcean) : null,
         };
+        const shared = present?.shared ? sharedPayload(present, mesh, W.r_xyz, seed) : null;
+        if (shared) result.shared = shared.payload;
 
         // Transfer arrays the worker no longer needs (cloned copies kept in W)
         const transferList = [
             r_xyz.buffer, t_xyz.buffer, r_plate.buffer,
             prePostElev.buffer, r_elevation.buffer, t_elevation.buffer,
-            r_stress.buffer, ...(climate ? newClimateTransfers(climate).filter(b => b !== debugLayers.koppen?.buffer) : [])
+            r_stress.buffer, ...(climate ? newClimateTransfers(climate).filter(b => b !== debugLayers.koppen?.buffer) : []),
+            ...(shared ? shared.transfer : [])
         ];
 
         self.postMessage(result, transferList);
@@ -566,7 +600,7 @@ function handleGenerate(data) {
 function handleReapply(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for reapply' }); return; }
 
-    const skipClimate = !!data.skipClimate;
+    const skipClimate = !!data.skipClimate || !!W.present?.shared;
     const { greenhouse, precipitationOffset, landCoverage } = getClimateParams(data);
 
     try {
@@ -618,8 +652,10 @@ function handleReapply(data) {
             },
             _postTiming: postTiming
         };
+        const shared = W.present?.shared ? sharedPayload(W.present, W.mesh, W.r_xyz, W.seed) : null;
+        if (shared) result.shared = shared.payload;
 
-        self.postMessage(result, [r_elevation.buffer, t_elevation.buffer, ...(dl_erosionDelta ? [dl_erosionDelta.buffer] : []), ...(climate ? newClimateTransfers(climate) : [])]);
+        self.postMessage(result, [r_elevation.buffer, t_elevation.buffer, ...(dl_erosionDelta ? [dl_erosionDelta.buffer] : []), ...(climate ? newClimateTransfers(climate) : []), ...(shared ? shared.transfer : [])]);
 
     } catch (err) {
         self.postMessage({ type: 'error', message: err.message, stack: err.stack });
@@ -629,7 +665,7 @@ function handleReapply(data) {
 function handleEditRecompute(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for editRecompute' }); return; }
 
-    const skipClimate = !!data.skipClimate;
+    const skipClimate = !!data.skipClimate || !!W.present?.shared;
     const { greenhouse, precipitationOffset, landCoverage } = getClimateParams(data);
 
     try {
@@ -653,7 +689,7 @@ function handleEditRecompute(data) {
             // then the ground again
             const E = W.present.edit;
             W.present = { ...presentPlatesFor({ coarse: E.coarse, P: E.P, pieceOcean: plateIsOcean, pieceVec: E.pieceVec,
-                seed, mesh, r_xyz, r_plate: W.present.r_plate, reuse: W.present }), edit: E };
+                seed, mesh, r_xyz, r_plate: W.present.r_plate, reuse: W.present }), edit: E, shared: W.present.shared };
             const g = presentGround(W.present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
             r_elevation = g.r_elevation; debugLayers = g.debugLayers; _timing = g.timing;
             mountain_r = new Set(); coastline_r = new Set(); ocean_r = new Set(); r_stress = new Float32Array(mesh.numRegions);
@@ -733,10 +769,13 @@ function handleEditRecompute(data) {
             _timing,        // elevation sub-stages
             _postTiming: postTiming
         };
+        const shared = W.present?.shared ? sharedPayload(W.present, mesh, r_xyz, seed) : null;
+        if (shared) result.shared = shared.payload;
 
         self.postMessage(result, [
             prePostElev.buffer, r_elevation.buffer, t_elevation.buffer, r_stress.buffer,
-            ...(climate ? newClimateTransfers(climate).filter(b => b !== debugLayers.koppen?.buffer) : [])
+            ...(climate ? newClimateTransfers(climate).filter(b => b !== debugLayers.koppen?.buffer) : []),
+            ...(shared ? shared.transfer : [])
         ]);
 
     } catch (err) {

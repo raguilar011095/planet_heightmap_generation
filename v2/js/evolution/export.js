@@ -274,21 +274,24 @@ export function produceMap(fin, W, lk, job) {
 }
 
 /**
- * Wire the export panel on the Evolution page. `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null;
- * `look()`: the Terrain view's look ({ lut, exaggeration, water, riverQ, byRegime }, and the geology's: { deposit (the
- * Deposits view's pick) }); `centerLon()`: the map view's; `planetFile`: the page's planet file ({ status, save }:
- * export-panel.js), offered beside the maps.
+ * Wire the export panel on a page that shows finished moments — Evolution's, and Generate's (plans/SHARED_CORE_PLAN.md U3).
+ * `moment()`: the moment the dialog opens for ({ frame, fin, seed }) or null; `look()`: the Terrain view's look ({ lut,
+ * exaggeration, water, riverQ, byRegime }, and the geology's: { deposit (the Deposits view's pick) }); `centerLon()`: the map
+ * view's; `planetFile`: the page's planet file ({ status, save }: export-panel.js), offered beside the maps. A page other
+ * than Evolution names its files and its README its own way: `page` (the adapter's), `names(ctx, opts)`, `about(ctx,
+ * opts)` (its page and planet words: the size and Food notes are added) and `titleNote(ctx)`.
  */
-export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null }) {
+export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null, page = 'evolution', names = null, about = null, titleNote = null }) {
+    const sizeNote = (ctx, opts) => (opts.width > ctx.fin.raster.w ? (ctx.fin.raster.drivers ? `drawn from the ${ctx.fin.raster.w} px the moment was detailed at, with the detail finer than its mesh added` : `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at`) : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at');
     const adapter = {
-        page: 'evolution',
+        page,
         options: { hillshade: true },
         planetFile,
         koppenClasses: KOPPEN_CLASSES,
         readmeLists: files => [...rockTypesList(files), ...staplesList(files)],
         widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
         available: (row, ctx) => rowAvailable(row, ctx.fin),
-        titleNote: (ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`,
+        titleNote: titleNote ?? ((ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`),
         begin: async (W, opts, ctx, progress) => {
             let fin = ctx.fin;
             // (wider than the picture: drawn with the detail finer than the mesh — fine(), detail-view.js — not merely enlarged)
@@ -299,10 +302,9 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
             return { W, look: { ...look(), shaded: opts.hillshade, centerLon: opts.centerLon, frame: ctx.frame, seed: ctx.seed, cloudSeed: ctx.cloudSeed ?? 0 }, fin };
         },
         end: async () => {},
-        names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
-        about: (ctx, opts) => ({ page: 'Evolution', planet: `seed ${ctx.seed}, the moment at ${Math.round(ctx.frame.time)} Myr`, link: location.href,
-            sizeNote: opts.width > ctx.fin.raster.w ? (ctx.fin.raster.drivers ? `drawn from the ${ctx.fin.raster.w} px the moment was detailed at, with the detail finer than its mesh added` : `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at`) : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at',
-            notes: ctx.fin.raster?.farming ? [farmingNote()] : [] }),
+        names: names ?? ((ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; }),
+        about: (ctx, opts) => ({ ...(about ? about(ctx, opts) : { page: 'Evolution', planet: `seed ${ctx.seed}, the moment at ${Math.round(ctx.frame.time)} Myr`, link: location.href }),
+            sizeNote: sizeNote(ctx, opts), notes: ctx.fin.raster?.farming ? [farmingNote()] : [] }),
         produce: async (rctx, job) => produceMap(rctx.fin, rctx.W, rctx.look, job),
     };
     return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue: CATALOGUE, adapter, onOpen: moment, getCenterLon: centerLon, getProjection: projection });

@@ -299,8 +299,10 @@ export class PlanetView {
         if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / this.MAP_WIDTH * (this.MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
         this.drawLines(t, C);
         this.show(t);
+        // (and made again for another finished moment — the same moment finished again, with another climate, has the same key)
         const legend = $('climateLegend'), legendKey = C || geo || farm ? this.finishedLegendKey(fin, farm, id) : '';
-        if (legend.dataset.key !== legendKey) {
+        if (legend.dataset.key !== legendKey || this.legendFin !== fin) {
+            this.legendFin = fin;
             if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
             else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
             else if (C) drawLegend(legend, view.layer, view.season, C, null);
