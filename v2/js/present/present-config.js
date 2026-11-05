@@ -128,6 +128,7 @@ export const PRESENT = {
     riftOpenMin: 10,               // (M2: a rift's valley where its plates open faster than this, km/Myr…
     riftOpenFull: 35,              // …full depth from this; none where its depth share is under riftLineMin: a gap, a sag)
     riftLineMin: 0.12,
+    riftBreak: 0.05,               // (the valley kept where the range mask's noise is above −this: broken into basins)
     riftBorderHigh: 1.15,          // (M2: a half-graben's border-fault shoulder × this of its height, the other side's × riftBorderLow)
     riftBorderLow: 0.3,
     riftThinShare: 0.3,            // the valley's crust thinned: the old ranges' root, uplift and crests there × this
@@ -226,7 +227,7 @@ export const PRESENT = {
     recFloodAgoMyr: [70, 450],     // …last this long ago (a noise)
     recDriftDeg: 12,               // the latitude the cover lay at: today's ± this (the continents drifted)
     recArcMaxMyr: 150,             // an arc's own crust in a live arc this long at most
-    recAccretedArcShare: 0.36,     // this share of the docked pieces came as island arcs (was 0.3, then 0.45: below)…
+    recAccretedArcShare: 0.45,     // this share of the docked pieces came as island arcs (was 0.3, then 0.45: below)…
     recAccretedArcMyr: 40,         // …each this long in one…
     recAccretedCover: 0.02,        // …its platform's cover this share…
     recArcCover: 0.01,             // an arc's own crust (a split-off arc, an arc at sea grown into land): its cover this share…
@@ -293,48 +294,62 @@ export const PRESENT = {
     swellSubKm: 0.08,              // …and a low swell along it
     swellSubWidthKm: 250,
     // M1–M2 (present/ranges.js; owner, 2026-11-05: the ranges were "worm like … they all look the same and have no
-    // variety"): each past range is a range in its own right — its pieces' outline smoothed into a curve (by a Gaussian of
-    // at least rangeSmoothKm, or its style's share of its width), cut into overlapping lens-shaped segments stepped en
-    // echelon, and written as its style's kind of belt
+    // variety"; of a first answer that smoothed every range into one lens, "all the shapes … got way way more uniform"; of
+    // two takes after it — A, ranges on their own outlines; B, wider and carved harder into massifs — "lets just go with
+    // fully B!"):
+    // a past range keeps its pieces' outline, lightly smoothed, but swells, pinches, rises and falls along it by noises of
+    // its own, and the range mask carves it into massifs, lobes and spurs (the original Generate's way: mountains a noise
+    // field cut out of the tectonic one); each written as its style's kind of belt (Evolution's)
     rangeStepKm: 25,               // (the curve's points this far apart)
-    rangeSmoothKm: 260,
-    rangeSmoothShare: 0.045,        // …and at least this share of its length (a long range bends in long arcs)
-    rangeMinKm: 320,               // a range whose curve is shorter than this is none (but a knot)
-    rangeCoastKm: 150,
-    // the styles. type: the kind of belt (Evolution's: its cross-section, ridges, rock); sides: a suture's two sides each its
-    // own kind ([type, side, width share], the upper first); width, work: × the range's own (its kind's width from its work);
-    // smooth: its curve smoothed by at least this share of its width; segKm: its segments this long, overlapping by
-    // overlap (negative: apart), turned en echelon by echelonDeg, set off sideways by up to offset × its width, gap: this
-    // share of them left out; segWidth, strength: each segment's width and work × these, the massif's (one segment)
-    // × massif; a segment's lens: its width tipWidth…1 (× sin^lensPow), its work 0…1 (× sin^workPow), its height tipAmp…1
-    // (× sin^ampPow); amp: the whole range's height × this (a belt's relief is its kind's whatever its work: this varies it);
-    // bow: each segment bowed into an arc by up to this share of its length
+    rangeMinKm: 320,               // a range whose curve is shorter than this is none…
+    rangeKnotMinKm: 150,           // …but a knot
+    rangeCoastKm: 150,             // a seam's range keeps this far from the coast (the past's other ranges pastCoastKm)
+    // the shape every range takes (its style's own fields over it): its outline smoothed by a Gaussian of smoothMinKm (or
+    // smooth × its width, or smoothShare × its length, the most); segKm past any range's length, so one piece, overlap,
+    // echelonDeg, offset, gap, bow, strength and massif its segments' (none here: a rift's are — riftShape); its width ×
+    // segWidth, tapering at its ends to tipWidth (× sin^lensPow), its work to 0 (× sin^workPow), its height to tipAmp
+    // (× sin^ampPow); along it its width × e^(±2·widthNoise) and its height × 1 ± 2·ampNoise, over noises about widthNoiseKm
+    // and ampNoiseKm long (B; A was × 1.6, 0.55 over 650 and 420 km); its height multiplier (its style's roll × the lens × the
+    // swell) eased from ampKnee toward ampMax: the swells stack, a peak stays possible (a live range — the far field's —
+    // isn't worn down: unchecked it stood 10 km)
+    rangeShape: { smoothMinKm: 90, smoothShare: 0, smooth: 0.25, segKm: [1e5, 1e5], overlap: 0, echelonDeg: [0, 0], offset: 0, gap: 0, bow: 0,
+        strength: [1, 1], massif: 1, segWidth: [2.4, 2.4], tipWidth: 0.35, lensPow: 0.4, workPow: 0.3, tipAmp: 0.3, ampPow: 0.5,
+        widthNoise: 0.7, widthNoiseKm: 500, ampNoise: 0.7, ampNoiseKm: 320, ampKnee: 1.4, ampMax: 2.0 },
+    // the range mask (ranges.js maskBelt): what a belt adds × smooth((v − threshold) / soft + ½) × (1 + boost · max(0, v)), v a
+    // fractal waveKm across (octaves; domain-warped by warpKm over warpWaveKm), the threshold `near` at the range's line,
+    // rising to `far` at its edge — so near its line most of the range stands, toward its edge only where the noise is high,
+    // the highest swelling past it (B; A was 700, 1200, 250, 4, −0.6, 0.5, 0.5, 0.5: softer, more of each range kept); where
+    // under `drop` of it is left, no belt at all (its record undone: the rocks follow the mountains); its boost eased from
+    // kKnee toward kMax
+    rangeMask: { waveKm: 520, warpWaveKm: 900, warpKm: 320, octaves: 5, near: -0.25, far: 0.35, soft: 0.35, boost: 0.9, drop: 0.15, kKnee: 1.15, kMax: 1.5 },
+    // the styles: type, the kind of belt (Evolution's: its cross-section, ridges, rock), or sides, a suture's two sides each
+    // its own kind ([type, side, width share], the upper first); width, work, amp: the range's width (its kind's, from its
+    // work), its convergence and its height × these
     rangeStyles: {
         // one high spine, a long slope on one side and a short steep one on the other (the Alps, the Caucasus, the Pyrenees)
-        spine: { bow: 0.06, amp: [1.3, 1.9], tipAmp: 0.2, ampPow: 0.7, sides: [[OrogenyType.URAL, BeltSide.NONE, 1], [OrogenyType.URAL, BeltSide.NONE, 0.35]], width: [1.1, 1.7], work: [1.0, 1.5],
-            smooth: 0.8, segKm: [700, 1500], overlap: 0.2, echelonDeg: [3, 10], offset: 0.15, gap: 0.08, segWidth: [0.75, 1.15],
-            strength: [0.6, 1.0], massif: 1.3, tipWidth: 0.3, lensPow: 0.7, workPow: 0.6 },
+        spine: { sides: [[OrogenyType.URAL, BeltSide.NONE, 1], [OrogenyType.URAL, BeltSide.NONE, 0.35]], width: [1.1, 1.7], work: [1.0, 1.5], amp: [1.3, 1.9] },
         // a plateau behind a rim range, the high range of the side thrust under before it (Tibet, the Altiplano, Anatolia)
-        plateau: { bow: 0.05, amp: [0.95, 1.2], tipAmp: 0.35, ampPow: 0.5, sides: [[OrogenyType.HIMALAYAN, BeltSide.UPPER, 1], [OrogenyType.HIMALAYAN, BeltSide.LOWER, 0.55]], width: [1.8, 2.6], work: [1.0, 1.4],
-            smooth: 1.0, segKm: [1500, 3200], overlap: 0.1, echelonDeg: [0, 4], offset: 0.05, gap: 0, segWidth: [0.85, 1.1],
-            strength: [0.85, 1.0], massif: 1.1, tipWidth: 0.45, lensPow: 0.5, workPow: 0.4 },
+        plateau: { sides: [[OrogenyType.HIMALAYAN, BeltSide.UPPER, 1], [OrogenyType.HIMALAYAN, BeltSide.LOWER, 0.55]], width: [1.8, 2.6], work: [1.0, 1.4], amp: [0.95, 1.2] },
         // a broad fold belt: parallel ridges and valleys (the Appalachians' Valley and Ridge, the Zagros)
-        folds: { bow: 0.07, amp: [0.75, 1.15], tipAmp: 0.25, ampPow: 0.8, type: OrogenyType.URAL, width: [1.4, 2.3], work: [0.7, 1.1], smooth: 0.9, segKm: [900, 2200], overlap: 0.15,
-            echelonDeg: [0, 6], offset: 0.2, gap: 0.1, segWidth: [0.7, 1.2], strength: [0.5, 1.0], massif: 1.2, tipWidth: 0.25, lensPow: 0.8, workPow: 0.7 },
-        // short basement-cored blocks stepped across the land, basins between (the Tian Shan, the Laramide ranges)
-        blocks: { bow: 0.03, amp: [0.7, 1.3], tipAmp: 0.15, ampPow: 1.0, type: OrogenyType.INTRAPLATE, width: [0.55, 0.9], work: [0.6, 1.0], smooth: 1.2, segKm: [380, 750], overlap: 0.05,
-            echelonDeg: [15, 35], offset: 0.9, gap: 0.25, segWidth: [0.6, 1.2], strength: [0.4, 1.0], massif: 1.3, tipWidth: 0.2, lensPow: 1, workPow: 0.8 },
-        // a narrow, straight sliver along an oblique seam, its ridges en echelon (the Transverse Ranges, the Southern Alps)
-        sliver: { bow: 0.02, amp: [0.8, 1.2], tipAmp: 0.2, ampPow: 0.7, type: OrogenyType.TRANSPRESSION, width: [0.5, 0.9], work: [0.8, 1.2], smooth: 2, segKm: [500, 1200], overlap: 0.25,
-            echelonDeg: [8, 18], offset: 0.3, gap: 0.12, segWidth: [0.7, 1.1], strength: [0.6, 1.0], massif: 1.2, tipWidth: 0.25, lensPow: 0.6, workPow: 0.6 },
-        // a rift: its valley in basins stepped en echelon, each deepest toward its middle, an accommodation zone between
-        // (the East African rift's), its shoulders beside them (width: its shoulders' reach; work: the valley's depth share)
-        rift: { bow: 0.04, amp: [1, 1], tipAmp: 0.2, ampPow: 0.7, type: OrogenyType.RIFT, width: [1, 1], work: [1, 1], smooth: 1.2, segKm: [200, 600], overlap: 0.0, echelonDeg: [4, 12],
-            offset: 0.2, gap: 0.32, segWidth: [0.7, 1.2], strength: [0.5, 1.0], massif: 1.0, tipWidth: 0.3, lensPow: 0.7, workPow: 0.6 },
+        folds: { type: OrogenyType.URAL, width: [1.4, 2.3], work: [0.7, 1.1], amp: [0.75, 1.15] },
+        // basement-cored blocks, basins between (the Tian Shan, the Laramide ranges)
+        blocks: { type: OrogenyType.INTRAPLATE, width: [0.55, 0.9], work: [0.6, 1.0], amp: [0.7, 1.3] },
+        // a narrow ridge along an oblique seam, its ridges en echelon (the Transverse Ranges, the Southern Alps)
+        sliver: { type: OrogenyType.TRANSPRESSION, width: [0.5, 0.9], work: [0.8, 1.2], amp: [0.8, 1.2] },
         // a knot of short ridges round a massif (the Massif Central, the Hoggar's ranges)
-        knots: { bow: 0.0, amp: [0.75, 1.25], tipAmp: 0.3, ampPow: 0.6, type: OrogenyType.URAL, width: [0.7, 1.1], work: [0.8, 1.2], smooth: 1.0, segKm: [380, 650], overlap: -0.35,
-            echelonDeg: [20, 55], offset: 0.6, gap: 0.35, segWidth: [0.8, 1.3], strength: [0.5, 1.1], massif: 1.4, tipWidth: 0.35, lensPow: 0.7, workPow: 0.5 },
+        knots: { type: OrogenyType.URAL, width: [0.7, 1.1], work: [0.8, 1.2], amp: [0.75, 1.25] },
+        // the far field's: an old line squeezed up again far inland, live (never worn), as basement blocks lower than a
+        // collision's (the Tian Shan, ~7 km at most)
+        far: { type: OrogenyType.INTRAPLATE, width: [1, 1], work: [1, 1], amp: [0.55, 0.85] },
     },
+    // a rift (present/belts.js; its own shape, not rangeShape): its valley in basins stepped en echelon, each deepest toward
+    // its middle, an accommodation zone between (the East African rift's), its shoulders beside them; segKm, overlap
+    // (negative: apart), echelonDeg (each turned about its middle), offset (set off sideways × its width), gap (this share
+    // left out), bow, segWidth and strength (each segment's width and depth), massif (one segment's); width: its shoulders'
+    // reach × this, work: the valley's depth share
+    riftShape: { type: OrogenyType.RIFT, smoothMinKm: 200, smoothShare: 0.03, smooth: 0.5, width: [1, 1], work: [1, 1], amp: [1, 1],
+        segKm: [200, 600], overlap: 0.0, echelonDeg: [4, 12], offset: 0.2, gap: 0.32, bow: 0.04, segWidth: [0.7, 1.2], strength: [0.5, 1.0],
+        massif: 1.0, tipWidth: 0.3, lensPow: 0.7, workPow: 0.6, tipAmp: 0.2, ampPow: 0.7 },
     // each kind of past range's styles (weights): a young weld of two cores is a plateau or a spine; an old one, and a piece
     // docking, most often a fold belt; two pieces of one plate closing, any; a small terrane's welt, blocks and knots
     rangeStyleWeights: {

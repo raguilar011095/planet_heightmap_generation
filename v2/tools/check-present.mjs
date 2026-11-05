@@ -480,7 +480,9 @@ for (const { pl, L, G, mesh } of grounds) {
     check(`${pl.name}: ${(100 * inner / landR).toFixed(1)} % of the land is highland > 800 km from any plate edge`, inner / landR > 0.01, 'ranges inside continents');
     check(`${pl.name}: land median ${hs[hs.length >> 1].toFixed(2)} km, above 1 km ${(100 * high / landR).toFixed(0)} %`,
         // (planets vary: one with few collisions stands lower — 10–38 % above 1 km)
-        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < (pl.Cn === 1 ? 0.42 : 0.38), `Earth: median ~0.4–0.6 km, ~¼ above 1 km (a single supercontinent, its interior far from any sea and pushed from every side, up to 42 %: G4d)`);
+        // (M2, owner's pick of 2026-11-05 — the ranges carved into massifs, wider: "fully B" — the supercontinent 41 → 44 %;
+        // flagged to the owner rather than toning the look down)
+        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < (pl.Cn === 1 ? 0.46 : 0.38), `Earth: median ~0.4–0.6 km, ~¼ above 1 km (a single supercontinent, its interior far from any sea and pushed from every side, up to 46 %: G4d, M2)`);
     // old ranges lower than young ones: the past belts' crest size by age
     let oldS = 0, oldN = 0, youngS = 0, youngN = 0;
     for (let c = 0; c < n; c++) {

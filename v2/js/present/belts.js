@@ -22,7 +22,7 @@ import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { Boundary } from './plates.js';
 import { PRESENT } from './present-config.js';
-import { shapeRange, normalAt } from './ranges.js';
+import { shapeRange, normalAt, maskAt, maskNoiseOf } from './ranges.js';
 
 const R = 6371, DEG = 180 / Math.PI;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -431,7 +431,11 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             return smooth01((best - cfg.riftOpenMin) / (cfg.riftOpenFull - cfg.riftOpenMin));
         };
         const line = [], lineAt = new Map();
+        const M = cfg.rangeMask, mNoise = M ? maskNoiseOf(seed) : null;
         shaped.front.forEach((c, i) => {
+            // (the valley broken by the range mask's noise too — where it is low, no basin: a chain of basins of their own
+            // lengths, not one groove; the basins themselves as deep as their plates open)
+            if (M && maskAt(mNoise, at(mesh.xyz, c), R / M.waveKm, R / M.warpWaveKm, M.warpKm / R, M.octaves) < -cfg.riftBreak) return;
             const fo = openAt(c), k = Math.min(1, shaped.works[i]) * fo;
             if (!(k > cfg.riftLineMin)) return;
             const wk = Math.min(1, shaped.widths[i] / config.riftShoulderKm);
@@ -480,6 +484,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         }
         const cells = [...src.keys()].sort((a, b) => a - b);
         if (cells.length) {
+            // (the shoulders not masked: they are the rift's own relief, varied enough by its basins and their flipping sides)
             const work = config.riftShoulderWorkKm * cfg.riftShoulderShare;
             spreadBelt(plate, mesh, cells, { type: OrogenyType.RIFT, time: 0, widths: cells.map(c => config.riftShoulderKm * (0.5 + 0.6 * src.get(c).wk)),
                 works: cells.map(() => work), amps: cells.map(c => src.get(c).k), widthKm: 0, workKm: 0 }, config, (c) => open(c) && !isLine[c]);

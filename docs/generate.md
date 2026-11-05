@@ -121,13 +121,13 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
 - **The past in closed form** — the continents assembled from their pieces as old orogenies, worn by their age; cratons;
   seams closing into ranges or sagging into gulfs; the pieces' outlines bent by today's plates; continents that fit
   across their ocean; plumes, hotspot tracks and flood basalts; the far field pushing ranges inland; a geological record.
-- **Ranges shaped, not traced** (plans/GENERATE_RANGES_PLAN.md) — each range of the past, each rift and each range the far
-  field squeezes up runs where its pieces met, but as a range in its own right: its outline smoothed into broad arcs, cut
-  into overlapping segments stepped en echelon that swell toward their middles and taper at their ends, now and then a
-  gap, and one of several kinds by what raised it and a roll of its own — a high spine with a long slope and a short one,
-  a plateau behind a rim range, a broad belt of parallel folds, short basement blocks with basins between, a narrow
-  straight sliver, a knot of short ridges. A rift is a chain of basins, each a half-graben whose high shoulder flips side
-  to side, deepest where its plates open fastest and dying out where they barely part.
+- **Ranges carved into massifs** (plans/GENERATE_RANGES_PLAN.md) — each range of the past, each rift and each range the
+  far field squeezes up runs where its pieces met, on its own outline, but swells and pinches and rises and falls along
+  it, and a fractal mask of its own carves it into massifs, lobes and spurs (the original Generate's way); where the mask
+  leaves nothing, no belt and none of its rocks. Each is one of several kinds by what raised it and a roll of its own —
+  a spine, a plateau behind a rim range, a broad fold belt, basement blocks, a narrow sliver, a knot. A rift is a chain
+  of basins, each a half-graben whose high shoulder flips side to side, deepest where its plates open fastest and dying
+  out where they barely part.
 - **A Frame** written from all of it, as Evolution's history writes one — so Evolution's terrain draws the ground on
   Generate's mesh (fine relief, rift valleys, interlocking coasts, the ground held to the pieces), carved by its rivers:
   the first picture, in seconds.

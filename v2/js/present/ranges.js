@@ -4,25 +4,26 @@
 // they all look the same and have no variety").
 //
 // Why they were worms: every range of the continents' past (a piece docking, two cores welding, two pieces of one plate
-// closing, a small terrane's welt — present/past.js, present/seams.js) was written cell by cell along its pieces' outline,
-// an outline that zigzags at about the range's own width, at one width all along, with one cross-section. So each read as
-// a tube winding across the land, and all of them alike.
+// closing, a small terrane's welt — present/past.js, present/seams.js), each rift and each range the far field squeezes
+// up was written cell by cell along its pieces' outline at one width and one height, so each read as an even tube winding
+// across the land, and all of them alike.
 //
-// Now each is a range in its own right:
-//   1. its skeleton: the outline taken as a chain and smoothed into a gentle curve — real belts bend in broad arcs and
-//      the odd sharp turn, they don't meander. (The original Generate's lesson: the large structure draws the ranges, the
-//      small pieces only texture them.)
-//   2. its segments: overlapping and stepped en echelon, each swelling toward its middle and tapering to points at its
-//      ends — the lens of the Alps, the Caucasus or the Zagros — with a gap now and then, and one segment the massif.
-//   3. its style, by what made it and a roll of its own: one of Evolution's own kinds of belt (tectonics/step/orogeny.js
-//      spreadBelt and terrain/profiles.js), each with its cross-section, its ridges and its rock — a high spine set back
-//      from its suture with a foreland basin before it; a plateau behind a rim range; a broad fold belt of parallel ridges;
-//      short basement blocks stepped across the land with basins between; a narrow straight sliver along an oblique seam;
-//      a knot of short ridges, a massif.
+// Smoothing each into a curve cut in lens-shaped segments was the wrong answer (owner: "all the shapes … got way way more
+// uniform"). Now (of two takes, the owner's: "lets just go with fully B!" — the wider, harder-carved one):
+//   1. a range keeps its own outline, lightly smoothed — its course is the pieces', no two alike;
+//   2. along it, it swells and pinches and rises and falls by noises of its own (rasterize's wobble), tapering at its ends;
+//   3. the range mask (maskBelt) carves what the belt adds into massifs, lobes and spurs — the original Generate's way,
+//      mountains a noise field cut out of the tectonic one: near its line most of the range stands, toward its edge only
+//      where the noise is high, the highest swelling past it;
+//   4. its style, by what made it and a roll of its own: one of Evolution's own kinds of belt (tectonics/step/orogeny.js
+//      spreadBelt, terrain/profiles.js), with its cross-section, ridges and rock — a spine, a plateau behind a rim range,
+//      a broad fold belt, basement blocks, a narrow sliver, a knot — and its own width and height.
+// A rift (present/belts.js) is the one shaped in segments: its valley a chain of basins stepped en echelon.
 // The ranges are still where the pieces met: the cause stays the pieces' outlines (G4b); only the shape is the range's.
 
 import { OrogenyType, BeltSide } from '../tectonics/model/crust.js';
 import { makeRng } from '../../../js/rng.js';
+import { FastNoise } from '../core/fast-noise.js';
 import { PRESENT } from './present-config.js';
 
 const R = 6371;
@@ -31,6 +32,8 @@ const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a
 const unit = (a) => { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; };
 const at = (xyz, c) => [xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2]];
 const kmBetween = (a, b) => R * Math.acos(Math.max(-1, Math.min(1, dot(a, b))));
+/** x as is up to `knee`, then easing toward `max` (never past it): the swells and boosts stack, the peaks stay possible. */
+const softCap = (x, knee, max) => (x <= knee ? x : knee + (max - knee) * Math.tanh((x - knee) / (max - knee)));
 
 /** The styles a range can take (present-config.js rangeStyles holds their numbers): the kind of belt it is written as. */
 export const RangeStyle = Object.freeze({ SPINE: 'spine', PLATEAU: 'plateau', FOLDS: 'folds', BLOCKS: 'blocks', SLIVER: 'sliver', KNOTS: 'knots' });
@@ -168,6 +171,45 @@ export function rangeSegments(curve, style, widthKm, rng) {
     return segs;
 }
 
+/**
+ * The range mask (the original Generate's lesson: mountains are a noise field cut out of the tectonic one): what a belt
+ * call just added to the uplift, crests and root, × a warped fractal of the mask's own — mostly kept near the range's
+ * line, only where the noise is high toward its edge, swelling past it here and there — so the belt breaks into massifs,
+ * lobes and spurs. Where it leaves less than M.drop of the range, the belt was never there: the cell's whole record goes
+ * back to what it was (its orogeny, its belt's geometry, its thickened crust) — so the rocks follow the mountains, and an
+ * old terrane beside a range keeps its own (a docked arc's volcanics and batholiths). `was`: beforeBelt's copy.
+ */
+export function maskBelt(crust, sim, was, seed, M) {
+    if (!M) return;
+    const noise = maskNoiseOf(seed), f = R / M.waveKm, fw = R / M.warpWaveKm, aw = M.warpKm / R, n = sim.numCells;
+    for (let c = 0; c < n; c++) {
+        if (crust.upliftKm[c] === was.upliftKm[c] && crust.rugged[c] === was.rugged[c] && crust.rootKm[c] === was.rootKm[c] && crust.oroLast[c] === was.oroLast[c] && crust.oroType[c] === was.oroType[c]) continue;
+        const v = maskAt(noise, at(sim.xyz, c), f, fw, aw, M.octaves);
+        const u = Math.min(1, crust.beltU[c]), th = M.near + (M.far - M.near) * u;
+        const m = Math.min(1, Math.max(0, (v - th) / M.soft + 0.5)), s = m * m * (3 - 2 * m), k = softCap(s * (1 + M.boost * Math.max(0, v)), M.kKnee, M.kMax);
+        if (s < M.drop) { for (const key of BELT_FIELDS) crust[key][c] = was[key][c]; continue; }
+        // (the boost lifts the crests, the massifs' peaks — not the broad uplift under them, or whole regions stand high)
+        crust.upliftKm[c] = was.upliftKm[c] + (crust.upliftKm[c] - was.upliftKm[c]) * Math.min(k, s);
+        crust.rugged[c] = was.rugged[c] + (crust.rugged[c] - was.rugged[c]) * k;
+        crust.rootKm[c] = was.rootKm[c] + (crust.rootKm[c] - was.rootKm[c]) * Math.min(1, k);
+    }
+}
+/** What a belt call writes (tectonics/step/orogeny.js spreadBelt; records off): its relief, its orogeny, its geometry. */
+const BELT_FIELDS = ['upliftKm', 'rugged', 'rootKm', 'thickKm', 'oroType', 'oroWork', 'oroStart', 'oroLast', 'beltU', 'beltReach', 'beltAt', 'beltSide',
+    'beltShear', 'prevType', 'prevLast', 'prevU', 'prevReach', 'prevSide', 'prevShear', 'prevRugged'];
+/** The fields maskBelt compares against and restores: copies, before a belt call. */
+export const beforeBelt = (crust) => Object.fromEntries(BELT_FIELDS.map(k => [k, crust[k].slice()]));
+/** The mask's noise at a point (−1…1-ish), domain-warped. */
+export function maskAt(noise, p, f, fw, aw, octaves) {
+    const q = [p[0] + aw * noise.fbm(p[0] * fw + 5.2, p[1] * fw, p[2] * fw, 2, 0.5), p[1] + aw * noise.fbm(p[0] * fw, p[1] * fw + 9.4, p[2] * fw, 2, 0.5), p[2] + aw * noise.fbm(p[0] * fw, p[1] * fw, p[2] * fw - 3.3, 2, 0.5)];
+    return 2 * noise.fbm(q[0] * f + 17.1, q[1] * f - 4.4, q[2] * f + 8.8, octaves, 0.55);
+}
+const maskNoises = new Map();
+export function maskNoiseOf(seed) {
+    if (!maskNoises.has(seed)) { if (maskNoises.size > 8) maskNoises.clear(); maskNoises.set(seed, new FastNoise((seed ^ 0x3a55) >>> 0)); }
+    return maskNoises.get(seed);
+}
+
 /** A lens along a segment (0…1 at t): its width × tipWidth…1, its work × 0…1, its height × tipAmp…1, all fullest at the
  *  middle. (Its height is what shows: a belt's relief barely depends on its work — tectonics/step/heights.js — so a range
  *  rises and falls along its length by spreadBelt's amps.) */
@@ -179,14 +221,23 @@ const lensAmp = (t, style) => style.tipAmp + (1 - style.tipAmp) * Math.sin(Math.
  * The sources a range's segments give spreadBelt: the sim cells along each segment, each with its width and work (a
  * cell on two segments keeps the wider). Only cells `ok` allows.
  */
-export function rasterize(sim, segs, style, workKm, ok, amp = 1) {
+export function rasterize(sim, segs, style, workKm, ok, amp = 1, wobble = null) {
     const { xyz } = sim, best = new Map();
     for (const seg of segs) {
         const n = seg.pts.length;
         for (let i = 0; i < n; i++) {
             const p = seg.pts[i], c = sim.index.nearest(p[0], p[1], p[2]);
             if (!ok(c)) continue;
-            const t = seg.t[i], w = seg.width * lensWidth(t, style), k = workKm * lensWork(t, style), a = amp * seg.strength * lensAmp(t, style);
+            const t = seg.t[i];
+            let w = seg.width * lensWidth(t, style), a = amp * seg.strength * lensAmp(t, style);
+            const k = workKm * lensWork(t, style);
+            // (a wobble: the range swelling and pinching, rising and falling, along its length by noise of its own)
+            if (wobble) {
+                const { noise, wF, aF } = wobble;
+                w *= Math.exp(2 * style.widthNoise * noise.fbm(p[0] * wF + 3.1, p[1] * wF - 7.7, p[2] * wF + 1.9, 3, 0.55));
+                a *= Math.max(0.08, 1 + 2 * style.ampNoise * noise.fbm(p[0] * aF - 11.3, p[1] * aF + 5.5, p[2] * aF - 2.2, 3, 0.55));
+                if (style.ampMax) a = softCap(a, style.ampKnee, style.ampMax);
+            }
             const was = best.get(c);
             if (!was || w > was.w) best.set(c, { w, k: Math.max(k, was?.k ?? 0), a: Math.max(a, was?.a ?? 0), pt: p, seg, i });
             else { was.k = Math.max(was.k, k); was.a = Math.max(was.a, a); }
@@ -247,7 +298,8 @@ export function styleFor(ev, rng, cfg = PRESENT) {
  */
 export function shapeRange(sim, ev, ok, widthKm, seed, cfg = PRESENT) {
     const rng = makeRng((seed ^ 0x7a6e) + ev.front[0] * 131 + ev.front.length * 7 + Math.round(ev.age));      // (its own draw)
-    const styleKey = ev.style ?? styleFor(ev, rng, cfg), style = cfg.rangeStyles[styleKey];
+    // (a rift its own shape — riftShape; every other style the shared rangeShape, its own fields over it)
+    const styleKey = ev.style ?? styleFor(ev, rng, cfg), style = styleKey === 'rift' ? cfg.riftShape : { ...cfg.rangeShape, ...cfg.rangeStyles[styleKey] };
     // (a range's width and work: its kind's × its style's — or, for today's belts, as their fronts built them: ev.asBuilt)
     const width = ev.asBuilt ? widthKm : widthKm * (style.width[0] + (style.width[1] - style.width[0]) * rng());
     const work = ev.asBuilt ? ev.work : ev.work * (style.work[0] + (style.work[1] - style.work[0]) * rng());
@@ -256,13 +308,14 @@ export function shapeRange(sim, ev, ok, widthKm, seed, cfg = PRESENT) {
     for (const chain of frontChains(sim, ev.front, cfg.rangeMinKm)) {
         let len = 0;
         for (let i = 1; i < chain.length; i++) len += kmBetween(at(sim.xyz, chain[i - 1]), at(sim.xyz, chain[i]));
-        const curve = smoothCurve(sim.xyz, chain, cfg.rangeStepKm, Math.max(cfg.rangeSmoothKm, style.smooth * width, cfg.rangeSmoothShare * len));
+        const curve = smoothCurve(sim.xyz, chain, cfg.rangeStepKm, Math.max(style.smoothMinKm, style.smooth * width, style.smoothShare * len));
         // (a curve too short to hold a range is none: a short front drawn anyway reads as a crater — its ridges, which follow
-        // its outline, ring a point; a knot needs its segment's length at least)
-        if (curve.km < (styleKey === RangeStyle.KNOTS ? 0.8 * style.segKm[0] : cfg.rangeMinKm)) continue;
+        // its outline, ring a point; a knot may be shorter)
+        if (curve.km < (styleKey === RangeStyle.KNOTS ? cfg.rangeKnotMinKm : cfg.rangeMinKm)) continue;
         segs.push(...rangeSegments(curve, style, width, rng));
     }
-    const raster = rasterize(sim, segs, style, work, ok.source, amp);
+    const wobble = style.widthNoise || style.ampNoise ? { noise: new FastNoise(((seed ^ 0x6f1e) + ev.front[0] * 31) >>> 0), wF: R / style.widthNoiseKm, aF: R / style.ampNoiseKm } : null;
+    const raster = rasterize(sim, segs, style, work, ok.source, amp, wobble);
     const parts = [];
     if (raster.front.length >= 2) {
         if (style.sides) {

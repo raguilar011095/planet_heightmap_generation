@@ -33,18 +33,36 @@ Measured on the owner's planet (seed 1342544217, 108 pieces, Irregularity 1) and
 ## The rethink (present/ranges.js)
 
 The cause stays the same: ranges still stand where the pieces met (G4b, the owner's ask of 2026-11-03). Only the shape
-changes. Each range is built from:
+changes.
 
-1. **A skeleton.** The outline is taken as a chain (its longest path, plus any long branch) and smoothed into a curve by
-   a Gaussian of at least 260 km, its style's share of its width, or 4.5 % of its length. Bends become broad arcs
-   (≥ ~1000 km): a range bends but doesn't meander.
-2. **Segments.** The curve is cut into overlapping segments, each:
-   - turned a few degrees about its middle (en echelon, the same way all along the range);
-   - set off sideways a little and bowed into an arc;
-   - widest and highest toward its middle, tapering to points (a lens: the Alps, the Caucasus).
+### First try, rejected
 
-   One segment per range is the massif and a few are gaps.
-3. **A style**, by what raised the range and a roll of its own, written as one of Evolution's kinds of belt, so the
+Each outline smoothed into broad arcs and cut into overlapping lens-shaped segments stepped en echelon. Owner: "honestly
+you totally missed the mark. The variety in height is better but all the shapes in NEW got way way more uniform". Every
+range became the same clean lens. Kept from it: the height variety, and rifts as chains of basins.
+
+### Two takes, and the pick
+
+- **A, Ranges:** each range on its own outline, lightly smoothed, swelling, pinching and branching along it, carved
+  into massifs by a fractal mask.
+- **B, Massifs:** wider belts carved much harder, so ranges break into irregular massifs, spurs and knots, closest to
+  the original Generate.
+
+Then two blends of 25 % A + 75 % B: C, each setting in between; D, the two worlds' heights before erosion mixed. D
+built the ground twice (13 s instead of 10 s at 981K). Owner, after seeing all four: "lets just go with fully B!"
+
+### What B does
+
+1. **Its own outline.** The range follows its pieces' outline, smoothed only lightly (a Gaussian of 90 km, or a
+   quarter of its width), so no two ranges share a course.
+2. **Swelling and pinching.** Along its length its width × e^(±1.4) and its height × 1 ± 1.4 vary over noises about
+   500 and 320 km long, and it tapers at its ends. Belts are 2.4× their kind's width.
+3. **The range mask** (`maskBelt`): what the belt adds is multiplied by a domain-warped fractal of its own (520 km
+   across, 5 octaves). Near the range's line most of it stands; toward its edge, only where the noise is high, and the
+   highest parts swell past it. The belt breaks into massifs, lobes and spurs: the original Generate's way, mountains
+   as a noise field cut out of the tectonic one. Where the mask leaves under 15 % of the range, the belt's whole
+   record is undone (its orogeny, its geometry, its thickened crust), so the rocks follow the mountains.
+4. **A style**, by what raised the range and a roll of its own, written as one of Evolution's kinds of belt, so the
    rocks, deposits and hover read it as they read Evolution's:
 
    | Style | Belt | Looks like | Most often |
@@ -54,30 +72,41 @@ changes. Each range is built from:
    | folds | Ural, wide and low | the Valley and Ridge, the Zagros | dockings, old welds |
    | blocks | intraplate | the Tian Shan, the Laramide ranges | seams, small terranes, the far field |
    | sliver | transpression | the Transverse Ranges | dockings, seams |
-   | knots | Ural, short and scattered | the Massif Central | small terranes |
-   | rift | rift shoulders and valley | East Africa | today's rifts |
+   | knots | Ural, short | the Massif Central | small terranes |
 
-4. **Its own height.** spreadBelt takes a height multiplier per source (`amps`), so a range rises and falls along its
-   length and each range has its own height. This is the one shared-code change. Evolution passes none, and its finish
-   hashes identical (`ALL 5249565`).
-5. **Rifts** as chains of basins. The valley is cut along the smooth line itself (signed distance, `present/rifts.js`),
-   not along the cells. Each basin is a half-graben whose high shoulder flips from side to side. A basin is deepest where
-   the plates open fastest and missing where they barely part (`riftOpenMin` and `riftOpenFull`, km/Myr), so a rift dies
-   out toward its slow end.
+5. **Its own height.** spreadBelt takes a height multiplier per source (`amps`): a belt's relief barely depends on its
+   convergence, so this is what lets a range rise and fall along its length and each range have its own height. The
+   one shared-code change. Evolution passes none, and its finish hashes identical (`ALL 5249565`).
+6. **Rifts** as chains of basins, the one feature still cut in segments (`riftShape`). The valley is cut along its
+   smooth line (signed distance, `present/rifts.js`) and broken by the mask's noise too. Each basin is a half-graben
+   whose high shoulder flips from side to side. A basin is deepest where the plates open fastest and missing where they
+   barely part (`riftOpenMin`, `riftOpenFull`, km/Myr). The shoulders are masked like the ranges.
+
+The far field's inland ranges are shaped and masked the same way, as their own style (`far`: basement blocks, lower,
+× 0.55–0.85): they're live, never worn, and with B's full swells they stood 10.0–10.4 km.
+
+The height multipliers are eased, not clipped: a range's roll × its lens × its swell runs freely to 1.4 and eases toward
+2.0, and the mask's boost runs to 1.15 and eases toward 1.5. The swells still stack; a peak stays possible.
 
 **Kept as built:** today's collisions and transpressions. They follow plate edges too, but they're wide and high
 enough to read as massifs, not worms. Reshaping them made them thinner and lower (tried, reverted).
 
 ## Numbers (check-present, 290/290)
 
-- Crest tiers: 4.9 km at today's plate edges, 2.6 along the seams and 1.45 on the old orogenies (× 1.9, × 1.8). Before:
-  5.0, 3.0 and 1.7.
-- Coasts walled (≥ 1.5 km within 300 km): 34–53 %. Before: 46–55 %.
-- Docked arcs `recAccretedArcShare` 0.45 → 0.36. The spines, blocks and slivers bare more of the docked arcs' rock, and
-  at 0.45 the supercontinent's copper (16 %) passed a third of its iron (Evolution's bound). Now 12.6 %, and the
-  default planets' volcanic rock is 3.2 %.
-- Sutures stay on the outlines where the pieces met; the ranges stand on their curves beside them. Flagging the
-  ranges' cells instead put seed 10's orogenic gold at 2.1 % (bound 2 %).
+- Crest tiers: 5.1 km at today's plate edges, 2.95 along the seams and 1.84 on the old orogenies (× 1.7, × 1.6).
+  Before: 5.0, 3.0 and 1.7.
+- Peaks at most 8.5 km on the check planets (the export's ceiling is +9 km). Unchecked, the far field's live ranges stood
+  10.0–10.4 km.
+- Land above 1 km: 26–30 % on the default planets (Earth ~¼). The supercontinent has 44 % (41 % before this PR); its
+  bound is raised from 42 % to 46 %, flagged to the owner rather than toning B down.
+- Coasts walled (≥ 1.5 km within 300 km): 47–57 %. Before: 46–55 %; the rejected first try 34–53 %.
+- Rocks on the default planets, after Evolution's finish: plutonic 3.05 %, volcanic 2.7 % (bounds ≥ 3 % and ≥ 2.5 %).
+  Undoing the record where the mask removes a range is what brought plutonic back: B's wider belts otherwise overprinted
+  the docked arcs' terranes (1.6 % plutonic). `recAccretedArcShare` is back at 0.45. Copper within a third of iron on
+  every planet.
+- Rift valleys 0.37–0.45 km below their flanks (≥ 0.3).
+- Sutures stay on the outlines where the pieces met. Flagging the ranges' cells instead put seed 10's orogenic gold at
+  2.1 % (bound 2 %).
 - Evolution unchanged: finish hashed `ALL 5249565`, as before; check-save passes.
 
 ## Open

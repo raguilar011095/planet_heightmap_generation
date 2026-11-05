@@ -23,7 +23,7 @@ import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
 import { PRESENT } from './present-config.js';
-import { shapeRange } from './ranges.js';
+import { shapeRange, maskBelt, beforeBelt } from './ranges.js';
 
 const R = 6371;
 const dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
@@ -265,8 +265,8 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
     // minor plate's) — for the checks' tiers; and the old collisions' pushes through their continents, the grain they left)
     const tier = new Uint8Array(n), pushWorld = { config: { ...config, farReachKm: cfg.farPushReachKm }, mesh: sim };
     // M1–M2 (present/ranges.js; owner, 2026-11-05: the ranges were "worm like … they all look the same"): each event's
-    // range shaped before the replay — its outline smoothed into a curve, cut into lens-shaped segments stepped en
-    // echelon, written as its style's kind of belt (a quiet docking none: its outline only a weak line)
+    // range shaped before the replay — on its own outline, lightly smoothed, swelling, pinching, rising and falling along
+    // it, written as its style's kind of belt (a quiet docking none: its outline only a weak line)
     const coastKmOf = (ev) => (ev.kind === 'seam' ? cfg.rangeCoastKm : cfg.pastCoastKm);
     for (const ev of events) {
         ev.outline = ev.front; ev.parts = []; ev.works = [];
@@ -287,8 +287,13 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         // again shapes its range as these are, present/plumes.js)
         for (const c of ev.outline) crust.flags[c] |= CrustFlag.SUTURE;
         if (!ev.parts.length) continue;
+        const was = cfg.rangeMask ? beforeBelt(crust) : null;
         for (const part of ev.parts)
             spreadBelt({ crust }, sim, part.front, { type: part.type, time: t, side: part.side, widths: part.widths, works: part.works, amps: part.amps, shear: part.shear, widthKm: 0, workKm: 0 }, config, part.allow);
+        // (the original Generate's lesson: the mountains a noise field cut out of the tectonic one — the range's belt carved
+        // into massifs, lobes and spurs by a warped fractal of its own, mostly kept near its line and only where the
+        // noise is high toward its edge, swelling past it here and there)
+        if (was) maskBelt(crust, sim, was, seed, cfg.rangeMask);
         // (the event lasted a while: it began this long before its end)
         // (the records are Float32: the event's time as they hold it)
         const tf = Math.fround(t);

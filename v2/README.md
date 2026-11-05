@@ -482,9 +482,9 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    one plate meet: a past range or a sag, by the pieces' own motion; the distance from the closing
                    fronts — the grain), warp (the pieces' outlines bent by today's plates' drag and a slow warp, and the
                    smaller terranes within each piece), past (the continents' past replayed along the bent pieces: craton
-                   cores, docking rings, welds, the terranes' seams), ranges (each range shaped from its outline: smoothed into a curve,
-                   cut into lens-shaped segments stepped en echelon, written as its style's kind of belt — a spine, a
-                   plateau, a fold belt, basement blocks, a sliver, a knot; a rift's basins), belts (today's belts where plates meet: Andean or
+                   cores, docking rings, welds, the terranes' seams), ranges (each range on its own outline, swelling, pinching, rising and
+                   falling along it, carved into massifs by the range mask, written as its style's kind of belt — a
+                   spine, a plateau, a fold belt, basement blocks, a sliver, a knot; a rift's chain of basins), belts (today's belts where plates meet: Andean or
                    split-off arcs along continents — some with the continent behind stretched into blocks and shelf seas,
                    an Indonesia — arcs at sea near land, collisions, rifts: a valley line and its shoulders on a dome, a
                    sea only toward a coast), rifts (the rift valleys cut on Generate's mesh), fit (continents parting
