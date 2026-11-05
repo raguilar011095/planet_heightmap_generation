@@ -420,32 +420,6 @@ button#generate.generating {
     .evo-chip button { min-height: 44px; padding: 0 16px; }
     #riverDensity { min-height: 44px; }
 }
-/* the present-day world's Geology and Food legends (?next=1; Evolution's, js/present-layers-view.js — its classes as
-   v2/evolution.css draws them) */
-.present-layer-legend { contain: inline-size; max-height: 42vh; overflow-y: auto; }
-.present-layer-legend .evo-legend-head { font-size: 11px; color: #9ab; margin-bottom: 6px; }
-.present-layer-legend .evo-koppen { display: flex; flex-wrap: wrap; gap: 3px 10px; }
-.present-layer-legend .evo-koppen span { white-space: nowrap; }
-.present-layer-legend .evo-koppen i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
-.present-layer-legend .evo-koppen em, .present-layer-legend .evo-farm-staple em { color: #778; font-style: normal; }
-.present-layer-legend .evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
-.present-layer-legend .evo-age-chips [data-age-res]:hover { background: rgba(255,255,255,0.06); }
-.present-layer-legend .evo-age-chips [data-age-res].on { background: rgba(100,160,255,0.18); box-shadow: inset 0 0 0 1px rgba(100,160,255,0.45); }
-.present-layer-legend .evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
-.present-layer-legend .evo-farm-chip { padding: 3px 9px; border-radius: 12px; font: inherit; font-size: 11px; cursor: pointer;
-    border: 1px solid rgba(255,255,255,0.14); background: rgba(255,255,255,0.04); color: #8a93a6; }
-.present-layer-legend .evo-farm-chip.on { border-color: rgba(100,200,170,0.5); background: rgba(30,110,100,0.45); color: #cfe; }
-.present-layer-legend .evo-farm-staple { color: #aab; }
-.present-layer-legend .evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.present-layer-legend .evo-farm-staple.on { border-color: rgba(255,255,255,0.5); background: rgba(255,255,255,0.12); color: #fff; }
-.present-layer-legend .evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
-.present-layer-legend .evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
-@media (max-width: 768px) {
-    .present-layer-legend .evo-farm-chip { min-height: 44px; padding: 6px 12px; }       /* (a finger's target) */
-    .present-layer-legend .evo-age-chips [data-age-res] { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; margin: 0; }
-    /* (the Geology and Food rows' views are in the phone's layer list, as the Climate row's are; the pickers stay) */
-    .layer-bar #geologyTabs, .layer-bar #foodTabs { display: none !important; }
-}
 
 .legend-koppen {
     display: grid;

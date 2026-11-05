@@ -281,7 +281,9 @@ export function produceMap(fin, W, lk, job) {
  * than Evolution names its files and its README its own way: `page` (the adapter's), `names(ctx, opts)`, `about(ctx,
  * opts)` (its page and planet words: the size and Food notes are added) and `titleNote(ctx)`.
  */
-export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null, page = 'evolution', names = null, about = null, titleNote = null }) {
+export function initEvolutionExport({ moment, look, centerLon, projection = null, isTouch, planetFile = null, fine = null, page = 'evolution', names = null, about = null, titleNote = null,
+    catalogue = CATALOGUE, produceOwn = null }) {
+    // (a page's own rows — Generate's Plates: `catalogue` holds them, `produceOwn(rctx, job)` draws them, else null)
     const sizeNote = (ctx, opts) => (opts.width > ctx.fin.raster.w ? (ctx.fin.raster.drivers ? `drawn from the ${ctx.fin.raster.w} px the moment was detailed at, with the detail finer than its mesh added` : `enlarged from the ${ctx.fin.raster.w} px the moment was detailed at`) : opts.width < ctx.fin.raster.w ? `averaged down from ${ctx.fin.raster.w} px` : 'the width the moment was detailed at');
     const adapter = {
         page,
@@ -305,7 +307,7 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
         names: names ?? ((ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen-evolution', ctx.seed, `${Math.round(ctx.frame.time)}Myr`], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; }),
         about: (ctx, opts) => ({ ...(about ? about(ctx, opts) : { page: 'Evolution', planet: `seed ${ctx.seed}, the moment at ${Math.round(ctx.frame.time)} Myr`, link: location.href }),
             sizeNote: sizeNote(ctx, opts), notes: ctx.fin.raster?.farming ? [farmingNote()] : [] }),
-        produce: async (rctx, job) => produceMap(rctx.fin, rctx.W, rctx.look, job),
+        produce: async (rctx, job) => (produceOwn && await produceOwn(rctx, job)) || produceMap(rctx.fin, rctx.W, rctx.look, job),
     };
-    return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue: CATALOGUE, adapter, onOpen: moment, getCenterLon: centerLon, getProjection: projection });
+    return initExportPanel({ host: document.getElementById('exportCard'), overlay: document.getElementById('exportOverlay'), catalogue, adapter, onOpen: moment, getCenterLon: centerLon, getProjection: projection });
 }

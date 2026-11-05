@@ -14,9 +14,6 @@ import { presentLayout } from '../js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentSynthesize, presentTerrainOverrides, CUT_STEP_KM } from '../js/present/world.js';
 import { finishConfigOf } from '../js/present/knobs.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
-import { layerClimate, presentLayers } from '../js/present/layers.js';
-import { runNewClimate } from '../../js/climate-new.js';
-import { heightKmToElev } from '../../js/color-map.js';
 import { GEOLOGY } from '../js/geology/geology-config.js';
 import { METALS } from '../js/geology/deposits.js';
 import { AGES, resourceField, landShares, potentialField } from '../js/geology/ages.js';
@@ -628,56 +625,6 @@ const earthLike = ({ pl }) => !['supercontinent', 'land world'].includes(pl.name
     check(`the default planets: sediment and sedimentary ${(100 * sed).toFixed(0)} %, metamorphic ${(100 * famAll.metamorphic).toFixed(0)} %, plutonic ${(100 * famAll.plutonic).toFixed(1)} %, volcanic ${(100 * famAll.volcanic).toFixed(1)} % (river plains ${(100 * (famAll.loose ?? 0)).toFixed(0)} %)`,
         sed >= 0.6 && sed <= 0.8 && famAll.metamorphic >= 0.08 && famAll.metamorphic <= 0.22 && famAll.plutonic >= 0.03 && famAll.volcanic >= 0.03,
         'Evolution\'s own ranges (check-geology.mjs): 60–80 %, 8–22 %, plutonic and volcanic ≥ 3 % (the river carve’s cut baring them: G7d)');
-}
-
-// ── G7d: the Geology and Food layers, as the page works them out (js/planet-worker.js climateFor) ──
-section('G7d: Evolution\'s Geology and Food on Generate\'s worlds — deposits and ages within Evolution\'s own bounds, land that feeds people');
-{
-    const grades = GEOLOGY.deposits.grades, age = id => AGES.find(a => a.id === id), pc = x => `${(100 * x).toFixed(1)} %`;
-    const any = s => s[0] + s[1] + s[2], modPlus = s => s[1] + s[2], ALL = { flood: true, canal: true, terrace: true, raised: true };
-    let pplSum = 0, excSum = 0;
-    for (const { pl, L, G, mesh } of grounds) {
-        const r_xyz = renderXyz.get(mesh), tm = presentTerrainMesh(mesh, r_xyz), n = mesh.numRegions;
-        const elev = Float32Array.from(G.heightKm, h => heightKmToElev(Math.min(h, 6)));
-        const t0 = performance.now(), lc = layerClimate(n, tm.xyz), climate = runNewClimate(r_xyz, elev, {}, lc.onCell), t1 = performance.now();
-        const Ly = presentLayers({ tMesh: tm, heightKm: G.heightKm, frame: G.frame, sim: L.sim, seed: pl.seed, drainage: G.drainage, receivers: G.receivers, order: G.order,
-            lava: G.lava, young: G.young, cut: G.cut, koppen: climate.koppen, lc });
-        const ms = performance.now() - t1, Dp = Ly.deposits;
-        // the deposits: iron the commonest metal, gold and tin scarce (check-geology.mjs G3)
-        const M = id => { const i = METALS.findIndex(m => m.id === id); return [Dp.metalShares[3 * i] + Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2], Dp.metalShares[3 * i + 1] + Dp.metalShares[3 * i + 2]]; };
-        const [fe] = M('iron'), [cu] = M('copper'), [, auM] = M('gold'), [, snM] = M('tin');
-        const scarce = earthLike({ pl }) ? 0.02 : 0.04;
-        check(`${pl.name}: iron on ${pc(fe)} of the land (≥ 3 × copper's ${pc(cu)}), gold ${pc(auM)} and tin ${pc(snM)} moderate or rich (≤ ${pc(scarce)} each)`, fe >= 3 * cu && auM <= scarce && snM <= scarce,
-            earthLike({ pl }) ? 'Evolution\'s bounds (check-geology.mjs G3)' : 'twice Evolution\'s: belts over a third of the land'); 
-        // the ages (check-geology.mjs G5)
-        const share = (ageId, resId) => landShares(Dp, resourceField(Dp, age(ageId).resources.find(r => r.id === resId)), grades);
-        const cuA = ['copper', 'bronze', 'iron', 'industrial'].map(a => any(share(a, 'copper'))), tin = share('bronze', 'tin');
-        const bronze = landShares(Dp, potentialField(Dp, age('bronze')), grades), feA = share('iron', 'iron');
-        const ind = age('industrial').resources.filter(r => r.id !== 'coal' && r.id !== 'oilGas').map(r => resourceField(Dp, r));
-        let lit = 0, all = 0;
-        for (let j = 0; j < Dp.cells.length; j++) { const w = Dp.land[j]; if (!w) continue; all += w; if (ind.some(f => f[j] >= grades[1])) lit += w; }
-        check(`${pl.name}: copper by age ${cuA.map(pc).join(' ≤ ')}; Bronze Age tin ${pc(modPlus(tin))} moderate+, bronze potential ${pc(any(bronze))}; Iron Age iron ${pc(any(feA))}; Industrial metals on ${pc(lit / all)}`,
-            cuA[0] <= cuA[1] && cuA[1] <= cuA[2] && cuA[2] <= cuA[3] && cuA[3] > 0.01 && modPlus(tin) <= 0.01 && any(bronze) <= 0.05 && any(feA) >= 0.1 && lit / all <= 0.35,
-            'Evolution\'s bounds (G5): copper grows with the ages, tin ≤ 1 %, bronze ≤ 5 %, iron ≥ 10 %, the Industrial map ≤ 35 %');
-        // the food: how many the land could feed, and how rare excellent land is (check-farming.mjs C2, C3)
-        const F = Ly.raster.farming, K = Ly.raster.climate, count = landPeople(F, K, ALL), ppl = count.people / count.land;
-        const p = {}, e = new Float64Array(2 * CROPS.length), r = {};
-        let ex = 0, area = 0;
-        for (let y = 0; y < F.h; y += 2) {
-            const a = Math.cos((90 - (y + 0.5) / F.h * 180) * Math.PI / 180);
-            for (let x = 0; x < F.w; x += 2) {
-                const i = y * F.w + x;
-                if (!K.koppen[i] || K.koppen[i] === KOPPEN_ID.EF) continue;
-                partsOf(F, i, p); farmPlace(p, harvestsAt(F.crops, i, e), F.pasture[i] / 255, ALL, r);
-                area += a; if (farmClass(r.tech) === 4) ex += a;
-            }
-        }
-        pplSum += ppl / grounds.length; excSum += ex / area / grounds.length;
-        check(`${pl.name}: the land could feed ${ppl.toFixed(1)} people a km², excellent land ${pc(ex / area)}; the layers in ${ms.toFixed(0)} ms at 60K (the climate ${(t1 - t0).toFixed(0)} ms)`,
-            ppl > 3 && ppl < 60 && ms < 2500, 'each world reported (the mean is checked below); quick (< 2.5 s: a busy machine took 1.9 s)');
-    }
-    check(`all: the land could feed ${pplSum.toFixed(1)} people a km² on average, excellent land ${pc(excSum)}`, pplSum >= 10 && pplSum <= 40 && excSum >= 0.005 && excSum <= 0.08,
-        'Evolution\'s bounds (check-farming.mjs): 10–40 a km², excellent 0.5–8 % of the land');
 }
 
 // ── U1: one finish — Generate's ground through Evolution's (plans/SHARED_CORE_PLAN.md) ──

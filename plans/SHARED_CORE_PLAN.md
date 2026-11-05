@@ -67,9 +67,16 @@ the finish, the views, the controls over the planet, the picture, the export —
   as drawn) — the carving's inputs those of ground with no history (`synthesize.js plainCarveInputs`), no Frame (the
   finish skips the rocks; `finish-drivers.js` the belts). No Plates or Geology tab (`mountLayerBar` `without`). The two
   new pages share their chrome (`js/page-chrome.js`). Evolution's finish hashed identical again.
-- [ ] **U5 — switch-over.** The new page is Generate's default; the old pipeline, renderer and climate leftovers go
-  (`js/elevation.js`, `terrain-post.js`, `terrain-metrics.js`, `planet-mesh.js`, `scene.js`, `map-projection.js`,
-  the old climate files); docs, tutorial, SEO, `llms.txt`, sitemap. What's New: ask the owner.
+- [x] **U5 — switch-over.** The new pages are Generate's and Import's (`js/main.js`, `js/import-main.js`; `?next=1` no
+  longer needed). Gone: the old pages and renderer (`generate.js`, `planet-mesh.js`, `scene.js`, `map-projection.js`,
+  `edit-mode.js`, `layer-bar.js`, `terrain-palette.js`, `export-generate.js`, `present-layers-view.js`,
+  `terrain-metrics.js`), the worker's old pipeline (it builds the present-day world or an imported heightmap only),
+  `present/layers.js`'s own Geology and Food (only the story frame left) and their G7d checks, the pages' hand-written
+  bar markup, the G7e copy of Evolution's legend styles. Kept: the old terrain and climate files the climate's tuning
+  tools still build their synthetic planets with (`tuning/climate/lib/gen-planets.mjs`: `elevation.js`,
+  `super-plates.js`, `koppen.js`, the old climate) and `terrain-post.js` (Import's image shaping). Generate's export has
+  its Plates row again (`initEvolutionExport` catalogue, produceOwn). Docs, tutorial, SEO, `llms.txt`, sitemap. What's
+  New: the owner's call (not bumped). Not checked: a phone-sized window.
 
 ## Decisions
 
