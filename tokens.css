@@ -25,7 +25,7 @@
     --accent: #9E2B25;  /* Oxblood. The one primary action on a view, links that act, the italic accent phrase in a display heading. As… */
     --on-accent: #FBFAF6;  /* Text and icons on an accent fill (7.1:1 by day, 5.6:1 at night). */
     --gold: #9C7A2E;  /* Ornament only: the degree ring, the active-tab underline, a founder’s ring. Never text, never clickable. 3.3:… */
-    --gold-ink: #7D6224;  /* Gold as text: small-caps eyebrows (“A STUDIO OF PLANET TOOLS”); on bg, surface, panel and desk (4.8:1 or more… */
+    --gold-ink: #7D6224;  /* Gold as text: small-caps eyebrows (“A STUDIO OF WORLDBUILDING TOOLS”); on bg, surface, panel and desk (4.8:1 or more… */
     --focus: #9E2B25;  /* The keyboard focus ring: 2px solid, 2px offset; 6:1 or more on every ground. */
     /* Layers: they mark the interface, never the data */
     --layer-plates: #6E5AA0;  /* Plates: the colour bar beside a section or legend heading, the dot on a tab, a sidenote’s rule (3:1 or more o… */

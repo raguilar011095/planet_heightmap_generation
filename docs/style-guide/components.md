@@ -211,7 +211,7 @@ A tool card is a way in: the whole card is the link, with an icon tile and a cal
 **Consumer provides:** an `<a class="og-toolcard is-<layer>">` with the head (tile + name + meta pill), one sentence, and the `og-toolcard__cta` row.
 
 - Each tool takes the layer it starts from: Generate is Land, Import Heightmap is Climate, Evolution is Plates. A new tool picks its layer the same way.
-- The meta pill says the speed or the input (“Takes seconds”, “Your map”, “Takes minutes”).
+- The meta pill says what is best about the tool (“Takes seconds”, “Your map brought to life”, “Tectonic simulation”).
 - One plain sentence of what you get; no numbering, no Roman numerals.
 - Three in a row on the desktop, stacked on phones.
 

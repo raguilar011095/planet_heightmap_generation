@@ -5,9 +5,9 @@ How the pieces make the four kinds of page.
 ## The Studio
 
 - A utility line (“Free planet tools · In your browser · No account”, then GitHub, Follow, Support in `accent`), then the masthead: the lockup at 42px with the name at 34px, the tools on the right. The double rule under it.
-- **Hero:** text left: an `og-eyebrow` (“A studio of planet tools”), the `hero` headline with its italic accent phrase, a `lede` with three layer highlights (plates, ranges, rain), then, above the buttons, “Free and open source” in a gold tag with “No account, no install. The maps you make are yours.” beside it, then Begin with Generate (primary) and Watch a world form. Right: the globe in its degree ring with numerals every 30°, a caption under it.
-- **Orogen tools:** a `title` and a line (“Each a different way into a believable world.”), then three tool cards.
-- **Worlds to explore:** the eyebrow, title and line over the worlds panel (pick a world and a view) on the left; the big picture on the right, from the eyebrow's top to the panel's foot, its name just below.
+- **Hero:** text left: an `og-eyebrow` (“A studio of worldbuilding tools”), the `hero` headline with its italic accent phrase, a `lede` with three layer highlights (plates, mountains, rain), then, above the buttons, “Free and open source” in a gold tag with “No account, no install, you own every map you make.” beside it, then Begin with Generate (primary) and Watch a world form. Right: the globe in its degree ring with numerals every 30°, a caption under it.
+- **Orogen tools:** a `title` and a line (“Different ways to your believable world.”), then three tool cards.
+- **Worlds to explore:** the eyebrow, title and line over the worlds panel (pick a world and a view, and Make your own) on the left; the big picture on the right, from the eyebrow's top to the panel's foot, its name just below.
 - **Orogen Explains:** a featured essay card with an engraved sketch, then two more.
 - A footer on a hairline: “World Orogen · orogen.studio” and “Free and open source · GPL-3.0 · Your maps are yours”.
 - No Roman numerals, no layer band, no ink-and-gold frames.
