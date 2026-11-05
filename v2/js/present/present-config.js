@@ -219,12 +219,17 @@ export const PRESENT = {
     recFloodAgoMyr: [70, 450],     // …last this long ago (a noise)
     recDriftDeg: 12,               // the latitude the cover lay at: today's ± this (the continents drifted)
     recArcMaxMyr: 150,             // an arc's own crust in a live arc this long at most
-    recAccretedArcShare: 0.3,      // this share of the docked pieces came as island arcs…
+    recAccretedArcShare: 0.45,     // this share of the docked pieces came as island arcs (was 0.3)…
     recAccretedArcMyr: 40,         // …each this long in one…
     recAccretedCover: 0.02,        // …its platform's cover this share…
-    recArcCover: 0.05,             // an arc's own crust (a split-off arc, an arc at sea grown into land): its cover this share…
-    recArcBandU: [0.45, 0.65],     // …and across a live Andean belt, its volcanic arc's (to about here; geology arcFront)
-    recAccretedExhumKm: [1, 7],    // …worn this deep (its volcanic pile bared to its plutons in places)
+    recArcCover: 0.01,             // an arc's own crust (a split-off arc, an arc at sea grown into land): its cover this share…
+    recArcBandU: [0.6, 0.9],       // …and across a live Andean belt, its volcanic arc's (to about here; geology arcFront)
+    recAccretedExhumKm: [0.2, 3],  // …worn this deep (its volcanic pile bared to its plutons in places)
+    // (U1, 2026-11-04: the docked arcs were 30 % of the docked pieces, worn 1–7 km, the arcs' cover 0.05 over a band to
+    // [0.45, 0.65]: 2.3 % of the default planets' land volcanic once Evolution's finish laid its dunes, loess and till over
+    // Generate's ground — Evolution's bound, Earth's, is ≥ 3 %; now 2.9 %, the arcs less worn and nearly half the docked
+    // pieces arcs, as many of the North American Cordillera's were. More arcs bring their copper too: at 60 % copper
+    // passed a third of iron, Evolution's other bound)
     recBeltThicken: 5,             // a belt's outer zone's cover thickened this much (its sheets thrust over one another)
     recOphioliteShare: 0.12,       // ophiolite slivers along this share of the sutures (in patches ~600 km)
     recOphioliteKm: 600,

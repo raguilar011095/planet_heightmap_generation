@@ -6,6 +6,7 @@ import { meshFromArrays } from '../core/sim-mesh.js';
 import { preparePlan, surfaceRange, carveInputs, settleFields, carveLadder, carveSettings } from '../terrain/synthesize.js';
 import { sampleOnto, terrainMesh } from '../terrain/terrain-mesh.js';
 import { carveTerrain } from '../terrain/carve.js';
+import { surfaceConfig } from '../finish/finish.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { classifyBoundaries, cellLandNow } from './plates.js';
 import { naturalCoast } from './coast.js';
@@ -88,7 +89,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const frontKm = frontDistance(L, B, land, past.events);
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
-    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, order: G.order, lava: G.lava, young: G.young, cut: G.cut, ms };
+    return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, order: G.order, lava: G.lava, young: G.young, cut: G.cut, surface: G.surface, ms };
 }
 
 /**
@@ -102,12 +103,15 @@ export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
     let t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
-    const cfg = terrainConfig({ ...PRESENT_TERRAIN, ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
-    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null);
+    const cfg = terrainConfig(presentTerrainOverrides(o));
+    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null, o.finish ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
-    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, order: T.order ?? null, lava: T.lava ?? null, young: T.young ?? null, cut: T.cut ?? null, ms };
+    return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, order: T.order ?? null, lava: T.lava ?? null, young: T.young ?? null, cut: T.cut ?? null, surface: T.surface ?? null, ms };
 }
+/** The terrain config's overrides the present-day ground is drawn with (its own, the sculpting knobs', any given) — the
+ *  finish's too (finish-worker.js `terrain`). */
+export const presentTerrainOverrides = (o = {}) => ({ ...PRESENT_TERRAIN, ...knobOverrides(o.knobs ?? {}), ...(o.terrain ?? {}) });
 
 /** The step of the rivers' cut (km a step, a byte: Evolution's finish.js geo.cutStepKm). */
 export const CUT_STEP_KM = 0.02;
@@ -115,8 +119,13 @@ export const CUT_STEP_KM = 0.02;
 /**
  * Evolution's terrain synthesis and carving (terrain/synthesize.js synthesizeTerrain, step for step — the same surface
  * when `relief` is 0), with the fine relief (present/relief.js, G6d) laid down between the two, so the rivers carve it.
+ * `finish` (the finish's config, finish-config.js FINISH with the knobs': knobs.js finishOverrides): the uncarved ground
+ * kept too, as `surface` — what Evolution's finish starts from instead of its own (finish.js finishPlanet's `surface`;
+ * plans/SHARED_CORE_PLAN.md U1): its heights, the carving's inputs at the finish's erosion strength, and each cell's
+ * record and structure for the rocks. The ground carved here is the first picture; the finish carves the same surface
+ * again, by the climate's runoff.
  */
-export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null, frontKm = null) {
+export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null, frontKm = null, finish = null) {
     const ms = {}, clock = () => performance.now();
     let t0 = clock();
     const plan = preparePlan(frame, sim, cfg, seed, tMesh.edgeKm);
@@ -124,8 +133,12 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     const S = sampleOnto(sim, tMesh, cfg, seed);
     ms.sample = clock() - t0; t0 = clock();
     const n = tMesh.numCells, heightKm = new Float32Array(n);
-    const carveIn = cfg.carveTimeMyr > 0 ? carveInputs(n) : null;
-    surfaceRange(plan, cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn);
+    const carveIn = cfg.carveTimeMyr > 0 || finish ? carveInputs(n) : null;
+    // (for the finish: the erodibility at its strength beside this one's — the rest of the carving's inputs are the same —
+    // and the record each cell shows)
+    const alt = finish ? surfaceConfig(finish, cfg) : null, recCell = finish ? new Int32Array(n) : null, cues = finish ? new Int8Array(3 * n) : null;
+    if (alt) carveIn.kAlt = new Float32Array(n);
+    surfaceRange(plan, alt ? { ...cfg, carveAlt: alt } : cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn, recCell, cues);
     ms.surface = clock() - t0; t0 = clock();
     addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
     // (G3f: the rift valleys cut, then the ground held to the pieces)
@@ -134,7 +147,14 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     if (mask?.fit) mask.fitShelf = interlockCoasts(heightKm, mask, tMesh);
     if (mask) holdToPieces(heightKm, mask, tMesh, S);
     ms.relief = clock() - t0;
-    if (!carveIn) return { heightKm, ms };
+    let surface = null;
+    if (finish) {
+        const { kAlt, ...inputs } = carveIn, own = {};
+        for (const [key, a] of Object.entries(inputs)) own[key] = key === 'k' ? kAlt : a.slice();
+        surface = { heightKm: heightKm.slice(), carveIn: own, recCell, cues };
+        delete carveIn.kAlt;
+    }
+    if (!carveIn || !(cfg.carveTimeMyr > 0)) return { heightKm, ms, surface };
     t0 = clock();
     const C = carveTerrain(carveLadder(sim, tMesh, terrainMesh), { ...carveIn, z: heightKm }, carveSettings(cfg), settleFields(frame, sim, tMesh, cfg, seed));
     ms.carve = clock() - t0;
@@ -148,7 +168,7 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
         young[c] = Math.round(255 * Math.max(0, Math.min(1, carveIn.hold[c])));
         cut[c] = Math.min(255, Math.max(0, Math.round((heightKm[c] - C.z[c]) / CUT_STEP_KM)));
     }
-    return { heightKm: C.z, drainage: C.area, receivers: C.recv, order: C.order, lava, young, cut, ms };
+    return { heightKm: C.z, drainage: C.area, receivers: C.recv, order: C.order, lava, young, cut, ms, surface };
 }
 
 /**

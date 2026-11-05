@@ -5,6 +5,7 @@
 
 import { TERRAIN } from '../terrain/terrain-config.js';
 import { PRESENT } from './present-config.js';
+import { FINISH } from '../finish/finish-config.js';
 
 // Generate's defaults (js/planet-code.js SLIDERS): where every factor is 1
 const DEFAULTS = { nMag: 0.4, terrainWarp: 0.75, smoothing: 0.1, hydraulicErosion: 0.5, thermalErosion: 0.1, ridgeSharpening: 0.5, glacialErosion: 0.5 };
@@ -41,6 +42,16 @@ export function knobOverrides(s = {}) {
     o.drownKm = T.drownKm * k('glacialErosion');
     return o;
 }
+
+/**
+ * The finish's config overrides for the sliders (finish-config.js FINISH: Evolution's finish, which carves Generate's
+ * ground again by the climate's runoff — plans/SHARED_CORE_PLAN.md U1): Hydraulic Erosion is how long its rivers work too.
+ */
+export function finishOverrides(s = {}) {
+    return { carveTimeMyr: FINISH.carveTimeMyr * (s.hydraulicErosion ?? DEFAULTS.hydraulicErosion) / DEFAULTS.hydraulicErosion };
+}
+/** The finish's config for the sliders. */
+export const finishConfigOf = (s = {}) => ({ ...FINISH, ...finishOverrides(s) });
 
 /** The fine relief's strength (present/relief.js, G6d) for the Roughness slider: PRESENT.reliefShare at its default. */
 export function reliefShareOf(s = {}) {

@@ -995,11 +995,15 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             const active = Math.exp(-quiet / cfg.carveActiveMyr);
             carve.u[i] = cfg.carveBgUplift + cfg.carveUpliftPerKm * belt * active;
             carve.hold[i] = coast >= 0 ? active : 0;          // (how active the belt here is: its rivers cut less)
-            carve.k[i] = cfg.carveK * (1 - cfg.carveCratonHardness * shield) * (1 - cfg.carveCrestHardness * Math.min(1, Math.max(0, stripes / 0.3)));
-            if (notchMax > 0) carve.k[i] *= 1 + cfg.ridgeBreakSoft * notchMax;   // (a ridge's break gives: a river through it deepens it)
+            const crestShare = Math.min(1, Math.max(0, stripes / 0.3)), kShield = 1 - cfg.carveCratonHardness * shield;
+            carve.k[i] = cfg.carveK * kShield * (1 - cfg.carveCrestHardness * crestShare);
+            // (and, asked for — `kAlt` with cfg.carveAlt {carveK, carveCrestHardness} — the same at another erosion strength:
+            // Generate's surface drawn once, carved now and finished later; plans/SHARED_CORE_PLAN.md U1)
+            if (carve.kAlt) carve.kAlt[i] = cfg.carveAlt.carveK * kShield * (1 - cfg.carveAlt.carveCrestHardness * crestShare);
+            if (notchMax > 0) { carve.k[i] *= 1 + cfg.ridgeBreakSoft * notchMax; if (carve.kAlt) carve.kAlt[i] *= 1 + cfg.ridgeBreakSoft * notchMax; }   // (a ridge's break gives: a river through it deepens it)
             // (an old belt's rock banded with its ridges: hard on them, soft in the troughs between — trellis drainage)
             // (linear in the band, so a belt's rock erodes as fast as before on the whole: only where differs)
-            if (combOld > 0 && grainDen > 0) carve.k[i] *= 1 - cfg.oldGrainHardness * combOld * Math.max(-1, Math.min(1, grainNum / grainDen));
+            if (combOld > 0 && grainDen > 0) { const g = 1 - cfg.oldGrainHardness * combOld * Math.max(-1, Math.min(1, grainNum / grainDen)); carve.k[i] *= g; if (carve.kAlt) carve.kAlt[i] *= g; }
             carve.rain[i] = rainAtLatitude(Math.asin(Math.max(-1, Math.min(1, pz))) * 180 / Math.PI, cfg) / cfg.rainRefMm;
             carve.slope[i] = cfg.carveHillSlope * (1 + cfg.carveHillRelief * belt) * (1 + cfg.carveHillNoise * noise.fbm(x * slopeF + 4.4, y * slopeF + 8.2, z * slopeF + 1.6, 2, 0.5) * 1.6);
             // flood basalt: a hard cap — cliffed canyon walls, slower rivers; and the stair it is cut into (carve.js)
@@ -1013,7 +1017,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // to all of it over lipYoungMyr of wear — so a fresh province is a plain cut only by its big rivers' canyons)
             if (basalt > 0) {
                 carve.slope[i] *= 1 + cfg.lipCliff * basalt; carve.k[i] *= 1 - cfg.lipHardness * basalt;
-                if (cfg.lipYoungMyr > 0) carve.k[i] *= 1 - basalt * (1 - cfg.lipYoungFloor) * (1 - Math.min(1, lipAge / cfg.lipYoungMyr));
+                if (carve.kAlt) carve.kAlt[i] *= 1 - cfg.lipHardness * basalt;
+                if (cfg.lipYoungMyr > 0) { const fresh = 1 - basalt * (1 - cfg.lipYoungFloor) * (1 - Math.min(1, lipAge / cfg.lipYoungMyr)); carve.k[i] *= fresh; if (carve.kAlt) carve.kAlt[i] *= fresh; }
             }
             carve.micro[i] = cfg.carveMicroKm * noise.fbm(x * microF + 7.3, y * microF + 2.9, z * microF + 5.1, 3, 0.5) * 1.6;
             // how deep the history's rivers cut here (8b-2), over the land corners
