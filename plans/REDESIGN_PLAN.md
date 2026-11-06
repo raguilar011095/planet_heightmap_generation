@@ -489,9 +489,11 @@ each checked in the browser.
   (`?seed=319958795&cont=30&len=1200&end=none&sim=40000&terrain=160000&more=1410`, 1,410 Myr: one supercontinent, pole to
   pole; drawn centred on 180°) and Linmore (`…seed=413761762…&more=1600`, 1,600 Myr), also in Terrain and Rocks: built in
   the owner's Chrome 155 (a link's history differs between browser versions), detail added at the page's default 2.5M
-  cells and drawn by this stack's own Export maps at 4096 px. The Generate and Import pictures come from the new pages
-  on the shared core (generate/u5-switch-over, PR #134: the owner's call), drawn by their own Export maps at 2048 px;
-  they predate this stack's light and colours (R5, R6), so they are retaken once both stacks are in.
+  cells and drawn by this stack's own Export maps at 4096 px. Once main took the Generate redesign (#144) and the stack
+  merged it, Generate's were retaken (the owner's ask): the same planet codes and so the same continents, main's ranges,
+  drawn by its Export maps at 2048 px in this stack's look; Evolution's, rebuilt on the merged code, came out byte for
+  byte the same. Import's still come from the shared core's switch-over (generate/u5-switch-over, PR #134), before this
+  stack's light and colours (R5, R6).
 - [x] Copy (the owner's words): the hero's buttons read **Generate your world** and **Evolve your world**; Import
   Heightmap is now just **Import**, one word like Generate and Evolution (the nav, its page, the Studio, the exports'
   notes, llms.txt and the docs; VISION.md waits for the owner); Evolution's **Geology** is out of beta and **Food** keeps
