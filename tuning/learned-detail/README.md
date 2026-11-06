@@ -22,11 +22,11 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    (`pip install -r requirements.txt` there, or the subset: torch, torchvision, diffusers, infinite-tensor, numba, scipy,
    scikit-image, h5py, pyfastnoiselite, rasterio, matplotlib, ema-pytorch, accelerate) and the weights. About 12 minutes a
    patch on four CPU cores; seconds on a GPU.
-5. `guards.py` — §5's guards on the patch's 720 m pixels: the model's low band replaced by the base's (σ 12 km), its
-   residual gated by the base's slope and ruggedness as the procedural gullies are, the base's land held beyond 2.2 km of
-   its coast (small islands beyond one pixel), each river reach's bed made monotone descending and never above the base
-   with a soft V about it; then the measurements (relief within 5 and 10 km, slopes, the share of river steps that climb,
+5. `guards.py` — §5's guards on the patch's 720 m pixels, the model's high band laid **on top of today's procedural detail**
+   (the owner's call): the model's low band dropped (σ 12 km) and today's kept, its residual gated by the slope and
+   ruggedness as the procedural gullies are, today's land held beyond 2.2 km of its coast (small islands beyond one pixel),
+   each river reach's bed made monotone descending and never above today's with a soft V about it; then the measurements (relief within 5 and 10 km, slopes, the share of river steps that climb,
    catchment areas by D8 against the base's, islands lost, the low band's drift) and a four-panel render per patch:
-   the base, today's detail, the model raw, the model with the guards.
+   the base, today's detail, the model raw, today's detail plus the model's guarded high band.
 
 The renders and `results.json` of the run of 2026-11-06 are in `renders/`; the plan's §10 reads them.

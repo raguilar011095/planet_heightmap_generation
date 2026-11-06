@@ -1,6 +1,6 @@
 """
-Phase 0 of plans/TERRAIN_DIFFUSION_EXPLORATION.md: the guards of its §5 applied to a learned patch (patches.py), beside the
-picture enlarged (the base) and today's detail finer than the mesh (fine-windows.mjs) — all on the patch's 720 m pixels —
+Phase 0 of plans/TERRAIN_DIFFUSION_EXPLORATION.md: the guards of its §5 applied to a learned patch (patches.py), on top of today's
+detail finer than the mesh (fine-windows.mjs; the picture enlarged, the base, shown too) — all on the patch's 720 m pixels —
 with measurements and a four-panel render for each patch: base | today's detail | the model raw | the model with the guards.
 
   python guards.py <orogenDir> <workDir> [--sigma-km 12]
@@ -149,23 +149,24 @@ def main(orogen, work, sigma_km):
         reaches = river_pixels(rivers, p, N)
         sig = sigma_km / PXKM
         G = lambda a: ndi.gaussian_filter(a, sig, mode='nearest')
-        # ── the guards ──
+        # ── the guards (the owner, 2026-11-06: the learned detail goes on top of the procedural detail — `fine`, today's surface,
+        # is the ground it is added to and the ground the locks refer to) ──
         hp = learned - G(learned)                                                       # guard 1: only the high band is the model's
-        slope = slope_of(G(base) if False else base)
+        slope = slope_of(base)
         rug = ndi.maximum_filter(base, size=int(20 / PXKM) | 1) - ndi.minimum_filter(base, size=int(20 / PXKM) | 1)
         gate = 0.1 + 0.9 * smooth(0.012, 0.05, slope) * smooth(0.12, 0.7, rug)         # guard 5: the procedural gullies' gate
-        out = base + gate * hp
-        out = out - G(out) + G(base)                                                    # guard 1 again, as a guarantee
-        dist = ndi.distance_transform_edt(~base_sea) * PXKM; dsea = ndi.distance_transform_edt(base_sea) * PXKM
-        lab, n = ndi.label(~base_sea); sizes = ndi.sum(~base_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
+        out = fine + gate * hp
+        out = out - G(out) + G(fine)                                                    # guard 1 again, as a guarantee: today's low band
+        dist = ndi.distance_transform_edt(~fine_sea) * PXKM; dsea = ndi.distance_transform_edt(fine_sea) * PXKM
+        lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
         small = np.isin(lab, 1 + np.where(sizes < 300)[0])
         hold_land = (dist > 2.2) | (small & (dist > PXKM)); hold_sea = dsea > 2.2       # guard 4: coasts wander 2.2 km, islands stay
         out = np.where(hold_land, np.maximum(out, 0.005), out); out = np.where(hold_sea, np.minimum(out, -0.005), out)
-        out = carve_river_beds(out, base, reaches, N)                                   # guard 2: rivers run downhill
+        out = carve_river_beds(out, fine, reaches, N)                                   # guard 2: rivers run downhill, never above today's bed
         out_sea = np.where(hold_land, False, np.where(hold_sea, True, out <= 0))
         raw_sea = learned <= 0
         # ── measurements ──
-        land = ~base_sea
+        land = ~fine_sea
         def relief(a, km):
             s = int(km / PXKM) | 1
             m = land & (base > 0.5) if (land & (base > 0.5)).sum() > 500 else land
@@ -175,25 +176,26 @@ def main(orogen, work, sigma_km):
         for rr, cc, qq in reaches: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
         ratio = (acco[rp] + 1) / (accb[rp] + 1)
         isl_lost = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < 300 and not (~out_sea)[lab == k].any()))
-        isl_lost_raw = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < 300 and not (~raw_sea)[lab == k].any()))
+        rlab, rn = ndi.label(~base_sea); rsizes = ndi.sum(~base_sea, rlab, index=np.arange(1, rn + 1)) * PXKM * PXKM
+        isl_lost_raw = int(sum(1 for k in range(1, rn + 1) if rsizes[k - 1] < 300 and not (~raw_sea)[rlab == k].any()))
         m = {
             'patchKm': N * PXKM, 'reaches': len(reaches), 'smallIslands': int((sizes < 300).sum()),
-            'lowBandDrift_m_rms': float(np.sqrt(np.mean(((G(learned) - G(base))[land]) ** 2)) * 1000),
-            'relief10km_m': {k: relief(a, 10) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('guarded', out)]},
-            'relief5km_m': {k: relief(a, 5) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('guarded', out)]},
-            'medianSlopeLand': {k: float(np.median(slope_of(a)[land])) for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('guarded', out)]},
-            'riverClimbShare': {k: river_ascents(a, reaches, base)[0] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('guarded', out)]},
-            'riverWorstClimb_m': {k: river_ascents(a, reaches, base)[1] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('guarded', out)]},
-            'landShare': {k: float((~s).mean()) for k, s in [('base', base_sea), ('today', fine_sea), ('learnedRaw', raw_sea), ('guarded', out_sea)]},
-            'islandsLost': {'learnedRaw': isl_lost_raw, 'guarded': isl_lost},
+            'lowBandDrift_m_rms': float(np.sqrt(np.mean(((G(learned) - G(base))[land]) ** 2)) * 1000),   # the model's low band against the picture's: how far it redrew the broad shape
+            'relief10km_m': {k: relief(a, 10) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'relief5km_m': {k: relief(a, 5) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'medianSlopeLand': {k: float(np.median(slope_of(a)[land])) for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'riverClimbShare': {k: river_ascents(a, reaches, base)[0] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'riverWorstClimb_m': {k: river_ascents(a, reaches, base)[1] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'landShare': {k: float((~s).mean()) for k, s in [('base', base_sea), ('today', fine_sea), ('learnedRaw', raw_sea), ('todayPlusModel', out_sea)]},
+            'islandsLost': {'learnedRaw': isl_lost_raw, 'todayPlusModel': isl_lost},
             'riverCatchment_medianRatio': float(np.median(ratio)) if rp.any() else None,
             'riverCatchment_shareBelowHalf': float((ratio < 0.5).mean()) if rp.any() else None,
             'gateMeanLand': float(gate[land].mean()),
         }
         results[name] = m
-        np.save(f'{d}/guarded.npy', out); np.save(f'{d}/base.npy', base); np.save(f'{d}/today.npy', fine)
+        np.save(f'{d}/todayPlusModel.npy', out); np.save(f'{d}/base.npy', base); np.save(f'{d}/today.npy', fine)
         panels = [hillshade_rgb(base, base_sea, reaches, f'{name}: picture enlarged (base)'), hillshade_rgb(fine, fine_sea, reaches, 'today: procedural detail'),
-                  hillshade_rgb(learned, raw_sea, reaches, 'Terrain Diffusion, raw'), hillshade_rgb(out, out_sea, reaches, 'Terrain Diffusion + guards')]
+                  hillshade_rgb(learned, raw_sea, reaches, 'Terrain Diffusion, raw'), hillshade_rgb(out, out_sea, reaches, 'today + Terrain Diffusion, guarded')]
         S = panels[0].size[0]; sheet = Image.new('RGB', (2 * S + 6, 2 * S + 6), (20, 20, 20))
         for i, im in enumerate(panels): sheet.paste(im, ((i % 2) * (S + 6), (i // 2) * (S + 6)))
         os.makedirs(f'{work}/renders', exist_ok=True); sheet.save(f'{work}/renders/{name}.png')

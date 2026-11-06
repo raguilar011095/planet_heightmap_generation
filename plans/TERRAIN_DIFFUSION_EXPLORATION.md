@@ -207,10 +207,12 @@ The shape of the change, in the files that exist:
 - **`v2/js/finish/fine-detail.js`** gains a second way to make the detail of a window: `fineWindow` keeps producing the
   base (the picture enlarged, sea, lakes, the margin) and today's procedural octaves; a new `learnedWindow` takes the
   same `src` and window and returns a **high-pass residual** in km for the window's pixels, which is added to the base
-  where it is enabled. The two must agree on the band split: the procedural octaves start at ~1.7 cells
-  (`gullyCells`), so the learned residual is high-passed at the same wavelength (a scale-invariant blur in km, as the
-  finish's `LatLonGrid.blur` and `smooth()` do) and the procedural octaves that the learned layer replaces are turned
-  off, not stacked.
+  where it is enabled. **It goes on top of the procedural detail** (the owner, 2026-11-06), not in its place: today's
+  surface (the picture enlarged plus the gullies, dunes, karst and coasts of `fineWindow`) is the ground the learned
+  residual is added to and the ground the guards of §5 refer to. The residual is high-passed at the mesh's own wavelength
+  (a scale-invariant blur in km, as the finish's `LatLonGrid.blur` and `smooth()` do), so the two layers share the low
+  band and only stack in the high one; if the stack reads as too much, the procedural amplitude where the model draws
+  (`gullyGamma`) is the dial, judged by eye as every feature of that layer is.
 - **Conditioning**: what the window already crops (`cropSource`): the picture's heights, sea and lakes; the drivers
   (ice, erg and wind, belt youth and strike, margin activity, coast coldness); the rock picture and its properties
   (`rockProps`); the annual climate. Rasterised into the model's input channels per patch (§6), scaled by their
