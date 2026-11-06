@@ -35,7 +35,7 @@ https://orogen.studio/ — Studio: the three tools explained, plus curated world
 https://orogen.studio/generate — Generate (a planet's link: orogen.studio/generate#CODE; older orogen.studio/#CODE links still open it)
 https://orogen.studio/import — Import Heightmap
 https://orogen.studio/evolution — Evolution
-https://orogen.studio/v/2.1/ — a previous version, kept online: from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
+https://orogen.studio/v/2.2/ — the previous version, kept online (and orogen.studio/v/2.1/ before it): from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
 
 ## Follow and support
 

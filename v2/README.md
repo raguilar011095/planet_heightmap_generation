@@ -506,7 +506,8 @@ js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (sa
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
                    file read today: the frozen codec 1, the steps between versions, fields it lacks as zeros)
 js/app/            the lab: shell (lab-main), globe (its texture sampled from mipmaps, anisotropically — zoomed out each
-                   screen pixel the mean of the texels under it; the map view picks its level from the zoom), canvas overlays, phases/ (one module per phase + phase-kit),
+                   screen pixel the mean of the texels under it; the map view the same, from the texels under each pixel in its
+                   projection, less the date line's jump and the poles' crowding), canvas overlays, phases/ (one module per phase + phase-kit),
                    history-runner / history-worker (a scene's history off the page's thread, frames streamed back),
                    helper-pool / helper-worker (a few workers the history's worker starts: the start world's layout
                    attempts and each rift's junctions, side by side — the same history)
