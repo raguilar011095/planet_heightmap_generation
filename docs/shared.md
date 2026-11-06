@@ -1,6 +1,6 @@
 # Shared by every tool
 
-Generate, Import Heightmap and Evolution share one layout, one climate and one export panel. Each tool's own controls
+Generate, Import and Evolution share one layout, one climate and one export panel. Each tool's own controls
 are in [generate.md](generate.md), [import.md](import.md) and [evolution.md](evolution.md). Back to the
 [README](../README.md).
 
@@ -10,7 +10,7 @@ A top navigation bar connects the pages. It opens with the World Orogen mark and
 - **Studio** (`/`, the home page) — the three tools side by side, what each is for, and curated worldbuilding resources (blogs, YouTube channels, other tools); a Generate link from before Generate moved (`/#code`) goes on to `/generate#code`
 - **Generate** (`/generate`) — procedural planet generation with tectonic plates, erosion, and climate
 - **Import** (`/import`) — import your own equirectangular B&W heightmap, view it on a 3D globe, and run climate simulation. Black (0) = ocean, brighter = higher elevation. Supports PNG, JPEG, and WebP.
-- **Evolution** (`/evolution`, best on a desktop for now; its Geology and Food tabs are in beta) — watch a planet's tectonic history unfold, stop on a moment and add detail, then explore and export it: see [evolution.md](evolution.md)
+- **Evolution** (`/evolution`, best on a desktop for now; its Food tab is in beta) — watch a planet's tectonic history unfold, stop on a moment and add detail, then explore and export it: see [evolution.md](evolution.md)
 
 On narrow phones the Import tab reads just "Import".
 

@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-World Orogen is a studio of free planet tools that run in the browser (Generate, Import Heightmap and Evolution), built with Three.js and native ES modules, with no build step and no server.
+World Orogen is a studio of free planet tools that run in the browser (Generate, Import and Evolution), built with Three.js and native ES modules, with no build step and no server.
 
 ## The vision
 
@@ -13,7 +13,7 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 ## Where things live
 
 - `index.html`: the Studio home page
-- `generate.html`, `import.html`, `js/`: Generate and Import Heightmap
+- `generate.html`, `import.html`, `js/`: Generate and Import
 - `evolution.html`, `v2/`: Evolution, with its tectonic history engine, finish, geology, food and planet files (see `v2/README.md`)
 - `v2/js/climate/`: the one climate every tool runs (see the climate rule below)
 - `docs/`: each tool's guide and what they share; `README.md`: the front door

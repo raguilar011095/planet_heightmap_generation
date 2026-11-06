@@ -23,7 +23,7 @@ export const CATALOGUE = [
     ] },
     { id: 'elevation', label: 'Elevation', rows: [
         { id: 'heightmap', label: 'Heightmap with sea floor', data: [{ key: 'heightmap', suffix: '', label: 'Heightmap with sea floor', scale: HEIGHT_SCALE, bits: 16 }], tip: '16-bit greyscale: black −5 km, white +6 km, the same scale on every planet' },
-        { id: 'landheightmap', label: 'Land heightmap', data: [{ key: 'landheightmap', suffix: '', label: 'Land heightmap', scale: LAND_SCALE, bits: 16 }], tip: '16-bit greyscale: the sea black, land 0 to 6 km — re-imports on the Import Heightmap page' },
+        { id: 'landheightmap', label: 'Land heightmap', data: [{ key: 'landheightmap', suffix: '', label: 'Land heightmap', scale: LAND_SCALE, bits: 16 }], tip: '16-bit greyscale: the sea black, land 0 to 6 km — re-imports on the Import page' },
         { id: 'landmask', label: 'Land mask', data: [{ key: 'landmask', suffix: '', label: 'Land mask', scale: SC.landmask, bits: 8 }], tip: 'Land white, the sea black' },
         { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief lit from the north-west, on its own — to lay over a flat colour map' },
     ] },
@@ -64,7 +64,7 @@ export function initGenerateExport({ page, ensureClimate, code }) {
         begin: async (W, opts) => ({ render: beginExportRender(W, opts.centerLon), opts, sat: {}, values: {} }),
         end: async (rctx) => { endExportRender(rctx.render); rctx.sat = rctx.values = null; },
         names: (ctx, opts) => ({ start: ['orogen', page === 'import' ? 'import' : null], end: [code(), exportCentreTag(opts.centerLon)] }),
-        about: (ctx, opts) => { const c = code(); return { page: page === 'import' ? 'Import Heightmap' : 'Generate', planet: c ? `planet code ${c}` : 'an imported heightmap', link: c ? `https://orogen.studio/generate#${c}` : null, notes: [] }; },
+        about: (ctx, opts) => { const c = code(); return { page: page === 'import' ? 'Import' : 'Generate', planet: c ? `planet code ${c}` : 'an imported heightmap', link: c ? `https://orogen.studio/generate#${c}` : null, notes: [] }; },
         produce: async (rctx, job, progress) => {
             const data = state.curData, { r_elevation: elev, r_plate, debugLayers } = data, koppenArr = debugLayers && debugLayers.koppen, s = job.season || 'year', id = job.row.id;
             const render = (spec) => renderExportLayer(rctx.render, spec, progress);

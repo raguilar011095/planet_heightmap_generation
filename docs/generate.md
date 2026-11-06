@@ -161,7 +161,7 @@ World Orogen is fully usable on phones and tablets:
 
 ## Code
 
-Generate and Import Heightmap live in `js/` (the climate they run is `v2/js/climate/`):
+Generate and Import live in `js/` (the climate they run is `v2/js/climate/`):
 
 ```
 js/

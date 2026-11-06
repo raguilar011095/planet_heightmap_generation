@@ -1,4 +1,4 @@
-// Evolution — World Orogen's tectonic-history generator, a side page beside Generate and Import Heightmap
+// Evolution — World Orogen's tectonic-history generator, a side page beside Generate and Import
 // (plans/V2_FULL_PLANET_PLAN.md). Build New world runs the history in a worker and shows the planet AS IT BUILDS (each
 // frame drawn as it arrives, rivers and all); then the whole history is a timeline to scrub and play. Three settings
 // (starting continent size, history length, where it should end) and two resolutions (plates, terrain) — "way way fewer

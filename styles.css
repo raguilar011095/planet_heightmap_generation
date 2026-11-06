@@ -1397,7 +1397,6 @@ button#generate.generating {
 /* ───── Small phones ───── */
 @media (max-width: 480px) {
     .nav-tab { padding: 4px 10px; }
-    .nav-long { display: none; }
     #ui { padding: 8px 14px 14px; }
     #tutorialCard { padding: 20px 16px 14px; }
     #whatsNewCard { padding: 20px 16px 14px; }

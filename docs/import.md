@@ -1,4 +1,4 @@
-# Import Heightmap
+# Import
 
 **Your own landmass, its climate:** [orogen.studio/import](https://orogen.studio/import)
 

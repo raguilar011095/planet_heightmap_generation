@@ -8,8 +8,8 @@ for doing this by hand (a supercontinent run forward in GPlates), and its Geolog
 guides. Stop on any moment, add detail, and explore what its history left.
 
 Evolution works best on a desktop computer for now. It runs on a phone with lighter settings: coarser plates, and Add
-detail up to 640K cells. Its Geology and Food tabs are in beta (tagged so at the end of their sub-bars, in their tabs'
-tooltips, in the tutorial and on the Studio card) and haven't been tried on a phone yet.
+detail up to 640K cells. Its Food tab is in beta (tagged so at the end of its sub-bar, in its tab's tooltip, in the
+tutorial and on the Studio card), and neither it nor Geology has been tried on a phone yet.
 
 The view, the climate and the export panel are shared by every tool: see [shared.md](shared.md). How the engine works:
 [v2/README.md](../v2/README.md) and [the design](../plans/V2_TECTONIC_HISTORY_DESIGN.md). Back to the
@@ -78,7 +78,7 @@ Switch views with the tabs over the planet: **Terrain**, **Satellite** (on detai
   auto-rotate, **Stars** (the globe in space), a grid, the terrain's colours (sixteen palettes) and **Hillshade**, which turns the relief's shading off
   for flat colour.
 
-## Geology (beta)
+## Geology
 
 On a detailed moment, Geology shows what the history left in the rock.
 

@@ -53,7 +53,7 @@ The page header: the lockup, the tools as tabs, actions on the right, and the pa
 ```html
 <header class="og-masthead">
 <span class="og-logo"><svg class="og-mark" width="36" height="36" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="mh"><circle cx="16" cy="16" r="12.8"></circle></clipPath></defs><g clip-path="url(#mh)"><rect class="og-mark__s1" x="0" y="9.6" width="32" height="3.2"></rect><rect class="og-mark__s2" x="0" y="14.4" width="32" height="3.2"></rect><rect class="og-mark__s3" x="0" y="19.2" width="32" height="3.2"></rect></g><circle class="og-mark__ring" cx="16" cy="16" r="13.6"></circle></svg><span class="og-logo__word">World Orogen</span></span>
-<nav class="og-tabs" aria-label="Tools"><a class="og-tab" href="#">Studio</a><a class="og-tab" href="#" aria-current="page">Generate</a><a class="og-tab" href="#">Import Heightmap</a><a class="og-tab" href="#">Evolution</a></nav>
+<nav class="og-tabs" aria-label="Tools"><a class="og-tab" href="#">Studio</a><a class="og-tab" href="#" aria-current="page">Generate</a><a class="og-tab" href="#">Import</a><a class="og-tab" href="#">Evolution</a></nav>
 <div class="og-masthead__end"><button type="button" class="og-btn og-btn--quiet"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>Inspect</button><button type="button" class="og-btn"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>Export</button><button type="button" class="og-btn og-btn--quiet og-btn--icon" aria-label="Switch to dark mode"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button></div>
 </header>
 ```
@@ -106,7 +106,7 @@ Buttons do things; they say exactly what, verb first, in sentence case.
 
 **Consumer provides:** a `<button>` (or `<a>` to go somewhere) with `og-btn`, plus `og-btn--primary` for the one main action, `og-btn--main` for the full-width panel button, `og-btn--quiet` for low-key actions, `og-btn--icon` for an icon alone (give it an `aria-label`).
 
-- One `og-btn--primary` (`accent` with `on-accent`) per view: Build new world, Begin with Generate, Print this plate, Open Arden →.
+- One `og-btn--primary` (`accent` with `on-accent`) per view: Build new world, Generate your world, Print this plate, Open Arden →.
 - Secondary actions are plain buttons on `surface` with a `rule` border. A small layer dot (`og-btn__dot` with `.is-<layer>`) may say what an action touches (Rebuild: land).
 - Links that act (`og-link`) are `accent` text, or a layer’s ink on a tool card, and end with an arrow when they go somewhere.
 - Never black or white buttons; never letterspaced capitals.
@@ -210,7 +210,7 @@ A tool card is a way in: the whole card is the link, with an icon tile and a cal
 
 **Consumer provides:** an `<a class="og-toolcard is-<layer>">` with the head (tile + name + meta pill), one sentence, and the `og-toolcard__cta` row.
 
-- Each tool takes the layer it starts from: Generate is Land, Import Heightmap is Climate, Evolution is Plates. A new tool picks its layer the same way.
+- Each tool takes the layer it starts from: Generate is Land, Import is Climate, Evolution is Plates. A new tool picks its layer the same way.
 - The meta pill says what is best about the tool (“Takes seconds”, “Your map brought to life”, “Tectonic simulation”).
 - One plain sentence of what you get; no numbering, no Roman numerals.
 - Three in a row on the desktop, stacked on phones.
@@ -220,7 +220,7 @@ A tool card is a way in: the whole card is the link, with an icon tile and a cal
 ```html
 <div class="og-demo" style="flex-wrap: nowrap">
 <a class="og-toolcard is-land" href="#"><span class="og-toolcard__head"><span class="og-toolcard__tile"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h9M18 6h3M3 12h2M11 12h10M3 18h7M16 18h5M15 3.6v4.8M8 9.6v4.8M13 15.6v4.8"/></svg></span><span class="og-toolcard__names"><span class="og-toolcard__name">Generate</span><span class="og-toolcard__meta">Takes seconds</span></span></span><p class="og-toolcard__text">A planet in seconds from a few sliders. Reshape any plate you don’t like and build again.</p><span class="og-toolcard__cta"><span>Open Generate</span><span>→</span></span></a>
-<a class="og-toolcard is-climate" href="#"><span class="og-toolcard__head"><span class="og-toolcard__tile"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v4h4M8.5 15.5c1.4-1.8 2.9-2 4.1-1s2.4 1 3.4-.6"/></svg></span><span class="og-toolcard__names"><span class="og-toolcard__name">Import Heightmap</span><span class="og-toolcard__meta">Your map</span></span></span><p class="og-toolcard__text">Bring a map you drew. See what its winds, rain and climate zones would really be.</p><span class="og-toolcard__cta"><span>Open Import</span><span>→</span></span></a>
+<a class="og-toolcard is-climate" href="#"><span class="og-toolcard__head"><span class="og-toolcard__tile"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h8l4 4v14H6zM14 3v4h4M8.5 15.5c1.4-1.8 2.9-2 4.1-1s2.4 1 3.4-.6"/></svg></span><span class="og-toolcard__names"><span class="og-toolcard__name">Import</span><span class="og-toolcard__meta">Your map</span></span></span><p class="og-toolcard__text">Bring a map you drew. See what its winds, rain and climate zones would really be.</p><span class="og-toolcard__cta"><span>Open Import</span><span>→</span></span></a>
 <a class="og-toolcard is-plates" href="#"><span class="og-toolcard__head"><span class="og-toolcard__tile"><svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 15l4.5-5.5 2.8 3 4.2-6.5L21 15"/><path d="M3 19.5h9.6M16.4 19.5H21"/><circle cx="14.5" cy="19.5" r="1.9"/></svg></span><span class="og-toolcard__names"><span class="og-toolcard__name">Evolution</span><span class="og-toolcard__meta">Takes minutes</span></span></span><p class="og-toolcard__text">A planet with a past. Watch it rift and collide, then add detail to the moment you choose.</p><span class="og-toolcard__cta"><span>Open Evolution</span><span>→</span></span></a>
 </div>
 ```

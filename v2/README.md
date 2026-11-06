@@ -31,7 +31,7 @@ the developer before the next begins.**
 ## Running it
 
 **Evolution** (`/evolution`, `evolution.html`) is the product page built on this engine — a side generator beside V1's
-Generate and Import Heightmap. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New world** (a new seed),
+Generate and Import. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New world** (a new seed),
 the **World** section — folded to a one-line summary once a history is building: the seed (a number from 0 to
 2,147,483,645 — New world draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
 it always did, so a link shared before builds its world again), starting continent size,
@@ -235,7 +235,7 @@ the Köppen climate zones in their own colours, unshaded, and as a class index; 
 samplers, finishedClimateColor and finishedClimateValue) as colour and as a 16-bit greyscale on a fixed scale
 (export-raster.js DATA_SCALES); a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the
 same shade the same height on every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the
-Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
+Import page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
 ground (the Terrain view's density and colouring). And the geology's, a Geology group (`js/evolution/geology-export.js`): the
 Rocks map (as data, each pixel's rock type, 8-bit, the README listing them), the Deposits map as shown (as data, a richness
 mask per metal, mineral and fuel: 8-bit, 0 none … 255 the richest, the sea black but for oil and gas on the shelf), each

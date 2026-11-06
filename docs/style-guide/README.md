@@ -1,6 +1,6 @@
 # World Orogen style guide
 
-World Orogen is a free studio of planet tools that run in the browser: Generate, Import Heightmap and Evolution. Its look is a calm modern instrument with a classic atlas callback. Engraved type, a degree ring and a print’s frames mark the moments that present a world; rounded, quiet controls do the work. The planets are always the star: nothing in the interface competes with the globe.
+World Orogen is a free studio of planet tools that run in the browser: Generate, Import and Evolution. Its look is a calm modern instrument with a classic atlas callback. Engraved type, a degree ring and a print’s frames mark the moments that present a world; rounded, quiet controls do the work. The planets are always the star: nothing in the interface competes with the globe.
 
 ## Where it lives
 
@@ -21,13 +21,13 @@ Write the way a knowledgeable friend talks: plain, warm and concrete.
 - Say what the person gets, not how the code works: “your mountains have a history”, “Bring a map you drew. See what its winds, rain and climate zones would really be.”
 - Be science-forward without jargon. Name the phenomenon (rain shadow, rift, supercontinent, porphyry copper) and skip the equations.
 - Name controls by their effect, as the app does: “Temperature”, never “Greenhouse”. Ask before swapping in a precise term.
-- Never hype or overclaim. Say what is true now: Evolution is “best on a desktop for now”; its Geology and Food tabs are “in beta”.
+- Never hype or overclaim. Say what is true now: Evolution is “best on a desktop for now”; its Food tab is “in beta”.
 - Say “simulated”. Never call the planets “AI-generated”.
 - Near people and food, say what the land allows, not what its people are: *could*, not *will*. Earth likenesses are likenesses: “emmer-like”, “a different world”.
 - The tagline is **Believable worlds, from the ground up.** The one-line description: *A free, open-source planet generator that runs in your browser.*
 - No emoji, no exclamation marks, no stock phrases.
 
-**Casing.** Sentence case for every button, label, heading and chip: “Build new world”, “Pinned places”, “Worlds to explore”. Names keep their capitals: World Orogen, Generate, Import Heightmap, Evolution, Orogen Explains, and the layers Plates, Land, Climate, Rock, Food. Capitals appear only in tags and eyebrows (`eyebrow` style, 11px, letterspaced): “CLIMATE · FOUR MINUTES”.
+**Casing.** Sentence case for every button, label, heading and chip: “Build new world”, “Pinned places”, “Worlds to explore”. Names keep their capitals: World Orogen, Generate, Import, Evolution, Orogen Explains, and the layers Plates, Land, Climate, Rock, Food. Capitals appear only in tags and eyebrows (`eyebrow` style, 11px, letterspaced): “CLIMATE · FOUR MINUTES”.
 
 **Numbers.** A unit follows a space: 34 °C, 2,350 mm, 640 m, 30%. Coordinates read “18.0° S, 36.0° W”. Use thousands separators and tabular figures (`figure` style) in tables. Counted things are 1, 2, 3, never Roman numerals. Write long spans in words where they are a story (“nine hundred million years in”) and in digits where they are data (900 Myr).
 

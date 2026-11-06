@@ -157,7 +157,7 @@
 .evo-badge.detailed {
     background: var(--layer-land-tint); color: var(--layer-land-ink);
 }
-/* Geology and Food are in beta: a tag at the end of their sub-bars (on the main tabs it wrapped the bar below 1360 px),
+/* Food is in beta: a tag at the end of its sub-bar (on the main tabs it wrapped the bar below 1360 px),
    and a line in the tutorial (beside Evolution's "best on a desktop") */
 .evo-beta {
     display: inline-block; vertical-align: 2px; margin-left: 4px; font: 600 10px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em;

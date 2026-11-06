@@ -56,7 +56,7 @@ export const CATALOGUE = [
     ] },
     { id: 'elevation', label: 'Elevation', rows: [
         { id: 'heightmap', label: 'Heightmap with sea floor', data: [{ key: 'heightmap', suffix: '', label: 'Heightmap with sea floor', scale: { unit: 'km (sea level at 55 %)', lo: -11, hi: 9 }, bits: 16 }], tip: '16-bit greyscale, the same scale on every planet: black −11 km, white +9 km (sea level at 55 %)' },
-        { id: 'landheightmap', label: 'Land heightmap', data: [{ key: 'landheightmap', suffix: '', label: 'Land heightmap', scale: { unit: 'km above sea level (the sea 0; land from 1)', lo: 0, hi: 9 }, bits: 16 }], tip: '16-bit: the sea black and land from 0 to +9 km (re-imports on the Import Heightmap page, which reads white as 6 km)' },
+        { id: 'landheightmap', label: 'Land heightmap', data: [{ key: 'landheightmap', suffix: '', label: 'Land heightmap', scale: { unit: 'km above sea level (the sea 0; land from 1)', lo: 0, hi: 9 }, bits: 16 }], tip: '16-bit: the sea black and land from 0 to +9 km (re-imports on the Import page, which reads white as 6 km)' },
         { id: 'landmask', label: 'Land mask', data: [{ key: 'landmask', suffix: '', label: 'Land mask', scale: SC.landmask, bits: 8 }], tip: 'Land white (lakes are land), the sea black' },
         { id: 'hillshade', label: 'Hillshade', data: [{ key: 'hillshade', suffix: '', label: 'Hillshade', scale: SC.hillshade, bits: 8 }], tip: 'The relief lit from the north-west, on its own — to lay over a flat colour map' },
     ] },
