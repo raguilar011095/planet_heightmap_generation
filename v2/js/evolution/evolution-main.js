@@ -10,37 +10,23 @@ import { setDelaunator } from '../../../js/sphere-mesh.js';
 import { buildSimMesh, meshFromArrays } from '../core/sim-mesh.js';
 import { terrainMeshAsync } from '../terrain/terrain-mesh.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
-import { SmoothMapRaster } from '../view/map-raster.js';
-import { GpuPainter } from '../view/gpu-paint.js';
-import { locate } from '../core/mesh-locate.js';
-import { paintRelief } from '../view/terrain-shade.js';
 import { colorByPlate } from '../view/palettes.js';
-import { GlobeView } from '../app/globe-view.js';
-import { drawGraticule } from '../app/overlays.js';
+import { PlanetView } from '../view/planet-view.js';
+import { mountLayerBar, CLIMATE_SUB } from '../view/layer-bar.js';
 import { runHistory } from '../app/history-runner.js';
 import { TERRAIN_SCENES } from '../tectonics/scenarios/terrain-scenes.js';
 import { ENDINGS } from '../tectonics/ending.js';
 import { TerrainPlayer } from './terrain-player.js';
-import { paintPalette, heightLutOf, PALETTES, CRUST_WORDS, settingOf } from './looks.js';
-import { ClimateService, CLIMATE_LAYERS, SEASONAL_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paintUnavailable, drawArrows, drawItcz, drawLegend, readoutLines, finishedClimateColor, finishedClimateLines } from './climate-view.js';
-import { prepareSatellite, satelliteReady } from './sat-style.js';
-import { cloudFields, cloudStorms } from '../view/clouds.js';
-import { FinishService, paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from './finish-view.js';
-import { DetailService, DetailTiles, TileLayers, SLOT } from './detail-view.js';
-import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from './geology-view.js';
-import { AGES } from '../geology/ages.js';
+import { heightLutOf, CRUST_WORDS, settingOf } from './looks.js';
+import { ClimateService, CLIMATE_LAYERS, FINISHED_ONLY_LAYERS, readoutLines } from './climate-view.js';
+import { FinishService } from './finish-view.js';
+import { GEOLOGY_LAYERS } from './geology-view.js';
 import { GEO_FRAME_FIELDS, GEOLOGY_READS } from '../tectonics/model/geology.js';
-import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptions, farmOptionsKey } from './farming-view.js';
+import { FARMING_LAYERS } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
-import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
-import { createGraticuleFrame } from '../../../js/graticule-frame.js';
-import { inSpace } from '../../../js/stage.js';
-import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from '../../../js/open-area.js';
-import { createMapBand, navHeight } from '../../../js/map-band.js';
 import { createLoading } from './loading.js';
-import { downloadBlob } from '../view/png.js';
 import { savePlanet, planetBytes, openPlanet } from '../save/planet-file.js';
 import { PackedFrame } from '../tectonics/frame-pack.js';
 import { SMALL_DEVICE } from '../core/device.js';
@@ -52,13 +38,7 @@ setDelaunator(Delaunator);
 const MESH_SEED = 12345;               // the sim mesh is the same for every planet (as the lab's); the seed shapes the world on it
 const SNAPSHOT_MYR = 10;
 const IS_TOUCH = matchMedia('(pointer: coarse)').matches;
-const MAP_WIDTH = IS_TOUCH ? 1024 : 2048;
-const SHARP_WIDTH = IS_TOUCH ? 0 : 4096;  // the sharper texture, when paused (desktop; developer: "Sharper when paused")
 const SHARP_AFTER_MS = 300;               // (a scrub draws the lighter texture; the sharper one once it has settled)
-// painted on the GPU (view/gpu-paint.js), where it can be: always this sharp — it costs a millisecond or two — and twice
-// as sharp on a phone as the CPU's (?gpu=0: the CPU's painting, as before, for comparison)
-const GPU_WIDTH = IS_TOUCH ? 2048 : 4096;
-const SHADING = { exaggeration: 20, seaLevelKm: 0 };
 // terrain workers: on a phone a few (each holds its own copy of the meshes: memory), elsewhere one per core but one
 const WORKERS = Number(new URLSearchParams(location.search).get('workers')) || (IS_TOUCH ? 3 : null);
 const SCENE = TERRAIN_SCENES.find(s => s.id === 'cycle');      // the start world, every rule on — its length and ending set here
@@ -182,28 +162,25 @@ const GO_PIECE_MYR = 20;
 const HISTORY_BYTES = IS_TOUCH ? 400e6 : 1.5e9, FRAME_BYTES_PER_CELL = 31;
 ui.seed.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
 
-// ── drawing ──
-// The planet is painted on an equirectangular texture — the globe's, and the map's (drawn flat by the globe's renderer,
-// turned to the centre longitude, under the #mapCanvas frame). The history's moments are painted on the GPU where it
-// can (GPU_WIDTH); the detailed moments, and every moment without WebGL 2, on canvases — two of them on a desktop: the
-// one painted while playing, and a sharper one painted when paused.
-function texture(width) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width; canvas.height = width >> 1;
-    const ctx = canvas.getContext('2d');
-    return { canvas, ctx, image: ctx.createImageData(width, width >> 1), width };
+// ── drawing: the planet view (view/planet-view.js — the globe and the map, the picture on the GPU or on canvases, the glint,
+// the lines, the clouds, the Satellite view drawn ahead, the detail finer than the mesh, the legend, the hover) and the layer
+// bar over it (view/layer-bar.js), shared with Generate (plans/SHARED_CORE_PLAN.md U2) ──
+mountLayerBar();
+const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: url.get('gpu') !== '0', paletteKey: 'orogen.evolution.palette', onChange: viewChanged,
+    band: { below: $('timeline'), gap: 26, phones: true }, frameHidden: () => !B?.frames?.length || loading.showing,
+    // (the Satellite view drawn ahead only for a moment still kept)
+    alive: fin => !!B && [...B.finishes.values()].includes(fin) });
+const view = pv.view, gpu = pv.gpu;
+console.info(`[evolution] painting ${gpu ? `on the GPU at ${pv.GPU_WIDTH} px` : 'on the CPU'}`);
+/** The view changed (view/planet-view.js onChange): drawn again — and the rivers' switches change the card, a Food chip the
+ *  link, another layer the climate's chip. */
+function viewChanged(what) {
+    dirty = true;
+    if (what === 'water' || what === 'regime') updateCard();
+    if (what === 'farm') saveUrl();
+    if (what === 'layer') updateClimateUi();
 }
-const tex = { lo: texture(MAP_WIDTH), sharp: null };
-// (V1's space around the globe — stars, atmosphere, its light, the sun glinting off the sea: developer: "I do like the
-// starry background and the sunlight/reflection of V1")
-const globe = new GlobeView(ui.canvas, tex.lo.canvas, { space: true });
-globe.setSmooth(true);
-globe.controls.autoRotateSpeed = 0.6;
-// (the globe and the map placed beside the panel: centred on the window with room to spare, on the open area when
-// room is short, js/open-area.js)
-globe.setOpenArea(openLeft(), openShift());
-onOpenArea((left, shift) => globe.setOpenArea(left, shift));
-planetWidthFrom(left => globe.planetWidth(left));
+const setLayer = layer => pv.setLayer(layer);
 // (the loading screen, for the waits with nothing to watch: loading.js; the first world's over nothing yet)
 const loading = createLoading($('buildOverlay'));
 let firstWorld = true;
@@ -214,32 +191,8 @@ const STAGE_WORDS = { starting: 'Starting', mesh: 'Laying out the fine mesh', su
     detail: 'Drawing the fine detail', geology: 'Mapping the rocks', 'final climate': 'Working out the climate and the land’s cover',
     deposits: 'Finding the ore deposits', farming: 'Weighing the land for farming', picture: 'Painting the picture' };
 const stageWords = s => STAGE_WORDS[s] ?? s;
-const gpu = url.get('gpu') !== '0' && GpuPainter.available(globe.renderer) ? new GpuPainter(globe.renderer, GPU_WIDTH, MAP_WIDTH) : null;
-console.info(`[evolution] painting ${gpu ? `on the GPU at ${GPU_WIDTH} px` : 'on the CPU'}`);
-const seaMask = texture(MAP_WIDTH);     // where the sea is, for the glint (the lighter resolution is enough for a glint)
-let glinting = false, glintFrom = null;
-let lines = null, linesKey = null;      // the GPU's overlay: the grid and a climate layer's arrows, drawn again only when they change
-const PALETTE_KEY = 'orogen.evolution.palette';
-const storedPalette = (() => { try { return localStorage.getItem(PALETTE_KEY); } catch { return null; } })();
-const view = { deposit: 'all', age: 'bronze', ageRes: 'all', layer: 'terrain', palette: PALETTES[storedPalette] ? storedPalette : 'relief', mode: 'globe', grid: true, gridStep: 15, centerLon: 0, projection: 'equirect', projOpts: {}, season: 'year', finished: true,
-    water: true, riverQ: 40, byRegime: false,                        // (rivers and lakes on finished moments: the density's threshold, m³/s; coloured by regime)
-    shaded: true,                                                    // (the hillshade; off, every view flat colour)
-    clouds: true };                                                  // (the clouds over the Satellite view — view/clouds.js)
-let flat = null;
-/** Every cell lit as flat ground (hillshade 1): the live views' colours without the relief's shading. */
-const flatShade = n => (flat?.length === n ? flat : (flat = new Float32Array(n).fill(1)));
 const climate = new ClimateService();   // the climate, on request, for the moment shown (climate-view.js)
 const finisher = new FinishService();   // the Finish step, on request, for the moment shown (finish-view.js)
-// (the detail finer than the mesh: drawn in tiles where the view is zoomed in past a detailed moment's own pixels —
-// detail-view.js; plans/V2_FINE_DETAIL_PLAN.md — and for exports enlarged past them; a phone keeps fewer, coarser)
-const detail = new DetailService(IS_TOUCH ? 2 : Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) >> 1)));
-// (a layer of tiles on the GPU at most this many across or down: its texture within the GPU's largest, and 8192 px)
-const PATCH_SPAN = Math.floor(Math.min(8192, globe.renderer.capabilities.maxTextureSize) / SLOT);
-const tiles = new DetailTiles(detail, { ...(IS_TOUCH ? { keep: 64, most: 48, maxLevel: 8 } : { keep: 200, most: 150, maxLevel: 9 }), maxSpan: PATCH_SPAN });   // (~0.9 MB a tile)
-const layers = new TileLayers(globe, PATCH_SPAN);
-const PATCH_EVERY_MS = 50;      // (a moving view asks for its tiles this often)
-const PATCH_BUDGET_MS = IS_TOUCH ? 4 : 6;   // (a frame paints and lays tiles for about this long: the rest come in the frames after)
-let patchLook = 0, patchLookKey = '', patchClimate = null, viewSig = '', wantedAt = 0;
 // (one detailed moment per history — its pictures, rivers and climate: ~50 MB on a phone, ~190 MB at 2.5M on a desktop,
 // ~320 MB at 10M; the one before is kept until the next is done, so a cancel loses nothing: at most two at once)
 /** The bytes of the typed arrays in a finished moment (each buffer once). */
@@ -254,29 +207,13 @@ const finishBytes = f => (f.bytes ??= bytesOf({ raster: f.raster, rivers: f.rive
 // (phones finish up to 640K: the finer ones need more memory than a phone's tab has)
 if (IS_TOUCH) for (const o of [...$('finishCells').options]) if (Number(o.value) > 640000) o.remove();
 if (IS_TOUCH) $('finishCells').value = '640000';
-/** Colour heights with the palette chosen (the lab's relief, or one of looks.js's). */
-const tint = (heightKm, shade, out) => (view.palette === 'relief' ? paintRelief(heightKm, shade, out, { seaLevelKm: SHADING.seaLevelKm }) : paintPalette(view.palette, heightKm, shade, out, SHADING.seaLevelKm));
-let raster = null;                      // the terrain mesh's pixel table (only the one in use: tens of MB at the finest detail)
-const rasterOf = mesh => (raster?.mesh === mesh ? raster : (raster = { mesh, table: new SmoothMapRaster(mesh, MAP_WIDTH) })).table;
-// the sharper pixel table: built a few rows at a time the first time the view is paused (~1 s, 117 MB), one mesh at a time
-let sharp = null;
-function sharpTableOf(mesh) {
-    if (!SHARP_WIDTH) return null;
-    if (sharp?.mesh !== mesh) {
-        sharp?.controller.abort();
-        const job = sharp = { mesh, table: null, controller: new AbortController() };
-        SmoothMapRaster.build(mesh, SHARP_WIDTH, { signal: job.controller.signal })
-            .then(t => { if (sharp === job) { job.table = t; dirty = true; } }).catch(() => {});
-    }
-    return sharp.table;
-}
 let lastScrub = 0;
 const simMeshes = new Map();
 const simMeshOf = n => { if (!simMeshes.has(n)) simMeshes.set(n, buildSimMesh(n, MESH_SEED)); return simMeshes.get(n); };
 
 // ── one build: the history streaming in, its terrain, the timeline ──
 let B = null;                           // { controller, player, frames, simMesh, tMesh, raster, live, started, endMyr, error }
-let playing = false, playTime = 0, lastTick = 0, preparing = null, painted = null, paintedT = null, paintedMesh = null, paintedSharp = false, dirty = true, cellRgb = null, simRgb = null;
+let playing = false, playTime = 0, lastTick = 0, preparing = null, painted = null, paintedT = null, paintedMesh = null, paintedSharp = false, dirty = true, simRgb = null;
 
 /** A history's state, as build() starts one and loadPlanet() opens one (`o`: what differs). */
 function newWorld(o) {
@@ -300,7 +237,7 @@ function clearView(len, { play, label }) {
     playing = play; playTime = 0; preparing = null; painted = null; paintedT = null; paintedMesh = null; paintedSharp = false; dirty = true;
     updateClimateUi();
     setScale(len); ui.time.value = 0; rail();
-    blank();                                                                          // (the old world goes at once: a new one is starting)
+    pv.blank();                                                                       // (the old world goes at once: a new one is starting)
     ui.timeLabel.textContent = label;
     ui.play.innerHTML = play ? '&#x23F8;' : '&#x25B6;';
     ui.timeline.hidden = false;
@@ -486,11 +423,10 @@ async function replayHistory(b) {
 function useTerrain(b, tMesh, cells) {
     const old = b.player;
     b.tMesh = tMesh; b.terrainCells = cells;             // (the setting: a mesh has about that many cells)
-    if (gpu) gpu.setMesh(tMesh); else b.raster = rasterOf(tMesh);       // (the GPU's triangles, or the CPU's pixel table)
-    b.player = new TerrainPlayer({ simMesh: b.simMesh, tMesh, cfg: terrainConfig(), seed: b.seed, shading: SHADING, workers: WORKERS, onBuilt: () => { dirty = true; } });
+    if (gpu) gpu.setMesh(tMesh); else b.raster = pv.tableOf(tMesh);       // (the GPU's triangles, or the CPU's pixel table)
+    b.player = new TerrainPlayer({ simMesh: b.simMesh, tMesh, cfg: terrainConfig(), seed: b.seed, shading: pv.SHADING, workers: WORKERS, onBuilt: () => { dirty = true; } });
     for (const f of b.frames) b.player.addFrame(f);
     old?.dispose();
-    cellRgb = new Uint8Array(tMesh.numCells * 3);
     preparing = null; dirty = true;
 }
 
@@ -599,32 +535,6 @@ async function loadPlanet(file) {
     }
 }
 
-/** A plain sea, while a new world starts. */
-function blank() {
-    const px = new Uint8Array(3), t = tex.lo;
-    tint(new Float32Array([-4]), new Float32Array([0.8]), px);
-    glint(false);
-    t.ctx.fillStyle = `rgb(${px[0]},${px[1]},${px[2]})`;
-    t.ctx.fillRect(0, 0, t.width, t.width >> 1);
-    show(t);
-}
-
-/** The glint on (the sea mask painted with each frame: the canvas's, or the GPU's) or off — off, too, with the hillshade. */
-function glint(on, from = seaMask.canvas) {
-    const want = on && view.shaded ? from : null;
-    if (want === glintFrom) return;
-    glintFrom = want; glinting = !!want;
-    globe.setSeaMask(want);
-}
-
-/** Put a painted texture (a canvas's, or the GPU's) on the globe and the map. */
-function show(t) {
-    globe.setSource(t.isTexture ? t : t.canvas);
-    globe.textureChanged();
-}
-
-/** The map view (or the globe): the texture flat, turned so that the centre longitude is in the middle. */
-const showMap = () => { layoutMap(); globe.setMap(view.mode === 'map' ? ui.map : null, view.centerLon, view.projection, view.projOpts); planetChanged(); };
 
 function progress(b, t) {
     if (b.retexturing) return;
@@ -669,64 +579,28 @@ function frameAt(t) {
 }
 
 function paint(frame, sharpTable = null, sharp = !!sharpTable) {
-    syncClouds(frame);
-    const T = B.player.terrainOf(frame), out = cellRgb;
     // (a finished moment: its picture instead of the live terrain, on the height layers — and its own climate, at its
     // detail, on the climate layers)
-    const fin = finishedShown(frame);
-    if (fin) { paintFinishedFrame(frame, fin, T, sharp); return; }
-    const shade = view.shaded ? T.shade : flatShade(B.tMesh.numCells);
-    // (the terrain and the heightmap are coloured per pixel from the heights — their coasts crisp; the other layers per cell)
-    let byHeight = null;
-    if (view.layer === 'plates') {
-        // the plates, carried from the sim cells onto the terrain and shaded by it
-        colorByPlate(frame, simRgb);
-        const { cells: sc, weights: sw } = T.sampler;
-        for (let t = 0; t < B.tMesh.numCells; t++) {
-            const k = 0.45 + 0.55 * shade[t];
-            for (let ch = 0; ch < 3; ch++) out[3 * t + ch] = Math.min(255, k * (sw[3 * t] * simRgb[3 * sc[3 * t] + ch] + sw[3 * t + 1] * simRgb[3 * sc[3 * t + 1] + ch] + sw[3 * t + 2] * simRgb[3 * sc[3 * t + 2] + ch]));
-        }
-    } else if (view.layer === 'heightmap') byHeight = heightLutOf('heightmap');
-    else if (CLIMATE_LAYERS.has(view.layer)) {
-        // the climate of this moment, if it has been calculated; else the terrain greyed (and the chip offers it)
-        const C = FINISHED_ONLY_LAYERS.has(view.layer) ? null : climateOf(frame);
-        if (C) paintClimate(view.layer, view.season, C, { heightKm: T.heightKm, shade }, B.tMesh, out, o => tint(T.heightKm, shade, o));
-        else { tint(T.heightKm, shade, out); paintUnavailable(out, B.tMesh.numCells); }
-    } else if (GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) { tint(T.heightKm, shade, out); paintUnavailable(out, B.tMesh.numCells); }   // (comes with detail)
-    else byHeight = heightLutOf(view.palette);
-    const C = CLIMATE_LAYERS.has(view.layer) && !FINISHED_ONLY_LAYERS.has(view.layer) ? climateOf(frame) : null;
-    // the sun glints off the sea on the Terrain view (V1's water shows there only)
-    if (gpu) {
-        // (on the GPU: the cells' heights or colours sent, the picture drawn there — its sea and its lines with it)
-        glint(view.layer === 'terrain', gpu.seaTexture);
-        gpu.setMesh(B.tMesh);
-        layLines(C);
-        if (byHeight) gpu.drawHeights(T.heightKm, shade, byHeight, SHADING.seaLevelKm, glinting);
-        else gpu.drawCells(out, T.heightKm, SHADING.seaLevelKm, glinting);
-        show(gpu.texture);
-    } else {
-        glint(view.layer === 'terrain');
-        if (glinting) {
-            B.raster.paintSea(T.heightKm, seaMask.image.data, SHADING.seaLevelKm);
-            seaMask.ctx.putImageData(seaMask.image, 0, 0);
-            globe.seaMaskChanged();
-        }
-        const table = sharpTable ?? B.raster, t = sharpTable ? (tex.sharp ??= texture(SHARP_WIDTH)) : tex.lo;
-        if (byHeight) table.paintHeights(T.heightKm, shade, byHeight, t.image.data, SHADING.seaLevelKm);
-        else table.paint(out, t.image.data);
-        t.ctx.putImageData(t.image, 0, 0);
-        drawLines(t, C);
-        show(t);
+    const fin = finishedShown(frame), T = B.player.terrainOf(frame);
+    pv.syncClouds(fin, B.seed);
+    if (fin) pv.paintFinished(fin, sharp, frame.time);
+    else {
+        pv.paintLive({ T, tMesh: B.tMesh, table: B.raster, C: climateOf(frame), sharpTable, legendHead: 'Preview climate — Add detail for this moment’s own',
+            // the plates, carried from the sim cells onto the terrain and shaded by it
+            cells: (layer, out, shade) => {
+                if (layer !== 'plates') return false;
+                colorByPlate(frame, simRgb);
+                const { cells: sc, weights: sw } = T.sampler;
+                for (let t = 0; t < B.tMesh.numCells; t++) {
+                    const k = 0.45 + 0.55 * shade[t];
+                    for (let ch = 0; ch < 3; ch++) out[3 * t + ch] = Math.min(255, k * (sw[3 * t] * simRgb[3 * sc[3 * t] + ch] + sw[3 * t + 1] * simRgb[3 * sc[3 * t + 1] + ch] + sw[3 * t + 2] * simRgb[3 * sc[3 * t + 2] + ch]));
+                }
+                return true;
+            } });
+        if (!B.firstDrawn) { B.firstDrawn = true; console.info(`[evolution] first frame drawn at ${((performance.now() - B.started) / 1000).toFixed(1)} s`); }
     }
-    if (!B.firstDrawn) { B.firstDrawn = true; console.info(`[evolution] first frame drawn at ${((performance.now() - B.started) / 1000).toFixed(1)} s`); }
     loading.hide('start'); loading.hide('open');
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
-    const legend = $('climateLegend'), legendKey = C ? `${view.layer}|${view.season}|${frame.time}|${B.terrainCells}` : '';
-    if (legend.dataset.key !== legendKey) {
-        if (C) { drawLegend(legend, view.layer, view.season, C, T); legend.insertAdjacentHTML('afterbegin', '<div class="evo-legend-head">Preview climate — Add detail for this moment’s own</div>'); }
-        else legend.innerHTML = '';
-        legend.dataset.key = legendKey;
-    }
     updateClimateUi();
     terrainDrawn();
     ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;
@@ -734,48 +608,9 @@ function paint(frame, sharpTable = null, sharp = !!sharpTable) {
     stats(T, frame);
 }
 
-/** The lines over a picture (on texture t, as thick on the sharper texture as on the other): a climate layer's, then the grid. */
-function drawLines(t, C) {
-    if (C) climateOverlays(t, C);
-    if (view.grid) { const k = t.width / MAP_WIDTH; t.ctx.save(); t.ctx.scale(k, k); drawGraticule(t.ctx, MAP_WIDTH, MAP_WIDTH >> 1, view.gridStep); t.ctx.restore(); }
-}
-
-/** The GPU's overlay for the picture painted next: the lines drawn on a transparent canvas — again only when they change (a
- *  4096-pixel canvas is 32 MB to send) — or none. */
-function layLines(C) {
-    const arrows = C && (ARROW_LAYERS[view.layer] || view.layer === 'pressure') ? C : null;
-    if (!view.grid && !arrows) { gpu.setOverlay(null); return; }
-    const key = [view.grid && view.gridStep, arrows, arrows && view.layer, arrows && view.season];
-    const changed = !linesKey || key.some((v, i) => v !== linesKey[i]);
-    if (changed) {
-        if (!lines) { const canvas = document.createElement('canvas'); canvas.width = GPU_WIDTH; canvas.height = GPU_WIDTH >> 1; lines = { canvas, ctx: canvas.getContext('2d'), width: GPU_WIDTH }; }
-        lines.ctx.clearRect(0, 0, GPU_WIDTH, GPU_WIDTH >> 1);
-        drawLines(lines, arrows);
-        linesKey = key;
-    }
-    gpu.setOverlay(lines.canvas, changed);
-}
-
-/** A climate layer's lines over its colours (on texture t): the winds' or the currents' arrows, and the ITCZ. */
-function climateOverlays(t, C) {
-    if (!ARROW_LAYERS[view.layer] && view.layer !== 'pressure') return;
-    const k = t.width / MAP_WIDTH;
-    t.ctx.save(); t.ctx.scale(k, k);
-    if (view.layer === 'pressure') drawItcz(t.ctx, MAP_WIDTH, view.season, C);
-    if (ARROW_LAYERS[view.layer]) drawArrows(t.ctx, MAP_WIDTH, view.layer, view.season, C);
-    t.ctx.restore();
-}
-
-/** The legend's key for a finished moment's view (a legend made for another is made again). */
-const finishedLegendKey = (frame, fin, farm) => `finished|${view.layer}|${view.season}|${view.deposit}|${view.age}|${view.ageRes}|${frame.time}|${fin.cells}${farm ? `|${farmOptionsKey()}` : ''}`;
-
-/** The finished moment shown for a frame on the layer shown, if any: on the height layers, and on the climate layers
- *  (a finish brings the moment's own climate) — or null. */
-function finishedShown(frame) {
-    if (!view.finished || !B || !(view.layer === 'terrain' || view.layer === 'heightmap' || CLIMATE_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer))) return null;
-    const fin = B.finishes.get(frame);
-    return fin && (!CLIMATE_LAYERS.has(view.layer) || fin.climate) && (!FINISHED_ONLY_LAYERS.has(view.layer) || fin.climate?.raster?.sat) && (!GEOLOGY_LAYERS.has(view.layer) || fin.raster.geology) ? fin : null;
-}
+/** The finished moment shown for a frame on the layer shown, if any (view/planet-view.js shows): on the height layers, and
+ *  on the climate layers (a finish brings the moment's own climate) — or null. */
+const finishedShown = frame => (B ? pv.shows(B.finishes.get(frame)) : null);
 
 /** Terrain Detail's new terrain drawn (under a preview, or under a detailed moment's picture): its wait over. */
 function terrainDrawn() {
@@ -783,173 +618,6 @@ function terrainDrawn() {
     console.info(`[evolution] terrain at ${B.retexturing} cells drawn in ${((performance.now() - B.retextureAt) / 1000).toFixed(1)} s`);
     B.retexturing = null; if (B.doneText) status(B.doneText, 1);
     loading.hide('terrain');
-}
-
-/** A finished moment: its picture, coloured and shaded as the live terrain is — or its climate, per pixel. */
-function paintFinishedFrame(frame, fin, T, sharp) {
-    const t = sharp ? (tex.sharp ??= texture(SHARP_WIDTH)) : tex.lo;
-    const lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
-    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
-    glint(view.layer === 'terrain' || view.layer === 'satellite');
-    // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
-    // farming views their lakes too, as water)
-    paintFinished(fin.raster, t, lut, { seaImage: glinting ? seaMask.image.data : null, seaWidth: MAP_WIDTH, exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm,
-        shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
-    if (glinting) { seaMask.ctx.putImageData(seaMask.image, 0, 0); globe.seaMaskChanged(); }
-    t.ctx.putImageData(t.image, 0, 0);
-    // (the rivers, on the Terrain view: drawn at a 2048-wide texture's scale — as thick on the sharper one)
-    // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
-    // are ground, not lines — the Satellite view draws none)
-    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / MAP_WIDTH * (MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
-    drawLines(t, C);
-    show(t);
-    loading.hide('start'); loading.hide('open');
-    painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
-    terrainDrawn();
-    const legend = $('climateLegend'), legendKey = C || geo || farm ? finishedLegendKey(frame, fin, farm) : '';
-    if (legend.dataset.key !== legendKey) {
-        if (geo) legend.innerHTML = geologyLegendHTML(view.layer, fin, view.deposit, view.age, view.ageRes);
-        else if (farm) legend.innerHTML = farmingLegendHTML(view.layer, fin);
-        else if (C) drawLegend(legend, view.layer, view.season, C, null);
-        else legend.innerHTML = '';
-        legend.dataset.key = legendKey;
-    }
-    updateClimateUi();
-    ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;
-    rail();
-    stats(T, frame);
-    prepareSatelliteSoon(fin);
-}
-
-// ── the clouds (view/clouds.js): over the Satellite view only, from its detailed moment's own climate, in the season picked
-// (owner, 2026-11-01: "only be in the satellite mode after the world climate can shift it"); the globe draws them ──
-let cloudsShown = { on: null, C: undefined, season: null };
-function syncClouds(frame) {
-    const C0 = view.clouds && view.layer === 'satellite' ? finishedShown(frame)?.climate ?? null : null, on = !!C0?.P;
-    const C = on ? C0 : null, k = cloudsShown;
-    if (k.on === on && k.C === C && k.season === view.season) return;
-    cloudsShown = { on, C, season: view.season };
-    // (on a phone lighter: unlit, no shadows — the shader runs for every pixel of the globe; the storms the world's own)
-    globe.setClouds({ on, fields: on ? cloudFields(C, view.season) : null, storms: on ? cloudStorms(B?.seed ?? 0, C, view.season) : null, lit: !IS_TOUCH, shadow: !IS_TOUCH });
-}
-
-// ── the Satellite view drawn ahead (owner, 2026-11-01: "in the background right after Add detail"): a detailed moment's
-// styled picture (sat-style.js) a slice at a time beside the page's own work — the season shown first; the others once the
-// Satellite view is open — so opening it, or changing its season, has little or nothing left to draw ──
-const SEASONS = ['year', 'jan', 'jul'];
-let satPrep = null;
-// (a slice of ~PREP_MS every PREP_EVERY_MS: the globe draws all the time, so the page is seldom idle — a steady slice, short
-// enough that its frames keep coming)
-const PREP_MS = 7, PREP_EVERY_MS = 16, whenFree = f => setTimeout(f, PREP_EVERY_MS);
-// (the moments whose drawing ahead failed: not tried again in the background — opening the view draws it, and says why not)
-const satPrepFailed = new WeakSet();
-function prepareSatelliteSoon(fin) {
-    const R = fin?.climate?.raster;
-    if (!R?.sat || !fin.raster?.heightM || satPrepFailed.has(R)) return;
-    const want = (view.layer === 'satellite' ? [view.season, ...SEASONS.filter(s => s !== view.season)] : [view.season]).filter(s => SEASONS.includes(s) && !satelliteReady(R, s));
-    if (!want.length) return;
-    if (satPrep?.R === R) { satPrep.todo = want; return; }      // (already under way for this moment: its list renewed)
-    satPrep = { R, todo: want };
-    const tick = () => {
-        if (satPrep?.R !== R) return;                           // (another moment shown: this one's left)
-        // (the moment let go — another detailed in its place, memory freed for a retry, a new world: left too, its memory
-        // with it)
-        if (!B || ![...B.finishes.values()].includes(fin)) { satPrep = null; return; }
-        try {
-            const s = satPrep.todo[0];
-            if (!s || prepareSatellite(R, s, fin.raster.heightM, fin.raster.w, fin.rivers, fin.raster.water, fin.raster, PREP_MS)) satPrep.todo.shift();
-        } catch (err) {
-            satPrep = null; satPrepFailed.add(R);
-            console.warn('[evolution] could not draw the Satellite view ahead:', err);
-            return;
-        }
-        if (satPrep.todo.length) whenFree(tick); else satPrep = null;
-    };
-    whenFree(tick);
-}
-
-// ── the detail finer than the mesh (detail-view.js): where the view, paused on a detailed moment, is zoomed in past its
-// picture's own pixels, the tiles in view are drawn at about the screen's resolution — as it moves, nearest its middle
-// first — and laid over the planet as they come, each sent to the GPU once (TileLayers) ──
-/** The layers a patch is painted for: the heights', the climate's, the geology's and the farming's — not those whose
- *  arrows or lines are on the picture. */
-const patchLayer = layer => layer === 'terrain' || layer === 'heightmap' || (CLIMATE_LAYERS.has(layer) && !ARROW_LAYERS[layer] && layer !== 'pressure')
-    || GEOLOGY_LAYERS.has(layer) || FARMING_LAYERS.has(layer);
-/** The view's places: a 9 × 9 grid over the globe's canvas or the map's frame, as [lon, lat] (null off the planet), and
- *  its height in device pixels. */
-function viewPlaces() {
-    const map = view.mode === 'map', el = map ? ui.map : ui.canvas, r = el.getBoundingClientRect(), places = [];
-    for (let j = 0; j <= 8; j++) for (let i = 0; i <= 8; i++) {
-        const x = r.left + r.width * i / 8, y = r.top + r.height * j / 8;
-        let p = null;
-        if (map) p = globe.mapUvAt(x, y); else { const uv = globe.uvAt(x, y, r); p = uv ? [uv.x, 1 - uv.y] : null; }
-        places.push(p ? [p[0] * 360 - 180, 90 - p[1] * 180] : null);
-    }
-    return { places, px: r.height * Math.min(devicePixelRatio || 1, 1.5) };
-}
-/** What the patch's tiles are painted for: a number that changes when the layer, its colours or what is drawn over it do. */
-function patchLookOf(fin) {
-    const key = `${view.layer}|${view.palette}|${view.season}|${view.shaded}|${view.water}|${view.riverQ}|${view.byRegime}|${view.grid}|${view.gridStep}${GEOLOGY_LAYERS.has(view.layer) ? `|${view.deposit}|${view.age}|${view.ageRes}` : ''}${FARMING_LAYERS.has(view.layer) ? `|${farmOptionsKey()}` : ''}`;
-    if (key !== patchLookKey || fin.climate !== patchClimate) { patchLookKey = key; patchClimate = fin.climate; patchLook++; }
-    return patchLook;
-}
-/** Each tick: the tiles the view wants — asked for as it moves, every PATCH_EVERY_MS — and those drawn laid over the planet. */
-function updatePatch(now) {
-    if (tiles.fin && detailedOf(B)?.[1] !== tiles.fin) { tiles.reset(); layers.clear(); }   // (that moment is gone: its tiles too)
-    const fin = painted && !playing ? finishedShown(painted) : null;
-    if (!fin || !DetailService.can(fin) || !patchLayer(view.layer)) { layers.hide(); return; }
-    const mv = globe.mapView, sig = view.mode === 'map' ? `m|${mv?.zoom}|${mv?.panX}|${mv?.panY}|${view.centerLon}|${view.projection}|${ui.map.clientWidth}|${ui.map.clientHeight}`
-        : `${globe.camera.position.toArray().map(v => v.toFixed(4)).join()}|${ui.canvas.clientWidth}|${ui.canvas.clientHeight}`;
-    if ((sig !== viewSig || fin !== tiles.fin) && now - wantedAt >= PATCH_EVERY_MS) {
-        viewSig = sig; wantedAt = now;
-        if (fin !== tiles.fin) layers.clear();
-        const { places, px } = viewPlaces();
-        tiles.want(fin, B.seed, places, px, SHARP_WIDTH || MAP_WIDTH);
-    }
-    const look = patchLookOf(fin);
-    layers.lay(tiles, look, t => paintTile(fin, t, look), PATCH_BUDGET_MS);
-}
-let tileImage = null;                                   // (a tile's pixels, painted before they go on its canvas: one, reused)
-const tileColors = { look: -1, byWidth: new Map() };    // (a climate, geology or farming layer's colours, per level's width, for the look painted)
-/** A tile painted for the layer shown (as paintFinishedFrame paints the planet), once per look: a SLOT-px canvas — the
- *  tile and a pixel of its neighbours' all round — with the rivers' lines and the grid over it. */
-function paintTile(fin, t, look) {
-    if (t.look === look) return t.canvas;
-    const W = t.win.W, lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
-    const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
-    if (tileColors.look !== look) { tileColors.look = look; tileColors.byWidth.clear(); }
-    if ((C || geo || farm) && !tileColors.byWidth.has(W)) tileColors.byWidth.set(W, geo ? finishedGeologyColor(view.layer, W, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, W)
-        : finishedClimateColor(view.layer, view.season, C, W, lut, fin));
-    if (tileImage?.width !== t.win.w || tileImage.height !== t.win.h) tileImage = new ImageData(t.win.w, t.win.h);
-    paintWindow(t.data, t.win, tileImage.data, lut, { exaggeration: SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm, shaded: view.shaded,
-        colorAt: C || geo || farm ? tileColors.byWidth.get(W) : null });
-    if (!t.canvas) { t.canvas = document.createElement('canvas'); t.canvas.width = t.canvas.height = SLOT; }
-    const ctx = t.canvas.getContext('2d'), x0 = t.win.x0 + 1, y0 = t.win.y0 + 1;     // (the canvas's pixel 0, 0 on the planet W px wide)
-    ctx.putImageData(tileImage, -1, -1);                                    // (the window's outer pixel the hillshade's neighbours only)
-    // (the planet's rivers, crisp: a little thicker the closer the view, not as thick as the picture's enlarged)
-    // (and on Farmland, as the picture has them: the water canals and floods come from)
-    if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) drawRiversWindow(ctx, fin, view.riverQ, view.byRegime && view.layer === 'terrain', W, x0, y0, SLOT, SLOT, 2 * (W / 4096) ** 0.3 / (W / 2048));
-    if (view.grid) {
-        // (the grid's lines, as thin as the screen's pixels)
-        const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
-        const X = lon => (lon + 180) / 360 * W - x0, Y = lat => (90 - lat) / 180 * (W >> 1) - y0;
-        ctx.save();
-        ctx.strokeStyle = (window.orogenTheme?.token('map-grid') || 'rgba(255,255,255,0.22)'); ctx.lineWidth = 1.5; ctx.beginPath();
-        for (let lon = Math.ceil(w0 / st) * st; lon <= e0; lon += st) { ctx.moveTo(X(lon), 0); ctx.lineTo(X(lon), SLOT); }
-        for (let lat = Math.ceil(s0 / st) * st; lat <= n0; lat += st) { if (Math.abs(lat) >= 90) continue; ctx.moveTo(0, Y(lat)); ctx.lineTo(SLOT, Y(lat)); }
-        ctx.stroke();
-        ctx.restore();
-    }
-    t.look = look;
-    return t.canvas;
-}
-/** The patch's height (m), sea and lake at a place [u, v] of the map, where a tile of it is drawn — the finer picture's. */
-function patchAt(fin, u, v) {
-    if (!layers.shown || tiles.fin !== fin) return null;
-    const hit = tiles.at(u, v);
-    if (!hit) return null;
-    const { t: { data }, i } = hit;
-    return { heightM: Math.round(1000 * data.h[i]), ocean: data.sea[i], water: data.wat[i] };
 }
 
 // ── the Finish step: on request, for the moment shown — kept per moment while the history is open ──
@@ -1105,10 +773,7 @@ function updateCard() {
     $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
     document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
     $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
-    const legend = $('regimeLegend');
-    legend.hidden = !(view.byRegime && view.water && view.layer === 'terrain' && isDet);
-    if (!legend.childElementCount) legend.innerHTML = REGIME_STYLE.map(s => `<span><i style="background:${s.rgb}"></i>${s.name}</span>`).join('');
-    $('legendCard').hidden = !$('climateLegend').innerHTML.trim() && legend.hidden;
+    pv.syncLegendCard(isDet);
 }
 /** The card's and the timeline's button: Cancel while adding detail; Export on the detailed moment; else Add detail. */
 function mainAction() {
@@ -1139,10 +804,10 @@ const planetFile = {
 };
 const exportPanel = initEvolutionExport({
     moment: () => { const frame = painted, fin = frame && B?.finishes.get(frame); if (!fin) return null; setPlaying(false); return { frame, fin, seed: B.seedText ?? B.seed, cloudSeed: B.seed }; },
-    look: () => ({ lut: heightLutOf(view.palette), exaggeration: SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
+    look: () => ({ lut: heightLutOf(view.palette), exaggeration: pv.SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH, planetFile,
     // (an export wider than the picture: the whole planet drawn with the detail finer than the mesh, in bands)
-    fine: (fin, _seed, W, onProgress) => detail.window(fin, B.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress) });
+    fine: (fin, _seed, W, onProgress) => pv.detail.window(fin, B.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress) });
 
 // ── the climate (step D): calculated on request for the moment shown, kept per moment while the history is open ──
 const climateOf = frame => { const e = B?.climates.get(frame); return e && e.tMesh === B.tMesh && e.key === climateKey() ? e.data : null; };
@@ -1182,8 +847,6 @@ async function calculateClimate() {
 }
 
 /** The Calculate button, the moments with a climate, the season choice, and the chip over the planet. */
-// (every climate layer but Satellite, which comes with a finish: the main five as tabs, the rest under More)
-const CLIMATE_SUB = new Set([...CLIMATE_LAYERS].filter(l => !FINISHED_ONLY_LAYERS.has(l)));
 function updateClimateUi() {
     const b = B, frame = painted, have = frame ? climateOf(frame) : null, job = b?.climateJob;
     const fin = frame && b ? b.finishes.get(frame) : null;
@@ -1237,7 +900,7 @@ function tick(now) {
         // (paused and settled: the sharper texture — on the CPU once its table is built; on the GPU every moment is that
         // sharp, but a detailed moment's picture is painted on a canvas still)
         const settled = !playing && now - lastScrub > SHARP_AFTER_MS;
-        const sharpTable = settled && !gpu ? sharpTableOf(B.tMesh) : null, sharp = gpu ? settled && SHARP_WIDTH > 0 : !!sharpTable;
+        const sharpTable = settled && !gpu ? pv.sharpTableOf(B.tMesh) : null, sharp = gpu ? settled && pv.SHARP_WIDTH > 0 : !!sharpTable;
         if (B.player.isReady(frame)) { if (frame !== painted || dirty || sharp !== paintedSharp) { paint(frame, sharpTable, sharp); dirty = false; } }
         else if (!preparing && !(B.drawFailed?.frame === frame && now < B.drawFailed.retryAt)) {
             const b = B;
@@ -1255,32 +918,8 @@ function tick(now) {
                 .finally(() => { if (preparing === p) preparing = null; dirty = true; });
         }
     }
-    globe.controls.autoRotate = $('chkRotate').checked && view.mode === 'globe';
-    updatePatch(now);
-    globe.resize();
-    if (band.tick(now)) { layoutMap(); planetChanged(); }   // (the map's band gliding: the tabs' rows or the timeline changed)
-    globe.renderIfNeeded();                                 // (the globe, or the map: the same renderer draws both)
-    showFrame();
-}
-// ── the graticule frame (js/graticule-frame.js): the gold ring round the globe, its ticks and degrees where the grid lines
-// meet its edge, fading as you zoom in; the gold frame round the map, its degrees where the lines leave it ──
-const graticule = createGraticuleFrame(ui.canvas);
-function showFrame() {
-    if (!B?.frames?.length || loading.showing) { graticule.hide(); return; }      // (none under the loading screen)
-    const fv = globe.frameView(), spacing = view.grid ? view.gridStep : 30;
-    if (fv.kind === 'map') {
-        const rect = band.frameRect();
-        graticule.map({ ...fv, rect, spacing, key: `${fv.key}|${spacing}|${innerWidth}|${innerHeight}|${rect.l},${rect.t},${rect.r},${rect.b}` });
-        return;
-    }
-    graticule.globe({ ...fv, spacing, space: inSpace() });
-}
-// (the band the map is fitted in, as on Generate's — js/map-band.js: below the layer tabs and their rows, above the
-// timeline, the frame's numerals at the sides — handed to the globe view as the room kept round its frame)
-const band = createMapBand({ below: $('timeline'), gap: 26, phones: true });
-function layoutMap() {
-    const { top, bottom, m } = band.now();
-    globe.setMapPad({ top: top - navHeight(), bottom, side: m });
+    pv.updatePatch(now, painted && !playing ? finishedShown(painted) : null, detailedOf(B)?.[1], B?.seed);
+    pv.render(now);
 }
 requestAnimationFrame(tick);
 
@@ -1311,45 +950,11 @@ addEventListener('keydown', e => {
     if (e.code === 'Space') { e.preventDefault(); ui.play.click(); }
 });
 
-// ── view options (V1's) ──
-let climateLayer = 'koppen';            // (the Climate tab opens on the climate map last shown)
-let geologyLayer = 'geoRocks';          // (…and the Geology tab on its view last shown)
-let farmingLayer = 'farmLand';          // (…and the Food tab on its)
-function setLayer(layer) {
-    if (layer === 'climate') layer = climateLayer;
-    if (layer === 'geology') layer = geologyLayer;
-    if (layer === 'farming') layer = farmingLayer;
-    if (CLIMATE_SUB.has(layer)) climateLayer = layer;
-    const geo = GEOLOGY_LAYERS.has(layer), farm = FARMING_LAYERS.has(layer);
-    if (geo) geologyLayer = layer;
-    if (farm) farmingLayer = layer;
-    view.layer = layer; dirty = true;
-    for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
-    for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
-    const more = $('climateMore'), inMore = !!more.querySelector(`option[value="${layer}"]`);
-    more.value = inMore ? layer : ''; more.classList.toggle('active', inMore);
-    $('mobileViewSwitch').value = layer;
-    $('subBar').hidden = !CLIMATE_SUB.has(layer) && !SEASONAL_LAYERS.has(layer) && !geo && !farm;
-    $('climateTabs').hidden = $('climateMore').hidden = !CLIMATE_SUB.has(layer);
-    $('geologyTabs').hidden = !geo;
-    $('farmingTabs').hidden = !farm;
-    $('season').hidden = !SEASONAL_LAYERS.has(layer);
-    $('depositPick').hidden = layer !== 'geoDeposits';
-    $('agePick').hidden = $('ageRes').hidden = layer !== 'geoAges';
-    updateClimateUi();
-}
-for (const b of document.querySelectorAll('#mapTabs .map-tab, #climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.addEventListener('click', () => setLayer(b.dataset.layer));
-// (the Food legend's chips: a technique on or off, the classes or the ramp, the season watered or not — at once)
-$('climateLegend').addEventListener('click', e => { if (farmChipClicked(e.target)) { dirty = true; saveUrl(); } });
-$('mobileViewSwitch').addEventListener('change', e => setLayer(e.target.value));
-$('climateMore').addEventListener('change', e => { if (e.target.value) setLayer(e.target.value); });
+// ── the card's and the chip's buttons (the view's own controls: view/layer-bar.js, view/planet-view.js) ──
 $('cardAction').addEventListener('click', mainAction);
 $('timelineAction').addEventListener('click', mainAction);
 $('cardAgain').addEventListener('click', () => finishMoment());
 $('finishCells').addEventListener('change', () => updateCard());
-$('chkWater').addEventListener('change', e => { view.water = e.target.checked; dirty = true; updateCard(); });
-$('riverDensity').addEventListener('change', e => { view.riverQ = Number(e.target.value); dirty = true; });
-$('chkRegime').addEventListener('change', e => { view.byRegime = e.target.checked; dirty = true; updateCard(); });
 $('cardDetailed').addEventListener('click', e => {
     const a = e.target.closest('a[data-t]');
     if (!a || !B?.frames.length) return;
@@ -1357,124 +962,30 @@ $('cardDetailed').addEventListener('click', e => {
     playTime = Number(a.dataset.t); ui.time.value = playTime; dirty = true; rail();
 });
 $('climateChipBtn').addEventListener('click', () => (FINISHED_ONLY_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer) ? finishMoment() : calculateClimate()));
-$('season').addEventListener('change', e => { view.season = e.target.value; dirty = true; });
-$('depositPick').addEventListener('change', e => { view.deposit = e.target.value; dirty = true; });
-// the Ages view: the age, then its resources (all, one alone, or its potential) — the legend's entries switch them too
-function fillAgeRes() {
-    const age = AGES.find(a => a.id === view.age), sel = $('ageRes');
-    sel.innerHTML = '<option value="all">All its resources</option>' + age.resources.map(r => `<option value="${r.id}">${r.name}</option>`).join('') +
-        (age.potential ? `<option value="potential">${age.potential.name} potential</option>` : '');
-    sel.value = view.ageRes;
-}
-fillAgeRes();
-$('agePick').addEventListener('change', e => { view.age = e.target.value; view.ageRes = 'all'; fillAgeRes(); dirty = true; });
-$('ageRes').addEventListener('change', e => { view.ageRes = e.target.value; dirty = true; });
-const pickAgeRes = el => { if (view.layer !== 'geoAges') return; view.ageRes = view.ageRes === el.dataset.ageRes ? 'all' : el.dataset.ageRes; $('ageRes').value = view.ageRes; dirty = true; };
-$('climateLegend').addEventListener('click', e => { const el = e.target.closest('[data-age-res]'); if (el) pickAgeRes(el); });
-$('climateLegend').addEventListener('keydown', e => { const el = e.target.closest('[data-age-res]'); if (el && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); pickAgeRes(el); } });
-$('chkShade').addEventListener('change', e => { view.shaded = e.target.checked; dirty = true; });
-$('chkClouds').addEventListener('change', e => { view.clouds = e.target.checked; dirty = true; });
-$('palette').value = view.palette;
-$('palette').addEventListener('change', e => {
-    view.palette = e.target.value; dirty = true;
-    try { localStorage.setItem(PALETTE_KEY, view.palette); } catch { /* (remembered only where the browser allows) */ }
-});
-$('viewMode').addEventListener('change', e => {
-    view.mode = e.target.value;
-    ui.map.hidden = view.mode !== 'map';                    // (the map's frame: the map is drawn under it, and it takes the pointer)
-    ui.hover.style.display = 'none';
-    if (!IS_TOUCH) ui.info.textContent = `Drag to ${view.mode === 'map' ? 'move the map' : 'turn the planet'} · scroll to zoom · hover for details`;
-    showMap();
-});
-// the map view's projection (projections.js), with its own options; remembered, the same on the three pages
-initProjectionPicker((id, opts) => { view.projection = id; view.projOpts = opts; showMap(); });
-$('sMapCenterLon').addEventListener('input', e => {
-    view.centerLon = Number(e.target.value);
-    $('vMapCenterLon').textContent = `${view.centerLon}°`;
-    showMap();
-});
-$('chkGrid').checked = view.grid;
-$('chkGrid').addEventListener('change', e => { view.grid = e.target.checked; dirty = true; $('gridSpacingGroup').hidden = !view.grid; });
-$('gridSpacing').addEventListener('change', e => { view.gridStep = Number(e.target.value); dirty = true; });
 $('statsDetails').addEventListener('toggle', () => { dirty = true; });
-// the view strip under the layer bar (Globe | Map and what applies to it; on a phone, in the bottom sheet)
-initViewStrip();
 
-// ── hover readout (V1's): the crust and plate, height, position, crust age and setting under the pointer ──
-/** Where the pointer is on the texture, as fractions [u (west → east), v (north → south)] — or null, off the planet. */
-function placeUnder(e) {
-    if (view.mode === 'map') return globe.mapUvAt(e.clientX, e.clientY);
-    const uv = globe.uvAt(e.clientX, e.clientY);
-    return uv ? [uv.x, 1 - uv.y] : null;
-}
-/** The terrain cell that weighs most at a place [u, v] (the mesh triangle it falls in: the one a pixel there blends). */
-const C3 = [0, 0, 0], W3 = [0, 0, 0];
-function cellUnder(mesh, [u, v]) {
-    const lon = u * 2 * Math.PI - Math.PI, lat = Math.PI / 2 - v * Math.PI;
-    locate(mesh, Math.cos(lat) * Math.cos(lon), Math.cos(lat) * Math.sin(lon), Math.sin(lat), C3, W3);
-    return C3[W3[0] >= W3[1] && W3[0] >= W3[2] ? 0 : W3[1] >= W3[2] ? 1 : 2];
-}
+// ── hover readout (V1's): the crust and plate, height, position, crust age and setting under the pointer — and the layer's
+// own (view/planet-view.js readoutLines) ──
 function readout(e) {
-    const p = painted && paintedMesh ? placeUnder(e) : null;
-    if (!p) { ui.hover.style.display = 'none'; return; }
-    const t = cellUnder(paintedMesh, p), h = paintedT.heightKm[t] - SHADING.seaLevelKm;
+    const p = painted && paintedMesh ? pv.placeUnder(e) : null;
+    if (!p) { pv.hover(null); return; }
+    const t = pv.cellUnder(paintedMesh, p), h = paintedT.heightKm[t] - pv.SHADING.seaLevelKm;
     // (the sim cell that weighs most in this terrain cell: its crust, plate and history)
     const { cells, weights } = paintedT.sampler;
     let w = cells[3 * t];
     if (weights[3 * t + 1] > weights[3 * t] && weights[3 * t + 1] >= weights[3 * t + 2]) w = cells[3 * t + 1];
     else if (weights[3 * t + 2] > weights[3 * t] && weights[3 * t + 2] > weights[3 * t + 1]) w = cells[3 * t + 2];
-    const f = painted, lat = 90 - p[1] * 180, lon = p[0] * 360 - 180, lines = [];
-    // (a finished moment shown: its own heights, its lakes and rivers, its own climate)
-    const fin = finishedShown(f), at = fin ? patchAt(fin, p[0], p[1]) ?? finishedAt(fin, p[0], p[1]) : null;
-    const plate = f.owner[w], type = f.type[w], oceanic = type === 0;
-    if (plate >= 0) lines.push(`<span style="color:${oceanic ? '#4af' : '#6b3'}">●</span> <b>${CRUST_WORDS[type] ?? 'Crust'}</b> · plate ${plate}`);
-    lines.push(`<span class="hi-label">Elev</span> ${Math.round(at ? at.heightM : h * 1000).toLocaleString()} m`);
-    if (at && view.water && (view.layer === 'terrain' || view.layer === 'satellite')) {
-        if (at.water && !at.ocean) lines.push(`<span style="color:var(--layer-climate)">●</span> <b>${['', 'Fresh lake', 'Salt lake', 'Salt pan'][at.water]}</b>`);
-        const rv = fin.rivers && !at.ocean ? riverAt(fin, view.riverQ, p[0], p[1]) : null;
-        if (rv) lines.push(`<span style="color:${view.byRegime ? REGIME_STYLE[rv.regime].rgb : '#37c'}">●</span> <b>River</b> · ${Math.round(rv.q).toLocaleString()} m³/s · ${riverYearWords(rv)}`);
-    }
-    lines.push(`<span class="hi-label">Coord</span> ${Math.abs(lat).toFixed(1)}°${lat >= 0 ? 'N' : 'S'}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? 'E' : 'W'}`);
-    if (plate >= 0) lines.push(`<span class="hi-label">Age</span> ${Math.max(0, Math.round(f.time - f.formedAt[w])).toLocaleString()} Myr`);
+    const f = painted, fin = finishedShown(f), plate = f.owner[w], type = f.type[w], oceanic = type === 0, head = [], after = [];
+    if (plate >= 0) head.push(`<span style="color:${oceanic ? '#4af' : '#6b3'}">●</span> <b>${CRUST_WORDS[type] ?? 'Crust'}</b> · plate ${plate}`);
+    if (plate >= 0) after.push(`<span class="hi-label">Age</span> ${Math.max(0, Math.round(f.time - f.formedAt[w])).toLocaleString()} Myr`);
     const setting = plate >= 0 ? settingOf(f, w) : null;
-    if (setting) lines.push(`<span class="hi-label">Setting</span> ${setting}`);
-    // the geology views: the rock under the pointer and the record it came from (its belt, its seas, its cover, its wear)
-    if (fin && GEOLOGY_LAYERS.has(view.layer)) {
-        // (the record where the terrain read it, if the finish handed that over: the cell the pixel shows)
-        const rw = !at.ocean ? recAt(fin, p[0], p[1]) : -1, wr = rw >= 0 ? rw : w;
-        const rl = !at.ocean ? rockLine(rockAt(fin, p[0], p[1]), f, wr) : null;
-        if (rl) lines.push(rl);
-        if (view.layer === 'geoDeposits') lines.push(...depositLines(fin, p[0], p[1], !!at.ocean, view.deposit));
-        if (view.layer === 'geoAges') lines.push(...ageLines(fin, view.age, p[0], p[1], !!at.ocean));
-        if ((view.layer === 'geoDeposits' || view.layer === 'geoAges') && !at.ocean) lines.push(...districtLines(fin, f, view.layer, view.deposit, view.age, view.ageRes, p[0], p[1]));
-        lines.push(...geologyLines(f, wr));
-        ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
-        return;
-    }
-    // the farming views: what the land could grow there, and why (its water, soil, season and ground)
-    if (fin && FARMING_LAYERS.has(view.layer)) {
-        lines.unshift(...farmingLines(fin, p[0], p[1], !!at.ocean, view.layer));
-        ui.hover.innerHTML = lines.join('<br>'); ui.hover.style.display = 'block';
-        return;
-    }
-    // the climate, where this moment has one: its Köppen class, temperature and rain
+    if (setting) after.push(`<span class="hi-label">Setting</span> ${setting}`);
+    // (the climate, where this moment has one: its own, finished; or the preview's)
     const C = climateOf(f);
-    if (fin?.climate) lines.push(...finishedClimateLines(fin.climate, p[0], p[1], !!at.ocean, view.layer, view.season));
-    else if (C && paintedMesh === B.tMesh) lines.push(...readoutLines(C, paintedT, B.tMesh, t, view.layer, view.season));
-    ui.hover.innerHTML = lines.join('<br>');
-    ui.hover.style.display = 'block';
+    pv.hover(pv.readoutLines({ p, fin, heightKm: h, head, after, story: f, rec: w,
+        preview: C && paintedMesh === B.tMesh ? () => readoutLines(C, paintedT, B.tMesh, t, view.layer, view.season) : null }));
 }
-for (const el of [ui.canvas, ui.map]) {
-    // (a mouse: as it moves; a finger: a tap shows it, a drag turns the globe and hides it)
-    let down = null;
-    el.addEventListener('pointerdown', e => { down = [e.clientX, e.clientY]; });
-    el.addEventListener('pointermove', e => {
-        if (e.pointerType === 'mouse') { if (!e.buttons) readout(e); else ui.hover.style.display = 'none'; }
-        else if (down && Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 8) { down = null; ui.hover.style.display = 'none'; }
-    });
-    el.addEventListener('pointerup', e => { if (e.pointerType !== 'mouse' && down) readout(e); down = null; });
-    el.addEventListener('pointerleave', e => { if (e.pointerType === 'mouse') ui.hover.style.display = 'none'; });
-}
+pv.onPointer(readout);
 
 // ── the side panel: collapse on desktop, a draggable bottom sheet on phones (as V1's) ──
 $('sidebarToggle').addEventListener('click', () => { ui.panel.classList.toggle('collapsed'); updateClimateUi(); });

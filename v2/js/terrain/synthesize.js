@@ -79,6 +79,25 @@ export function carveInputs(n) {
 }
 
 /**
+ * The carving's inputs for ground with no history — an imported heightmap, finished as a Frame's surface is
+ * (plans/SHARED_CORE_PLAN.md U4): what surfaceRange gives a place outside every belt, shield and lava field — the
+ * background uplift, the base erodibility, the rain by latitude, the hill slope and the micro-relief by the same noise.
+ * `xyz`: the mesh's positions (z-up), n of them; `cfg`: the terrain config (finish.js surfaceConfig's, for the finish).
+ */
+export function plainCarveInputs(xyz, n, cfg, seed) {
+    const carve = carveInputs(n), noise = new SimplexNoise(seed * 31 + 9), slopeF = R / 300, microF = R / cfg.carveMicroScaleKm;
+    for (let i = 0; i < n; i++) {
+        const x = xyz[3 * i], y = xyz[3 * i + 1], z = xyz[3 * i + 2];
+        carve.u[i] = cfg.carveBgUplift;
+        carve.k[i] = cfg.carveK;
+        carve.rain[i] = rainAtLatitude(Math.asin(Math.max(-1, Math.min(1, z))) * 180 / Math.PI, cfg) / cfg.rainRefMm;
+        carve.slope[i] = cfg.carveHillSlope * (1 + cfg.carveHillNoise * noise.fbm(x * slopeF + 4.4, y * slopeF + 8.2, z * slopeF + 1.6, 2, 0.5) * 1.6);
+        carve.micro[i] = cfg.carveMicroKm * noise.fbm(x * microF + 7.3, y * microF + 2.9, z * microF + 5.1, 3, 0.5) * 1.6;
+    }
+    return carve;
+}
+
+/**
  * The surface the big rivers are settled on (terrain-config carveSettleCells): on a terrain mesh finer than that, the
  * carving's level of that many cells is given the surface synthesized there — exactly what that terrain detail itself
  * would carve — rather than the finer surface averaged onto it (which differs with the detail: a crest sampled or
@@ -372,6 +391,9 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
     const breakOn = !!cfg.ridgeBreak && Object.values(cfg.ridgeBreak).some(v => v > 0), breakFront = cfg.ridgeBreakFront ?? 1;
     // (old ranges keep their grain, cfg.oldGrainMyr: textures drawn out along the strike, ridges stronger, rock banded)
     const oldOn = (cfg.oldGrainMyr ?? 0) > 0, oldHillsStretch = cfg.oldHillsStretch ?? 4;
+    // (the ridges' undulation at every scale about their own: ridgeVaryScales — none unless given; a noise3D's variance, for
+    // its mean kept. PR #83's R2, owner 2026-10-28)
+    const varyL = cfg.ridgeVaryScales ?? [], varyW = cfg.ridgeVaryWeights ?? [], varyBend = cfg.ridgeVaryBend ?? 0, varyH = cfg.ridgeVaryHeight ?? 0, NOISE_VAR = 0.181;
     const massL = [], massA = [];
     if ((cfg.massifShare ?? 0) > 0 || (cfg.massifWornShare ?? 0) > 0) {
         let norm = 0;
@@ -664,13 +686,13 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // (relief tapers to nothing at the edge of the continental crust: no step at the slope; on a mature passive
             // margin it lies buried under the shelf and the coastal plain)
             const atEdge = smooth(0, 40, coast) * (1 - buried);
-            let warped = false, wx = 0, wy = 0, wz = 0, texture = 0, massifAmp = 0, massifWear = 0, massif = 0, envHere = 0, envCover = 0, rootHere = 0, rootCover = 0;
+            let warped = false, wx = 0, wy = 0, wz = 0, texture = 0, vary = 1, massifAmp = 0, massifWear = 0, massif = 0, envHere = 0, envCover = 0, rootHere = 0, rootCover = 0;
             for (let li = 0; li < 2; li++) {
             const { kind, dKm, reach, reliefKm, quietMyr: beltQuiet } = rec.belts[li], share = li === 0 ? 1 : cfg.overprintShare;
             kinds[0] = kind[c0]; kinds[1] = kind[c1]; kinds[2] = kind[c2];
             if (!kinds[0] && !kinds[1] && !kinds[2]) continue;
             let layerRelief = 0, stripeAmp = 0, noiseAmp = 0, noiseAcross = 0, fineKeep = 0, noiseWear = 0, layerMassif = 0, layerMassifWear = 0;
-            let brkSum = 0, brkW = 0, lamSum = 0, oldS = 0, oldN = 0, combSum = 0;
+            let brkSum = 0, brkW = 0, lamSum = 0, oldS = 0, oldN = 0, combSum = 0, lamS = 0;
             // (the distance across the belt as the kernels carry it — bending with the front — and how well they cover here)
             let follow = 0;
             if (crestFollow > 0 && Ks[li].count) { crossAt(Ks[li], cn, px, py, pz, crossC); follow = crestFollow * smooth(0.05, 0.4, crossC[1]); }
@@ -758,7 +780,7 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 // wavelength (the finer set more)
                 const raised = Math.max(0, A * beltProfile(type, side, d, W, jitter)), intensity = A / cfg.reliefKm[type], lam = cfg.stripeKm[type];
                 const sAmp = (wear ? Math.exp(-wear / (lam * lam)) : 1) * m * stripeZone(type, side, d, W, jitter) * (cfg.stripeShare * raised + cfg.stripeBaseKm * intensity) * (old ? 1 + cfg.oldRidgeGain * old : 1);
-                stripeAmp += sAmp; fineKeep += sAmp * (wear ? Math.exp(-wear * fineR2 / (lam * lam)) : 1); oldS += sAmp * old;
+                stripeAmp += sAmp; fineKeep += sAmp * (wear ? Math.exp(-wear * fineR2 / (lam * lam)) : 1); oldS += sAmp * old; lamS += sAmp * lam;
                 // the ridge noise, over the whole belt: its highs and lows drawn out along the strike
                 const edge = beltEdge(d, W, jitter), amp = m * edge * (cfg.ridgeNoiseShare * raised + cfg.ridgeNoiseBaseKm * intensity);
                 noiseAmp += amp; noiseAcross += amp * cfg.ridgeNoiseAcross * lam; noiseWear += amp * wear; oldN += amp * old; combSum += m * edge * old;
@@ -784,6 +806,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // (how old this layer's ridges and ridge noise are, and how strongly its grain shows here: none past its edge)
             const oldStripes = stripeAmp > 0 ? oldS / stripeAmp : 0, oldNoise = noiseAmp > 0 ? oldN / noiseAmp : 0, layerComb = share * atEdge * combSum;
             fineKeep = stripeAmp > 0 ? fineKeep / stripeAmp : 1;
+            // (this layer's ridge wavelength: its ridges', or its ridge noise's)
+            const lamL = stripeAmp > 0 ? lamS / stripeAmp : noiseAmp > 0 ? noiseAcross / noiseAmp / cfg.ridgeNoiseAcross : 0;
             stripeAmp *= share * atEdge;
             const acrossKm = noiseAmp > 0 ? noiseAcross / noiseAmp : 0;
             noiseWear = noiseAmp > 0 ? noiseWear / noiseAmp : 0;
@@ -796,6 +820,20 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                     d[0] = meander * noise.fbm(x * meanderF + 1.5, y * meanderF + 4.5, z * meanderF + 9.5, 2, 0.5);
                     d[1] = meander * noise.fbm(x * meanderF + 7.5, y * meanderF + 0.5, z * meanderF + 3.5, 2, 0.5);
                     d[2] = meander * noise.fbm(x * meanderF + 4.1, y * meanderF + 6.1, z * meanderF + 0.9, 2, 0.5);
+                    // (and undulating at every scale about the ridges' own, in every direction: bent by each octave, and
+                    // raised and lowered by them — ridgeVaryScales)
+                    let vs = 0, vv = 0;
+                    for (let o = 0; o < varyL.length && lamL > 0; o++) {
+                        const Lk = lamL * varyL[o], f = fade(Lk);
+                        if (!(f > 0)) continue;
+                        const q = R / Lk, b = varyBend * f * Lk / R, s = 13.7 * o;
+                        d[0] += b * renewedNoise(x * q + 11.3 + s, y * q + 5.9, z * q + 17.7);
+                        d[1] += b * renewedNoise(x * q + 3.7, y * q + 19.1 + s, z * q + 8.3);
+                        d[2] += b * renewedNoise(x * q + 23.9, y * q + 7.7, z * q + 1.3 + s);
+                        const wv = varyW[o] * f;
+                        vs += wv * renewedNoise(x * q + 31.1 + s, y * q + 29.3, z * q + 13.9 + s); vv += wv * wv;
+                    }
+                    if (vv > 0) vary = Math.exp(varyH * vs - 0.5 * varyH * varyH * NOISE_VAR * vv);
                     plateToWorld(A, A.owner[c0], d);
                     wx = px + d[0]; wy = py + d[1]; wz = pz + d[2];
                     // segments that fade in and out along the strike, crests that rise and fall along their length
@@ -804,7 +842,11 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 }
                 // (an old belt's ridges run on, evenly: its segments and crest variation fade by oldEven; its troughs no deeper
                 // than its ridges are high — the rivers in them deepen them — so the stronger ridges leave it as high on the whole)
-                const tex = oldStripes > 0 ? texture + (1 - texture) * cfg.oldEven * oldStripes : texture, lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
+                // (oldEven < 0: an old belt LESS even than a young one — Generate's, present-config.js PRESENT_TERRAIN — its
+                // segments' fading kept above nothing; Evolution's, ≥ 0, read as it always was)
+                let tex = oldStripes > 0 ? texture + (1 - texture) * cfg.oldEven * oldStripes : texture;
+                if (cfg.oldEven < 0 && tex < 0) tex = 0;
+                const lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
                 if (stripeAmp > 0.005 && carry) {
                     if (!carried) {                     // (the point on the raster of the plate under it, unwarped)
                         carried = true;
@@ -818,20 +860,20 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                     let C = carry.get(key);
                     if (!C) carry.set(key, C = carriedField(Ks[li], simMesh, A, carryO, cfg.stripeFineShare, cfg.stripeFineRatio));
                     const sv = broken(carriedStripeAt(C, cr3, cw3, wx, wy, wz, fineKeep), notch);
-                    stripes += stripeAmp * tex * (sv < 0 ? lows * sv : sv);
+                    stripes += stripeAmp * tex * vary * (sv < 0 ? lows * sv : sv);
                     if (oldStripes > 0) { grainNum += stripeAmp * oldStripes * sv; grainDen += stripeAmp * oldStripes; }
                 } else if (stripeAmp > 0.005) {
                     const sv = broken(stripeAt(Ks[li], cn, px, py, pz, wx, wy, wz, cfg.stripeFineShare * fineKeep, cfg.stripeFineRatio), notch);
-                    stripes += stripeAmp * tex * (sv < 0 ? lows * sv : sv);
+                    stripes += stripeAmp * tex * vary * (sv < 0 ? lows * sv : sv);
                     if (oldStripes > 0) { grainNum += stripeAmp * oldStripes * sv; grainDen += stripeAmp * oldStripes; }
                 }
                 // the ridge noise, read at the distance across the belt as the kernels carry it (smooth, bending with the front)
                 if (noiseAmp > 0.002) {
                     crossAt(Ks[li], cn, wx, wy, wz, cross);
                     if (cross[1] > 0) {
-                        let v = ridgeNoise(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offA, noiseWear);
-                        if (fadeB > 0) v = fadeA * v + fadeB * ridgeNoise(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offB, noiseWear);
-                        stripes += noiseAmp * (notch > 0 && v > 0 ? v * (1 - notch) : v);
+                        let v = ridgeNoiseBands(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offA, noiseWear);
+                        if (fadeB > 0) v = fadeA * v + fadeB * ridgeNoiseBands(noise, cfg, fade, x, y, z, cross[0], acrossKm, 7 + 5 * li + offB, noiseWear);
+                        stripes += noiseAmp * vary * (notch > 0 && v > 0 ? v * (1 - notch) : v);
                         // (an old belt's grain: its rock banded with its ridges; its hills drawn out across this distance)
                         if (oldNoise > 0) { grainNum += noiseAmp * oldNoise * v; grainDen += noiseAmp * oldNoise; }
                         const cw = layerComb * smooth(0.05, 0.4, cross[1]);
@@ -995,11 +1037,15 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             const active = Math.exp(-quiet / cfg.carveActiveMyr);
             carve.u[i] = cfg.carveBgUplift + cfg.carveUpliftPerKm * belt * active;
             carve.hold[i] = coast >= 0 ? active : 0;          // (how active the belt here is: its rivers cut less)
-            carve.k[i] = cfg.carveK * (1 - cfg.carveCratonHardness * shield) * (1 - cfg.carveCrestHardness * Math.min(1, Math.max(0, stripes / 0.3)));
-            if (notchMax > 0) carve.k[i] *= 1 + cfg.ridgeBreakSoft * notchMax;   // (a ridge's break gives: a river through it deepens it)
+            const crestShare = Math.min(1, Math.max(0, stripes / 0.3)), kShield = 1 - cfg.carveCratonHardness * shield;
+            carve.k[i] = cfg.carveK * kShield * (1 - cfg.carveCrestHardness * crestShare);
+            // (and, asked for — `kAlt` with cfg.carveAlt {carveK, carveCrestHardness} — the same at another erosion strength:
+            // Generate's surface drawn once, carved now and finished later; plans/SHARED_CORE_PLAN.md U1)
+            if (carve.kAlt) carve.kAlt[i] = cfg.carveAlt.carveK * kShield * (1 - cfg.carveAlt.carveCrestHardness * crestShare);
+            if (notchMax > 0) { carve.k[i] *= 1 + cfg.ridgeBreakSoft * notchMax; if (carve.kAlt) carve.kAlt[i] *= 1 + cfg.ridgeBreakSoft * notchMax; }   // (a ridge's break gives: a river through it deepens it)
             // (an old belt's rock banded with its ridges: hard on them, soft in the troughs between — trellis drainage)
             // (linear in the band, so a belt's rock erodes as fast as before on the whole: only where differs)
-            if (combOld > 0 && grainDen > 0) carve.k[i] *= 1 - cfg.oldGrainHardness * combOld * Math.max(-1, Math.min(1, grainNum / grainDen));
+            if (combOld > 0 && grainDen > 0) { const g = 1 - cfg.oldGrainHardness * combOld * Math.max(-1, Math.min(1, grainNum / grainDen)); carve.k[i] *= g; if (carve.kAlt) carve.kAlt[i] *= g; }
             carve.rain[i] = rainAtLatitude(Math.asin(Math.max(-1, Math.min(1, pz))) * 180 / Math.PI, cfg) / cfg.rainRefMm;
             carve.slope[i] = cfg.carveHillSlope * (1 + cfg.carveHillRelief * belt) * (1 + cfg.carveHillNoise * noise.fbm(x * slopeF + 4.4, y * slopeF + 8.2, z * slopeF + 1.6, 2, 0.5) * 1.6);
             // flood basalt: a hard cap — cliffed canyon walls, slower rivers; and the stair it is cut into (carve.js)
@@ -1013,7 +1059,8 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
             // to all of it over lipYoungMyr of wear — so a fresh province is a plain cut only by its big rivers' canyons)
             if (basalt > 0) {
                 carve.slope[i] *= 1 + cfg.lipCliff * basalt; carve.k[i] *= 1 - cfg.lipHardness * basalt;
-                if (cfg.lipYoungMyr > 0) carve.k[i] *= 1 - basalt * (1 - cfg.lipYoungFloor) * (1 - Math.min(1, lipAge / cfg.lipYoungMyr));
+                if (carve.kAlt) carve.kAlt[i] *= 1 - cfg.lipHardness * basalt;
+                if (cfg.lipYoungMyr > 0) { const fresh = 1 - basalt * (1 - cfg.lipYoungFloor) * (1 - Math.min(1, lipAge / cfg.lipYoungMyr)); carve.k[i] *= fresh; if (carve.kAlt) carve.kAlt[i] *= fresh; }
             }
             carve.micro[i] = cfg.carveMicroKm * noise.fbm(x * microF + 7.3, y * microF + 2.9, z * microF + 5.1, 3, 0.5) * 1.6;
             // how deep the history's rivers cut here (8b-2), over the land corners
@@ -1031,6 +1078,18 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
  * belt kind's ridge wavelength), then halves and quarters of that, each faded where the mesh cannot show it; about −1…+1.
  * Both coordinates belong to the crust: the noise rides with the range. `salt` gives each belt layer a noise of its own.
  */
+/** The ridge noise at its scales (cfg.ridgeNoiseScales: its own, much larger and much smaller — none given: its own
+ *  alone), weighted, their sum kept to one scale's spread. PR #83's R3, owner 2026-10-28. */
+function ridgeNoiseBands(noise, cfg, fade, x, y, z, d, across, salt, wear = 0) {
+    const S = cfg.ridgeNoiseScales, W = cfg.ridgeNoiseWeights;
+    if (!S?.length) return ridgeNoise(noise, cfg, fade, x, y, z, d, across, salt, wear);
+    let v = 0, w2 = 0;
+    for (let b = 0; b < S.length; b++) {
+        v += W[b] * ridgeNoise(noise, cfg, fade, x, y, z, d, across * S[b], S[b] === 1 ? salt : salt + 17.3 * (b + 1), wear);
+        w2 += W[b] * W[b];
+    }
+    return v / Math.sqrt(w2);
+}
 function ridgeNoise(noise, cfg, fade, x, y, z, d, across, salt, wear = 0) {
     const alongF = R / (across * cfg.ridgeNoiseStretch);
     let v = 0, amp = 1, norm = 0;

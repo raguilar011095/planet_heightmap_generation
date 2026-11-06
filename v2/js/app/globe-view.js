@@ -94,13 +94,33 @@ export class GlobeView {
         this.patch = { uPatchSlot: { value: 1 } };
         for (const k of [0, 1]) Object.assign(this.patch, { [`uPatchAtl${k}`]: { value: null }, [`uPatchTab${k}`]: { value: null }, [`uPatchRange${k}`]: { value: new THREE.Vector4() }, [`uPatchGrid${k}`]: { value: new THREE.Vector4() } });
         this.patchLayers = [0, 1].map(() => ({ atl: null, tab: null, cols: 0, rows: 0, range: null }));
+        // (the texture read where each pixel looks — its place on the sphere, not the sphere mesh's UVs, which smear across
+        // the triangles round a pole — and at the level the place's own size calls for: toward a pole a texel of the
+        // equirectangular texture is narrower than it is tall, so the hardware, going by its stretched width, chose ever
+        // coarser levels — a radial smear and blocks; the gradients across the date line taken the short way round, so no
+        // seam. Owner, 2026-11-05: "almost everything at the poles are getting distorted")
         this.globe.material.onBeforeCompile = shader => {
             Object.assign(shader.uniforms, this.patch);
+            shader.vertexShader = shader.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vSphere;')
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSphere = position;');
             shader.fragmentShader = shader.fragmentShader
-                .replace('#include <common>', `#include <common>\n${PATCH_GLSL}`)
-                .replace('#include <map_fragment>', `#ifdef USE_MAP
-    vec4 sampledDiffuseColor = withPatch(texture2D(map, vMapUv), vMapUv);
+                .replace('#include <common>', `#include <common>\nvarying vec3 vSphere;\n${PATCH_GLSL}`)
+                .replace('#include <map_fragment>', `vec3 sd = normalize(vSphere);
+    vec2 tcS = vec2(fract(atan(sd.z, -sd.x) / 6.283185307179586), 1.0 - acos(clamp(sd.y, -1.0, 1.0)) / 3.141592653589793);
+    vec2 gxS = dFdx(tcS), gyS = dFdy(tcS);
+    gxS.x -= floor(gxS.x + 0.5); gyS.x -= floor(gyS.x + 0.5);
+    float clS = max(sqrt(max(0.0, 1.0 - sd.y * sd.y)), 0.02);
+    gxS.x *= clS; gyS.x *= clS;
+#ifdef USE_MAP
+    vec4 sampledDiffuseColor = withPatch(textureGrad(map, tcS, gxS, gyS), tcS);
     diffuseColor *= sampledDiffuseColor;
+#endif`)
+                .replace('#include <specularmap_fragment>', `float specularStrength;
+#ifdef USE_SPECULARMAP
+    specularStrength = textureGrad(specularMap, tcS, gxS, gyS).r;
+#else
+    specularStrength = 1.0;
 #endif`);
         };
         this.initClouds();
@@ -475,33 +495,51 @@ void main() {
             this.mapScene.background = this.space ? new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420') : new THREE.Color(0x000000);
             const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
-                uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() },
+                uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() }, uAniso: { value: 1 },
                     uProj: { value: u.uProj }, uBounds: { value: new THREE.Vector4(...u.uBounds) }, uOpt: { value: new THREE.Vector4(...u.uOpt) }, ...this.patch, ...this.cloudU },
                 vertexShader: 'varying vec2 vUv;\nvoid main() { vUv = uv; gl_Position = vec4(position.xy, 0.0, 1.0); }',
-                fragmentShader: `uniform sampler2D map; uniform float turn; uniform vec4 uView; uniform vec2 uWrap; varying vec2 vUv;
+                fragmentShader: `uniform sampler2D map; uniform float turn; uniform vec4 uView; uniform vec2 uWrap; uniform float uAniso; varying vec2 vUv;
 ${PATCH_GLSL}
 ${PROJECTION_GLSL}
 ${CLOUD_GLSL}
 uniform vec4 uCloudOp; uniform vec2 uCloudGrey; uniform float uCloudOn, uCloudLight, uCloudLit, uCloudShadow, uCloudShadowOn, uCloudShadowStep;
 void main() {
     vec2 m = vUv * uView.xy + uView.zw;                            // (the frame's pixel → its place in the map's box, zoomed and panned)
-    // (the texture's level for this zoom — from the box's own scale, smooth across the wrap and the projection's edges,
-    // where the hardware's own choice would jump: the texels a screen pixel spans across the box)
 #if __VERSION__ >= 300
-    vec2 ts = vec2(textureSize(map, 0));
-    float lod = max(0.0, log2(max(length(dFdx(m) * ts), length(dFdy(m) * ts))));
+    vec2 mx = dFdx(m), my = dFdy(m);                               // (a screen pixel's step across the box)
 #endif
+    // (where the pixel is on the map: worked out for every pixel and dropped only after the steps below, which read the
+    // pixel's neighbours)
+    bool on = true;
     if (uWrap.x > 0.5) {                                           // (one turn of the planet about the frame's middle: zoomed out, no place twice)
-        if (m.x < uWrap.y || m.x > uWrap.y + 1.0) discard;
+        on = m.x >= uWrap.y && m.x <= uWrap.y + 1.0;
         m.x = fract(m.x);
     }
-    if (m.x < 0.0 || m.x > 1.0 || m.y < 0.0 || m.y > 1.0) discard;
+    on = on && m.x >= 0.0 && m.x <= 1.0 && m.y >= 0.0 && m.y <= 1.0;
     vec2 xy = vec2(uBounds.x + m.x * (uBounds.y - uBounds.x), uBounds.z + m.y * (uBounds.w - uBounds.z));
     vec2 ll;
-    if (!projInverse(xy, ll)) discard;
+    if (!projInverse(xy, ll)) on = false;
+    if (!on) ll = vec2(0.0);
     vec2 tc = vec2(ll.x / (2.0 * PI) + 0.5 + turn, 0.5 + ll.y / PI);
 #if __VERSION__ >= 300
-    gl_FragColor = withPatch(textureLod(map, tc, lod), tc);
+    // (the texels under the pixel: its steps across the texture to its neighbours, from which the GPU picks the level and
+    // filters along the footprint toward the limb, as on the globe — not the box's steps, which fit the texture only where
+    // the box spans the whole planet: in the orthographic hemisphere they picked a level about log2 π too coarse (2.3.0).
+    // Across the date line, less the whole turn the longitude jumps there, so no seam; near a pole, where the meridians
+    // crowd and a step east spans ever more of the texture's width, no wider than the pixel's ground step in equatorial
+    // texels times the taps the GPU takes along a footprint, so the pole is no blurrier than the ground around it. Where
+    // the map's edge runs through the pixel's block of 2 × 2, whose other pixels are off it, the box's steps)
+    vec2 gx = dFdx(tc), gy = dFdy(tc);
+    gx.x -= floor(gx.x + 0.5); gy.x -= floor(gy.x + 0.5);
+    float c = cos(ll.y);
+    vec3 p = vec3(c * cos(ll.x), c * sin(ll.x), sin(ll.y));         // (the place on the sphere: smooth across the date line and the poles)
+    float g = uAniso * max(length(dFdx(p)), length(dFdy(p))) / (2.0 * PI);
+    gx.x = clamp(gx.x, -g, g); gy.x = clamp(gy.x, -g, g);
+    if (fwidth(on ? 1.0 : 0.0) > 0.0) { gx = mx; gy = my; }
+#endif
+    if (!on) discard;
+#if __VERSION__ >= 300
+    gl_FragColor = withPatch(textureGrad(map, tc, gx, gy), tc);
 #else
     gl_FragColor = withPatch(texture2D(map, tc), tc);
 #endif
@@ -668,6 +706,7 @@ void main() {
     renderMap() {
         const r = this.renderer, b = this.mapBox(), f = this.map.frame.getBoundingClientRect(), c = this.canvas.getBoundingClientRect(), u = this.mapQuad.material.uniforms, v = this.mapView;
         u.map.value = this.texture; u.turn.value = this.map.centerLon / 360;
+        u.uAniso.value = Math.max(1, Math.min(this.texture.anisotropy || 1, r.capabilities.getMaxAnisotropy()));   // (the taps the GPU takes along a footprint)
         const pu = projectionUniforms(this.map.projection, this.map.projOpts);
         u.uProj.value = pu.uProj; u.uBounds.value.set(...pu.uBounds); u.uOpt.value.set(...pu.uOpt);
         // (the whole frame drawn: its pixels → the box's places, at the zoom and pan; y from the bottom)

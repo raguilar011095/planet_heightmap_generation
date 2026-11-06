@@ -6,8 +6,8 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 
 ## The tools
 
-- Generate (orogen.studio/generate): a planet in seconds from sliders, with tectonic plates (convergent, divergent and transform boundaries), glacial, hydraulic and thermal erosion, hotspot island chains (like Hawaii) and the full seasonal climate; reshape plates interactively (select several, preview, then rebuild); a planet code reproduces it exactly
-- Import (orogen.studio/import): bring an equirectangular greyscale heightmap (Earth, Mars, hand-drawn, or from another tool) onto a 3D globe and run the full climate on it, with optional erosion and sculpting
+- Generate (orogen.studio/generate): a planet in seconds from sliders: its plates and their boundaries today (ridges, rifts, trenches with island arcs, collisions), a past written in closed form (old mountain belts, cratons, hotspot tracks, flood basalts, continents that fit across their oceans), then finished in the background by Evolution's own finish: the full seasonal climate, rivers carved by its runoff, lakes, an ice age, dunes and loess, a satellite view with clouds, rocks, ore and gem deposits, and food. Reshape plates interactively (select several, preview, then rebuild); a planet code reproduces it exactly
+- Import (orogen.studio/import): bring an equirectangular greyscale heightmap (Earth, Mars, hand-drawn, or from another tool) onto a 3D globe and run the full climate on it, with its rivers and lakes, its ice age, a satellite view and its food, with optional erosion and sculpting
 - Evolution (orogen.studio/evolution): simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding and gathering again over up to 1.5 billion years) as a timeline to scrub, with a chosen ending. Any moment can be sculpted in detail: rivers and lakes through the seasons, glaciers and fjords, sand seas, its own climate, a satellite view with clouds from its climate, and detail finer than its mesh when zoomed in. Geology: rock types, and about 35 kinds of ore, fuel, mineral and gem deposits placed by the history, the climate and the rivers, each district with how it formed, plus one map per technological age (Stone, Copper, Bronze, Iron, Industrial) of what a people could reach. Food (beta): what the land could grow by rain or with irrigation, its staple foods, whether its people could farm, herd or gather, and how many it could feed. A whole planet (its history and its detailed moment) saves as one file, to open again later in any browser
 
 ## Who it's for
@@ -18,9 +18,9 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 
 ## Key capabilities
 
-- Multiple views: terrain, satellite biome, Köppen climate, heightmap — on a 3D globe or a flat map in any of ten projections
-- Detailed inspection layers for geology, plate physics and climate — the climate ones in real units for the year, January or July: pressure and wind, ocean currents and upwelling, sea ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality
-- Export maps up to 65,536px wide, every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
+- The same views on every tool: terrain with rivers and lakes, satellite with clouds, Köppen climate and every climate layer, geology, food, heightmap, plates — on a 3D globe or a flat map in any of ten projections
+- Climate layers in real units for the year, January or July: pressure and wind, ocean currents and upwelling, sea ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality
+- Export maps up to 16,384px wide, every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes, rocks, deposits, food), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
 - Shareable planet codes — copy a compact code to reproduce any planet exactly
 - Works on desktop and mobile browsers
 - No build step, no dependencies to install — pure ES modules
@@ -35,7 +35,7 @@ https://orogen.studio/ — Studio: the three tools explained, plus curated world
 https://orogen.studio/generate — Generate (a planet's link: orogen.studio/generate#CODE; older orogen.studio/#CODE links still open it)
 https://orogen.studio/import — Import
 https://orogen.studio/evolution — Evolution
-https://orogen.studio/v/2.1/ — a previous version, kept online: from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
+https://orogen.studio/v/2.2/ — the previous version, kept online (and orogen.studio/v/2.1/ before it): from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
 
 ## Follow and support
 
