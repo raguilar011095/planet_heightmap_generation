@@ -19,6 +19,8 @@
 import { CrustType, CrustFlag, OrogenyType, BeltSide } from '../tectonics/model/crust.js';
 import { spreadBelt, beltWidthKm } from '../tectonics/step/orogeny.js';
 import { spreadPush } from '../tectonics/step/far-field.js';
+import { heightsOf } from '../tectonics/step/heights.js';
+import { erosionAtHeight } from '../terrain/terrain-config.js';
 import { makeRng } from '../../../js/rng.js';
 import { MinHeap } from '../core/min-heap.js';
 import { FastNoise } from '../core/fast-noise.js';
@@ -127,13 +129,22 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         }
         // (a piece no core reached — cut off by a sea the crust opened — is its own young terrane)
         const ringKm = cfg.ringKm[0] + (cfg.ringKm[1] - cfg.ringKm[0]) * rng();
-        const ringStep = cfg.ringStepMyr[0] + (cfg.ringStepMyr[1] - cfg.ringStepMyr[0]) * rng();
-        const ageOf = new Map(), ringOfP = new Map();
+        const ageOf = new Map(), ringOfP = new Map(), outerRing = coreP.map(() => 1);
         for (const p of list) {
-            if (!pCore.has(p)) { ageOf.set(p, cfg.youngestRingMyr); ringOfP.set(p, 99); continue; }
+            if (!pCore.has(p)) { ringOfP.set(p, 99); continue; }
             const ring = coreP.includes(p) ? 0 : 1 + Math.floor(pDist.get(p) / ringKm);
             ringOfP.set(p, ring);
-            ageOf.set(p, ring ? Math.max(cfg.youngestRingMyr, coreAge[pCore.get(p)] - ring * ringStep * (0.85 + 0.3 * rng())) : coreAge[pCore.get(p)]);
+            outerRing[pCore.get(p)] = Math.max(outerRing[pCore.get(p)], ring);
+        }
+        // (M6, owner 2026-11-05: "not treating everything as the same age" — the rings span the history: from the core's
+        // age to the outermost's, docked lately at the continent's margin (a Cordillera's terranes), each core its own
+        // draw; before, each ring a fixed step younger, so most of the land's ranges were 300–1500 Myr old together)
+        const outerAge = coreP.map((p, i) => cfg.outerRingMyr[0] + (cfg.outerRingMyr[1] - cfg.outerRingMyr[0]) * makeRng((seed ^ 0x0a6e) + p * 7919 + i)());
+        for (const p of list) {
+            const ring = ringOfP.get(p), k = pCore.get(p);
+            if (k === undefined) { ageOf.set(p, cfg.youngestRingMyr); continue; }
+            const span = coreAge[k] - outerAge[k], f = ring ? Math.min(1, (ring / outerRing[k]) ** cfg.ringAgePow * (0.85 + 0.3 * rng())) : 0;
+            ageOf.set(p, coreAge[k] - span * f);
         }
         // the cratons: a core piece's interior, cratonRimKm in from its edges and cratonCoastKm from the sea
         for (const p of coreP) for (const c of pcs.get(p).cells) if (inFromEdge[c] >= cfg.cratonRimKm && coastOk(c, cfg.cratonCoastKm)) crust.type[c] = CrustType.CRATON;
@@ -360,13 +371,27 @@ export function presentPast(L, land, crust, config, cfg = PRESENT, extra = [], p
         return [...out].sort((a, b) => a - b);
     }
 
-    /** Δt Myr of wear on every record the past laid down (each on its own clock: the belt's uplift, its crests, its root). */
+    /**
+     * Δt Myr of wear on every record the past laid down — as Evolution's history wears them (tectonics/step/heights.js
+     * evolveHeights): each on its own clock (the uplift, the root, the crests: the terrain config's reliefTauMyr,
+     * thickTauMyr, ruggedTauMyr), every clock running faster the higher the belt stands above its plain (erosionAtHeight:
+     * high ground fast, low ground slowly — old ranges linger as low hills), in steps of at most wearStepMyr. M6 (owner,
+     * 2026-11-05: "not treating everything as the same age"): before, three slow clocks of Generate's own (220, 900 and
+     * 420 Myr) left a range 700 Myr old standing nearly as high as one 150 Myr old — every upland the same age.
+     */
     function wear(dt) {
         if (!(dt > 0)) return;
-        const ku = Math.exp(-dt / cfg.wearUpliftMyr), kr = Math.exp(-dt / cfg.wearCrestMyr), kt = Math.exp(-dt / cfg.wearRootMyr);
+        const H = heightsOf(config), steps = Math.max(1, Math.ceil(dt / cfg.wearStepMyr)), s = dt / steps;
         for (let c = 0; c < n; c++) {
             if (!crust.oroType[c] && !crust.prevType[c]) continue;
-            crust.upliftKm[c] *= ku; crust.rugged[c] *= kr; crust.prevRugged[c] *= kr; crust.rootKm[c] *= kt;
+            let up = crust.upliftKm[c], root = crust.rootKm[c], kr = 1;
+            const arc = crust.type[c] === CrustType.ARC ? 0.25 : 1;
+            for (let k = 0; k < steps; k++) {
+                const height = Math.max(0, up) + H.isoMaxKm * (1 - Math.exp(-root * arc / H.isoScaleKm));
+                const e = s * (up < 0 ? 1 : erosionAtHeight(height, H));
+                up *= Math.exp(-e / H.reliefTauMyr); root *= Math.exp(-e / H.thickTauMyr); kr *= Math.exp(-e / H.ruggedTauMyr);
+            }
+            crust.upliftKm[c] = up; crust.rootKm[c] = root; crust.rugged[c] *= kr; crust.prevRugged[c] *= kr;
         }
     }
 }

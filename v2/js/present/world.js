@@ -173,6 +173,10 @@ export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = n
     // (G5b: the coasts of the continents that fit, made to interlock)
     if (mask?.fit) mask.fitShelf = interlockCoasts(heightKm, mask, tMesh);
     if (mask) holdToPieces(heightKm, mask, tMesh, S);
+    // (M6: the highest summits eased toward peakSoftKm[1] — a volcano on a collision on an older range stacked past
+    // Everest, and past the exports' +9 km — the crust's strength and the ice's buzzsaw keep real peaks under ~9 km)
+    const [p0, p1] = PRESENT.peakSoftKm, span = p1 - p0;
+    for (let c = 0; c < n; c++) if (heightKm[c] > p0) heightKm[c] = p0 + span * Math.tanh((heightKm[c] - p0) / span);
     ms.relief = clock() - t0;
     let surface = null;
     if (finish) {

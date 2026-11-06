@@ -823,7 +823,11 @@ export function surfaceRange(plan, cfg, seed, edgeKm, xyz, sCells, sWeights, fro
                 }
                 // (an old belt's ridges run on, evenly: its segments and crest variation fade by oldEven; its troughs no deeper
                 // than its ridges are high — the rivers in them deepen them — so the stronger ridges leave it as high on the whole)
-                const tex = oldStripes > 0 ? texture + (1 - texture) * cfg.oldEven * oldStripes : texture, lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
+                // (oldEven < 0: an old belt LESS even than a young one — Generate's, present-config.js PRESENT_TERRAIN — its
+                // segments' fading kept above nothing; Evolution's, ≥ 0, read as it always was)
+                let tex = oldStripes > 0 ? texture + (1 - texture) * cfg.oldEven * oldStripes : texture;
+                if (cfg.oldEven < 0 && tex < 0) tex = 0;
+                const lows = oldStripes > 0 ? lowGain - (lowGain - 1) * oldStripes : lowGain;
                 if (stripeAmp > 0.005 && carry) {
                     if (!carried) {                     // (the point on the raster of the plate under it, unwarped)
                         carried = true;

@@ -11,6 +11,11 @@ export const PRESENT_TERRAIN = {
     arcMatureKm: 0.5,              // (0.3)
     arcStraitKm: 90,               // the straits cut deeper and wider apart (35, 140): chains of islands, not ribbons
     arcIslandKm: 200,
+    // M6 (owner, 2026-11-05: "not treating everything as the same age"): an old range a little LESS even along its
+    // strike than a young one, not more (owner, 2026-10-28, for Evolution's ridges: "old belts should not be more even,
+    // maybe it should even be slightly less" — PR #83's R1/R4, never landed in main). The rest of M6 is the past's own
+    // ages and wear (present/past.js): a range's age now shows in how high it stands, as in Evolution
+    oldEven: -0.1,
 };
 
 export const PRESENT = {
@@ -74,6 +79,8 @@ export const PRESENT = {
     foreArcFloorKm: -1.2,          // …and no deeper than this (the trench itself is on the ocean piece)
     foreArcTrenchRings: 2,         // (only where a trench's upper side lies within this many sim cells: not at a ridge, a transform)
 
+    peakSoftKm: [8, 8.95],         // M6: summits above the first eased toward the second (present/world.js presentSynthesize)
+
     // ── G6d: detail that holds up close (present/relief.js) — a ridged fractal on the uplands and mountains, its octaves
     // from reliefFromKm down to what the terrain mesh can show, laid down before the rivers carve ──
     reliefShare: 0.15,             // its strength: ± about this share of the ground's height (× the Roughness slider's factor)
@@ -93,9 +100,11 @@ export const PRESENT = {
     seamQuiet: 0.25,               // a seam moving less than this share of the planet's seams' spread did nothing…
     seamMaxStrength: 1.5,          // …and counts at most this many spreads
     seamMinCells: 3,               // (a seam shorter than this many sim cells is no seam)
-    seamAgeMyr: [30, 600],         // a closing seam raised a range this long ago (log-uniform: G4d, younger than the old
-                                   // orogenies — a minor plate's range stands between them and today's plate edges)…
-    seamWorkKm: [140, 480],        // …with this much convergence per spread of closing
+    seamAgeMyr: [5, 150],          // a closing seam raised a range this long ago (log-uniform: G4d, younger than the old
+                                   // orogenies — a minor plate's range stands between them and today's plate edges; M6: 30–600
+                                   // until the past wore as Evolution's does, which left them as low as the old ones)…
+    seamWorkKm: [220, 720],        // …with this much convergence per spread of closing (M6: 140–480 before the past wore
+                                   // as Evolution's does)
     seamSagKm: 0.2,                // a parting seam sagged this deep per spread (× 0.6–1.4)…
     seamSagWidthKm: 220,           // …over a trough this wide (σ): a lowland inland, a gulf where it meets the coast
 
@@ -283,8 +292,11 @@ export const PRESENT = {
     cratonCoastKm: 400,            // …and this far from the coast
     coreAgeMyr: [1800, 2000],      // the cores formed this long ago
     ringKm: [650, 950],            // a piece docked one ring further out per this many km from its core…
-    ringStepMyr: [280, 450],       // …each ring this much younger…
-    youngestRingMyr: 120,          // …never younger than this
+    // …the rings spanning the history from the core's age to the outermost's (M6: before, each ring 280–450 Myr younger
+    // than the last, never under 120 — most of the land's ranges 300–1500 Myr old together)…
+    outerRingMyr: [40, 300],       // …the outermost docked this recently (a Cordillera's terranes: 50–200 Myr)…
+    ringAgePow: 0.6,               // …the rings between younger the further out, by (ring ÷ outermost)^this
+    youngestRingMyr: 120,          // (a piece no core reached, a microcontinent: one young terrane this old)
     ringWorkKm: [250, 500],        // a piece docking: this much convergence (a Ural-type welt along its inner edge)…
     ringQuietShare: 0.3,           // …but G4d: this share of them docked quietly (a suture, no range: not a net round every piece)
     weldMyr: [700, 1400],          // two cores welding: this long ago…
@@ -296,9 +308,10 @@ export const PRESENT = {
     pastCoastKm: 300,              // a past seam this near today's coast raised no welt there (a passive margin rifted
                                    // across the old belts); the swells sink toward the coast over the same distance
     pastEventMyr: 40,              // each past event lasted about this long
-    wearUpliftMyr: 220,            // a past belt's broad uplift wears with this e-folding time…
-    wearCrestMyr: 900,             // …its crests more slowly (old ranges linger as ridges)…
-    wearRootMyr: 420,              // …its root (isostatic rebound) between
+    // a past belt wears as Evolution's history wears it (its uplift, root and crests each on the terrain config's clock,
+    // faster the higher it stands: present/past.js wear — M6), in steps of at most this long (220, 900 and 420 Myr of its
+    // own until 2026-11-05: every upland one age)
+    wearStepMyr: 20,
     swellMajorKm: 0.4,             // uplands along the major sutures (the worn highlands round an old range)…
     swellMajorWidthKm: 800,
     swellRingKm: 0.3,              // …lower ones along the pieces' seams (G4b: the uplands follow them)…
@@ -317,7 +330,8 @@ export const PRESENT = {
     bendFineAmpKm: 100,
     subAreaKm2: 1.6e6,             // each piece is made of smaller terranes, one per this much land…
     subMax: 4,                     // …at most this many
-    subAgeMyr: [150, 1800],        // a seam between two of them is a welt this old (log-uniform; most old and worn)…
+    subAgeMyr: [40, 1800],         // a seam between two of them is a welt this old (log-uniform; M6: from 40, not 150 — the
+                                   // history's ages spread as Evolution's, not most of them 250–1000 Myr together)…
     subOlderMyr: 300,              // …at most this much older than its piece's docking…
     subWorkKm: [100, 260],         // …with this much convergence…
     swellSubKm: 0.08,              // …and a low swell along it

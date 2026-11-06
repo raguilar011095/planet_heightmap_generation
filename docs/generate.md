@@ -121,7 +121,10 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
   edges along some coasts, their motion fitted from the pieces' own.
 - **Today's boundaries** by kind — ridges, rifts, trenches (some splitting off island arcs and back-arc seas), collisions,
   transforms — and the sea floor's age away from its ridges.
-- **The past in closed form** — the continents assembled from their pieces as old orogenies, worn by their age; cratons;
+- **The past in closed form** — the continents assembled from their pieces as old orogenies, their ages spread as a
+  history's are (the cores ~2000 Myr old, the docking rings younger outward to the margins' 40–300 Myr, the pieces'
+  seams 5–150 Myr), each worn as Evolution's history wears a range — faster the higher it stands, on Evolution's own
+  clocks — so a range's age shows: young ranges high and sharp, middle-aged ones ridged hills, old ones worn low; cratons;
   seams closing into ranges or sagging into gulfs; the pieces' outlines bent by today's plates; continents that fit
   across their ocean; plumes, hotspot tracks and flood basalts; the far field pushing ranges inland.
 - **A geological record** (plans/GENERATE_DEPOSITS_PLAN.md) — written by the history's own steps, in shortcut: the old
