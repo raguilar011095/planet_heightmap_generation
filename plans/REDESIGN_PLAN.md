@@ -494,13 +494,13 @@ each checked in the browser.
   drawn by its Export maps at 2048 px in this stack's look; Evolution's, rebuilt on the merged code, came out byte for
   byte the same (#144 left Evolution's ridges as they were). Once main took Evolution's ridges with variety (#145), the
   stack merged it again and Calder, Linmore and the turning globe's maps and still were retaken the same way: the same
-  continents, their ridges more varied. Import's still come from the shared core's switch-over (generate/u5-switch-over, PR #134), before this
-  stack's light and colours (R5, R6).
+  continents, their ridges more varied. Import's still come from the shared core's switch-over (generate/u5-switch-over,
+  PR #134), before this stack's light and colours (R5, R6).
 - [x] Copy (the owner's words): the hero's buttons read **Generate your world** and **Evolve your world**; Import
   Heightmap is now just **Import**, one word like Generate and Evolution (the nav, its page, the Studio, the exports'
-  notes, llms.txt, the docs and, at the owner's go-ahead, VISION.md); Evolution's **Geology** is out of beta and **Food** keeps
-  its tag (its sub-bar, its tooltip, the tutorial, the Studio card). The current What's New still says both are in beta:
-  it is the last release's record, and the next one can say Geology is out.
+  notes, llms.txt, the docs and, at the owner's go-ahead, VISION.md); Evolution's **Geology** is out of beta and **Food**
+  keeps its tag (its sub-bar, its tooltip, the tutorial, the Studio card). The current What's New still says both are in
+  beta: it is the last release's record, and the next one can say Geology is out.
 - [x] The hero's globe turns (the owner: "the rotating globe up top, maybe transitioning between map modes as it does it"):
   Linmore, eastward, a turn in 100 s, fading from one view to the next (Satellite, Terrain, Climate, Rocks: 6 s each, a
   1.6 s fade), the view named in the caption beside a pause button (WCAG 2.2.2: moving for more than five seconds). A
@@ -534,3 +534,5 @@ each checked in the browser.
 - **2026-11-03:** R7 and R8: their own plans written, waiting for the owner's answers (nothing built), on `redesign-r7`: PR #108.
 - **2026-11-03:** R9 built and checked (all but What's New, the sitemap and the release, which wait for the owner), on `redesign-r9` (stacked on R7 and R8).
 - **2026-11-04:** R10, detail passes: batch 1 (the theme switch, the open area, the logo spinner, the Studio) on `redesign-polish`: PR #121; batch 2 (Evolution's loading screens); batch 3 (the graticule frame).
+- **2026-11-06:** the stack (#92 → #121, merged with main as of #145) collapsed into one pull request at the owner's
+  request, on `redesign`.
