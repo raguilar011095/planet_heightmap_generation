@@ -13,6 +13,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from patches import gnomonic_grid, CELL_KM, DOWN, OUT_PX, R_KM
 
 PXKM = CELL_KM / (OUT_PX / DOWN)        # 0.71875 km a pixel
+COAST_KM = 12                           # how far a coast may wander: the model's coastline within this of today's
+COAST_SIGMA_KM = 5                      # …its coastline's shape taken down to this scale (its low band below it is today's)
+ISLAND_CORE = 0.35                      # an island keeps the part of it farther from its shore than this share of its widest
 ISLAND_KM2 = 20000                      # an island, for the hold and the count: a landmass smaller than this (Sicily is 25,700 km²)
 smooth = lambda a, b, x: (lambda t: t * t * (3 - 2 * t))(np.clip((x - a) / (b - a), 0, 1))
 
@@ -158,10 +161,23 @@ def main(orogen, work, sigma_km):
         gate = 0.1 + 0.9 * smooth(0.012, 0.05, slope) * smooth(0.12, 0.7, rug)         # guard 5: the procedural gullies' gate
         out = fine + gate * hp
         out = out - G(out) + G(fine)                                                    # guard 1 again, as a guarantee: today's low band
-        dist = ndi.distance_transform_edt(~fine_sea) * PXKM; dsea = ndi.distance_transform_edt(fine_sea) * PXKM
+        # guard 4, loosened (the owner, 2026-11-06: coasts and islands may change shape "quite a bit, just not that
+        # aggressively"): within COAST_KM of today's coast the model's own coastline comes through — its heights relative to
+        # its low band at a finer scale (σ COAST_SIGMA_KM) on today's low band, blended in by nearness to the coast — so bays,
+        # headlands and islets form where it drew them; beyond the band the land and the sea are today's; each island keeps
+        # its core (the inner part of it, by distance from its shore) whatever the model drew, so none sinks
+        dist = ndi.distance_transform_edt(~fine_sea) * PXKM if fine_sea.any() else np.full((N, N), np.inf)      # (no sea in the window: no coast)
+        dsea = ndi.distance_transform_edt(fine_sea) * PXKM if (~fine_sea).any() else np.full((N, N), np.inf)
+        Gc = lambda a: ndi.gaussian_filter(a, COAST_SIGMA_KM / PXKM, mode='nearest')
+        coastMix = learned - Gc(learned) + Gc(fine)
+        wcoast = 1 - smooth(0, COAST_KM, np.maximum(dist, dsea))        # (each pixel's distance to the coast: on land dist, at sea dsea; the other is 0)
+        out = (1 - wcoast) * out + wcoast * coastMix
         lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
         small = np.isin(lab, 1 + np.where(sizes < ISLAND_KM2)[0])
-        hold_land = (dist > 2.2) | (small & (dist > PXKM)); hold_sea = dsea > 2.2       # guard 4: coasts wander 2.2 km, islands stay
+        core = np.zeros((N, N), bool)
+        for k in np.where(sizes < ISLAND_KM2)[0] + 1:
+            m = lab == k; core |= m & (dist > max(PXKM, ISLAND_CORE * dist[m].max()))
+        hold_land = (dist > COAST_KM) | core; hold_sea = dsea > COAST_KM
         out = np.where(hold_land, np.maximum(out, 0.005), out); out = np.where(hold_sea, np.minimum(out, -0.005), out)
         out = carve_river_beds(out, fine, reaches, N)                                   # guard 2: rivers run downhill, never above today's bed
         out_sea = np.where(hold_land, False, np.where(hold_sea, True, out <= 0))

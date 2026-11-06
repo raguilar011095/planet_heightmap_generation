@@ -257,12 +257,15 @@ whatever the network does. All run per window at the window's pixels, after the 
    pass once) checks that the accumulated area at each river pixel is within a factor of the picture's; where the detail
    has turned a slope away from its river (a learned side valley draining the other way), the residual's amplitude is
    faded there and the pixel re-checked. Reported as a per-window number in the dev harness, so a regression shows.
-4. **Coasts wander, islands stay.** The picture's land mask is kept with a tolerance: pixels farther than
-   `coastWiggleKm` inside the picture's land are held above sea (at least a few metres), pixels farther than that into
-   the sea are held below; within the band the composite decides, so headlands and coves still form. A landmass that
-   is small in the picture (a few cells) is held whole: its pixels get the inside rule at a smaller tolerance, so an
-   islet may change shape or gain a lagoon but never sinks. No new land appears beyond the band: the sea's residual is
-   clamped below zero there (the sea floor's own detail is a later item, as D5 was).
+4. **Coasts move, islands stay.** The owner (2026-11-06, on the first run): coasts and islands "should be able to
+   edit shapes quite a bit, just not that aggressively". So the coast is a wide band, not a tolerance: within ~12 km of
+   today's coast the model's own coastline comes through (its heights relative to its low band at a finer scale, ~5 km,
+   laid on today's low band, blended in by nearness to the coast), so bays, headlands, spits and offshore islets form
+   where it drew them; beyond the band the land and the sea are today's, so no coast moves far and no new land appears
+   in the open sea. Each island keeps its **core**, the part of it farther from its shore than about a third of its
+   widest, whatever the model drew, so an island changes outline but never sinks or splits into an archipelago (what the
+   raw model did to two round islands). Phase 0 (§10) measured the land's share on the islands patch at 0.32 today and
+   0.27 with the model: a visible redraw of every shore, the islands themselves kept.
 5. **Plateaus stay flat.** The residual's amplitude is gated by the picture's slope and ruggedness exactly as the
    procedural gullies are (`gullySlope`, `gullyRugged`), so the learned layer, like today's, draws nothing on plains
    and plateau tops. This is also where the model must be trained (on residuals gated the same way), or it will learn
@@ -444,16 +447,20 @@ guards applied with today's surface as the ground (§4). 12–13 minutes a patch
 - **Rivers mean nothing to it**: a third of the steps along our rivers climb in its output (today: 0.3–6 %, the
   picture's own sampling). Coasts likewise.
 
-**With the guards, on top of today's detail** (the model's high band at σ 12 km, gated by slope and ruggedness, today's
-land held beyond 2.2 km of its coast, each reach's bed monotone and never above today's):
+**With the guards, on top of today's detail** (the model's high band at σ 12 km, gated by slope and ruggedness, the
+coasts free to move within 12 km of today's with the model's coastline blended in there and each island's core held
+(§5.4, loosened after the owner's look at the first guarded render: "too strong"), each reach's bed monotone and never
+above today's):
 
 | patch | relief within 10 km: today / today + model | median slope: today / today + model | river steps that climb | islands lost |
 |---|---|---|---|---|
 | range | 405 / 740 m | 0.035 / 0.061 | 0.4 % (one 360 m step at a junction of reaches) | – |
-| islands | 39 / 63 m | 0.0009 / 0.005 | 0.05 % | 0 |
-| river | 24 / 36 m | 0.0022 / 0.0037 | 0.08 % | – |
+| islands | 39 / 72 m | 0.0009 / 0.005 | 0.05 % | 0 (land share 0.32 → 0.27: every shore redrawn, both islands whole) |
+| river | 24 / 36 m | 0.0022 / 0.0037 | 0.08 % | – (a straight coast grown headlands, coves and islets) |
 
-- The broad shape, the coasts, the islands and the rivers all hold, by construction. What is left of the model is a
+- The broad shape, the islands and the rivers hold by construction, and the coasts move the way the owner asked: the
+  islands patch's two round islands gained bays, capes and a fringe of islets and lost a sixth of their land without
+  losing their bodies; the lowland's straight coast grew headlands and coves. What is left of the model is a
   texture layer: on the range's rim and slopes a strong one (relief within 10 km up 80 % over today's, in branching
   valleys rather than stripes), on the plateau top and the plains a whisper (the gate's floor of 10 %).
 - The cost of forcing it is visible too: the guarded range panel shows the model's valleys *cut off* where they met the

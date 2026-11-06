@@ -24,7 +24,7 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    patch on four CPU cores; seconds on a GPU.
 5. `guards.py` — §5's guards on the patch's 720 m pixels, the model's high band laid **on top of today's procedural detail**
    (the owner's call): the model's low band dropped (σ 12 km) and today's kept, its residual gated by the slope and
-   ruggedness as the procedural gullies are, today's land held beyond 2.2 km of its coast (small islands beyond one pixel),
+   ruggedness as the procedural gullies are, the coasts free to move within 12 km of today's (the model's own coastline blended in there, its shape down to 5 km on today's low band), each island's core held so none sinks,
    each river reach's bed made monotone descending and never above today's with a soft V about it; then the measurements (relief within 5 and 10 km, slopes, the share of river steps that climb,
    catchment areas by D8 against the base's, islands lost, the low band's drift) and a four-panel render per patch:
    the base, today's detail, the model raw, today's detail plus the model's guarded high band.
