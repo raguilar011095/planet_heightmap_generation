@@ -168,7 +168,8 @@ def main(orogen, work, sigma_km):
         land = ~base_sea
         def relief(a, km):
             s = int(km / PXKM) | 1
-            return float(np.median((ndi.maximum_filter(a, s) - ndi.minimum_filter(a, s))[land & (base > 0.5)])) if (land & (base > 0.5)).any() else 0
+            m = land & (base > 0.5) if (land & (base > 0.5)).sum() > 500 else land
+            return float(np.median((ndi.maximum_filter(a, s) - ndi.minimum_filter(a, s))[m])) if m.any() else 0
         accb = d8_accumulation(base); acco = d8_accumulation(out)
         rp = np.zeros((N, N), bool)
         for rr, cc, qq in reaches: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True

@@ -17,8 +17,8 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    0.61 km a pixel (the planet 65,536 px wide: the page's zoom level 8).
 4. `patches.py run` — the model, patch by patch: its five coarse channels (heights in m, mean temperature, its seasonal
    standard deviation, the year's rain, its coefficient of variation) sampled from Orogen's picture and 1° climate at
-   each cell's latitude and longitude, 64 cells of real surroundings as padding, the conditioning strength (`--snr`) 2 for
-   the heights and 1 for the climate; its 90 m output averaged down to 720 m. Needs the repository's Python environment
+   each cell's latitude and longitude, 64 cells of real surroundings as padding, the conditioning noise (`--snr`: 0 is the map as given, more is less of it) 0.1 for
+   the heights, 0.2 for temperature and rain, 1 for their seasonality (roughly estimated here); its 90 m output averaged down to 720 m. Needs the repository's Python environment
    (`pip install -r requirements.txt` there, or the subset: torch, torchvision, diffusers, infinite-tensor, numba, scipy,
    scikit-image, h5py, pyfastnoiselite, rasterio, matplotlib, ema-pytorch, accelerate) and the weights. About 12 minutes a
    patch on four CPU cores; seconds on a GPU.

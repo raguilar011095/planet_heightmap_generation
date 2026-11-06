@@ -4,7 +4,12 @@ an Orogen moment, conditioned on Orogen's own picture and climate — the coarse
 in metres, the mean temperature in °C, its seasonal standard deviation, the year's rain in mm and its coefficient of variation).
 
   python patches.py plan   <orogenDir> <workDir> [--cells 16]      the patches' geometry and the windows for fine-windows.mjs
-  python patches.py run    <orogenDir> <workDir> <tdRepo> <weights> [--snr 3,1,1,1,1] [--seed 7]   the model, patch by patch
+  python patches.py run    <orogenDir> <workDir> <tdRepo> <weights> [--snr 0.1,0.2,1,0.2,1] [--seed 7]   the model, patch by patch
+
+`--snr` is the model's conditioning noise, one value per channel (heights, temperature, its std, rain, its cv): the coarse map
+is mixed with noise as cos(atan(snr)) · map + sin(atan(snr)) · noise, so **0 is the map as given and larger is less of
+it** (the README's "refinement strength"; 0.2 … 1.0 for Azgaar's crude sketches). The first run here used 2 for the heights
+by mistake and the model all but ignored them (the range came out at half its height, the islands sank).
 
 A patch is a square of N × N coarse cells of 23 km on a tangent plane at its centre (gnomonic: distortion sec²θ ≤ 1.01 at
 these sizes), its cells sampled from the picture by their latitude and longitude. The model's 90 m output is averaged down
@@ -117,4 +122,4 @@ if __name__ == '__main__':
     cmd, orogen, work = sys.argv[1:4]
     arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
     if cmd == 'plan': plan(orogen, work, int(arg('--cells', 16)))
-    elif cmd == 'run': run(orogen, work, sys.argv[4], sys.argv[5], [float(x) for x in arg('--snr', '3,1,1,1,1').split(',')], int(arg('--seed', 7)))
+    elif cmd == 'run': run(orogen, work, sys.argv[4], sys.argv[5], [float(x) for x in arg('--snr', '0.1,0.2,1,0.2,1').split(',')], int(arg('--seed', 7)))
