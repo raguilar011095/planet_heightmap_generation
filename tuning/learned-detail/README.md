@@ -22,11 +22,17 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    (`pip install -r requirements.txt` there, or the subset: torch, torchvision, diffusers, infinite-tensor, numba, scipy,
    scikit-image, h5py, pyfastnoiselite, rasterio, matplotlib, ema-pytorch, accelerate) and the weights. About 12 minutes a
    patch on four CPU cores; seconds on a GPU.
-5. `guards.py` — §5's guards on the patch's 720 m pixels, the model's high band laid **on top of today's procedural detail**
-   (the owner's call): the model's low band dropped (σ 12 km) and today's kept, its residual gated by the slope and
-   ruggedness as the procedural gullies are, the coasts free to move within 12 km of today's (the model's own coastline blended in there, its shape down to 5 km on today's low band), each island's core held so none sinks,
-   each river reach's bed made monotone descending and never above today's with a soft V about it; then the measurements (relief within 5 and 10 km, slopes, the share of river steps that climb,
-   catchment areas by D8 against the base's, islands lost, the low band's drift) and a four-panel render per patch:
-   the base, today's detail, the model raw, today's detail plus the model's guarded high band.
+5. `guards.py` — the guards on the patch's 720 m pixels, in two modes, with measurements (relief within 5 and 10 km, slopes,
+   the share of river steps that climb, how far the rivers moved, catchment areas by D8 against today's, islands lost, the
+   model's low band's drift from the picture's) and a four-panel render per patch: the base, today's detail, the model
+   raw, and the guarded result.
+   - `--mode light` (the default; the owner's call after seeing the strict renders: "the raw ones really are the best by
+     far"): the model kept whole below 30 km (its coarsest band replaced by today's), today's land farther than 12 km
+     from its shore and the land under its rivers lifted gently above the sea where the model drowned it, each river
+     re-routed along the model's own valleys within 5 km of its line (a least-cost path, pulled gently toward the line)
+     and made to descend. Renders `renders/{range,islands,river}.png`.
+   - `--mode strict` (the first design): the model's high band (σ 12 km) gated by slope and ruggedness and laid on top of
+     today's procedural detail, coasts free within 12 km of today's and each island's core held, each reach's bed carved
+     monotone along its fixed line. Renders `renders/*-strict.png`.
 
 The renders and `results.json` of the run of 2026-11-06 are in `renders/` (downsized to 1024 px; `range-noise2-lesson.png` is the first run, with the conditioning noise at 2 by mistake); the plan's §10 reads them.

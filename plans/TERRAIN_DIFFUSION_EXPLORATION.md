@@ -27,11 +27,13 @@ to put a flat-tile model on a sphere, and a recommendation. Nothing here is buil
   That family is the only one where a flat model runs unchanged (Tangent Images, SphereDiff, 360MonoDepth); cube faces
   stretch 2–3× at their corners and HEALPix or icosahedral grids need retraining. The current zoom tiles already stop
   at ±85°; patches would also fill that hole.
-- **Phase 0 was run in the session** (§10): Terrain Diffusion on three patches of an Orogen moment, on CPU. Its texture
-  on steep ground is the most convincing relief in the comparison, but even at its most faithful setting it redrew the
-  broad shape (a plateau rim by ~500 m, two islands into an archipelago, a plain into hills) and ignored the rivers; the
-  guards restore all of that, leaving a texture layer that is strong on slopes and a whisper on plains, with visible
-  seams where the model was overruled. That favours training Orogen's own residual network over borrowing one.
+- **Phase 0 was run in the session** (§10): Terrain Diffusion on three patches of an Orogen moment, on CPU. Even at
+  its most faithful setting it redrew the broad shape (a plateau rim by ~500 m, two islands into an archipelago, a plain
+  into hills) and ignored the rivers; but the owner's judgment on the renders is that its raw texture is "the best by
+  far". A **light** set of guards (§5) keeps the model whole below 30 km, lifts drowned islands instead of clipping
+  them and re-routes the rivers along the model's own valleys within a few km of their lines: the shape and the rivers
+  hold at almost no cost to the texture. The question is now delivery (half a gigabyte of weights and a GPU), not
+  quality: an offline detail pass first, a desktop-WebGPU opt-in second, a distilled model of our own third (§10).
 - **Recommendation** (§8): do not integrate a third-party model. First, a two-week **offline experiment** feeding
   Orogen's own exports (heightmap, temperature, rain at ~23 km a pixel) into Terrain Diffusion's pipeline on a desktop
   GPU, patch by patch, to see whether learned detail conditioned on our picture looks better than the procedural detail
@@ -239,6 +241,36 @@ The shape of the change, in the files that exist:
   Runtime Web), `llms.txt`, the JSON-LD feature list.
 
 ## 5. Keeping the rivers, the coasts and the islands
+
+**The owner's priorities, after the Phase 0 renders (2026-11-06):** "Really the only thing I care on are the rivers, and
+even then only if it's like just loosely in the same spot and going in the same direction. The raw ones really are the
+best by far, I just don't want to throw away too much of the shape. The raw has the best texture, it just carves too
+much of islands, especially when low." So the guards below are the **light** set, built and shown in §10: start from
+the model's output and correct as little as possible.
+
+1. **Only the coarsest band is ours.** The model's heights relative to their own low band at σ 30 km (the mesh's cell
+   at 640K; a km target, so the same at every Detail) are laid on today's low band. Everything the model drew below
+   30 km stays, its carving included; the plateau, the basins and the islands stay where the history put them.
+2. **Low land is lifted, not clipped.** Where the model drowned today's land farther than ~12 km from its shore (an
+   island's core, a continent's interior) or the land under today's rivers, the ground is lifted gently as a whole
+   (the deficit below sea level, dilated and blurred, added back), so an island keeps its body and its texture, while
+   within 12 km of the shore the model's bays, straits and islets stand.
+3. **Rivers follow the model's valleys, loosely where they were.** Each reach is re-routed between its ends by the
+   least-cost path through the model's heights within a corridor of ~5 km about its line (cost: height above the
+   corridor's floor, climbs dearly, a gentle pull toward the line), so it runs down the valley the model drew where
+   there is one and keeps its line where there is none; then its bed is made monotone descending and the ground about it
+   lowered to the bed with a wide shallow V where the model had no valley. In §10 the rivers moved 1–2 km on average and
+   fewer than 0.4 % of their steps climb. The page would draw the re-routed lines (the rivers' points re-snapped), which
+   is a change to how a detailed moment keeps its rivers.
+4. **No slope gate, no coast band.** The model's texture is wanted everywhere, plains included (the owner: "the raw
+   ones really are the best by far"); coasts are free, held only by the lift of 2.
+
+The **strict** set, built first and kept in the scripts as `--mode strict` (the model's high band at σ 12 km gated by
+slope and ruggedness on top of today's detail, coasts held within a band, river beds carved along the fixed lines),
+kept everything but, in the owner's eye, threw away what made the model worth running. Its guards are still the right
+ones for a model Orogen trains itself (§8), where the texture and the shape come from the same network and nothing has
+to be overruled. What follows is that first design, for the record.
+
 
 The owner's constraints are not hopes for a well-behaved model; they are **guards applied to its output**, so they hold
 whatever the network does. All run per window at the window's pixels, after the residual and before compositing.
@@ -474,7 +506,34 @@ above today's):
   detail finer than the carve's grid would, today's included. The guard that fades the residual where drainage broke
   (§5.3) was not applied here; it is the next thing to build if this continues.
 
-**What this says for §8.** The phase's question was whether learned detail conditioned on our picture looks better than
+**With the light guards** (§5 as finally written: the model kept below 30 km, low land lifted, rivers re-routed along its
+valleys within 5 km; renders `tuning/learned-detail/renders/{range,islands,river}.png`, the strict ones beside them as
+`-strict`):
+
+| patch | relief within 10 km: today / raw / light | land share: today / raw / light | river steps that climb: raw / light | rivers moved (mean) |
+|---|---|---|---|---|
+| range | 405 / 975 / 995 m | 1 / 1 / 1 | 36 % / 0.35 % | 1.8 km |
+| islands | 39 / 198 / 201 m | 0.32 / 0.11 / 0.30 | 14 % / 0.1 % | 2.0 km |
+| river | 24 / 187 / 187 m | 0.47 / 0.44 / 0.47 | 32 % / 0.25 % | 1.1 km |
+
+The texture is the model's, unchanged (the relief figures match the raw's); the broad shape is ours (the plateau's rim
+back where the history put it, the islands whole with the model's ridge spine on them and its bays cut into their
+margins, the lowland's coast grown headlands and islets); the rivers run down the model's valleys within a couple of km
+of their lines. This is the version the owner asked for.
+
+**What this says for §8.** The owner's judgment on the renders: the model's raw texture is "the best by far", and the
+light guards keep enough of the shape and the rivers at almost no cost to it. That changes the question from quality to
+**delivery**: Terrain Diffusion's look is the target, and the obstacles are its half-gigabyte of fp16 weights, a GPU, and
+a PyTorch sampler, none of which the browser or a phone has (§2). The paths are, in order of cost: (a) an **offline
+detail pass**, a desktop tool (Python, a GPU) that takes a planet file or an export and returns the detailed heights, for
+the artists and developers of the vision's third audience; (b) a **desktop-WebGPU opt-in** in Evolution's Add detail,
+with the model's ONNX export, a JavaScript port of its two-step sampler and InfiniteDiffusion's windowing, and a
+half-gigabyte download it warns about; (c) a **distilled, smaller model** trained from it (its author ships the training
+code) conditioned on our drivers, which is Phase 2 with a better teacher. The procedural layer gains the same two things
+as before (the river guards; branching gullies), and the strict guards keep their place for a model of our own. The
+earlier verdict stands too: §10's first table shows what the model does to the broad shape when it is not held.
+
+**What this said before the owner's look.** The phase's question was whether learned detail conditioned on our picture looks better than
 the procedural detail. The honest answer from three patches: the *texture* does, on steep ground; the *model* does not,
 because it insists on its own broad shape and knows nothing of the plains, the rivers or the coasts, so most of what it
 makes has to be thrown away or overruled. That favours Phase 2's own network over any borrowed one: a residual model that

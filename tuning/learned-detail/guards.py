@@ -3,7 +3,11 @@ Phase 0 of plans/TERRAIN_DIFFUSION_EXPLORATION.md: the guards of its §5 applied
 detail finer than the mesh (fine-windows.mjs; the picture enlarged, the base, shown too) — all on the patch's 720 m pixels —
 with measurements and a four-panel render for each patch: base | today's detail | the model raw | the model with the guards.
 
-  python guards.py <orogenDir> <workDir> [--sigma-km 12]
+  python guards.py <orogenDir> <workDir> [--mode light|strict] [--sigma-km 12]
+
+  light (the default; the owner's call after the strict renders): the raw model kept below the mesh's scale, its coarsest
+  band ours (σ 30 km), today's inland land lifted above the sea where the model drowned it, each river snapped to the model's
+  nearest valley and made to descend. strict: §5 as first written, the model's high band gated on top of today's detail.
 """
 import sys, json, math, os
 import numpy as np
@@ -13,6 +17,9 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from patches import gnomonic_grid, CELL_KM, DOWN, OUT_PX, R_KM
 
 PXKM = CELL_KM / (OUT_PX / DOWN)        # 0.71875 km a pixel
+LOCK_SIGMA_KM = 30                      # light mode: only the band coarser than this (the mesh's cell at 640K) is held to ours; the model keeps all below
+LIFT_KM = 12                            # light mode: today's land farther than this from its coast (an island's core) is kept above the sea, lifted gently, not clipped; nearer, the model's bays and straits stand
+RIVER_CORRIDOR_PX = 7                   # light mode: a river may move this far (5 km) to follow the model's own valley
 COAST_KM = 12                           # how far a coast may wander: the model's coastline within this of today's
 COAST_SIGMA_KM = 5                      # …its coastline's shape taken down to this scale (its low band below it is today's)
 ISLAND_CORE = 0.35                      # an island keeps the part of it farther from its shore than this share of its widest
@@ -119,6 +126,76 @@ def carve_river_beds(h, base, reaches, N):
         sub[m] = np.minimum(sub[m], lim[m])
     return out
 
+def river_route(h, reaches, N, corridor=None):
+    """Light mode's rivers, "loosely in the same spot and going in the same direction": each reach re-routed between its ends
+    along the least-cost path through the model's heights within a corridor about its line (cost: height above the corridor's
+    floor, climbs dearly), so it follows the model's own valleys where there are any. Returns the routed reaches."""
+    import heapq
+    corridor = corridor or RIVER_CORRIDOR_PX
+    yy, xx = np.mgrid[0:N, 0:N]
+    out = []
+    for rr, cc, qq in reaches:
+        ri = np.clip(np.rint(rr).astype(int), 0, N - 1); ci = np.clip(np.rint(cc).astype(int), 0, N - 1)
+        # the corridor: pixels within `corridor` of any point of the line
+        mask = np.zeros((N, N), bool); mask[ri, ci] = True
+        mask = ndi.binary_dilation(mask, iterations=corridor)
+        ys, xs = np.nonzero(mask); floor = h[mask].min()
+        idx = {(y, x): k for k, (y, x) in enumerate(zip(ys, xs))}
+        line = np.ones((N, N), bool); line[ri, ci] = False
+        dline = ndi.distance_transform_edt(line) / corridor                   # 0 on the line … 1 at the corridor's edge
+        a, b = (ri[0], ci[0]), (ri[-1], ci[-1])
+        if h[a] < h[b]: a, b = b, a                                          # from the higher end down
+        dist = {a: 0.0}; prev = {}; pq = [(0.0, a)]
+        while pq:
+            d, u = heapq.heappop(pq)
+            if u == b: break
+            if d > dist.get(u, np.inf): continue
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    if not dy and not dx: continue
+                    v = (u[0] + dy, u[1] + dx)
+                    if v not in idx: continue
+                    step = math.hypot(dy, dx)
+                    cost = step * (0.2 + (h[v] - floor) * 10 + 1.5 * dline[v]) + 40 * max(0.0, h[v] - h[u])   # km above the floor, the line's pull, climbs ×40
+                    nd = d + cost
+                    if nd < dist.get(v, np.inf): dist[v] = nd; prev[v] = u; heapq.heappush(pq, (nd, v))
+        if b not in prev: out.append((rr, cc, qq)); continue
+        path = [b]
+        while path[-1] != a: path.append(prev[path[-1]])
+        path = path[::-1]
+        pr = np.array([p[0] for p in path], float); pc = np.array([p[1] for p in path], float)
+        for _ in range(2):                                                   # Chaikin's corner cutting: the stairs of the 8-connected path smoothed, the ends kept
+            if len(pr) < 3: break
+            qr = np.empty(2 * len(pr) - 2); qc = np.empty(2 * len(pr) - 2)
+            qr[0::2] = 0.75 * pr[:-1] + 0.25 * pr[1:]; qr[1::2] = 0.25 * pr[:-1] + 0.75 * pr[1:]
+            qc[0::2] = 0.75 * pc[:-1] + 0.25 * pc[1:]; qc[1::2] = 0.25 * pc[:-1] + 0.75 * pc[1:]
+            pr = np.concatenate([[pr[0]], qr, [pr[-1]]]); pc = np.concatenate([[pc[0]], qc, [pc[-1]]])
+        out.append((pr, pc, np.full(len(pr), float(qq.max()))))
+    return out
+
+def river_corridor_carve(h, reaches, N, K=0.01):
+    """Light mode's rivers: each reach snapped to the lowest ground within its corridor (the model's own valley, where there is one
+    nearby), its bed monotone descending, the ground about it lowered to the bed with a wide shallow V (K km a pixel)."""
+    out = h.copy(); bed = np.full((N, N), np.inf); rad = np.zeros((N, N))
+    yy, xx = np.mgrid[0:N, 0:N]
+    for rr, cc, qq in reaches:
+        ri = np.clip(np.rint(rr).astype(int), 0, N - 1); ci = np.clip(np.rint(cc).astype(int), 0, N - 1)
+        r = np.clip(0.5 * np.log10(np.maximum(qq, 1)), 1.5, 5)
+        v = np.empty(len(ri))
+        for i in range(len(ri)):
+            R = int(math.ceil(r[i])); y0, y1, x0, x1 = max(0, ri[i] - R), min(N, ri[i] + R + 1), max(0, ci[i] - R), min(N, ci[i] + R + 1)
+            v[i] = out[y0:y1, x0:x1].min()                                                  # the corridor's lowest: "loosely in the same spot"
+        if v[0] < v[-1]: ri, ci, v, r = ri[::-1], ci[::-1], v[::-1], r[::-1]                 # downstream by the model's own fall
+        b = v.copy()
+        for i in range(1, len(b)): b[i] = min(b[i], b[i - 1] - 1e-5)
+        np.minimum.at(bed, (ri, ci), b); np.maximum.at(rad, (ri, ci), r)
+    ys, xs = np.nonzero(np.isfinite(bed))
+    for y, x in zip(ys, xs):
+        R = int(math.ceil(rad[y, x])); y0, y1, x0, x1 = max(0, y - R), min(N, y + R + 1), max(0, x - R), min(N, x + R + 1)
+        d = np.hypot(yy[y0:y1, x0:x1] - y, xx[y0:y1, x0:x1] - x); m = d <= rad[y, x]
+        sub = out[y0:y1, x0:x1]; sub[m] = np.minimum(sub[m], bed[y, x] + K * d[m])
+    return out
+
 def hillshade_rgb(h, sea, rivers_px, title, scale=2):
     N = h.shape[0]
     gy, gx = np.gradient(h, PXKM)
@@ -138,7 +215,7 @@ def hillshade_rgb(h, sea, rivers_px, title, scale=2):
     d.rectangle([0, 0, 8 * len(title) + 10, 16], fill=(0, 0, 0)); d.text((5, 2), title, fill=(255, 255, 255))
     return im
 
-def main(orogen, work, sigma_km):
+def main(orogen, work, sigma_km, mode):
     rivers = json.load(open(f'{orogen}/rivers.json'))
     results = {}
     for name in sorted(os.listdir(f'{work}/patches')):
@@ -153,35 +230,59 @@ def main(orogen, work, sigma_km):
         reaches = river_pixels(rivers, p, N)
         sig = sigma_km / PXKM
         G = lambda a: ndi.gaussian_filter(a, sig, mode='nearest')
-        # ── the guards (the owner, 2026-11-06: the learned detail goes on top of the procedural detail — `fine`, today's surface,
-        # is the ground it is added to and the ground the locks refer to) ──
-        hp = learned - G(learned)                                                       # guard 1: only the high band is the model's
-        slope = slope_of(base)
-        rug = ndi.maximum_filter(base, size=int(20 / PXKM) | 1) - ndi.minimum_filter(base, size=int(20 / PXKM) | 1)
-        gate = 0.1 + 0.9 * smooth(0.012, 0.05, slope) * smooth(0.12, 0.7, rug)         # guard 5: the procedural gullies' gate
-        out = fine + gate * hp
-        out = out - G(out) + G(fine)                                                    # guard 1 again, as a guarantee: today's low band
-        # guard 4, loosened (the owner, 2026-11-06: coasts and islands may change shape "quite a bit, just not that
-        # aggressively"): within COAST_KM of today's coast the model's own coastline comes through — its heights relative to
-        # its low band at a finer scale (σ COAST_SIGMA_KM) on today's low band, blended in by nearness to the coast — so bays,
-        # headlands and islets form where it drew them; beyond the band the land and the sea are today's; each island keeps
-        # its core (the inner part of it, by distance from its shore) whatever the model drew, so none sinks
-        dist = ndi.distance_transform_edt(~fine_sea) * PXKM if fine_sea.any() else np.full((N, N), np.inf)      # (no sea in the window: no coast)
-        dsea = ndi.distance_transform_edt(fine_sea) * PXKM if (~fine_sea).any() else np.full((N, N), np.inf)
-        Gc = lambda a: ndi.gaussian_filter(a, COAST_SIGMA_KM / PXKM, mode='nearest')
-        coastMix = learned - Gc(learned) + Gc(fine)
-        wcoast = 1 - smooth(0, COAST_KM, np.maximum(dist, dsea))        # (each pixel's distance to the coast: on land dist, at sea dsea; the other is 0)
-        out = (1 - wcoast) * out + wcoast * coastMix
-        lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
-        small = np.isin(lab, 1 + np.where(sizes < ISLAND_KM2)[0])
-        core = np.zeros((N, N), bool)
-        for k in np.where(sizes < ISLAND_KM2)[0] + 1:
-            m = lab == k; core |= m & (dist > max(PXKM, ISLAND_CORE * dist[m].max()))
-        hold_land = (dist > COAST_KM) | core; hold_sea = dsea > COAST_KM
-        out = np.where(hold_land, np.maximum(out, 0.005), out); out = np.where(hold_sea, np.minimum(out, -0.005), out)
-        out = carve_river_beds(out, fine, reaches, N)                                   # guard 2: rivers run downhill, never above today's bed
-        out_sea = np.where(hold_land, False, np.where(hold_sea, True, out <= 0))
-        raw_sea = learned <= 0
+        if mode == 'light':
+            # ── light guards (the owner, 2026-11-06, on the strict ones: "the raw ones really are the best by far, I just don't
+            # want to throw away too much of the shape … it carves too much of islands especially when low"; the rivers need only
+            # be "loosely in the same spot and going in the same direction") ──
+            GL = lambda a: ndi.gaussian_filter(a, LOCK_SIGMA_KM / PXKM, mode='nearest')
+            out = learned - GL(learned) + GL(fine)                                          # only the coarsest band is ours: the plateau and the islands stay put
+            dist = ndi.distance_transform_edt(~fine_sea) * PXKM if fine_sea.any() else np.full((N, N), np.inf)
+            inland = (~fine_sea) & (dist > LIFT_KM)
+            under = np.zeros((N, N), bool)                                                    # …and the land under today's rivers (a strip of it), so no river runs over the sea
+            for rr, cc, qq in reaches: under[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
+            inland |= ndi.binary_dilation(under, iterations=2) & (~fine_sea) & (dist > 1.5 * PXKM)
+            deficit = np.where(inland, np.maximum(0, 0.004 - out), 0)                         # today's land the model drowned…
+            lift = ndi.gaussian_filter(ndi.maximum_filter(deficit, size=7), 2, mode='nearest')  # …lifted gently as a whole, no clipping
+            out = out + lift
+            out = np.where(inland, np.maximum(out, 0.002), out)                              # (what the smoothing left under, by a hair)
+            routed = river_route(out, reaches, N)                                            # rivers: re-routed along the model's valleys within 5 km of their lines…
+            out = river_corridor_carve(out, routed, N)                                       # …then made to descend, with a shallow valley where the model had none
+            reaches_drawn = routed
+            lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
+            gate = np.ones((N, N)); hold_land = inland; hold_sea = np.zeros((N, N), bool)
+            out_sea = out <= 0; raw_sea = learned <= 0
+            label4 = 'Terrain Diffusion, light guards'
+        else:
+          label4 = 'today + Terrain Diffusion, guarded'; reaches_drawn = reaches
+          # ── the guards (the owner, 2026-11-06: the learned detail goes on top of the procedural detail — `fine`, today's surface,
+          # is the ground it is added to and the ground the locks refer to) ──
+          hp = learned - G(learned)                                                       # guard 1: only the high band is the model's
+          slope = slope_of(base)
+          rug = ndi.maximum_filter(base, size=int(20 / PXKM) | 1) - ndi.minimum_filter(base, size=int(20 / PXKM) | 1)
+          gate = 0.1 + 0.9 * smooth(0.012, 0.05, slope) * smooth(0.12, 0.7, rug)         # guard 5: the procedural gullies' gate
+          out = fine + gate * hp
+          out = out - G(out) + G(fine)                                                    # guard 1 again, as a guarantee: today's low band
+          # guard 4, loosened (the owner, 2026-11-06: coasts and islands may change shape "quite a bit, just not that
+          # aggressively"): within COAST_KM of today's coast the model's own coastline comes through — its heights relative to
+          # its low band at a finer scale (σ COAST_SIGMA_KM) on today's low band, blended in by nearness to the coast — so bays,
+          # headlands and islets form where it drew them; beyond the band the land and the sea are today's; each island keeps
+          # its core (the inner part of it, by distance from its shore) whatever the model drew, so none sinks
+          dist = ndi.distance_transform_edt(~fine_sea) * PXKM if fine_sea.any() else np.full((N, N), np.inf)      # (no sea in the window: no coast)
+          dsea = ndi.distance_transform_edt(fine_sea) * PXKM if (~fine_sea).any() else np.full((N, N), np.inf)
+          Gc = lambda a: ndi.gaussian_filter(a, COAST_SIGMA_KM / PXKM, mode='nearest')
+          coastMix = learned - Gc(learned) + Gc(fine)
+          wcoast = 1 - smooth(0, COAST_KM, np.maximum(dist, dsea))        # (each pixel's distance to the coast: on land dist, at sea dsea; the other is 0)
+          out = (1 - wcoast) * out + wcoast * coastMix
+          lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
+          small = np.isin(lab, 1 + np.where(sizes < ISLAND_KM2)[0])
+          core = np.zeros((N, N), bool)
+          for k in np.where(sizes < ISLAND_KM2)[0] + 1:
+              m = lab == k; core |= m & (dist > max(PXKM, ISLAND_CORE * dist[m].max()))
+          hold_land = (dist > COAST_KM) | core; hold_sea = dsea > COAST_KM
+          out = np.where(hold_land, np.maximum(out, 0.005), out); out = np.where(hold_sea, np.minimum(out, -0.005), out)
+          out = carve_river_beds(out, fine, reaches, N)                                   # guard 2: rivers run downhill, never above today's bed
+          out_sea = np.where(hold_land, False, np.where(hold_sea, True, out <= 0))
+          raw_sea = learned <= 0
         # ── measurements ──
         land = ~fine_sea
         def relief(a, km):
@@ -190,7 +291,7 @@ def main(orogen, work, sigma_km):
             return float(np.median((ndi.maximum_filter(a, s) - ndi.minimum_filter(a, s))[m])) if m.any() else 0
         accb = d8_accumulation(fine); acco = d8_accumulation(out)      # (catchments against today's: the model's effect alone)
         rp = np.zeros((N, N), bool)
-        for rr, cc, qq in reaches: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
+        for rr, cc, qq in reaches_drawn: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
         ratio = (acco[rp] + 1) / (accb[rp] + 1)
         isl_lost = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < ISLAND_KM2 and not (~out_sea)[lab == k].any()))
         rlab, rn = ndi.label(~base_sea); rsizes = ndi.sum(~base_sea, rlab, index=np.arange(1, rn + 1)) * PXKM * PXKM
@@ -201,24 +302,25 @@ def main(orogen, work, sigma_km):
             'relief10km_m': {k: relief(a, 10) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
             'relief5km_m': {k: relief(a, 5) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
             'medianSlopeLand': {k: float(np.median(slope_of(a)[land])) for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
-            'riverClimbShare': {k: river_ascents(a, reaches, base)[0] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
-            'riverWorstClimb_m': {k: river_ascents(a, reaches, base)[1] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
+            'riverClimbShare': {**{k: river_ascents(a, reaches, base)[0] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned)]}, 'todayPlusModel': river_ascents(out, reaches_drawn, out)[0]},
+            'riverWorstClimb_m': {**{k: river_ascents(a, reaches, base)[1] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned)]}, 'todayPlusModel': river_ascents(out, reaches_drawn, out)[1]},
             'landShare': {k: float((~s).mean()) for k, s in [('base', base_sea), ('today', fine_sea), ('learnedRaw', raw_sea), ('todayPlusModel', out_sea)]},
             'islandsLost': {'learnedRaw': isl_lost_raw, 'todayPlusModel': isl_lost},
             'riverCatchment_medianRatioVsToday': float(np.median(ratio)) if rp.any() else None,
             'riverCatchment_shareBelowHalfVsToday': float((ratio < 0.5).mean()) if rp.any() else None,
             'gateMeanLand': float(gate[land].mean()),
+            'riverMoved_km_mean': float(np.mean([np.mean([np.min(np.hypot(o[0] - y, o[1] - x)) for y, x in zip(r[0], r[1])]) for o, r in zip(reaches, reaches_drawn)]) * PXKM) if reaches else 0.0,
         }
         results[name] = m
         np.save(f'{d}/todayPlusModel.npy', out); np.save(f'{d}/base.npy', base); np.save(f'{d}/today.npy', fine)
         panels = [hillshade_rgb(base, base_sea, reaches, f'{name}: picture enlarged (base)'), hillshade_rgb(fine, fine_sea, reaches, 'today: procedural detail'),
-                  hillshade_rgb(learned, raw_sea, reaches, 'Terrain Diffusion, raw'), hillshade_rgb(out, out_sea, reaches, 'today + Terrain Diffusion, guarded')]
+                  hillshade_rgb(learned, raw_sea, reaches, 'Terrain Diffusion, raw'), hillshade_rgb(out, out_sea, reaches_drawn, label4)]
         S = panels[0].size[0]; sheet = Image.new('RGB', (2 * S + 6, 2 * S + 6), (20, 20, 20))
         for i, im in enumerate(panels): sheet.paste(im, ((i % 2) * (S + 6), (i // 2) * (S + 6)))
-        os.makedirs(f'{work}/renders', exist_ok=True); sheet.save(f'{work}/renders/{name}.png')
+        os.makedirs(f'{work}/renders', exist_ok=True); sheet.save(f'{work}/renders/{name}{"" if mode == "light" else "-strict"}.png')
         print(name, json.dumps(m, indent=None)[:600], flush=True)
-    json.dump(results, open(f'{work}/results.json', 'w'), indent=1)
+    json.dump(results, open(f'{work}/results{"" if mode == "light" else "-strict"}.json', 'w'), indent=1)
 
 if __name__ == '__main__':
     arg = lambda k, d: sys.argv[sys.argv.index(k) + 1] if k in sys.argv else d
-    main(sys.argv[1], sys.argv[2], float(arg('--sigma-km', 12)))
+    main(sys.argv[1], sys.argv[2], float(arg('--sigma-km', 12)), arg('--mode', 'light'))
