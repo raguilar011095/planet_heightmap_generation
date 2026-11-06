@@ -45,6 +45,35 @@ Orogen already draws its terrain at two scales, and a learned model could only e
   file ever shared must open again, so a learned detail layer must be deterministic for a seed and versioned like
   everything else (`orogen.studio/v/<major>.<minor>/`); scale invariance across the Detail slider (CLAUDE.md).
 
+- **Both pages run the same finish.** Generate and Import run Evolution's finish in a background worker
+  (`js/main.js`: "the finish (Evolution's: finish/finish-worker.js) in the background"), so their finished pictures,
+  drivers, rivers and zoom tiles are the same objects as Evolution's. A detail layer written into `fine-detail.js`
+  serves all three tools at once; Evolution is only where it is judged first.
+- **Rivers are lines, not heights.** The finish's hydrology (`finish-hydro.js` `hydrology`) returns the rivers as
+  polylines (`rivers: {start, lat, lon, q, season}`: each reach's points, its flow in m³/s and its season) carved on the
+  mesh; the page and the exports draw them over the fine heights. Their valleys exist in the picture at the mesh's scale
+  (the carve's), and the fine detail has no river of its own.
+
+### The owner's constraints (2026-11-06)
+
+"We can start focus on Evolution if it helps but it should work for Generate as well. I'm also particularly interested in
+maintaining major river flows and respecting them. As well as respecting the broad shape of mountains and coasts. They can
+move to be more realistic but whole islands should rarely disappear."
+
+Read as requirements on any learned detail layer:
+
+1. **Evolution first, Generate and Import for free**: one implementation in the shared finish; judged on Evolution's
+   detailed moments first.
+2. **Rivers are kept**: every drawn river must still run downhill through a valley in the detailed heights, from its
+   source to its mouth, and its flow (`q`) must still make sense of the catchment the fine heights imply. The detail may
+   move a river's course by a little within its valley; it may not dam it, lift it onto a ridge, or route it elsewhere.
+3. **Broad shapes are kept**: the finished picture's low frequencies (the ranges' crests and fronts, the plateaus, the
+   basins, the coasts' outlines) stay; the detail changes only what is finer than the mesh. Coasts may wander by a few km
+   (as `coastWiggleKm` already lets them), a ridge may sharpen or a valley deepen; no range moves, no sea opens, no
+   plateau is roughened.
+4. **Islands survive**: any landmass in the picture stays land in the detail (a one-cell islet may change shape, grow a
+   lagoon or split, but it does not sink), and no new islands appear far from the picture's land.
+
 So the only place a learned terrain model fits Orogen's vision is **as a detail layer below the mesh**: given the finished
 picture (and the drivers, rock and climate), produce the heights of a window at a finer pixel size, keeping the picture's
 own low frequencies exactly and adding only what a mesh of 7–15 km cells cannot hold. In machine-learning terms that is
