@@ -498,7 +498,7 @@ each checked in the browser.
   stack's light and colours (R5, R6).
 - [x] Copy (the owner's words): the hero's buttons read **Generate your world** and **Evolve your world**; Import
   Heightmap is now just **Import**, one word like Generate and Evolution (the nav, its page, the Studio, the exports'
-  notes, llms.txt and the docs; VISION.md waits for the owner); Evolution's **Geology** is out of beta and **Food** keeps
+  notes, llms.txt, the docs and, at the owner's go-ahead, VISION.md); Evolution's **Geology** is out of beta and **Food** keeps
   its tag (its sub-bar, its tooltip, the tutorial, the Studio card). The current What's New still says both are in beta:
   it is the last release's record, and the next one can say Geology is out.
 - [x] The hero's globe turns (the owner: "the rotating globe up top, maybe transitioning between map modes as it does it"):
