@@ -1,1256 +1,459 @@
-// Entry point — wires UI controls, animation loop, and kicks off initial generation.
+// Generate, on the shared core (plans/SHARED_CORE_PLAN.md): the present-day world
+// built by the worker (js/planet-worker.js — its plates, its past, its ground on Generate's mesh), shown at once as the
+// first picture, then finished in the background by Evolution's own finish (v2/js/finish/finish.js, through its worker:
+// the climate, the rivers carved by its runoff, lakes, the ice age, dunes and loess, the rocks, deposits and food, the
+// Satellite view) — on Evolution's planet view and layer bar (v2/js/view/planet-view.js, layer-bar.js) and its export.
+// What is Generate's own: the sliders, the planet code, the plate edits (Ctrl-click, or the edit button on a phone, then
+// Rebuild), the Plates view and the Inspect list's layers (js/generate-plates.js), the build overlay, the tutorial.
 
-import * as THREE from 'three';
-import { renderer, scene, camera, ctrl, waterMesh, atmosMesh, starsMesh,
-         mapCamera, updateMapCameraFrustum, mapCtrl, canvas,
-         tickZoom, tickMapZoom, fitCamera } from './scene.js';
-import { state } from './state.js';
-import { initGenerateExport } from './export-generate.js';
-import { generate, reapplyViaWorker, computeClimateViaWorker, editRecomputeViaWorker } from './generate.js';
+import Delaunator from 'delaunator';
+import { setDelaunator } from './sphere-mesh.js';
+import { meshFromArrays } from '../v2/js/core/sim-mesh.js';
+import { PlanetView } from '../v2/js/view/planet-view.js';
+import { mountLayerBar } from '../v2/js/view/layer-bar.js';
+import { FinishService } from '../v2/js/evolution/finish-view.js';
+import { STAGES as FINISH_STAGES } from '../v2/js/finish/finish.js';
+import { initEvolutionExport, CATALOGUE, rollRows, rollShift } from '../v2/js/evolution/export.js';
+import { DATA_SCALES } from '../v2/js/view/export-raster.js';
+import { heightLutOf } from '../v2/js/evolution/looks.js';
+import { CLIMATE_LAYERS } from '../v2/js/evolution/climate-view.js';
+import { GEOLOGY_LAYERS } from '../v2/js/evolution/geology-view.js';
+import { FARMING_LAYERS } from '../v2/js/evolution/farming-view.js';
 import { encodePlanetCode, decodePlanetCode } from './planet-code.js';
-import { buildMesh, updateMeshColors, updateSuperPlateBorders, buildMapMesh, rebuildGrids, buildWindArrows, buildOceanCurrentArrows, updateKoppenHoverHighlight, updateMapKoppenHoverHighlight, updatePendingHighlight, updateMapPendingHighlight } from './planet-mesh.js';
-import { setupEditMode } from './edit-mode.js';
 import { detailFromSlider, sliderFromDetail } from './detail-scale.js';
-import { KOPPEN_CLASSES } from './koppen.js';
-import { needsClimate, climateLayer, climateLegendHTML, satelliteLegendHTML, showClimateArrows, initSeasonPicker } from './climate-layers.js';
-import { initLayerBar } from './layer-bar.js';
-import { initViewStrip, initProjectionPicker } from './view-strip.js';
-import { renderView, setProjection } from './map-projection.js';
-import { terrainCss, initPaletteMenu } from './terrain-palette.js';
-import { showBuildError, clearBuildError, describeFailure, holdControls } from './build-error.js';
+import { showBuildError, describeFailure, holdControls } from './build-error.js';
+import { presentCrustLine } from './present-crust.js';
+import { plateColors, platesLegendHTML, INSPECT, inspectColors, drawPlateLines, platesMap } from './generate-plates.js';
+import { state } from './state.js';
+import { store, sliderTooltip, detailWarning, redrawFoldedSliders, sidePanel, buildOverlay, tutorial } from './page-chrome.js';
 
-// Slider value displays + stale tracking
-const sliderIds = ['sN','sP','sCn','sJ','sNs','sCsv','sLc'];
-const PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'];
-let lastGenValues = {};
+setDelaunator(Delaunator);
 
-function snapshotSliders() {
-    for (const id of sliderIds) lastGenValues[id] = document.getElementById(id).value;
+const $ = (id) => document.getElementById(id);
+const IS_TOUCH = state.isTouchDevice;
+
+// ── the page: the map's frame beside the globe's canvas, the canvas the window's, the bar over it ──
+if (!$('mapCanvas')) { const m = document.createElement('canvas'); m.id = 'mapCanvas'; m.hidden = true; $('canvas').after(m); }
+Object.assign($('canvas').style, { position: 'fixed', inset: '0', width: '100vw', height: '100vh' });
+mountLayerBar({ comes: 'Comes a few seconds after the planet',
+    platesTip: 'The plates in their colours, each piece a shade of its own, the boundaries by kind and the motion as arrows — Ctrl-click (⌘-click on a Mac) a piece to raise or sink it, in any view' });
+// (the Inspect list: the world's past, per region)
+const inspectEl = $('debugLayer');
+
+const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: new URLSearchParams(location.search).get('gpu') !== '0', paletteKey: 'orogen.generate.palette',
+    onChange: viewChanged, alive: (fin) => fin === world?.fin,
+    extraLines: (ctx, W, view) => drawPlateLines(ctx, W, view, world, { pending, hovered: hoveredPiece }),
+    extraLinesKey: (view) => `${world?.version ?? 0}|${view.layer === 'plates'}|${[...pending].join(',')}|${hoveredPiece}`,
+    infoText: (mode) => (IS_TOUCH ? 'Drag to rotate · Pinch to zoom · Use edit button to reshape' : `Drag to ${mode === 'map' ? 'move the map' : 'rotate'} · Scroll to zoom · Ctrl-click (⌘-click on a Mac) to reshape continents`) });
+const view = pv.view;
+if (IS_TOUCH) $('info').textContent = 'Drag to rotate · Pinch to zoom · Use edit button to reshape';
+console.info(`[generate] painting ${pv.gpu ? `on the GPU at ${pv.GPU_WIDTH} px` : 'on the CPU'}`);
+
+let world = null;            // the planet shown: its mesh, first picture, plates and edits, and its finished moment once done
+let dirty = true, version = 0;
+const pending = new Set();   // the pieces whose edit waits for Rebuild
+let hoveredPiece = -1;
+const finisher = new FinishService();
+
+function viewChanged(what) {
+    dirty = true;
+    if (what === 'layer' && !view.layer.startsWith('inspect:') && inspectEl) inspectEl.value = '';
+    updateChip();
 }
 
-function checkStale() {
-    const btn = document.getElementById('generate');
-    if (btn.classList.contains('generating')) return;
-    const detailSliders = ['sN', 'sJ', 'sNs'];
-    const plateChanged = PLATE_SLIDERS.some(id => document.getElementById(id).value !== lastGenValues[id]);
-    const detailChanged = detailSliders.some(id => document.getElementById(id).value !== lastGenValues[id]);
-    btn.classList.remove('stale', 'regen');
-    if (plateChanged) {
-        btn.classList.add('regen');
-        btn.textContent = 'Regenerate';
-    } else if (detailChanged) {
-        btn.classList.add('stale');
-        btn.textContent = 'Rebuild';
-    } else {
-        btn.textContent = 'Build New World';
-    }
+// ── the worker: the present-day world, its first picture, the finish's job ──
+let worker = null, onDone = null;
+function startWorker() {
+    worker = new Worker(new URL('./planet-worker.js', import.meta.url), { type: 'module' });
+    worker.onmessage = ({ data: msg }) => {
+        if (msg.type === 'progress') { onProgress(msg.pct, msg.label); return; }
+        if (msg.type === 'error') { failed(msg.message); return; }
+        if (msg.type === 'done' || msg.type === 'reapplyDone' || msg.type === 'editDone') received(msg);
+    };
+    worker.onerror = (e) => { failed(e.message || 'Worker crashed'); worker.terminate(); startWorker(); };
 }
+startWorker();
 
-// Reapply smoothing + erosion without full rebuild (via worker)
-function reapplyPostProcessing() {
-    const d = state.curData;
-    if (!d || !d.prePostElev) return;
-
-    const skipClimate = shouldSkipClimate();
-    reapplyViaWorker(() => {
-        reapplyBtn.classList.remove('spinning');
-        updatePlanetCode(false);
-        // If climate invalidated and viewing a climate layer, switch to Terrain
-        if (skipClimate && CLIMATE_LAYERS.has(state.debugLayer)) {
-            state.debugLayer = '';
-            if (debugLayerEl) debugLayerEl.value = '';
-            syncTabsToLayer('');
-            updateMeshColors();
-            updateLegend('');
-        }
-    }, skipClimate);
+/** The sliders, as the worker reads them. */
+function sliders() {
+    const v = (id) => +$(id).value;
+    return { N: detailFromSlider(v('sN')), P: v('sP'), jitter: v('sJ'), nMag: v('sNs'), numContinents: v('sCn'), terrainWarp: v('sTw'), smoothing: v('sS'),
+        hydraulicErosion: v('sHEr'), thermalErosion: v('sTEr'), ridgeSharpening: v('sRs'), glacialErosion: v('sGl'), continentSizeVariety: v('sCsv'),
+        greenhouse: v('sTmp'), precipitationOffset: v('sPrc'), landCoverage: v('sLc') };
 }
+/** The climate's options for the finish (as Evolution's, and as Generate's climate read its sliders). */
+const climateOptions = () => ({ greenhouseWm2: +$('sTmp').value, precipScale: Math.max(0, 1 + 0.5 * +$('sPrc').value) });
 
-const reapplyBtn = document.getElementById('reapplyBtn');
-
-function markReapplyPending() {
-    reapplyBtn.disabled = false;
-    reapplyBtn.classList.add('ready');
-}
-
-function clearReapplyPending() {
-    reapplyBtn.disabled = true;
-    reapplyBtn.classList.remove('ready');
-}
-
-reapplyBtn.addEventListener('click', () => {
-    if (reapplyBtn.disabled) return;
-    clearReapplyPending();
-    reapplyBtn.classList.add('spinning');
-    reapplyPostProcessing();
-});
-
-// Auto Climate checkbox — default OFF above threshold
-// The climate is deferred (computed when a climate view is chosen) only above this detail: the new climate takes about
-// a second at any detail on a desktop (its work is on a fixed 1° grid), so never there; phones keep a limit, for the
-// per-region climate's memory (plans/V1_NEW_CLIMATE_PLAN.md, phase 4)
-const AUTO_CLIMATE_THRESHOLD = state.isTouchDevice ? 640000 : Infinity;
-
-// Detail slider warning update (lower thresholds on touch devices)
-const WARN_ORANGE = state.isTouchDevice ? 200000 : 640000;
-const WARN_RED    = state.isTouchDevice ? 500000 : 1280000;
-
-function updateDetailWarning(detail) {
-    const cg = document.getElementById('sN').closest('.cg');
-    const warn = document.getElementById('detailWarn');
-    cg.classList.remove('detail-orange', 'detail-red');
-    warn.className = 'detail-warn';
-    if (detail > WARN_RED) {
-        cg.classList.add('detail-red');
-        warn.classList.add('red');
-        warn.textContent = '\u26A0 Very high \u2014 generation may be slow and unstable';
-    } else if (detail > WARN_ORANGE) {
-        cg.classList.add('detail-orange');
-        warn.classList.add('orange');
-        warn.textContent = '\u26A0 High detail \u2014 generation may be slow and unstable';
-    } else {
-        warn.textContent = '';
-    }
-}
-
-// Slider thumb tooltip — floating value bubble near the thumb during drag
-function initSliderTooltip(slider) {
-    const cg = slider.closest('.cg');
-    if (!cg) return;
-    cg.style.position = 'relative';
-    const tip = document.createElement('div');
-    tip.className = 'slider-tooltip';
-    cg.appendChild(tip);
-
-    function positionTip() {
-        const pct = (+slider.value - +slider.min) / (+slider.max - +slider.min);
-        const thumbOffset = pct * slider.offsetWidth;
-        tip.style.left = thumbOffset + 'px';
-    }
-
-    const label = document.getElementById(slider.id.replace('s', 'v'));
-    // (the label is written by the slider's own input handler, which may run after this one — Firefox showed the
-    // previous value, issue #34 — so the bubble reads it once every handler has run)
-    const show = () => { tip.textContent = label ? label.textContent : slider.value; positionTip(); };
-    slider.addEventListener('pointerdown', () => {
-        show();
-        tip.classList.add('visible');
-    });
-    slider.addEventListener('input', () => queueMicrotask(show));
-    const hide = () => tip.classList.remove('visible');
-    slider.addEventListener('pointerup', hide);
-    slider.addEventListener('pointercancel', hide);
-}
-
-for (const [s,v] of [['sN','vN'],['sP','vP'],['sCn','vCn'],['sJ','vJ'],['sNs','vNs'],['sCsv','vCsv'],['sLc','vLc'],['sTw','vTw'],['sS','vS'],['sGl','vGl'],['sHEr','vHEr'],['sTEr','vTEr'],['sRs','vRs'],['sTmp','vTmp'],['sPrc','vPrc']]) {
-    const slider = document.getElementById(s);
-    initSliderTooltip(slider);
-    slider.addEventListener('input', e => {
-        if (s === 'sN') {
-            const detail = detailFromSlider(+e.target.value);
-            document.getElementById(v).textContent = detail.toLocaleString();
-            updateDetailWarning(detail);
-        } else if (s === 'sTmp') {
-            // Greenhouse: a forcing in W/m²
-            const val = +e.target.value;
-            document.getElementById(v).textContent = (val > 0 ? '+' : val === 0 ? '\u00b1' : '\u2212') + Math.abs(val) + ' W/m\u00b2';
-        } else if (s === 'sPrc') {
-            const val = +e.target.value;
-            const pct = Math.round(val * 50);
-            document.getElementById(v).textContent = (pct > 0 ? '+' : pct === 0 ? '\u00b1' : '') + pct + '%';
-        } else if (s === 'sLc') {
-            document.getElementById(v).textContent = Math.round(+e.target.value * 100) + '%';
-        } else {
-            document.getElementById(v).textContent = e.target.value;
-        }
-        if (s === 'sTw' || s === 'sS' || s === 'sGl' || s === 'sHEr' || s === 'sTEr' || s === 'sRs') {
-            markReapplyPending();
-        } else if (s === 'sTmp' || s === 'sPrc') {
-            // Display-only update during drag; actual recompute on change (release)
-        } else {
-            checkStale();
-        }
-    });
-    // Climate sliders: recompute only on release (change), not every drag tick
-    if (s === 'sTmp' || s === 'sPrc') {
-        slider.addEventListener('change', () => {
-            if (!state.curData) return;
-            updatePlanetCode(false);
-            showBuildOverlay();
-            computeClimateViaWorker(onProgress, () => {
-                hideBuildOverlay();
-                updateMeshColors();
-                updateLegend(state.debugLayer);
-            });
-        });
-    }
-}
-
-// Force range input re-render when <details> sections are opened.
-// Browsers may not update the visual thumb position for sliders that were
-// hidden (inside a closed <details>) when their value was set via JS.
-document.querySelectorAll('details.section').forEach(det => {
-    det.addEventListener('toggle', () => {
-        if (!det.open) return;
-        det.querySelectorAll('input[type="range"]').forEach(s => {
-            const v = s.value; s.value = ''; s.value = v;
-        });
-    });
-});
-
-/** Returns true if climate should be skipped (detail above threshold). */
-function shouldSkipClimate() {
-    return detailFromSlider(+document.getElementById('sN').value) > AUTO_CLIMATE_THRESHOLD;
-}
-
-// Layers that need a climate: the Inspect climate layers, Köppen and Satellite (js/climate-layers.js)
-const CLIMATE_LAYERS = { has: needsClimate };
-
-// The layers over the planet (js/layer-bar.js: the tabs, the Climate row and the season, the phone's list) and the
-// sidebar's Inspect list (the terrain's inner layers). 'plates' is the plate colours over no layer (state.showPlates).
-const vizLegend = document.getElementById('vizLegend');
-const debugLayerEl = document.getElementById('debugLayer');
-const shownLayer = () => (state.showPlates ? 'plates' : state.debugLayer);
-
-function switchVisualization(layer) {
-    if (CLIMATE_LAYERS.has(layer) && !state.climateComputed) {
-        // Need to compute climate first
-        showBuildOverlay();
-        computeClimateViaWorker(onProgress, () => {
-            hideBuildOverlay();
-            applyLayer(layer);
-        });
-        return;
-    }
-    applyLayer(layer);
-}
-
-function applyLayer(layer) {
-    state.showPlates = layer === 'plates';
-    state.debugLayer = state.showPlates ? '' : layer;
-    state.hoveredKoppen = -1;
-    updateMeshColors();
-    updateSuperPlateBorders();
-    showClimateArrows(state.debugLayer, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-    syncTabsToLayer(layer);
-    updateLegend(layer);
-}
-
-const layerBar = initLayerBar(switchVisualization);
-initViewStrip();
-initProjectionPicker(setProjection);
-/** The bar, its season and the Inspect list, for the layer shown. */
-function syncTabsToLayer(layer) {
-    layerBar.sync(layer);
-    if (debugLayerEl) debugLayerEl.value = [...debugLayerEl.options].some(o => o.value === layer) ? layer : '';
-}
-
-// Koppen climate zone descriptions for hover tooltips
-const KOPPEN_DESCRIPTIONS = {
-    Af:  'Tropical rainforest — Hot and wet year-round. Amazon Basin, Congo Basin, Southeast Asia.',
-    Am:  'Tropical monsoon — Brief dry season offset by heavy monsoon rains. Southern India, West Africa, Northern Australia.',
-    Aw:  'Tropical savanna — Distinct wet and dry seasons. Sub-Saharan Africa, Brazilian Cerrado, Northern Australia.',
-    BWh: 'Hot desert — Extremely dry with scorching summers. Sahara, Arabian Desert, Sonoran Desert.',
-    BWk: 'Cold desert — Arid with cold winters. Gobi Desert, Patagonian steppe, Great Basin.',
-    BSh: 'Hot steppe — Semi-arid grassland with hot summers. Sahel, outback Australia, northern Mexico.',
-    BSk: 'Cold steppe — Semi-arid with cold winters. Central Asian steppe, Montana, Anatolian plateau.',
-    Cfa: 'Humid subtropical — Hot humid summers, mild winters. Southeastern US, eastern China, Buenos Aires.',
-    Cfb: 'Oceanic — Mild year-round, cool summers, frequent rain. Western Europe, New Zealand, Pacific Northwest.',
-    Cfc: 'Subpolar oceanic — Cool year-round with short summers. Iceland, southern Chile, Faroe Islands.',
-    Csa: 'Hot-summer Mediterranean — Dry hot summers, mild wet winters. Southern California, Greece, coastal Turkey.',
-    Csb: 'Warm-summer Mediterranean — Dry warm summers, mild wet winters. San Francisco, Porto, Cape Town.',
-    Csc: 'Cold-summer Mediterranean — Cool dry summers, mild wet winters. Rare; high-altitude Mediterranean coasts.',
-    Cwa: 'Humid subtropical monsoon — Warm with dry winters. Hong Kong, northern India, Southeastern Brazil highlands.',
-    Cwb: 'Subtropical highland — Mild with dry winters. Mexico City, Bogota, Ethiopian Highlands.',
-    Cwc: 'Cold subtropical highland — Cool with dry winters. Rare; high-altitude tropical mountains.',
-    Dfa: 'Hot-summer continental — Hot summers, cold snowy winters. Chicago, Kyiv, Beijing.',
-    Dfb: 'Warm-summer continental — Warm summers, cold winters. Moscow, southern Scandinavia, New England.',
-    Dfc: 'Subarctic — Long cold winters, brief cool summers. Siberia, northern Canada, interior Alaska.',
-    Dfd: 'Extremely cold subarctic — Harshest winters on Earth. Yakutsk, Verkhoyansk (eastern Siberia).',
-    Dsa: 'Hot-summer continental, dry summer — Hot dry summers, cold winters. Parts of eastern Turkey, Iran.',
-    Dsb: 'Warm-summer continental, dry summer — Dry warm summers, cold winters. Parts of the western US highlands.',
-    Dsc: 'Subarctic, dry summer — Cool dry summers, very cold winters. Rare; high-altitude inland regions.',
-    Dsd: 'Extremely cold subarctic, dry summer — Very rare; extreme cold with dry summers.',
-    Dwa: 'Hot-summer continental, monsoon — Wet hot summers, dry cold winters. Northern China, Korea.',
-    Dwb: 'Warm-summer continental, monsoon — Wet warm summers, dry cold winters. Parts of northeast China.',
-    Dwc: 'Subarctic monsoon — Brief wet summers, long dry frigid winters. Eastern Siberia, far northeast China.',
-    Dwd: 'Extremely cold subarctic, monsoon — Extreme cold, driest in winter. Interior eastern Siberia.',
-    ET:  'Tundra — Permafrost, only warmest month above 0 C. Arctic coasts, high mountain plateaus.',
-    EF:  'Ice cap — Permanent ice, never above 0 C. Antarctica interior, Greenland ice sheet.',
-};
-
-// Legend rendering
-function updateLegend(layer) {
-    if (!vizLegend) return;
-
-    if (layer === '' || !layer) {
-        // Terrain legend
-        const stops = [
-            { e: -0.50, label: '' },
-            { e: -0.25, label: '' },
-            { e: -0.05, label: '' },
-            { e: 0.00, label: '' },
-            { e: 0.03, label: '' },
-            { e: 0.15, label: '' },
-            { e: 0.35, label: '' },
-            { e: 0.55, label: '' },
-            { e: 0.80, label: '' }
-        ];
-        const colors = stops.map(s => terrainCss(s.e));
-        const pcts = stops.map((_, i) => Math.round(i / (stops.length - 1) * 100));
-        const gradStr = colors.map((c, i) => `${c} ${pcts[i]}%`).join(', ');
-        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,${gradStr})"></div>` +
-            `<div class="legend-labels"><span>Deep Ocean</span><span>Sea Level</span><span>Peak</span></div>`;
-    } else if (layer === 'koppen') {
-        // Koppen legend — Wikipedia link + swatches with hover tooltips
-        let html = '<div class="legend-koppen-header"><a href="https://en.wikipedia.org/wiki/K%C3%B6ppen_climate_classification" target="_blank" rel="noopener">K\u00f6ppen climate classification</a></div>';
-        html += '<div class="legend-koppen">';
-        for (let i = 1; i < KOPPEN_CLASSES.length; i++) {
-            const k = KOPPEN_CLASSES[i];
-            const [r, g, b] = k.color;
-            const hex = `rgb(${Math.round(r*255)},${Math.round(g*255)},${Math.round(b*255)})`;
-            const desc = KOPPEN_DESCRIPTIONS[k.code] || k.name;
-            html += `<div class="legend-koppen-item" data-code="${k.code}"><span class="legend-koppen-swatch" style="background:${hex}"></span>${k.code}</div>`;
-        }
-        html += '<div class="legend-koppen-tooltip" id="koppenTip"></div>';
-        html += '</div>';
-        vizLegend.innerHTML = html;
-        // Wire hover tooltips with dynamic positioning
-        const tipEl = document.getElementById('koppenTip');
-        const container = vizLegend.querySelector('.legend-koppen');
-        vizLegend.querySelectorAll('.legend-koppen-item').forEach(item => {
-            item.addEventListener('mouseenter', () => {
-                const code = item.dataset.code;
-                const desc = KOPPEN_DESCRIPTIONS[code] || '';
-                tipEl.textContent = desc;
-                tipEl.classList.add('visible');
-                // Position above the hovered item, clamped within the container
-                const itemRect = item.getBoundingClientRect();
-                const containerRect = container.getBoundingClientRect();
-                const tipWidth = 240;
-                let left = itemRect.left - containerRect.left + itemRect.width / 2 - tipWidth / 2;
-                left = Math.max(0, Math.min(left, containerRect.width - tipWidth));
-                tipEl.style.left = left + 'px';
-                tipEl.style.bottom = (containerRect.bottom - itemRect.top + 6) + 'px';
-                // Highlight matching cells on the mesh
-                const classId = KOPPEN_CLASSES.findIndex(c => c.code === code);
-                if (classId >= 0) {
-                    state.hoveredKoppen = classId;
-                    updateKoppenHoverHighlight();
-                    updateMapKoppenHoverHighlight();
-                }
-            });
-            item.addEventListener('mouseleave', () => {
-                tipEl.classList.remove('visible');
-                state.hoveredKoppen = -1;
-                updateKoppenHoverHighlight();
-                updateMapKoppenHoverHighlight();
-            });
-        });
-    } else if (layer === 'biome') {
-        vizLegend.innerHTML = satelliteLegendHTML(state.climateSeason);
-    } else if (layer === 'landheightmap') {
-        vizLegend.innerHTML = `<div class="legend-gradient" style="background:linear-gradient(to right,#000 0%,#fff 100%)"></div>` +
-            `<div class="legend-labels"><span>Ocean / Sea Level</span><span>Peak</span></div>`;
-    } else if (layer === 'plates') {
-        vizLegend.innerHTML = `<div class="legend-note">The plates in their colours. ${state.isTouchDevice ? 'Turn on edit mode (the button at the bottom right), then tap a plate' : 'Ctrl-click (⌘-click on a Mac) a plate'} to raise or sink it &mdash; in any view &mdash; then Rebuild.</div>`;
-    } else if (climateLayer(layer)) {
-        vizLegend.innerHTML = climateLegendHTML(layer, state.climateSeason);
-    } else {
-        vizLegend.innerHTML = '';
-    }
-}
-
-// Build overlay — unified loading / generation overlay
-const buildOverlay  = document.getElementById('buildOverlay');
-const buildBarFill  = document.getElementById('buildBarFill');
-const buildBarLabel = document.getElementById('buildBarLabel');
-let overlayActive = true; // starts active (visible in HTML on first load)
-holdControls(true);
-
-function onProgress(pct, label) {
-    if (!overlayActive) return;
-    if (buildBarFill)  buildBarFill.style.transform = 'scaleX(' + (pct / 100) + ')';
-    if (buildBarLabel) buildBarLabel.textContent = label;
-}
-
-function showBuildOverlay() {
-    clearBuildError();
-    if (!buildBarFill || !buildOverlay) return;
-    // Snap bar to 0 instantly — disable transition, reset transform, force reflow
-    buildBarFill.style.transition = 'none';
-    buildBarFill.style.transform = 'scaleX(0)';
-    buildBarLabel.textContent = '';
-    buildBarFill.offsetWidth; // force reflow
-    buildBarFill.style.transition = '';
-    overlayActive = true;
-    buildOverlay.classList.remove('hidden');
-    holdControls(true);
-}
-
-function hideBuildOverlay() {
-    setTimeout(() => {
-        overlayActive = false;
-        holdControls(false);
-        if (buildOverlay) {
-            buildOverlay.classList.add('hidden');
-            // After first generation, switch from opaque to semi-transparent
-            buildOverlay.classList.remove('initial');
-        }
-    }, 500);
-}
-
-// Generate button
-const genBtn = document.getElementById('generate');
-genBtn.addEventListener('click', () => {
-    clearReapplyPending();
-    buildWindArrows(null); // dispose previous wind arrows
-    buildOceanCurrentArrows(null); // dispose previous ocean arrows
+let building = null;         // what the worker is doing: 'generate', 'reapply', 'edit'
+function generate(seed, toggledIndices = []) {
+    building = 'generate'; finisher.cancel();
     showBuildOverlay();
-    // Collapse bottom sheet on mobile so user can see the planet build
-    const ui = document.getElementById('ui');
-    if (window.innerWidth <= 768 && ui) ui.classList.add('collapsed');
-    // Rebuild: reuse seed + plate edits so only resolution/params change.
-    // If plate-affecting sliders (Plates, Continents, Continent Size Variety, Land Coverage) changed,
-    // force a fresh generation — the coarse plate grid is fully determined by seed + P + Cn + Csv + Lc.
-    const plateChanged = PLATE_SLIDERS.some(id => document.getElementById(id).value !== lastGenValues[id]);
-    const isRebuild = genBtn.classList.contains('stale') && state.curData && !plateChanged;
-    const seed = isRebuild ? state.curData.seed : undefined;
-    const toggles = isRebuild ? getToggledIndices() : [];
-    generate(seed, toggles, onProgress, shouldSkipClimate());
-});
-genBtn.addEventListener('generate-done', snapshotSliders);
-genBtn.addEventListener('generate-done', hideBuildOverlay);
-// a failed build (js/generate.js): the overlay says what happened instead of spinning on over the planet
-window.addEventListener('orogen:build-failed', (e) => {
-    overlayActive = false;
-    holdControls(false);
-    showBuildError(describeFailure(e.detail.message), e.detail.message);
-});
-genBtn.addEventListener('generate-done', () => {
-    const infoEl = document.getElementById('info');
-    if (!infoEl.dataset.nudged) {
-        infoEl.dataset.nudged = '1';
-        infoEl.classList.add('nudge');
-        infoEl.addEventListener('animationend', () => infoEl.classList.remove('nudge'), { once: true });
-    }
-}, { once: true });
+    $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
+    worker.postMessage({ cmd: 'generate', ...sliders(), seed, toggledIndices, next: true, shared: true });
+}
+function failed(message) {
+    console.error('[generate] build failed:', message);
+    building = null; overlay.active = false; holdControls(false);
+    resetBuildButton();
+    showBuildError(describeFailure(message), message);
+}
+function resetBuildButton() { const b = $('generate'); b.disabled = false; b.classList.remove('generating', 'stale', 'regen'); b.textContent = 'Build New World'; }
 
-// Planet code — display after generation, copy, load, URL hash
-const seedInput = document.getElementById('seedCode');
-const copyBtn   = document.getElementById('copyBtn');
-const loadBtn   = document.getElementById('loadBtn');
-let currentCode = ''; // the code for the currently loaded planet
-
-function updateLoadBtn() {
-    const val = seedInput.value.trim().toLowerCase();
-    const ready = val.length > 0 && val !== currentCode;
-    loadBtn.classList.toggle('ready', ready);
+/** A world from the worker: its first picture shown, its finish started. */
+function received(msg) {
+    const sh = msg.shared;
+    if (!sh) { failed('the worker sent no present-day world'); return; }
+    const old = world;
+    const kind = msg.type, w = {
+        version: ++version, seed: msg.seed ?? old?.seed, tMesh: meshFromArrays(sh.mesh), meshArrays: sh.mesh, heightKm: sh.heightKm, shade: sh.shade,
+        story: sh.story, regionCell: sh.regionCell, finishJob: sh.finish, fin: null, finishing: null, problem: null,
+        present: msg.present ?? old?.present, inspect: msg.debugLayers ?? old?.inspect,
+        // (the pieces and their land as edited, and as first built — the planet code's toggles are the difference)
+        r_plate: msg.r_plate ?? old.r_plate, plateSeeds: msg.plateSeeds ?? old.plateSeeds,
+        plateIsOcean: msg.plateIsOcean ? new Set(msg.plateIsOcean) : old.plateIsOcean, originalPlateIsOcean: msg.originalPlateIsOcean ? new Set(msg.originalPlateIsOcean) : old.originalPlateIsOcean,
+        n: sh.mesh.numCells,
+    };
+    if (kind === 'editDone' && old) { w.seed = old.seed; w.plateIsOcean = old.plateIsOcean; w.originalPlateIsOcean = old.originalPlateIsOcean; }
+    world = w; building = null; dirty = true; hoveredPiece = -1;
+    if (pv.gpu) pv.gpu.setMesh(w.tMesh);
+    resetBuildButton();
+    hideBuildOverlay();
+    if (kind === 'done') { snapshotSliders(); clearPending(); }
+    updatePlanetCode(kind === 'editDone');
+    reapplyBtn.classList.remove('spinning');
+    stats(msg);
+    $('generate').dispatchEvent(new CustomEvent('generate-done'));
+    finish(w);
 }
 
-/** Get sorted array of toggled plate indices by diffing current vs original plateIsOcean. */
-function getToggledIndices() {
-    const d = state.curData;
-    if (!d || !d.originalPlateIsOcean) return [];
-    const indices = [];
-    const seeds = Array.from(d.plateSeeds);
-    for (let i = 0; i < seeds.length; i++) {
-        const r = seeds[i];
-        if (d.originalPlateIsOcean.has(r) !== d.plateIsOcean.has(r)) {
-            indices.push(i);
-        }
+// ── the finish (Evolution's: finish/finish-worker.js) in the background: the rest of the world's layers ──
+/** The picture's width for a mesh this fine: about four pixels a cell across, 2048 … 8192 (a phone 2048). */
+const finishWidth = (n) => (IS_TOUCH ? 2048 : Math.min(8192, Math.max(2048, 2 ** Math.round(Math.log2(4 * Math.sqrt(n))))));
+async function finish(w) {
+    if (!w.finishJob) return;
+    finisher.cancel();
+    const started = performance.now(), job = w.finishJob, shares = new Map(FINISH_STAGES);
+    w.fin = null; w.problem = null; w.finishing = { stage: 'starting', share: 0 }; updateChip();
+    let before = 0;
+    const onStage = (s) => { if (world !== w) return; before = 0; for (const [k, v] of FINISH_STAGES) { if (k === s) break; before += v; } w.finishing = { stage: s, share: before }; updateChip(); };
+    const onProgress = (p) => { if (world !== w || !w.finishing) return; w.finishing.share = before + p * (shares.get('picture') ?? 0.1); updateChip(); };
+    try {
+        const res = await finisher.finish({ ...job, mesh: w.meshArrays, cells: w.n, width: finishWidth(w.n), climateOptions: climateOptions() }, { onStage, onProgress, keep: false });
+        if (world !== w) return;
+        w.fin = { cells: w.n, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats };
+        w.climateKey = `${$('sTmp').value}|${$('sPrc').value}`;
+        console.info(`[generate] finished in ${((performance.now() - started) / 1000).toFixed(1)} s`, Object.fromEntries(Object.entries(res.ms).map(([k, v]) => [k, +(v / 1000).toFixed(2)])));
+    } catch (err) {
+        if (err.name === 'AbortError' || world !== w) return;
+        w.problem = /allocation failed|out of memory/i.test(String(err.message)) ? 'Not enough memory to finish this planet — try a lower Detail' : `Could not finish this planet: ${String(err.message).split('\n')[0]}`;
+        console.error(err);
+    } finally {
+        if (world === w) { w.finishing = null; dirty = true; updateChip(); }
     }
-    return indices;
 }
 
-/** Encode current planet state and update the seed input + URL hash. */
+/** The chip over the planet: the finish under way (on the layers it brings), or what went wrong. */
+function updateChip() {
+    const chip = $('climateChip'), w = world, needs = CLIMATE_LAYERS.has(view.layer) || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer);
+    let text = null, act = null;
+    if (w?.finishing && needs) text = `Working out the climate, rivers, rocks and food… ${Math.round(100 * Math.min(1, w.finishing.share))} %`;
+    else if (w?.problem && needs) { text = w.problem; act = 'Try again'; }
+    chip.hidden = !text;
+    if (text) { $('climateChipText').textContent = text; $('climateChipBtn').hidden = !act; $('climateChipBtn').textContent = act ?? ''; }
+    // (the layers that come with the finish: locked until it is done)
+    const fin = w?.fin;
+    for (const id of ['satellite', 'geology', 'farming']) document.querySelector(`#mapTabs [data-layer="${id}"]`)?.classList.toggle('locked', !fin);
+}
+$('climateChipBtn').addEventListener('click', () => { if (world?.problem) finish(world); });
+
+// ── drawing ──
+/** The page's own layers per cell: the plates, an Inspect layer. */
+function pageCells(layer, out, shade) {
+    const w = world;
+    if (layer === 'plates') {
+        const rgb = plateColors(w);
+        for (let r = 0; r < w.n; r++) { const k = 0.45 + 0.55 * shade[r]; for (let c = 0; c < 3; c++) out[3 * r + c] = Math.min(255, rgb[3 * r + c] * k); }
+        return true;
+    }
+    if (layer.startsWith('inspect:')) return inspectColors(layer.slice(8), w, out, shade);
+    return false;
+}
+function paint() {
+    const w = world, fin = pv.shows(w.fin);
+    pv.syncClouds(fin, w.seed);
+    if (fin) pv.paintFinished(fin, false, w.version);
+    else pv.paintLive({ T: { heightKm: w.heightKm, shade: w.shade }, tMesh: w.tMesh, cells: pageCells });
+    // the page's own layers' legends
+    const legend = $('climateLegend');
+    if (view.layer === 'plates') { legend.innerHTML = platesLegendHTML(); legend.dataset.key = 'plates'; }
+    else if (view.layer.startsWith('inspect:')) { const L = INSPECT[view.layer.slice(8)]; legend.innerHTML = L ? `<div class="evo-legend-head">${L.name}</div><div class="evo-koppen">${L.legend}</div>` : ''; legend.dataset.key = view.layer; }
+    pv.syncLegendCard(!!fin);
+}
+function tick(now) {
+    requestAnimationFrame(tick);
+    if (world && dirty) { dirty = false; paint(); }
+    pv.updatePatch(now, world ? pv.shows(world.fin) : null, world?.fin, world?.seed);
+    pv.render();
+}
+requestAnimationFrame(tick);
+
+// ── the hover, and the plate edits: Ctrl-click (⌘-click) a piece, or tap it in edit mode, then Rebuild ──
+const regionAt = (e) => { const p = world ? pv.placeUnder(e) : null; return p ? { p, r: pv.cellUnder(world.tMesh, p) } : null; };
+// (Ctrl or ⌘ held: the piece under the pointer lights up at once, before the pointer moves — as on the old page)
+let editKey = false, lastPointer = null;
+const editing = (e) => e.ctrlKey || e.metaKey || editKey || (IS_TOUCH && state.editMode);
+function readout(e) {
+    lastPointer = e;
+    const at = regionAt(e);
+    if (!at) { pv.hover(null); setHovered(-1); return; }
+    const { p, r } = at, w = world, piece = w.r_plate[r], isOcean = w.plateIsOcean.has(piece), isPending = pending.has(piece);
+    setHovered(editing(e) ? piece : -1);
+    const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">●</span>`, action = IS_TOUCH ? 'Tap' : 'Ctrl-click', head = [];
+    head.push(isPending ? `${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${isOcean ? 'Land' : 'Ocean'}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`
+        : `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
+    const pr = w.present, pl = pr?.plates[pr.regionPlate[r]];
+    if (pl) {
+        // (its speed here: the plate's rotation at this place, in Generate's frame)
+        const e3 = pl.euler, xyz = w.tMesh.xyz, px = xyz[3 * r + 1], py = xyz[3 * r + 2], pz = xyz[3 * r];
+        const cm = Math.hypot(e3[1] * pz - e3[2] * py, e3[2] * px - e3[0] * pz, e3[0] * py - e3[1] * px) * 6371 / 10;
+        head.push(`<span class="hi-label">Plate</span> ${pl.index + 1} of ${pr.plates.length} (${pl.continental ? 'carries a continent' : 'ocean'}) · ${cm.toFixed(1)} cm/yr`);
+        const crust = presentCrustLine(pr, r);
+        if (crust) head.push(`<span class="hi-label">Crust</span> ${crust}`);
+    }
+    pv.hover(pv.readoutLines({ p, fin: pv.shows(w.fin), heightKm: w.heightKm[r], head, story: w.story, rec: w.regionCell[r] }));
+}
+function setHovered(piece) { if (piece !== hoveredPiece) { hoveredPiece = piece; dirty = true; } }
+pv.onPointer(readout);
+for (const el of [pv.ui.canvas, pv.ui.map]) {
+    let down = null;
+    el.addEventListener('pointerdown', (e) => {
+        // (Ctrl-click, or Cmd-click on a Mac — where Firefox reports a Ctrl-click as a right-click; issue #19)
+        const edit = ((e.ctrlKey || e.metaKey) && (e.button === 0 || e.button === 2)) || (e.button === 0 && IS_TOUCH && state.editMode);
+        const at = edit && !building ? regionAt(e) : null;
+        down = at ? { x: e.clientX, y: e.clientY, piece: world.r_plate[at.r] } : null;
+    });
+    el.addEventListener('pointerup', (e) => {
+        if (!down) return;
+        const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) >= 6, piece = down.piece;
+        down = null;
+        if (moved) return;
+        if (pending.has(piece)) pending.delete(piece); else pending.add(piece);
+        pendingChanged();
+        readout(e);
+    });
+    el.addEventListener('contextmenu', (e) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); });
+}
+addEventListener('keydown', (e) => {
+    if ((e.key === 'Control' || e.key === 'Meta') && !e.repeat) { editKey = true; if (lastPointer && pv.ui.hover.style.display !== 'none' && !building) readout(lastPointer); }
+});
+addEventListener('keyup', (e) => { if (e.key === 'Control' || e.key === 'Meta') { editKey = false; setHovered(-1); } });
+addEventListener('blur', () => { editKey = false; setHovered(-1); });
+for (const el of [pv.ui.canvas, pv.ui.map]) el.addEventListener('pointerleave', () => { lastPointer = null; if (!(IS_TOUCH && state.editMode)) setHovered(-1); });
+const rebuildFab = $('rebuildFab');
+function pendingChanged() {
+    dirty = true;
+    rebuildFab.querySelector('span').textContent = `Rebuild (${pending.size})`;
+    rebuildFab.style.display = pending.size ? '' : 'none';
+    document.body.classList.toggle('edits-pending', pending.size > 0);      // (the readout steps up over the button)
+}
+function clearPending() { pending.clear(); pendingChanged(); }
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && pending.size) clearPending(); });
+rebuildFab.addEventListener('click', () => {
+    if (!pending.size || !world || building) return;
+    for (const id of pending) { if (world.plateIsOcean.has(id)) world.plateIsOcean.delete(id); else world.plateIsOcean.add(id); }
+    clearPending(); setHovered(-1);
+    building = 'edit'; finisher.cancel();
+    $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
+    pv.hover(['⏳ Rebuilding…']);
+    worker.postMessage({ cmd: 'editRecompute', plateIsOcean: [...world.plateIsOcean], ...sliders() });
+});
+$('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); if (!state.editMode) setHovered(-1); });
+
+// ── the sliders: their values, the stale build button, Reapply, the climate ──
+const sliderIds = ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc'], PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'], SCULPT = ['sTw', 'sS', 'sGl', 'sHEr', 'sTEr', 'sRs'];
+let lastGenValues = {};
+function snapshotSliders() { for (const id of sliderIds) lastGenValues[id] = $(id).value; }
+function checkStale() {
+    const btn = $('generate');
+    if (btn.classList.contains('generating')) return;
+    const plateChanged = PLATE_SLIDERS.some((id) => $(id).value !== lastGenValues[id]);
+    const detailChanged = ['sN', 'sJ', 'sNs'].some((id) => $(id).value !== lastGenValues[id]);
+    btn.classList.remove('stale', 'regen');
+    if (plateChanged) { btn.classList.add('regen'); btn.textContent = 'Regenerate'; }
+    else if (detailChanged) { btn.classList.add('stale'); btn.textContent = 'Rebuild'; }
+    else btn.textContent = 'Build New World';
+}
+const reapplyBtn = $('reapplyBtn');
+for (const s of ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc', ...SCULPT, 'sTmp', 'sPrc']) {
+    const slider = $(s), v = s.replace('s', 'v');
+    sliderTooltip(slider);
+    slider.addEventListener('input', (e) => {
+        const val = +e.target.value;
+        if (s === 'sN') { const d = detailFromSlider(val); $(v).textContent = d.toLocaleString(); detailWarning(d, IS_TOUCH); }
+        else if (s === 'sTmp') $(v).textContent = `${val > 0 ? '+' : val === 0 ? '±' : '−'}${Math.abs(val)} W/m²`;
+        else if (s === 'sPrc') { const pct = Math.round(val * 50); $(v).textContent = `${pct > 0 ? '+' : pct === 0 ? '±' : ''}${pct}%`; }
+        else if (s === 'sLc') $(v).textContent = `${Math.round(val * 100)}%`;
+        else $(v).textContent = e.target.value;
+        if (SCULPT.includes(s)) { reapplyBtn.disabled = false; reapplyBtn.classList.add('ready'); }
+        else if (s !== 'sTmp' && s !== 'sPrc') checkStale();
+    });
+    // (the climate: the finish again, with the ground it has — on release, not every step of a drag)
+    if (s === 'sTmp' || s === 'sPrc') slider.addEventListener('change', () => { if (world) { updatePlanetCode(false); finish(world); } });
+}
+redrawFoldedSliders();
+reapplyBtn.addEventListener('click', () => {
+    if (reapplyBtn.disabled || !world || building) return;
+    reapplyBtn.disabled = true; reapplyBtn.classList.remove('ready'); reapplyBtn.classList.add('spinning');
+    building = 'reapply'; finisher.cancel();
+    worker.postMessage({ cmd: 'reapply', ...sliders() });
+});
+
+// ── the build overlay ──
+const overlay = buildOverlay();
+const onProgress = (pct, label) => overlay.progress(pct, label), showBuildOverlay = () => overlay.show(), hideBuildOverlay = () => overlay.hide();
+
+// ── Build New World, the planet code ──
+const genBtn = $('generate'), seedInput = $('seedCode'), copyBtn = $('copyBtn'), loadBtn = $('loadBtn'), seedError = $('seedError');
+let currentCode = '';
+genBtn.addEventListener('click', () => {
+    reapplyBtn.disabled = true; reapplyBtn.classList.remove('ready');
+    panel.collapse();                                                // (a phone: the sheet down, the planet in view)
+    // (Rebuild: the same seed and edits, only the resolution and noise; the plate sliders: a fresh world)
+    const plateChanged = PLATE_SLIDERS.some((id) => $(id).value !== lastGenValues[id]);
+    const rebuild = genBtn.classList.contains('stale') && world && !plateChanged;
+    generate(rebuild ? world.seed : undefined, rebuild ? toggledIndices() : []);
+});
+/** The pieces edited, as indices into the layout's list (the planet code's toggles). */
+function toggledIndices() {
+    const w = world;
+    if (!w) return [];
+    const out = [];
+    w.plateSeeds.forEach((r, i) => { if (w.originalPlateIsOcean.has(r) !== w.plateIsOcean.has(r)) out.push(i); });
+    return out;
+}
 function updatePlanetCode(flash) {
-    const d = state.curData;
-    if (!d) return;
-    const code = encodePlanetCode(
-        d.seed,
-        detailFromSlider(+document.getElementById('sN').value),
-        +document.getElementById('sJ').value,
-        +document.getElementById('sP').value,
-        +document.getElementById('sCn').value,
-        +document.getElementById('sNs').value,
-        +document.getElementById('sTw').value,
-        +document.getElementById('sS').value,
-        +document.getElementById('sGl').value,
-        +document.getElementById('sHEr').value,
-        +document.getElementById('sTEr').value,
-        +document.getElementById('sRs').value,
-        0.75,
-        +document.getElementById('sCsv').value,
-        +document.getElementById('sTmp').value,
-        +document.getElementById('sPrc').value,
-        +document.getElementById('sLc').value,
-        getToggledIndices()
-    );
-    currentCode = code;
-    seedInput.value = code;
-    updateLoadBtn();
-    history.replaceState(null, '', '#' + code);
-    if (flash) {
-        seedInput.classList.add('flash');
-        seedInput.addEventListener('animationend', () => seedInput.classList.remove('flash'), { once: true });
-    }
+    if (!world) return;
+    const v = (id) => +$(id).value;
+    currentCode = encodePlanetCode(world.seed, detailFromSlider(v('sN')), v('sJ'), v('sP'), v('sCn'), v('sNs'), v('sTw'), v('sS'), v('sGl'), v('sHEr'), v('sTEr'), v('sRs'), 0.75, v('sCsv'), v('sTmp'), v('sPrc'), v('sLc'), toggledIndices());
+    seedInput.value = currentCode;
+    loadBtn.classList.toggle('ready', false);
+    history.replaceState(null, '', `${location.search}#${currentCode}`);
+    if (flash) { seedInput.classList.add('flash'); seedInput.addEventListener('animationend', () => seedInput.classList.remove('flash'), { once: true }); }
 }
-
-genBtn.addEventListener('generate-done', () => updatePlanetCode(false));
-genBtn.addEventListener('generate-done', () => {
-    // If climate not computed and current view is a climate layer, switch to Terrain
-    if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
-        state.debugLayer = '';
-        if (debugLayerEl) debugLayerEl.value = '';
-        syncTabsToLayer('');
-        updateMeshColors();
-    }
-    syncTabsToLayer(shownLayer());
-    updateLegend(shownLayer());
-
-    // Rebuild wind/ocean arrows if a relevant debug layer is active
-    showClimateArrows(state.debugLayer, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-});
-
-document.addEventListener('plates-edited', () => {
-    updatePlanetCode(true);
-    // If climate was invalidated and we're viewing a climate layer, switch to Terrain
-    if (!state.climateComputed && CLIMATE_LAYERS.has(state.debugLayer)) {
-        state.debugLayer = '';
-        if (debugLayerEl) debugLayerEl.value = '';
-        syncTabsToLayer('');
-        updateMeshColors();
-        updateLegend('');
-    }
-});
-
 copyBtn.addEventListener('click', () => {
     if (!seedInput.value) return;
-    navigator.clipboard.writeText(seedInput.value).then(() => {
-        copyBtn.textContent = '\u2713';
-        setTimeout(() => { copyBtn.textContent = '\u2398'; }, 1200);
-    });
+    navigator.clipboard.writeText(seedInput.value).then(() => { copyBtn.textContent = '✓'; setTimeout(() => { copyBtn.textContent = '⎘'; }, 1200); });
 });
-
-seedInput.addEventListener('input', () => {
-    updateLoadBtn();
-    seedError.classList.remove('visible');
-});
-
-const seedError = document.getElementById('seedError');
-
-function paramsToSliderMap(params) {
-    return {
-        sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P,
-        sCn: params.numContinents, sNs: params.roughness,
-        sCsv: params.continentSizeVariety, sLc: params.landCoverage,
-        sTw: params.terrainWarp, sS: params.smoothing, sGl: params.glacialErosion,
-        sHEr: params.hydraulicErosion, sTEr: params.thermalErosion,
-        sRs: params.ridgeSharpening, sTmp: params.greenhouse,
-        sPrc: params.precipitationOffset,
-    };
+seedInput.addEventListener('input', () => { const val = seedInput.value.trim().toLowerCase(); loadBtn.classList.toggle('ready', val.length > 0 && val !== currentCode); seedError.classList.remove('visible'); });
+function setSlidersFrom(params) {
+    const map = { sN: sliderFromDetail(params.N), sJ: params.jitter, sP: params.P, sCn: params.numContinents, sNs: params.roughness, sCsv: params.continentSizeVariety, sLc: params.landCoverage,
+        sTw: params.terrainWarp, sS: params.smoothing, sGl: params.glacialErosion, sHEr: params.hydraulicErosion, sTEr: params.thermalErosion, sRs: params.ridgeSharpening, sTmp: params.greenhouse, sPrc: params.precipitationOffset };
+    for (const [id, val] of Object.entries(map)) { const el = $(id); el.value = val; el.dispatchEvent(new Event('input')); }
 }
-
 function applyCode(code) {
     const params = decodePlanetCode(code);
     if (!params) {
-        seedInput.style.borderColor = '#c44';
-        seedError.classList.add('visible');
+        seedInput.style.borderColor = '#c44'; seedError.classList.add('visible');
         setTimeout(() => { seedInput.style.borderColor = ''; }, 1500);
         return;
     }
     seedError.classList.remove('visible');
-    // Set slider values + fire input events to update displays
-    const map = paramsToSliderMap(params);
-    for (const [id, val] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        el.value = val;
-        el.dispatchEvent(new Event('input'));
-    }
-    clearReapplyPending();
-    state.pendingToggles.clear();
-    document.getElementById('rebuildFab').style.display = 'none';
-    showBuildOverlay();
-    generate(params.seed, params.toggledIndices, onProgress, shouldSkipClimate());
+    setSlidersFrom(params);
+    reapplyBtn.disabled = true; reapplyBtn.classList.remove('ready');
+    clearPending();
+    generate(params.seed, params.toggledIndices);
+}
+loadBtn.addEventListener('click', () => applyCode(seedInput.value));
+seedInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') applyCode(seedInput.value); });
+
+// ── the Inspect list: the world's past, per region ──
+inspectEl?.addEventListener('change', () => { if (inspectEl.value) pv.setLayer(`inspect:${inspectEl.value}`); else pv.setLayer('terrain'); });
+
+// ── the export: Evolution's panel and maps, from the finished world ──
+const code = () => currentCode || (world ? String(world.seed) : '');
+// (and Generate's own row, the Plates: their colours, or each one's number — at the export's width and centre)
+const PLATES_ROW = { id: 'plates', label: 'Plates', colour: true, data: [{ key: 'plateId', suffix: 'id', label: 'Plate number', scale: DATA_SCALES.plateId, bits: 8 }], tip: 'The plates in their colours, the boundaries by kind (the Plates view without its arrows); as data, each plate’s number' };
+const CATALOGUE_WITH_PLATES = CATALOGUE.map((g) => (g.id === 'geology' ? { ...g, rows: [PLATES_ROW, ...g.rows] } : g));
+function producePlates(rctx, job) {
+    if (job.row.id !== 'plates' || !world) return null;
+    const W = rctx.W, H = W >> 1, shift = rollShift(W, rctx.look.centerLon), colour = job.variant === 'colour';
+    return { kind: colour ? 'rgba' : 'gray8', W, H, data: rollRows(platesMap(world, W, colour ? 'rgba' : 'id'), W, H, colour ? 4 : 1, shift) };
+}
+const exportPanel = initEvolutionExport({
+    moment: () => (world?.fin ? { frame: world.story, fin: world.fin, seed: code(), cloudSeed: world.seed } : null),
+    look: () => ({ lut: heightLutOf(view.palette), exaggeration: pv.SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
+    centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH,
+    fine: (fin, _seed, W, onProgress) => pv.detail.window(fin, world.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress),
+    page: 'generate', titleNote: () => '', catalogue: CATALOGUE_WITH_PLATES, produceOwn: producePlates,
+    names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen', ctx.seed], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
+    about: (ctx) => ({ page: 'Generate', planet: `planet code ${ctx.seed}`, link: `https://orogen.studio/generate#${ctx.seed}` }) });
+$('exportBtn').addEventListener('click', () => {
+    if (world?.fin) { exportPanel.open(); return; }
+    // (the maps come from the finished world: a few seconds after the planet)
+    pv.hover([world?.finishing ? `The maps are ready once the planet is finished — ${Math.round(100 * world.finishing.share)} %` : 'The maps are ready once the planet is finished']);
+    setTimeout(() => pv.hover(null), 2500);
+});
+
+// ── stats ──
+function stats(msg) {
+    const w = world;
+    $('stats').innerHTML = `Regions: ${w.n.toLocaleString()}<br>Plates: ${w.present?.plates.length ?? '–'} moving, ${w.plateSeeds.length} pieces` +
+        (msg._workerTotal ? `<br>First picture in ${(msg._workerTotal / 1000).toFixed(1)} s` : '');
 }
 
-loadBtn.addEventListener('click', () => {
-    applyCode(seedInput.value);
-});
-
-seedInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') applyCode(seedInput.value);
-});
-
-// Wireframe (the Inspect section)
-document.getElementById('chkWire').addEventListener('change', buildMesh);
-
-// Grid toggle
-const gridSpacingGroup = document.getElementById('gridSpacingGroup');
-document.getElementById('chkGrid').addEventListener('change', (e) => {
-    state.gridEnabled = e.target.checked;
-    gridSpacingGroup.style.display = state.gridEnabled ? '' : 'none';
-    if (state.mapMode) {
-        if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
-        if (state.globeGridMesh) state.globeGridMesh.visible = false;
-    } else {
-        if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
-        if (state.mapGridMesh) state.mapGridMesh.visible = false;
-    }
-});
-
-// Grid spacing dropdown
-document.getElementById('gridSpacing').addEventListener('change', (e) => {
-    state.gridSpacing = parseFloat(e.target.value);
-    rebuildGrids();
-});
-
-// The Terrain view's colours (the view strip's Colours; js/terrain-palette.js)
-initPaletteMenu(() => { updateMeshColors(); updateLegend(shownLayer()); });
-
-// Map center longitude slider — translate on drag (instant), rebuild on release
-const sMapCenterLon = document.getElementById('sMapCenterLon');
-const vMapCenterLon = document.getElementById('vMapCenterLon');
-
-sMapCenterLon.addEventListener('input', () => {
-    const lon = +sMapCenterLon.value;
-    const suffix = lon > 0 ? 'E' : lon < 0 ? 'W' : '';
-    vMapCenterLon.textContent = Math.abs(lon) + '\u00B0' + suffix;
-    state.mapCenterLon = lon * Math.PI / 180;
-    if (state.mapMode && state.mapMesh) {
-        // Instant GPU translation — wrap clones (children at ±4) fill edges
-        const builtLon = state.mapMesh._builtCenterLon || 0;
-        const dx = (builtLon - state.mapCenterLon) * (2 / Math.PI);
-        state.mapMesh.position.x = dx;
-        for (const c of state.mapMesh.userData.wrap) c.visible = dx !== 0;
-        if (state.mapGridMesh) state.mapGridMesh.position.x = dx;
-    }
-});
-
-sMapCenterLon.addEventListener('change', () => {
-    if (state.mapMode) {
-        buildMapMesh();
-        // Rebuild arrows if a wind/ocean layer is active
-        const layer = state.debugLayer;
-        showClimateArrows(layer, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-    }
-});
-
-// View mode dropdown (Globe / Map)
-document.getElementById('viewMode').addEventListener('change', (e) => {
-    state.mapMode = e.target.value === 'map';
-    if (state.mapMode) {
-        if (state.planetMesh) state.planetMesh.visible = false;
-        waterMesh.visible = false;
-        atmosMesh.visible = false;
-        starsMesh.visible = false;
-        if (state.wireMesh) state.wireMesh.visible = false;
-        if (state.arrowGroup) state.arrowGroup.visible = false;
-        if (!state.mapMesh) {
-            showBuildOverlay();
-            onProgress(0, 'Building map mesh\u2026');
-            // Yield to let the overlay paint, then build the mesh
-            setTimeout(() => {
-                buildMapMesh();
-                if (state.mapMesh) state.mapMesh.visible = true;
-                hideBuildOverlay();
-            }, 50);
-        }
-        if (state.mapMesh) state.mapMesh.visible = true;
-        if (state.mapGridMesh) state.mapGridMesh.visible = state.gridEnabled;
-        if (state.globeGridMesh) state.globeGridMesh.visible = false;
-        // Toggle wind arrow sub-groups for map mode
-        if (state.windArrowGroup) {
-            state.windArrowGroup.traverse(c => {
-                if (c.name === 'windGlobe') c.visible = false;
-                if (c.name === 'windMap') c.visible = true;
-            });
-        }
-        if (state.oceanCurrentArrowGroup) {
-            state.oceanCurrentArrowGroup.traverse(c => {
-                if (c.name === 'oceanGlobe') c.visible = false;
-                if (c.name === 'oceanMap') c.visible = true;
-            });
-        }
-        scene.background = new THREE.Color(0x1a1a2e);
-        ctrl.enabled = false;
-        mapCtrl.enabled = true;
-        mapCamera.position.set(0, 0, 5);
-        mapCamera.lookAt(0, 0, 0);
-        updateMapCameraFrustum();
-        mapCtrl.target.set(0, 0, 0);
-        mapCtrl.update();
-    } else {
-        if (state.planetMesh) state.planetMesh.visible = true;
-        atmosMesh.visible = true;
-        starsMesh.visible = true;
-        if (state.wireMesh) state.wireMesh.visible = true;
-        if (state.arrowGroup) state.arrowGroup.visible = true;
-        if (state.mapMesh) state.mapMesh.visible = false;
-        if (state.mapGridMesh) state.mapGridMesh.visible = false;
-        if (state.globeGridMesh) state.globeGridMesh.visible = state.gridEnabled;
-        // Toggle wind arrow sub-groups for globe mode
-        if (state.windArrowGroup) {
-            state.windArrowGroup.traverse(c => {
-                if (c.name === 'windGlobe') c.visible = true;
-                if (c.name === 'windMap') c.visible = false;
-            });
-        }
-        if (state.oceanCurrentArrowGroup) {
-            state.oceanCurrentArrowGroup.traverse(c => {
-                if (c.name === 'oceanGlobe') c.visible = true;
-                if (c.name === 'oceanMap') c.visible = false;
-            });
-        }
-        waterMesh.visible = !state.showPlates && !state.debugLayer;
-        scene.background = new THREE.Color(0x030308);
-        mapCtrl.enabled = false;
-        ctrl.enabled = true;
-    }
-});
-
-// The Inspect list (None: the terrain)
-if (debugLayerEl) debugLayerEl.addEventListener('change', (e) => switchVisualization(e.target.value));
-
-// Season picker (Year · January · July) for the climate's Inspect layers
-initSeasonPicker(state, () => {
-    updateMeshColors();
-    showClimateArrows(state.debugLayer, state.climateSeason, buildWindArrows, buildOceanCurrentArrows);
-    updateLegend(state.debugLayer);
-});
-
-// Export modal
-// The export panel (v2/js/view/export-panel.js; the maps: js/export-generate.js)
-const exportPanel = initGenerateExport({ page: 'generate', ensureClimate: (progress) => new Promise(resolve => computeClimateViaWorker(progress, resolve)),
-    code: () => location.hash.replace(/^#/, "").trim() || (state.curData ? String(state.curData.seed) : "") });
-document.getElementById('exportBtn').addEventListener('click', exportPanel.open);
-
-// Edit mode setup (pointer events, sub-mode buttons)
-setupEditMode();
-
-// Rebuild FAB — batch-apply pending plate toggles
-(function initRebuildFab() {
-    const rebuildBtn = document.getElementById('rebuildFab');
-    const rebuildLabel = rebuildBtn.querySelector('span');
-
-    function clearPending() {
-        state.pendingToggles.clear();
-        rebuildBtn.style.display = 'none';
-        state._pendingBackup = null;
-        state._mapPendingBackup = null;
-        updatePendingHighlight();
-        updateMapPendingHighlight();
-    }
-
-    // Show/hide rebuild button when pending set changes
-    document.addEventListener('pending-edits-changed', () => {
-        const count = state.pendingToggles.size;
-        if (count > 0) {
-            rebuildLabel.textContent = `Rebuild (${count})`;
-            rebuildBtn.style.display = '';
-        } else {
-            rebuildBtn.style.display = 'none';
-        }
-    });
-
-    // Click: apply all pending toggles, then recompute once
-    rebuildBtn.addEventListener('click', () => {
-        if (state.pendingToggles.size === 0) return;
-        const { plateIsOcean, plateDensity, plateDensityLand, plateDensityOcean } = state.curData;
-
-        // Apply all pending toggles
-        for (const pid of state.pendingToggles) {
-            if (plateIsOcean.has(pid)) {
-                plateIsOcean.delete(pid);
-                plateDensity[pid] = plateDensityLand[pid];
-            } else {
-                plateIsOcean.add(pid);
-                plateDensity[pid] = plateDensityOcean[pid];
-            }
-        }
-
-        clearPending();
-
-        // Show building state
-        const btn = document.getElementById('generate');
-        btn.disabled = true;
-        btn.textContent = 'Building\u2026';
-        btn.classList.add('generating');
-
-        const hoverEl = document.getElementById('hoverInfo');
-        hoverEl.innerHTML = '\u23F3 Rebuilding\u2026';
-        hoverEl.style.display = 'block';
-
-        const skipClimate = shouldSkipClimate();
-        editRecomputeViaWorker(() => {
-            btn.disabled = false;
-            btn.textContent = 'Build New World';
-            btn.classList.remove('generating');
-            hoverEl.style.display = 'none';
-            document.dispatchEvent(new CustomEvent('plates-edited'));
-        }, skipClimate);
-    });
-
-    // Escape clears all pending edits
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && state.pendingToggles.size > 0) {
-            clearPending();
-        }
-    });
-
-    // Clear pending on new generation
-    genBtn.addEventListener('generate-done', clearPending);
-})();
-
-// Sidebar toggle (desktop) + bottom sheet (mobile)
-const sidebarToggle = document.getElementById('sidebarToggle');
-const uiPanel = document.getElementById('ui');
-const isMobileLayout = () => window.innerWidth <= 768;
-
-if (isMobileLayout()) {
-    uiPanel.classList.add('collapsed');
-}
-
-// Desktop sidebar toggle
-sidebarToggle.addEventListener('click', () => {
-    const collapsed = uiPanel.classList.toggle('collapsed');
-    sidebarToggle.innerHTML = collapsed ? '\u00BB' : '\u00AB';
-    sidebarToggle.title = collapsed ? 'Show panel' : 'Collapse panel';
-});
-
-// Bottom-sheet drag behavior (Pointer Events + setPointerCapture)
-(function initBottomSheet() {
-    const handle = document.getElementById('sheetHandle');
-    if (!handle) return;
-
-    let startY = 0, startTransform = 0, dragging = false;
-    let lastY = 0, lastTime = 0, velocity = 0;
-    let didDrag = false;
-    let rafId = 0, pendingY = null;
-
-    function getTranslateY() {
-        const st = getComputedStyle(uiPanel);
-        const m = new DOMMatrix(st.transform);
-        return m.m42;
-    }
-
-    function getCollapsedY() {
-        return uiPanel.offsetHeight - 60;
-    }
-
-    function applyTransform() {
-        if (pendingY !== null) {
-            uiPanel.style.transform = `translateY(${pendingY}px)`;
-            pendingY = null;
-        }
-        rafId = 0;
-    }
-
-    function scheduleTransform(y) {
-        pendingY = y;
-        if (!rafId) rafId = requestAnimationFrame(applyTransform);
-    }
-
-    function cleanup() {
-        dragging = false;
-        uiPanel.style.transition = '';
-        uiPanel.classList.remove('dragging');
-        if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
-        pendingY = null;
-    }
-
-    handle.addEventListener('pointerdown', (e) => {
-        if (!isMobileLayout()) return;
-        e.preventDefault();
-        handle.setPointerCapture(e.pointerId);
-        dragging = true;
-        didDrag = false;
-        startY = e.clientY;
-        lastY = e.clientY;
-        lastTime = performance.now();
-        velocity = 0;
-        startTransform = uiPanel.classList.contains('collapsed') ? getTranslateY() : 0;
-        uiPanel.style.transition = 'none';
-        uiPanel.classList.add('dragging');
-    });
-
-    handle.addEventListener('pointermove', (e) => {
-        if (!dragging) return;
-        const y = e.clientY;
-        const now = performance.now();
-        const dt = now - lastTime;
-        if (dt > 0) velocity = (y - lastY) / dt; // px/ms, positive = downward
-        lastY = y;
-        lastTime = now;
-        const dy = y - startY;
-        if (Math.abs(dy) > 5) didDrag = true;
-        const collapsedY = getCollapsedY();
-        const newY = Math.max(0, Math.min(collapsedY, startTransform + dy));
-        scheduleTransform(newY);
-    });
-
-    handle.addEventListener('pointerup', (e) => {
-        if (!dragging) return;
-        handle.releasePointerCapture(e.pointerId);
-        cleanup();
-        const curY = getTranslateY();
-        const collapsedY = getCollapsedY();
-        const progress = collapsedY > 0 ? 1 - curY / collapsedY : 0;
-        const shouldCollapse = velocity > 0.3 || (velocity > -0.3 && progress < 0.3);
-        if (shouldCollapse) {
-            uiPanel.classList.add('collapsed');
-        } else {
-            uiPanel.classList.remove('collapsed');
-        }
-        uiPanel.style.transform = '';
-    });
-
-    handle.addEventListener('pointercancel', (e) => {
-        if (!dragging) return;
-        try { handle.releasePointerCapture(e.pointerId); } catch (_) {}
-        cleanup();
-        uiPanel.style.transform = '';
-    });
-
-    // Tap on handle toggles collapsed state (suppressed if a drag just happened)
-    handle.addEventListener('click', () => {
-        if (!isMobileLayout()) return;
-        if (didDrag) { didDrag = false; return; }
-        uiPanel.classList.toggle('collapsed');
-    });
-})();
-
-// Edit-mode toggle wiring
-(function initEditToggle() {
-    const editBtn = document.getElementById('editToggle');
-    if (!editBtn) return;
-    editBtn.addEventListener('click', () => {
-        state.editMode = !state.editMode;
-        editBtn.classList.toggle('active', state.editMode);
-    });
-})();
-
-// Mobile refresh FAB — two-tap to regenerate (blue → green → generate)
-(function initRefreshFab() {
-    const btn = document.getElementById('refreshFab');
+// ── the side panel: collapse on a desktop, a bottom sheet on a phone (as before) ──
+const panel = sidePanel();
+// (a phone's refresh button: two taps for a new world)
+(function refreshFab() {
+    const btn = $('refreshFab');
     if (!btn) return;
-    let armed = false;
-    let timer = 0;
-
-    function disarm() {
-        armed = false;
-        btn.classList.remove('armed');
-        clearTimeout(timer);
-    }
-
+    let armed = false, timer = 0;
+    const disarm = () => { armed = false; btn.classList.remove('armed'); clearTimeout(timer); };
     btn.addEventListener('click', () => {
-        if (!armed) {
-            armed = true;
-            btn.classList.add('armed');
-            timer = setTimeout(disarm, 3000);
-        } else {
-            disarm();
-            // Collapse sheet so user sees the planet build
-            if (isMobileLayout()) uiPanel.classList.add('collapsed');
-            clearReapplyPending();
-            showBuildOverlay();
-            generate(undefined, [], onProgress, shouldSkipClimate());
-        }
+        if (!armed) { armed = true; btn.classList.add('armed'); timer = setTimeout(disarm, 3000); return; }
+        disarm();
+        panel.collapse();
+        generate(undefined, []);
     });
 })();
 
-// Mobile info text
-if (state.isTouchDevice) {
-    const infoEl = document.getElementById('info');
-    if (infoEl) infoEl.textContent = 'Drag to rotate \u00b7 Pinch to zoom \u00b7 Use edit button to reshape';
-}
-
-
-// Orientation change handler
-window.addEventListener('orientationchange', () => {
-    setTimeout(() => {
-        fitCamera(innerWidth, innerHeight);
-        updateMapCameraFrustum();
-        renderer.setSize(innerWidth, innerHeight);
-    }, 100);
-});
-
-// Animation loop
-function animate() {
-    requestAnimationFrame(animate);
-    if (state.mapMode) { tickMapZoom(); mapCtrl.update(); } else { tickZoom(); ctrl.update(); }
-    if (!state.mapMode && state.planetMesh && document.getElementById('chkRotate').checked) {
-        state.planetMesh.rotation.y += 0.0008;
-        waterMesh.rotation.y = state.planetMesh.rotation.y;
-        if (state.wireMesh) state.wireMesh.rotation.y = state.planetMesh.rotation.y;
-        if (state.arrowGroup) state.arrowGroup.rotation.y = state.planetMesh.rotation.y;
-        if (state.windArrowGroup) state.windArrowGroup.rotation.y = state.planetMesh.rotation.y;
-        if (state.oceanCurrentArrowGroup) state.oceanCurrentArrowGroup.rotation.y = state.planetMesh.rotation.y;
-        if (state.globeGridMesh) state.globeGridMesh.rotation.y = state.planetMesh.rotation.y;
-    }
-    renderView();
-}
-
-// Resize handler
-window.addEventListener('resize', () => {
-    fitCamera(innerWidth, innerHeight);
-    updateMapCameraFrustum();
-    renderer.setSize(innerWidth, innerHeight);
-});
-
-// Site storage can be blocked (privacy settings, some private windows): reading or writing it then throws. Treat that
-// as nothing stored, so the tutorial and What's New still work and the page still builds a planet.
-const store = {
-    get(key) { try { return localStorage.getItem(key); } catch { return null; } },
-    set(key, value) { try { localStorage.setItem(key, value); } catch { /* not remembered where the browser forbids it */ } },
-};
-
-// Tutorial modal
-(function initTutorial() {
-    const overlay  = document.getElementById('tutorialOverlay');
-    const card     = document.getElementById('tutorialCard');
-    const closeBtn = document.getElementById('tutorialClose');
-    const backBtn  = document.getElementById('tutorialBack');
-    const nextBtn  = document.getElementById('tutorialNext');
-    const helpBtn  = document.getElementById('helpBtn');
-    const steps    = card.querySelectorAll('.tutorial-step');
-    const dots     = card.querySelectorAll('.dot');
-    const TOTAL    = steps.length;
-    const LS_KEY   = 'atlas-engine-tutorial-seen';
-    let current    = 0;
-
-    function showStep(i) {
-        current = i;
-        steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
-        dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
-        backBtn.disabled = i === 0;
-        nextBtn.textContent = i === TOTAL - 1 ? 'Get Started' : 'Next';
-        card.scrollTop = 0;     // (a card taller than the screen scrolls: each step from its top)
-    }
-
-    function openModal() {
-        current = 0;
-        showStep(0);
-        overlay.classList.remove('hidden');
-    }
-
-    function closeModal() {
-        overlay.classList.add('hidden');
-        store.set(LS_KEY, '1');
-    }
-
-    nextBtn.addEventListener('click', () => {
-        if (current < TOTAL - 1) showStep(current + 1);
-        else closeModal();
-    });
-
-    backBtn.addEventListener('click', () => {
-        if (current > 0) showStep(current - 1);
-    });
-
-    closeBtn.addEventListener('click', closeModal);
-
-    overlay.addEventListener('click', (e) => {
-        if (e.target === overlay) closeModal();
-    });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
-    });
-
-    helpBtn.addEventListener('click', openModal);
-
-    // Update tutorial step 2 for touch devices
-    if (state.isTouchDevice) {
-        const step2 = card.querySelector('.tutorial-step[data-step="2"]');
-        if (step2) {
-            const p = step2.querySelector('p');
-            if (p) p.innerHTML = '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.';
-        }
-    }
-
-    // Auto-show on first visit — wait until the build overlay has faded out
-    overlay.classList.add('hidden');
-    if (!store.get(LS_KEY)) {
-        genBtn.addEventListener('generate-done', () => {
-            if (buildOverlay) {
-                buildOverlay.addEventListener('transitionend', () => openModal(), { once: true });
-            } else {
-                openModal();
-            }
-        }, { once: true });
-    }
-})();
-
-// What's New modal — shown once per version for returning users
-(function initWhatsNew() {
-    const VERSION    = '6';
-    const LS_KEY     = 'wo-whatsnew-seen';
-    const LS_TUTORIAL = 'atlas-engine-tutorial-seen';
-    const overlay    = document.getElementById('whatsNewOverlay');
-    const card       = document.getElementById('whatsNewCard');
+// ── the tutorial, What's New and the survey (as before) ──
+tutorial({ key: 'atlas-engine-tutorial-seen', firstDone: genBtn, isTouch: IS_TOUCH,
+    touchStep2: '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.' });
+(function whatsNew() {
+    const VERSION = '6', LS_KEY = 'wo-whatsnew-seen', overlay = $('whatsNewOverlay'), card = $('whatsNewCard');
     if (!overlay || !card) return;
-
-    const closeBtn = document.getElementById('whatsNewClose');
-    const backBtn  = document.getElementById('whatsNewBack');
-    const nextBtn  = document.getElementById('whatsNewNext');
-    const steps    = card.querySelectorAll('.whatsnew-step');
-    const dots     = card.querySelectorAll('.dot');
-    const TOTAL    = steps.length;
-    let current    = 0;
-
-    function showStep(i) {
-        current = i;
-        steps.forEach((s, idx) => s.classList.toggle('active', idx === i));
-        dots.forEach((d, idx) => d.classList.toggle('active', idx === i));
-        backBtn.disabled = i === 0;
-        nextBtn.textContent = i === TOTAL - 1 ? 'Got It' : 'Next';
-        card.scrollTop = 0;     // (a card taller than the screen scrolls: each step from its top)
-    }
-
-    function closeModal() {
-        overlay.classList.add('hidden');
-        store.set(LS_KEY, VERSION);
-    }
-
-    nextBtn.addEventListener('click', () => {
-        if (current < TOTAL - 1) showStep(current + 1);
-        else closeModal();
-    });
-    backBtn.addEventListener('click', () => {
-        if (current > 0) showStep(current - 1);
-    });
-    closeBtn.addEventListener('click', closeModal);
-    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !overlay.classList.contains('hidden')) closeModal();
-    });
-
-    // Only show for returning users (tutorial already seen) who haven't seen this version
+    const steps = card.querySelectorAll('.whatsnew-step'), dots = card.querySelectorAll('.dot');
+    let current = 0;
+    const show = (i) => { current = i; steps.forEach((s, k) => s.classList.toggle('active', k === i)); dots.forEach((d, k) => d.classList.toggle('active', k === i)); $('whatsNewBack').disabled = i === 0; $('whatsNewNext').textContent = i === steps.length - 1 ? 'Got It' : 'Next'; card.scrollTop = 0; };
+    const close = () => { overlay.classList.add('hidden'); store.set(LS_KEY, VERSION); };
+    $('whatsNewNext').addEventListener('click', () => (current < steps.length - 1 ? show(current + 1) : close()));
+    $('whatsNewBack').addEventListener('click', () => { if (current > 0) show(current - 1); });
+    $('whatsNewClose').addEventListener('click', close);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.classList.contains('hidden')) close(); });
     overlay.classList.add('hidden');
-    const seenVersion = store.get(LS_KEY);
-    const isReturningUser = store.get(LS_TUTORIAL);
-    if (isReturningUser && seenVersion !== VERSION) {
-        genBtn.addEventListener('generate-done', () => {
-            showStep(0);
-            setTimeout(() => overlay.classList.remove('hidden'), 600);
-        }, { once: true });
-    }
+    if (store.get('atlas-engine-tutorial-seen') && store.get(LS_KEY) !== VERSION) genBtn.addEventListener('generate-done', () => { show(0); setTimeout(() => overlay.classList.remove('hidden'), 600); }, { once: true });
 })();
-
-// Power-user survey — triggers after 3+ distinct hours across 2+ distinct days
-(function initSurveyTracker() {
-    const LS = 'wo-usage';
-    const LS_DISMISSED = 'wo-survey-dismissed';
-
+(function survey() {
+    const LS = 'wo-usage', LS_DISMISSED = 'wo-survey-dismissed';
     if (store.get(LS_DISMISSED)) return;
-
-    // Simple hash so we don't store raw timestamps
-    function hash(str) {
-        let h = 5381;
-        for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) >>> 0;
-        return h.toString(36);
-    }
-
-    let data;
-    try { data = JSON.parse(store.get(LS)) || {}; } catch (_) { data = {}; }
-    const hours = data.h || 0;
-    const days  = data.d || 0;
-    const lastH = data.lh || '';
-    const lastD = data.ld || '';
-
-    const now = new Date();
-    const hourKey = hash(now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate() + 'T' + now.getHours());
-    const dayKey  = hash(now.getFullYear() + '-' + now.getMonth() + '-' + now.getDate());
-
-    const newHours = hourKey !== lastH ? hours + 1 : hours;
-    const newDays  = dayKey  !== lastD ? days  + 1 : days;
-
-    store.set(LS, JSON.stringify({ h: newHours, d: newDays, lh: hourKey, ld: dayKey }));
-
-    if (newHours >= 3 && newDays >= 2) {
-        const overlay    = document.getElementById('surveyOverlay');
-        const closeBtn   = document.getElementById('surveyClose');
-        const dismissBtn = document.getElementById('surveyDismiss');
-        const linkBtn    = document.getElementById('surveyLink');
-        if (!overlay) return;
-
-        function dismiss() {
-            overlay.classList.add('hidden');
-            store.set(LS_DISMISSED, '1');
-        }
-
-        // Show after the first generation completes
-        genBtn.addEventListener('generate-done', () => {
-            setTimeout(() => overlay.classList.remove('hidden'), 1000);
-        }, { once: true });
-
-        closeBtn.addEventListener('click', dismiss);
-        dismissBtn.addEventListener('click', dismiss);
-        linkBtn.addEventListener('click', dismiss);
-        overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape' && !overlay.classList.contains('hidden')) dismiss();
-        });
-    }
+    const hash = (s) => { let h = 5381; for (let i = 0; i < s.length; i++) h = ((h << 5) + h + s.charCodeAt(i)) >>> 0; return h.toString(36); };
+    let data; try { data = JSON.parse(store.get(LS)) || {}; } catch { data = {}; }
+    const now = new Date(), hourKey = hash(`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}T${now.getHours()}`), dayKey = hash(`${now.getFullYear()}-${now.getMonth()}-${now.getDate()}`);
+    const hours = (data.h || 0) + (hourKey !== data.lh ? 1 : 0), days = (data.d || 0) + (dayKey !== data.ld ? 1 : 0);
+    store.set(LS, JSON.stringify({ h: hours, d: days, lh: hourKey, ld: dayKey }));
+    const overlay = $('surveyOverlay');
+    if (hours < 3 || days < 2 || !overlay) return;
+    const dismiss = () => { overlay.classList.add('hidden'); store.set(LS_DISMISSED, '1'); };
+    genBtn.addEventListener('generate-done', () => setTimeout(() => overlay.classList.remove('hidden'), 1000), { once: true });
+    for (const id of ['surveyClose', 'surveyDismiss', 'surveyLink']) $(id)?.addEventListener('click', dismiss);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) dismiss(); });
 })();
+// (the info line nudged once, after the first planet)
+genBtn.addEventListener('generate-done', () => { const el = $('info'); el.classList.add('nudge'); el.addEventListener('animationend', () => el.classList.remove('nudge'), { once: true }); }, { once: true });
 
-// Screenshot helper — call window.takePreview() from the browser console
-// Hides UI, renders at 1200×630 from the current camera angle, downloads preview.png
-window.takePreview = function(width = 1200, height = 630) {
-    // Save current state
-    const savedW = renderer.domElement.width;
-    const savedH = renderer.domElement.height;
-    const savedPixelRatio = renderer.getPixelRatio();
-
-    // Hide all UI elements
-    const hiddenEls = [];
-    for (const sel of ['#ui', '#layerBar', '#legendCard', '#info', '#hoverInfo', '#helpBtn',
-                        '#editToggle', '#refreshFab', '#rebuildFab', '#mobileViewSwitch',
-                        '#buildOverlay', '#tutorialOverlay', '#exportOverlay', '#surveyOverlay', '#whatsNewOverlay']) {
-        const el = document.querySelector(sel);
-        if (el && el.style.display !== 'none') {
-            hiddenEls.push({ el, prev: el.style.display });
-            el.style.display = 'none';
-        }
-    }
-
-    // Keep the current camera angle, just adjust aspect ratio for the output size
-    fitCamera(width, height);
-
-    // Render at exact target size
-    renderer.setPixelRatio(1);
-    renderer.setSize(width, height);
-    renderer.render(scene, camera);
-
-    // Download
-    const link = document.createElement('a');
-    link.download = 'preview.png';
-    link.href = renderer.domElement.toDataURL('image/png');
-    link.click();
-
-    // Restore everything
-    renderer.setPixelRatio(savedPixelRatio);
-    renderer.setSize(savedW / savedPixelRatio, savedH / savedPixelRatio);
-    fitCamera(innerWidth, innerHeight);
-    for (const { el, prev } of hiddenEls) el.style.display = prev;
-    renderView(true);
-    console.log('preview.png downloaded!');
-};
-
-// Go! Check URL hash for a planet code, otherwise random generation.
-const hashCode = location.hash.replace(/^#/, '').trim();
-const hashParams = hashCode ? decodePlanetCode(hashCode) : null;
-if (hashParams) {
-    const map = paramsToSliderMap(hashParams);
-    for (const [id, val] of Object.entries(map)) {
-        const el = document.getElementById(id);
-        el.value = val;
-        el.dispatchEvent(new Event('input'));
-    }
-    generate(hashParams.seed, hashParams.toggledIndices, onProgress, shouldSkipClimate());
-} else {
-    generate(undefined, [], onProgress, shouldSkipClimate());
-}
-animate();
+// ── go: the planet in the link, or a new one ──
+const hashParams = location.hash.length > 1 ? decodePlanetCode(location.hash.slice(1).trim()) : null;
+if (hashParams) { setSlidersFrom(hashParams); generate(hashParams.seed, hashParams.toggledIndices); }
+else generate(undefined, []);

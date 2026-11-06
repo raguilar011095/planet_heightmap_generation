@@ -325,6 +325,8 @@ node v2/tools/check-save.mjs                  # the planet file: (a) a small his
                                               # files made by hand → v2/out/; (b) every planet kept in tools/fixtures/saves/ opens, its terrain and every export map drawn
 node v2/tools/check-save.mjs --fixture        # (a) on a small planet kept as the fixture of today's versions — once per version
 node v2/tools/check-seeds.mjs                 # the seeds: each of 0 … 2,147,483,645 its own world; typed seeds, words' hashes and old planet codes as they were
+node v2/tools/check-present.mjs [--verbose]   # Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md): its plates that move, their
+                                              # boundaries, old codes' layout unchanged — on 10 fixed planets
 ```
 
 After a change to what a frame or a detailed moment holds, or to `js/save/`, run `check-save.mjs`: planets saved by an
@@ -451,10 +453,16 @@ js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of a
                    only paints
 js/view/           DOM-free painting: clouds (the clouds' noise in GLSL for the globe and the map and its JavaScript twin for
                    the export, and their cover from the climate), equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
-                   gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
+                   gpu-paint (Evolution's moments painted on the GPU: the terrain mesh drawn on the sphere onto a cube, read out
+                   into the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
-                   png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All)
-js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
+                   png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All);
+                   and the planet on screen, one for every page that shows a planet built from a Frame
+                   (plans/SHARED_CORE_PLAN.md): planet-view (the globe and the map, the picture on the GPU or canvases, the
+                   glint, the lines, the clouds, the Satellite view drawn ahead, the detail's tiles, the legend, the hover's
+                   lines — a page hands it a live surface or a finished moment) and layer-bar (the view strip, the tabs and
+                   their rows, the pickers — the deposits' and ages' menus from their lists — the phone's list, the legend card)
+js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-export (the Food rows of the export panel, their scales and README lists — shared with Generate's present-day world), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
 js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
@@ -463,6 +471,36 @@ js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the sta
                    regimes, lakes), finish-cover (the land's cover and its colours from space), finish-drivers (what the detail
                    finer than the mesh is drawn from) and fine-detail (that detail: any window of a detailed moment at any
                    resolution — plans/V2_FINE_DETAIL_PLAN.md)
+js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md, plans/GENERATE_RANGES_PLAN.md):
+                   one moment of a believable history with its past in closed form, written as the records Evolution's
+                   terrain reads — present-config (its tunables, km / Myr / cm·yr⁻¹), layout (Generate's pieces on the
+                   sim mesh; its y-up frame and Evolution's z-up), plates (the pieces grouped whole into plates that move
+                   and carry continent and ocean, their edges along some coasts, their motion, their boundaries by
+                   kind), coast (the land: the pieces', a passive coast carried a cell out), hold (the ground on
+                   Generate's mesh held to its own pieces: a land piece no deeper than a shelf, an ocean piece under the
+                   sea but where orogeny raised it, the fore-arc drowned), relief (a ridged fractal on the uplands, its
+                   octaves down to what the Detail can show, drawn out along the grain), seams (where two land pieces of
+                   one plate meet: a past range or a sag, by the pieces' own motion; the distance from the closing
+                   fronts — the grain), warp (the pieces' outlines bent by today's plates' drag and a slow warp, and the
+                   smaller terranes within each piece), past (the continents' past replayed along the bent pieces: craton
+                   cores, docking rings, welds, the terranes' seams), ranges (each range on its own outline, swelling, pinching, rising and
+                   falling along it, carved into massifs by the range mask, written as its style's kind of belt — a
+                   spine, a plateau, a fold belt, basement blocks, a sliver, a knot; a rift's chain of basins), belts (today's belts where plates meet: Andean or
+                   split-off arcs along continents — some with the continent behind stretched into blocks and shelf seas,
+                   an Indonesia — arcs at sea near land, collisions, rifts: a valley line and its shoulders on a dome, a
+                   sea only toward a coast), rifts (the rift valleys cut on Generate's mesh), fit (continents parting
+                   across their ocean made to fit: the rotation that closes it, their coasts interlocked, their geology
+                   carried across), plumes (hotspot tracks,
+                   flood basalts, the far field), record (the geological record in closed form, the history's own steps
+                   in order — plans/GENERATE_DEPOSITS_PLAN.md: the old crust worn deep, each belt since; a foreland in
+                   front of every belt, a rift basin along every passive margin and failed rift, shelves and inland
+                   seas; the cover's make-up laid layer on layer by the latitude it lay at; the arcs, docked and swept
+                   inland, their time; ophiolites; old flood basalts worn to their feeders — what Evolution's rocks and
+                   deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
+                   age from its ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame,
+                   identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh),
+                   layers (the Frame on the history's clock — its time the history's length, so a deposit's age reads
+                   as Evolution's — for the finish, and the slim copy of it the page's hover stories read)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
                    tree-codec (any plain data with typed arrays as JSON + one binary), zip-io (a deflated ZIP written and
                    read in pieces), versions (what a file's data means; bump on a change of meaning), migrations (an older
@@ -969,6 +1007,19 @@ Detailed moments are still painted on canvases (their pictures come from the Fin
 is painted as before (`?gpu=0` forces it, for comparison). The map view is the same texture drawn flat by the globe's
 renderer, letterboxed under the `#mapCanvas` frame. Zoom is V1's (`app/globe-view.js`): a wheel's notch is 14 % nearer
 (OrbitControls' own was 5 %, and stepped), a pinch the fingers' ratio, and the camera eases to it.
+
+On the globe first (2026-11-05; owner: "almost everything at the poles are getting distorted, instead of doing things on
+the globe first"). The triangles drawn flat on the equirectangular texture were smeared across their longitudes near a
+pole — the triangle round the pole drawn as strips to its row — so coasts there came out as spikes and saw-teeth. Now the
+mesh is drawn where it stands on the sphere, seen from the planet's centre onto the six faces of a cube render target
+(three.js's CubeCamera; each face's texels a little finer than the texture's pixels), its heights and shade in half floats
+where the GPU can draw them (`EXT_color_buffer_float`), else already coloured; the cube is then read into the
+equirectangular texture, each pixel looking out along its own direction, coloured there (the coasts as crisp as before),
+the overlay's lines blended over. And the globe reads the texture where each pixel looks (its place on the sphere, not the
+sphere mesh's UVs) at the level the place's own size calls for — toward a pole a texel is narrower than it is tall, so the
+hardware, going by its stretched width, had chosen ever coarser levels: a radial smear and blocks
+(`app/globe-view.js`). Still left: the close-up patch's tiles are cut on the latitude–longitude grid, and stay off where
+the view reaches past 85°.
 
 ## The realism pass (2026-10-18; plans/V2_REALISM_PASS_PLAN.md)
 

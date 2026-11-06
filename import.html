@@ -149,24 +149,6 @@
                 </div>
             </div>
         </details>
-        <details class="section" id="inspectSection">
-            <summary>Inspect (advanced) <span class="tip" data-tip="The full heightmap with the sea floor, and what the sculpting passes changed. The maps you'll want most are the tabs over the planet">?</span></summary>
-            <div class="section-body">
-                <div class="cg">
-                    <label>Layer</label>
-                    <select id="debugLayer">
-                        <option value="">None &mdash; the tab shown</option>
-                        <optgroup label="Elevation">
-                            <option value="heightmap">Full Heightmap</option>
-                            <option value="erosionDelta">Erosion Delta</option>
-                        </optgroup>
-                    </select>
-                </div>
-                <div class="tg">
-                    <label class="toggle-label"><input type="checkbox" id="chkWire"><span class="toggle-track"><span class="toggle-thumb"></span></span>Wireframe</label>
-                </div>
-            </div>
-        </details>
         <details id="statsDetails" class="stats-toggle">
             <summary>Stats</summary>
             <div id="stats"></div>
@@ -181,111 +163,10 @@
         </div>
         </div>
     </div>
-    <div id="layerBar" class="layer-bar">
-        <div id="viewStrip" class="view-strip" role="toolbar" aria-label="View">
-            <div class="vs-seg" role="group" aria-label="Globe or map"><button type="button" data-mode="globe">Globe</button><button type="button" data-mode="map">Map</button></div>
-            <select id="viewMode" hidden aria-hidden="true" tabindex="-1">
-                <option value="globe">Globe</option>
-                <option value="map">Map</option>
-            </select>
-            <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
-            <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
-            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
-            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
-            <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
-                <option value="30">30&deg;</option>
-                <option value="15" selected>15&deg;</option>
-                <option value="10">10&deg;</option>
-                <option value="5">5&deg;</option>
-                <option value="2.5">2.5&deg;</option>
-            </select></span>
-            <span class="vs-item" id="paletteGroup" title="How heights are coloured on the Terrain view: Classic, this page's own, or one of Evolution's map styles and other-world looks"><label for="palette">Colours</label> <select id="palette">
-            <option value="classic" selected>Classic</option>
-            <optgroup label="Maps">
-            <option value="relief">Relief</option>
-            <option value="topographic">Topographic</option>
-            <option value="natural">Natural</option>
-            <option value="swiss">Swiss</option>
-            <option value="school">School Atlas</option>
-            <option value="etopo">ETOPO</option>
-            <option value="dem">DEM</option>
-            <option value="scientific">Scientific</option>
-            <option value="satellite">Blue Marble (by height)</option>
-            <option value="grey">Grey</option>
-            <option value="antique">Antique</option>
-            </optgroup>
-            <optgroup label="Other worlds">
-            <option value="arid">Arid</option>
-            <option value="frozen">Frozen</option>
-            <option value="lush">Lush</option>
-            <option value="alien">Alien</option>
-            <option value="volcanic">Volcanic</option>
-            </optgroup>
-            </select></span>
-        </div>
-        <div class="layer-row">
-            <button type="button" id="viewFold" class="vs-fold" aria-controls="viewStrip" aria-expanded="false" aria-label="View options" title="View options: globe or map, projection, auto-rotate, grid lines, colours"><svg viewBox="0 0 10 10" width="10" height="10" aria-hidden="true"><path d="M3.5 1.5 7 5 3.5 8.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
-            <div class="map-tabs" id="mapTabs">
-                <button class="map-tab active" data-layer="">Terrain</button>
-                <button class="map-tab" data-layer="biome" title="The planet as from space, cloud-free: each climate's colours climbing with the land to rock and snow, for the year, January or July">Satellite</button>
-                <button class="map-tab" data-layer="climate" title="The climate: K&ouml;ppen zones, temperature, rain, winds and currents &mdash; and under More, pressure, upwelling, ice, aridity and more">Climate</button>
-                <button class="map-tab" data-layer="landheightmap" title="Land heights in grey, the sea black">Heightmap</button>
-            </div>
-        </div>
-        <div id="subBar" class="layer-subbar" hidden>
-            <div class="map-tabs" id="climateTabs">
-                <button class="map-tab" data-layer="koppen">K&ouml;ppen</button>
-                <button class="map-tab" data-layer="temperature">Temperature</button>
-                <button class="map-tab" data-layer="precip">Rain</button>
-                <button class="map-tab" data-layer="wind">Wind</button>
-                <button class="map-tab" data-layer="currents">Currents</button>
-            </div>
-            <select id="climateMore" aria-label="More climate layers" title="More climate layers: pressure, the sea, and what the land's twelve months say">
-                <option value="">More&hellip;</option>
-                <optgroup label="Atmosphere">
-                    <option value="pressure">Pressure</option>
-                </optgroup>
-                <optgroup label="Ocean">
-                    <option value="upwelling">Upwelling</option>
-                    <option value="ice">Ice</option>
-                </optgroup>
-                <optgroup label="Land">
-                    <option value="tempRange">Temperature Range</option>
-                    <option value="rainShadow">Rain Shadow</option>
-                    <option value="aridity">Aridity</option>
-                    <option value="growing">Growing Season</option>
-                    <option value="rainSeason">Rain Seasonality</option>
-                </optgroup>
-            </select>
-            <select id="climateSeason" aria-label="Season" title="The year's average, January or July">
-                <option value="year">Year</option>
-                <option value="jan">January</option>
-                <option value="jul">July</option>
-            </select>
-        </div>
-    </div>
-    <div id="legendCard" class="legend-card"><div id="vizLegend" class="viz-legend"></div></div>
-    <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer">
-        <option value="">Terrain</option>
-        <option value="biome">Satellite</option>
-        <optgroup label="Climate">
-            <option value="koppen">K&ouml;ppen</option>
-            <option value="temperature">Temperature</option>
-            <option value="precip">Rain</option>
-            <option value="wind">Wind</option>
-            <option value="currents">Currents</option>
-            <option value="pressure">Pressure</option>
-            <option value="upwelling">Upwelling</option>
-            <option value="ice">Ice</option>
-            <option value="tempRange">Temperature Range</option>
-            <option value="rainShadow">Rain Shadow</option>
-            <option value="aridity">Aridity</option>
-            <option value="growing">Growing Season</option>
-            <option value="rainSeason">Rain Seasonality</option>
-        </optgroup>
-        <option value="landheightmap">Heightmap</option>
-        <option value="inspect" disabled hidden>Inspect layer</option>
-    </select>
+    <!-- the layer bar: v2/js/view/layer-bar.js mountLayerBar (the view strip, the tabs, their rows, the chip) -->
+    <div id="layerBar" class="layer-bar"></div>
+    <div id="legendCard" class="legend-card" hidden></div>
+    <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer"></select>
 
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">

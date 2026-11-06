@@ -67,6 +67,7 @@ export function beltShape(headOn, slabAgeMyr, config) {
  *          shear / shears: the obliquity in degrees (+ dextral), for the whole front or per source (default 0, head-on);
  *          keepShear: leave the obliquity the cells already carry (a suture redrawing the belts its collision built)
  *          noRoot: the belt raises its uplift and crests but does not thicken the crust (an intraplate range: step/far-field.js)
+ *          amps: per source, its relief × this (Generate's ranges rising and falling along their length; default 1)
  * @param {(cell: number) => boolean} [allow]   restrict the belt to these cells (e.g. one side of a seam)
  */
 export function spreadBelt(plate, mesh, sources, belt, config, allow = null) {
@@ -143,7 +144,9 @@ export function spreadBelt(plate, mesh, sources, belt, config, allow = null) {
         crust.thickKm[c] += thickened;
         // heights (records only): the root thickens with the crust; uplift and crests rise toward the belt's shape — the
         // whole belt at the pace of its front's convergence
-        buildHeights(crust, c, belt.type, belt.side ?? BeltSide.NONE, u[c], widthOf(src[c]), workKm, thickened, config, rimCell ? config.cratonRimShare : 1);
+        // (belt.amps, per source: its height × this — Generate's ranges rising and falling along their length, present/
+        // ranges.js; the history passes none)
+        buildHeights(crust, c, belt.type, belt.side ?? BeltSide.NONE, u[c], widthOf(src[c]), workKm, thickened, config, (rimCell ? config.cratonRimShare : 1) * (belt.amps ? belt.amps[src[c]] : 1));
         // (the geological record: the sediment on it thickens with the crust — step/geology.js; records only)
         if (thickened > 0 && config.geology?.records) thickenCover(crust, c, thickened, belt.time, config.geology);
     }
