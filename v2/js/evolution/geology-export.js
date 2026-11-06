@@ -59,7 +59,7 @@ export function produceGeology(fin, W, lk, job, pic = PLAIN) {
     if (key === 'rockIndex') return { kind: 'gray8', W, H, data: rockIndexMap(fin, W, pic) };
     if (key === 'districtsGeojson') return { kind: 'file', blob: textBlob(districtsGeoJson(districtRows(fin, lk.frame)), 'application/geo+json'), about: 'GeoJSON: a point per district (longitude, latitude in degrees) with its resource, kind of deposit, grade, area, landmass, rank and story' };
     if (key === 'districtsCsv') return { kind: 'file', blob: textBlob(districtsCsv(districtRows(fin, lk.frame)), 'text/csv'), about: 'CSV: a row per district — resource, kind of deposit, grade, richness, area, landmass, rank, latitude, longitude, story' };
-    if (key === 'atlas') return { kind: 'file', blob: textBlob(resourceAtlas(fin, lk.frame, { seed: lk.seed }), 'text/markdown'), about: 'Markdown text: each landmass\'s resources and its richest districts' };
+    if (key === 'atlas') return { kind: 'file', blob: textBlob(resourceAtlas(fin, lk.frame, { seed: lk.seed, ...(lk.atlas ?? {}) }), 'text/markdown'), about: 'Markdown text: each landmass\'s resources and its richest districts' };
     return { kind: 'gray8', W, H, data: maskMap(fin, W, maskField(fin, key), pic) };
 }
 
@@ -99,7 +99,7 @@ export function rockIndexMap(fin, W, pic = PLAIN) {
 
 /** A mask's richness per kept grid cell (0…1), by its key: 'm.' and a metal, fuel or mineral; an age's id, '.', and one
  *  of its resources or 'potential'. And whether it counts at sea (oil and gas, on the shelf). */
-function maskField(fin, key) {
+export function maskField(fin, key) {
     const Dp = fin.raster.geology.deposits, K = Dp.cells.length;
     if (key.startsWith('m.')) {
         const i = METALS.findIndex(m => m.id === key.slice(2)), SYS = Dp.rows - METALS.length;
@@ -161,8 +161,9 @@ export function districtsCsv(rows) {
 /**
  * The resource atlas, in words (Markdown): the world's resources by landmass — its land, its rocks by family, each metal,
  * fuel and gem moderate or rich, what it lacks, bronze and ironworking — then its richest districts with their stories.
+ * `title` and `page` name the planet and the page (Generate's present-day world: its planet code, 'Generate').
  */
-export function resourceAtlas(fin, frame, { seed = '', time = frame?.time ?? 0 } = {}) {
+export function resourceAtlas(fin, frame, { seed = '', time = frame?.time ?? 0, title = `seed ${seed}, ${Math.round(time)} Myr`, page = 'Evolution' } = {}) {
     const G = fin.raster.geology, Dp = G.deposits, L = landmasses(Dp), rows = districtRows(fin, frame), K = Dp.cells.length, SYS = Dp.rows - METALS.length;
     const pct = x => (x >= 0.0995 ? `${Math.round(100 * x)}` : x >= 0.0005 ? (100 * x).toFixed(1) : '0') + '%';
     const metals = METALS.map((m, i) => ({ name: m.name, group: m.group, field: Float32Array.from(Dp.data.subarray((SYS + i) * K, (SYS + i + 1) * K), x => x / 255) }));
@@ -184,8 +185,8 @@ export function resourceAtlas(fin, frame, { seed = '', time = frame?.time ?? 0 }
             fam[id][f] = (fam[id][f] ?? 0) + a; famAll[id] += a;
         }
     }
-    const lines = [`# Resource atlas — seed ${seed}, ${Math.round(time)} Myr`, '',
-        `World Orogen · Evolution. Every landmass's resources, moderate or rich as a share of its land, and its richest districts: where each came from, read off the planet's history. Grades: poor ●○○, moderate ●●○, rich ●●●.`, ''];
+    const lines = [`# Resource atlas — ${title}`, '',
+        `World Orogen · ${page}. Every landmass's resources, moderate or rich as a share of its land, and its richest districts: where each came from, read off the planet's history. Grades: poor ●○○, moderate ●●○, rich ●●●.`, ''];
     const world = L.list.reduce((s, l) => s + l.km2, 0);
     lines.push(`The land: ${fmtKm2(world)} in ${L.list.length.toLocaleString()} landmasses and islands.`, '');
     // (the world's richest districts of the scarce and the precious)
