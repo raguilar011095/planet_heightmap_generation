@@ -27,6 +27,11 @@ to put a flat-tile model on a sphere, and a recommendation. Nothing here is buil
   That family is the only one where a flat model runs unchanged (Tangent Images, SphereDiff, 360MonoDepth); cube faces
   stretch 2–3× at their corners and HEALPix or icosahedral grids need retraining. The current zoom tiles already stop
   at ±85°; patches would also fill that hole.
+- **Phase 0 was run in the session** (§10): Terrain Diffusion on three patches of an Orogen moment, on CPU. Its texture
+  on steep ground is the most convincing relief in the comparison, but even at its most faithful setting it redrew the
+  broad shape (a plateau rim by ~500 m, two islands into an archipelago, a plain into hills) and ignored the rivers; the
+  guards restore all of that, leaving a texture layer that is strong on slopes and a whisper on plains, with visible
+  seams where the model was overruled. That favours training Orogen's own residual network over borrowing one.
 - **Recommendation** (§8): do not integrate a third-party model. First, a two-week **offline experiment** feeding
   Orogen's own exports (heightmap, temperature, rain at ~23 km a pixel) into Terrain Diffusion's pipeline on a desktop
   GPU, patch by patch, to see whether learned detail conditioned on our picture looks better than the procedural detail
@@ -408,6 +413,73 @@ coasts), on every device.
   procedural detail works today.
 - Whether Generate's "seconds" survives even a small network for its 2048 px picture, or whether the learned detail is
   only for the zoom tiles and exports there.
+
+## 10. Phase 0, run (2026-11-06): Terrain Diffusion on an Orogen moment
+
+Done in the session, on four CPU cores (no GPU): `tuning/learned-detail/` holds the scripts, the renders and the numbers.
+A 300 Myr history at 10K plates, its last moment detailed at 640K cells and a 2048 px picture (~20 km a pixel: the 90 m
+model's 23 km coarse cell), three 276 km gnomonic patches of 12 × 12 coarse cells (the highest-relief land, the densest
+islands, the biggest river's mouth), the model's five coarse channels sampled from the picture and the 1° climate, its
+90 m output averaged to 720 m a pixel (the page's zoom level 8), today's `fineWindow` drawn for the same ground, and §5's
+guards applied with today's surface as the ground (§4). 12–13 minutes a patch on the CPU.
+
+**What the model did, raw** (its conditioning noise at 0.1, its lowest sensible setting: "the map as given"):
+
+| patch | low band moved (RMS over land) | relief within 10 km: picture / today / model | land share: today / model | river steps that climb: today / model | islands lost |
+|---|---|---|---|---|---|
+| range (a 6 km plateau's rim) | 490 m | 380 / 405 / **975 m** | 1 / 1 | 6 % / **36 %** | – |
+| islands (two low islands) | 180 m | 100 / 39 / 198 m | 0.32 / **0.11** | 2.5 % / **14 %** | 0 of 3 (but redrawn as an archipelago) |
+| river (a cold lowland coast) | 48 m | 24 / 24 / **187 m** | 0.47 / 0.44 | 0.3 % / **32 %** | – |
+
+- **It redraws the broad shape even when told not to.** Its coarse stage regenerates the coarse map (20 diffusion steps
+  on the conditioning mixed with noise), and its latent stage then invents the mid band: the plateau's rim moved by
+  ~500 m RMS, two round islands became a Japan-like archipelago at a quarter of their land, a flat lowland grew hills of
+  190 m relief. With the knob at 2 by mistake (the first run, kept as `renders/range-noise2-lesson.png`) the plateau
+  came out at half its height and the islands sank. This is the behaviour §5 predicted: the model's realism lives in a
+  coherent low-and-mid band of its own, and it will not keep ours unless forced.
+- **Its texture is the real thing.** On the range patch the raw output's dissection (branching valleys a few km apart,
+  spurs, the rim cut into fingers) is the most convincing relief in the four panels, and it is the texture today's
+  procedural gullies approximate with aligned stripes. On the lowland it drew hills where there should be none, because
+  nothing told it the ground was a plain (the gate of §5.5 exists for this reason).
+- **Rivers mean nothing to it**: a third of the steps along our rivers climb in its output (today: 0.3–6 %, the
+  picture's own sampling). Coasts likewise.
+
+**With the guards, on top of today's detail** (the model's high band at σ 12 km, gated by slope and ruggedness, today's
+land held beyond 2.2 km of its coast, each reach's bed monotone and never above today's):
+
+| patch | relief within 10 km: today / today + model | median slope: today / today + model | river steps that climb | islands lost |
+|---|---|---|---|---|
+| range | 405 / 740 m | 0.035 / 0.061 | 0.4 % (one 360 m step at a junction of reaches) | – |
+| islands | 39 / 63 m | 0.0009 / 0.005 | 0.05 % | 0 |
+| river | 24 / 36 m | 0.0022 / 0.0037 | 0.08 % | – |
+
+- The broad shape, the coasts, the islands and the rivers all hold, by construction. What is left of the model is a
+  texture layer: on the range's rim and slopes a strong one (relief within 10 km up 80 % over today's, in branching
+  valleys rather than stripes), on the plateau top and the plains a whisper (the gate's floor of 10 %).
+- The cost of forcing it is visible too: the guarded range panel shows the model's valleys *cut off* where they met the
+  gate and the low-band lock, so some read as texture laid on a surface rather than as a surface that was carved. A
+  one-shot guard shows the seam where the model was overruled (§"apply the guards" in the discussion); applying the lock
+  inside the sampling loop (ILVR) would let the model's later steps smooth into the corrected shape. Terrain Diffusion's
+  consistency sampler has only two steps, so there is little loop to apply it in; this is an argument for a model whose
+  sampler we control, or a residual network that never sees the low band at all.
+- Catchments: a D8 pass on the composite against today's gives median ratios of 1.0 (range), 3.7 (islands) and 0.34
+  (river) at river pixels, with 20–57 % of pixels below half: the 720 m detail reroutes much local drainage, as any
+  detail finer than the carve's grid would, today's included. The guard that fades the residual where drainage broke
+  (§5.3) was not applied here; it is the next thing to build if this continues.
+
+**What this says for §8.** The phase's question was whether learned detail conditioned on our picture looks better than
+the procedural detail. The honest answer from three patches: the *texture* does, on steep ground; the *model* does not,
+because it insists on its own broad shape and knows nothing of the plains, the rivers or the coasts, so most of what it
+makes has to be thrown away or overruled. That favours Phase 2's own network over any borrowed one: a residual model that
+is given the low band and the drivers (slope, ruggedness, wetness, rock, ice), trained to answer them, would produce the
+range's dissection where it belongs and nothing on the plains, with no fight at the seams. The procedural layer gains
+two things regardless: the river-bed and catchment guards (missing today), and a target for its gullies, which should
+branch as the model's do rather than run as parallel stripes.
+
+**Caveats.** Three patches of one planet, judged on 720 m pixels; the model's seasonality channels were estimated from
+January and July alone; the 90 m model's 23 km cell matched our 20 km pixel but its training excluded |lat| > 60° (the
+river patch sits at 51°); the renders use a flat palette and a single light, not the page's. A GPU run of more patches,
+the 30 m model, and the patch lattice rotated (§6.4's seam check) would be the next measurements.
 
 ## Sources
 

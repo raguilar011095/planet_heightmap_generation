@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from patches import gnomonic_grid, CELL_KM, DOWN, OUT_PX, R_KM
 
 PXKM = CELL_KM / (OUT_PX / DOWN)        # 0.71875 km a pixel
+ISLAND_KM2 = 20000                      # an island, for the hold and the count: a landmass smaller than this (Sicily is 25,700 km²)
 smooth = lambda a, b, x: (lambda t: t * t * (3 - 2 * t))(np.clip((x - a) / (b - a), 0, 1))
 
 def forward_gnomonic(lat, lon, lat0, lon0):
@@ -159,7 +160,7 @@ def main(orogen, work, sigma_km):
         out = out - G(out) + G(fine)                                                    # guard 1 again, as a guarantee: today's low band
         dist = ndi.distance_transform_edt(~fine_sea) * PXKM; dsea = ndi.distance_transform_edt(fine_sea) * PXKM
         lab, n = ndi.label(~fine_sea); sizes = ndi.sum(~fine_sea, lab, index=np.arange(1, n + 1)) * PXKM * PXKM
-        small = np.isin(lab, 1 + np.where(sizes < 300)[0])
+        small = np.isin(lab, 1 + np.where(sizes < ISLAND_KM2)[0])
         hold_land = (dist > 2.2) | (small & (dist > PXKM)); hold_sea = dsea > 2.2       # guard 4: coasts wander 2.2 km, islands stay
         out = np.where(hold_land, np.maximum(out, 0.005), out); out = np.where(hold_sea, np.minimum(out, -0.005), out)
         out = carve_river_beds(out, fine, reaches, N)                                   # guard 2: rivers run downhill, never above today's bed
@@ -171,15 +172,15 @@ def main(orogen, work, sigma_km):
             s = int(km / PXKM) | 1
             m = land & (base > 0.5) if (land & (base > 0.5)).sum() > 500 else land
             return float(np.median((ndi.maximum_filter(a, s) - ndi.minimum_filter(a, s))[m])) if m.any() else 0
-        accb = d8_accumulation(base); acco = d8_accumulation(out)
+        accb = d8_accumulation(fine); acco = d8_accumulation(out)      # (catchments against today's: the model's effect alone)
         rp = np.zeros((N, N), bool)
         for rr, cc, qq in reaches: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
         ratio = (acco[rp] + 1) / (accb[rp] + 1)
-        isl_lost = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < 300 and not (~out_sea)[lab == k].any()))
+        isl_lost = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < ISLAND_KM2 and not (~out_sea)[lab == k].any()))
         rlab, rn = ndi.label(~base_sea); rsizes = ndi.sum(~base_sea, rlab, index=np.arange(1, rn + 1)) * PXKM * PXKM
-        isl_lost_raw = int(sum(1 for k in range(1, rn + 1) if rsizes[k - 1] < 300 and not (~raw_sea)[rlab == k].any()))
+        isl_lost_raw = int(sum(1 for k in range(1, rn + 1) if rsizes[k - 1] < ISLAND_KM2 and not (~raw_sea)[rlab == k].any()))
         m = {
-            'patchKm': N * PXKM, 'reaches': len(reaches), 'smallIslands': int((sizes < 300).sum()),
+            'patchKm': N * PXKM, 'reaches': len(reaches), 'islands': int((sizes < ISLAND_KM2).sum()),
             'lowBandDrift_m_rms': float(np.sqrt(np.mean(((G(learned) - G(base))[land]) ** 2)) * 1000),   # the model's low band against the picture's: how far it redrew the broad shape
             'relief10km_m': {k: relief(a, 10) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
             'relief5km_m': {k: relief(a, 5) * 1000 for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
@@ -188,8 +189,8 @@ def main(orogen, work, sigma_km):
             'riverWorstClimb_m': {k: river_ascents(a, reaches, base)[1] for k, a in [('base', base), ('today', fine), ('learnedRaw', learned), ('todayPlusModel', out)]},
             'landShare': {k: float((~s).mean()) for k, s in [('base', base_sea), ('today', fine_sea), ('learnedRaw', raw_sea), ('todayPlusModel', out_sea)]},
             'islandsLost': {'learnedRaw': isl_lost_raw, 'todayPlusModel': isl_lost},
-            'riverCatchment_medianRatio': float(np.median(ratio)) if rp.any() else None,
-            'riverCatchment_shareBelowHalf': float((ratio < 0.5).mean()) if rp.any() else None,
+            'riverCatchment_medianRatioVsToday': float(np.median(ratio)) if rp.any() else None,
+            'riverCatchment_shareBelowHalfVsToday': float((ratio < 0.5).mean()) if rp.any() else None,
             'gateMeanLand': float(gate[land].mean()),
         }
         results[name] = m

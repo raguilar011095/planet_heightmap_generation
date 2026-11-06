@@ -29,4 +29,4 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    catchment areas by D8 against the base's, islands lost, the low band's drift) and a four-panel render per patch:
    the base, today's detail, the model raw, today's detail plus the model's guarded high band.
 
-The renders and `results.json` of the run of 2026-11-06 are in `renders/`; the plan's §10 reads them.
+The renders and `results.json` of the run of 2026-11-06 are in `renders/` (downsized to 1024 px; `range-noise2-lesson.png` is the first run, with the conditioning noise at 2 by mistake); the plan's §10 reads them.

@@ -1,0 +1,149 @@
+{
+ "islands": {
+  "patchKm": 276.0,
+  "reaches": 38,
+  "islands": 3,
+  "lowBandDrift_m_rms": 177.51400654634432,
+  "relief10km_m": {
+   "base": 100.1125323291211,
+   "today": 39.19232823061408,
+   "learnedRaw": 198.35463166236877,
+   "todayPlusModel": 62.204903750448324
+  },
+  "relief5km_m": {
+   "base": 47.85950854038969,
+   "today": 11.684911241405201,
+   "learnedRaw": 82.44933187961578,
+   "todayPlusModel": 29.660150985611853
+  },
+  "medianSlopeLand": {
+   "base": 0.008615634922957926,
+   "today": 0.0008608115766378365,
+   "learnedRaw": 0.012789292261004448,
+   "todayPlusModel": 0.004654452226275283
+  },
+  "riverClimbShare": {
+   "base": 0.03668763102725367,
+   "today": 0.025157232704402517,
+   "learnedRaw": 0.1441299790356394,
+   "todayPlusModel": 0.0005241090146750524
+  },
+  "riverWorstClimb_m": {
+   "base": 27.55759280037004,
+   "today": 27.55759280037004,
+   "learnedRaw": 183.6511993408203,
+   "todayPlusModel": 14.231561211780285
+  },
+  "landShare": {
+   "base": 0.4019978841145833,
+   "today": 0.3229844835069444,
+   "learnedRaw": 0.10752360026041667,
+   "todayPlusModel": 0.3266059027777778
+  },
+  "islandsLost": {
+   "learnedRaw": 0,
+   "todayPlusModel": 0
+  },
+  "riverCatchment_medianRatioVsToday": 3.6961538461538463,
+  "riverCatchment_shareBelowHalfVsToday": 0.20493685419058552,
+  "gateMeanLand": 0.2330173529733781
+ },
+ "range": {
+  "patchKm": 276.0,
+  "reaches": 61,
+  "islands": 0,
+  "lowBandDrift_m_rms": 492.57952989965264,
+  "relief10km_m": {
+   "base": 377.56115505767673,
+   "today": 405.4473691205858,
+   "learnedRaw": 974.769115447998,
+   "todayPlusModel": 740.1754027212633
+  },
+  "relief5km_m": {
+   "base": 189.78703471439042,
+   "today": 206.8864137859805,
+   "learnedRaw": 616.4700984954834,
+   "todayPlusModel": 430.35349535855147
+  },
+  "medianSlopeLand": {
+   "base": 0.033390351499693174,
+   "today": 0.034919163205570716,
+   "learnedRaw": 0.11408299207687378,
+   "todayPlusModel": 0.060646002341759854
+  },
+  "riverClimbShare": {
+   "base": 0.04189723320158103,
+   "today": 0.06455862977602109,
+   "learnedRaw": 0.36073781291172596,
+   "todayPlusModel": 0.0044795783926218705
+  },
+  "riverWorstClimb_m": {
+   "base": 24.819453532267666,
+   "today": 77.41641565755097,
+   "learnedRaw": 545.1176147460938,
+   "todayPlusModel": 359.0388977271656
+  },
+  "landShare": {
+   "base": 1.0,
+   "today": 1.0,
+   "learnedRaw": 1.0,
+   "todayPlusModel": 1.0
+  },
+  "islandsLost": {
+   "learnedRaw": 0,
+   "todayPlusModel": 0
+  },
+  "riverCatchment_medianRatioVsToday": 0.9815753887762001,
+  "riverCatchment_shareBelowHalfVsToday": 0.3844121532364597,
+  "gateMeanLand": 0.5644059843048093
+ },
+ "river": {
+  "patchKm": 276.0,
+  "reaches": 43,
+  "islands": 0,
+  "lowBandDrift_m_rms": 48.10356556317997,
+  "relief10km_m": {
+   "base": 23.86587305295984,
+   "today": 23.78969041574199,
+   "learnedRaw": 187.12356686592102,
+   "todayPlusModel": 35.566427768092076
+  },
+  "relief5km_m": {
+   "base": 12.052993356401615,
+   "today": 11.93193982666635,
+   "learnedRaw": 116.0295307636261,
+   "todayPlusModel": 19.390096341275523
+  },
+  "medianSlopeLand": {
+   "base": 0.0022209319151251326,
+   "today": 0.0021815812231007013,
+   "learnedRaw": 0.023399651050567627,
+   "todayPlusModel": 0.003725533248693037
+  },
+  "riverClimbShare": {
+   "base": 0.0032414910858995136,
+   "today": 0.0032414910858995136,
+   "learnedRaw": 0.3209076175040519,
+   "todayPlusModel": 0.0008103727714748784
+  },
+  "riverWorstClimb_m": {
+   "base": 10.000593522970892,
+   "today": 10.000593522970892,
+   "learnedRaw": 194.23281860351562,
+   "todayPlusModel": 3.5522889481380826
+  },
+  "landShare": {
+   "base": 0.4776679144965278,
+   "today": 0.4693332248263889,
+   "learnedRaw": 0.4434611002604167,
+   "todayPlusModel": 0.4665052625868056
+  },
+  "islandsLost": {
+   "learnedRaw": 0,
+   "todayPlusModel": 0
+  },
+  "riverCatchment_medianRatioVsToday": 0.33962264150943394,
+  "riverCatchment_shareBelowHalfVsToday": 0.5670480549199085,
+  "gateMeanLand": 0.10068578455602795
+ }
+}

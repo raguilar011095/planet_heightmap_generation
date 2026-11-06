@@ -1,0 +1,100 @@
+{
+ "islands": {
+  "patchKm": 276.0,
+  "reaches": 38,
+  "smallIslands": 0,
+  "lowBandDrift_m_rms": 2489.0796343472052,
+  "relief10km_m": {
+   "base": 0,
+   "today": 0,
+   "learnedRaw": 0,
+   "guarded": 0
+  },
+  "relief5km_m": {
+   "base": 0,
+   "today": 0,
+   "learnedRaw": 0,
+   "guarded": 0
+  },
+  "medianSlopeLand": {
+   "base": 0.0137998940681773,
+   "today": 0.0024395136612451146,
+   "learnedRaw": 0.042838163673877716,
+   "guarded": 0.0028115935364058683
+  },
+  "riverClimbShare": {
+   "base": 0.03668763102725367,
+   "today": 0.025157232704402517,
+   "learnedRaw": 0.4879454926624738,
+   "guarded": 0.0005241090146750524
+  },
+  "riverWorstClimb_m": {
+   "base": 27.55759280037004,
+   "today": 27.55759280037004,
+   "learnedRaw": 251.5492706298828,
+   "guarded": 11.299375275160749
+  },
+  "landShare": {
+   "base": 0.4019978841145833,
+   "today": 0.3229844835069444,
+   "learnedRaw": 0.016167534722222224,
+   "guarded": 0.3770005967881944
+  },
+  "islandsLost": {
+   "learnedRaw": 0,
+   "guarded": 0
+  },
+  "riverCatchment_medianRatio": 2.4444444444444446,
+  "riverCatchment_shareBelowHalf": 0.24741676234213547,
+  "gateMeanLand": 0.368392081320807
+ },
+ "range": {
+  "patchKm": 276.0,
+  "reaches": 61,
+  "smallIslands": 0,
+  "lowBandDrift_m_rms": 2478.0552241811924,
+  "relief10km_m": {
+   "base": 377.56115505767673,
+   "today": 405.4473691205858,
+   "learnedRaw": 289.983868598938,
+   "guarded": 445.0310682255869
+  },
+  "relief5km_m": {
+   "base": 189.78703471439042,
+   "today": 206.8864137859805,
+   "learnedRaw": 152.85724401474,
+   "guarded": 223.7634190549762
+  },
+  "medianSlopeLand": {
+   "base": 0.033390351499693174,
+   "today": 0.034919163205570716,
+   "learnedRaw": 0.021997027099132538,
+   "guarded": 0.0339480819250159
+  },
+  "riverClimbShare": {
+   "base": 0.04189723320158103,
+   "today": 0.06455862977602109,
+   "learnedRaw": 0.31198945981554677,
+   "guarded": 0.002108036890645586
+  },
+  "riverWorstClimb_m": {
+   "base": 24.819453532267666,
+   "today": 77.41641565755097,
+   "learnedRaw": 248.8801727294922,
+   "guarded": 22.863128660486787
+  },
+  "landShare": {
+   "base": 1.0,
+   "today": 1.0,
+   "learnedRaw": 0.9979587131076388,
+   "guarded": 1.0
+  },
+  "islandsLost": {
+   "learnedRaw": 0,
+   "guarded": 0
+  },
+  "riverCatchment_medianRatio": 0.6666666666666666,
+  "riverCatchment_shareBelowHalf": 0.4448480845442536,
+  "gateMeanLand": 0.5644059843048093
+ }
+}
