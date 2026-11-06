@@ -16,14 +16,15 @@ export class FinishService {
 
     /**
      * Finish a moment. keep: the worker stays afterwards, with the mesh it built (a 10M-cell mesh takes ~15 s; a 640K one
-     * under a second — its ~0.3 GB is not worth keeping); else it goes, its memory with it.
+     * under a second — its ~0.3 GB is not worth keeping); else it goes, its memory with it. transfer: buffers of `msg`
+     * handed to the worker rather than copied (Generate's surface: plans/SHARED_CORE_PLAN.md U3).
      * @returns {Promise<{raster: {w, h, heightM, ocean}, stats, ms}>} (rejects with an AbortError if cancelled)
      */
-    finish(msg, { onStage = null, onProgress = null, keep = true } = {}) {
+    finish(msg, { onStage = null, onProgress = null, keep = true, transfer = [] } = {}) {
         const w = this.start(), id = this.next++;
         return new Promise((resolve, reject) => {
             this.jobs.set(id, { resolve, reject, onStage, onProgress, keep });
-            w.postMessage({ type: 'finish', id, ...msg, delaunatorUrl: import.meta.resolve('delaunator') });
+            w.postMessage({ type: 'finish', id, ...msg, delaunatorUrl: import.meta.resolve('delaunator') }, transfer);
         });
     }
 
