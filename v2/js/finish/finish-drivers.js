@@ -42,7 +42,8 @@ export function detailDrivers(o) {
     const { mesh, z, simMesh } = o, W = o.width, H = W >> 1, P = W * H, { xyz, adjOffset, adjList } = mesh;
     const out = { w: W, h: H };
     for (const k of DRIVER_FIELDS) out[k] = new Uint8Array(P);
-    const rec = deriveRecords(o.frame, simMesh, o.cfg, o.seed), L0 = rec.belts[0];
+    // (a moment with no history — an imported heightmap: plans/SHARED_CORE_PLAN.md U4 — has no margins or belts to read)
+    const rec = o.frame ? deriveRecords(o.frame, simMesh, o.cfg, o.seed) : null, L0 = rec?.belts[0];
     const [warmC, coldC] = o.cfg.drownColdC ?? [19, 13];
     const near = new Int32Array(P);
     for (let y = 0; y < H; y++) {
@@ -83,6 +84,7 @@ export function detailDrivers(o) {
                 out.duneMode[p] = byte(smooth(40 * D2R, 100 * D2R, d));
             }
             // the records (the sim mesh, at the moment): the margin, the belts
+            if (!rec) continue;
             const w = simMesh.index.nearest(px, py, pz);
             const ck = rec.coastKind[w];
             out.active[p] = ck === CoastKind.ACTIVE || ck === CoastKind.COLLISION || ck === CoastKind.ARC || ck === CoastKind.TRANSFORM ? 255 : 0;

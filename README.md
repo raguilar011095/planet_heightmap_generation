@@ -22,16 +22,18 @@ The project's full vision is in [VISION.md](VISION.md).
 **[orogen.studio/generate](https://orogen.studio/generate)** · [guide](docs/generate.md)
 
 Set the continents, plates and climate with sliders, then reshape any plate you don't like: Ctrl-click (⌘-click on a Mac)
-on a desktop, or tap in edit mode on a phone. Every planet comes with wind, ocean currents, rain and Köppen climate
-zones, and a planet code that rebuilds it exactly. The fastest of the tools, and the most at home on a phone.
+on a desktop, or tap in edit mode on a phone. Every planet gets a past in closed form (old mountain belts, cratons,
+hotspot tracks, continents that fit) and, a few seconds after it appears, Evolution's own finish: its climate, rivers and
+lakes, an ice age, a satellite view with clouds, its rocks and ores, and its food. A planet code rebuilds it exactly. The
+fastest of the tools, and the most at home on a phone.
 
 ### Import Heightmap: your own landmass, its climate
 
 **[orogen.studio/import](https://orogen.studio/import)** · [guide](docs/import.md)
 
 Upload an equirectangular heightmap, whether hand-drawn, from another tool or of a real planet, and Orogen wraps it onto
-a globe and runs the full climate on it, with optional erosion and sculpting. It opens with Earth, so you can see how
-well the climate matches.
+a globe and runs the full climate on it, with its rivers and lakes, ice age, satellite view and food, and optional
+erosion and sculpting. It opens with Earth, so you can see how well the climate matches.
 
 ### Evolution: a planet with a past
 
@@ -46,9 +48,9 @@ beta). Save the whole planet as one file. Works best on a desktop computer for n
 
 [guide](docs/shared.md)
 
-One view (layer tabs over a globe, or a map in any of ten projections), one seasonal climate, and one export panel: every
-map as colour or 16-bit data, in ten projections, up to 65,536 px wide (16,384 on Evolution), as one PNG or a ZIP with a
-README. Links, planet codes and planet files keep opening, and each minor release from 2.1 on stays online at
+One planet view and layer bar (a globe, or a map in any of ten projections), one seasonal climate, one finish (rivers,
+lakes, ice, rocks, food, the satellite view) and one export panel: every map as colour or 16-bit data, in ten
+projections, up to 16,384 px wide, as one PNG or a ZIP with a README. Links, planet codes and planet files keep opening, and each minor release from 2.1 on stays online at
 `orogen.studio/v/<major>.<minor>/`.
 
 The Studio, at [orogen.studio](https://orogen.studio/), introduces the tools and the worldbuilding resources behind them.
@@ -108,9 +110,10 @@ v2/                     World Orogen V2 — the Evolution page (/evolution) and 
                         the labs out);
                         `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks;
                         `node v2/tools/check-style.mjs` checks the pages' CSS against the style guide's tokens;
-                        v2/js/view/ holds what every page shares — the export panel (export-panel.js), its rasters,
-                        scales and README (export-raster.js), the map projections (projections.js) and their GLSL
-                        inverses for Evolution's map view (projection-glsl.js), PNG and ZIP writers
+                        v2/js/view/ holds what every page shares — the planet on screen (planet-view.js) and the layer
+                        bar over it (layer-bar.js), the export panel (export-panel.js), its rasters, scales and README
+                        (export-raster.js), the map projections (projections.js) and their GLSL inverses for the map
+                        view (projection-glsl.js), PNG and ZIP writers; v2/js/present/ is Generate's present-day world
 tuning/
   climate/              Automated climate tuning suite — scores the simulated Köppen
                         map of an imported Earth heightmap against the observed

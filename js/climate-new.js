@@ -25,8 +25,10 @@ import { elevToHeightKm } from './color-map.js';
  * @param {Float32Array} r_xyz       unit-sphere positions, Y-up (as V1's meshes)
  * @param {Float32Array} r_elevation V1's elevation (≤ 0 sea)
  * @param {{greenhouse?: number, precipitationOffset?: number}} sliders  Greenhouse, W/m² of forcing (−30…30); −1…1 (±50 % rain)
+ * @param {(r: number, T12: Float64Array, P12: Float64Array) => void} [alsoOnCell]  handed each land region's twelve months
+ *   too (the present-day world's Geology and Food layers gather from them: v2/js/present/layers.js)
  */
-export function runNewClimate(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 0 } = {}) {
+export function runNewClimate(r_xyz, r_elevation, { greenhouse = 0, precipitationOffset = 0 } = {}, alsoOnCell = null) {
     const t0 = performance.now();
     const n = r_elevation.length;
     const elevKm = new Float32Array(n), land = new Uint8Array(n);
@@ -43,6 +45,7 @@ export function runNewClimate(r_xyz, r_elevation, { greenhouse = 0, precipitatio
         t.year[r] = tSum / 12; t.jan[r] = T12[0]; t.jul[r] = T12[6];
         p.year[r] = pSum / 12; p.jan[r] = P12[0]; p.jul[r] = P12[6];
         collector.add(r, T12, P12);
+        if (alsoOnCell) alsoOnCell(r, T12, P12);
     };
 
     const res = planetClimate({ xyz: r_xyz, elevKm, land, axes: 'y-up' },
