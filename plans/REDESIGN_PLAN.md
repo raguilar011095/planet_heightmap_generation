@@ -492,7 +492,9 @@ each checked in the browser.
   cells and drawn by this stack's own Export maps at 4096 px. Once main took the Generate redesign (#144) and the stack
   merged it, Generate's were retaken (the owner's ask): the same planet codes and so the same continents, main's ranges,
   drawn by its Export maps at 2048 px in this stack's look; Evolution's, rebuilt on the merged code, came out byte for
-  byte the same. Import's still come from the shared core's switch-over (generate/u5-switch-over, PR #134), before this
+  byte the same (#144 left Evolution's ridges as they were). Once main took Evolution's ridges with variety (#145), the
+  stack merged it again and Calder, Linmore and the turning globe's maps and still were retaken the same way: the same
+  continents, their ridges more varied. Import's still come from the shared core's switch-over (generate/u5-switch-over, PR #134), before this
   stack's light and colours (R5, R6).
 - [x] Copy (the owner's words): the hero's buttons read **Generate your world** and **Evolve your world**; Import
   Heightmap is now just **Import**, one word like Generate and Evolution (the nav, its page, the Studio, the exports'
