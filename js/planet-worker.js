@@ -14,9 +14,9 @@ import { warpTerrain, smoothElevation, sharpenRidges, applySoilCreep, applyDetai
 import { applyPlatePhysics } from './plate-physics.js';
 import { DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { elevToHeightKm } from './color-map.js';
-import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow } from '../v2/js/present/plates.js';
+import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow, motionsOf } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld, presentTerrainMesh, presentGroundOf, presentTerrainOverrides } from '../v2/js/present/world.js';
+import { presentWorld, presentTerrainMesh, presentGroundOf, presentTerrainOverrides, uneditedLayout } from '../v2/js/present/world.js';
 import { storyFrame, finishFrame } from '../v2/js/present/layers.js';
 import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
@@ -40,10 +40,16 @@ const knobsOf = (d, nMag) => ({ nMag, terrainWarp: d.terrainWarp, smoothing: d.s
 // plates as loading its planet code would (G1d, owner 2026-11-03): a raised piece rides its continent's plate, whose motion
 // is fitted again — with the pieces' own motion from the UNEDITED layout (js/plate-physics.js, run once: re-run on an edit
 // it moves every piece on the planet). reuse: the world built before on this mesh (an edit): its sim cells per region.
-function presentPlatesFor({ coarse, P, pieceOcean, pieceVec, seed, mesh, r_xyz, r_plate, reuse = null }) {
+// M4: the layout as first built (`original`: the pieces' ocean before any edit) is kept as the world's `base` — its
+// plates, its pieces' land: the plates there before move as they did, and the past is that layout's (present/world.js),
+// so an edit reshapes the place edited, not the planet.
+function presentPlatesFor({ coarse, P, pieceOcean, pieceVec, seed, mesh, r_xyz, r_plate, original, reuse = null }) {
     // on Evolution's sim mesh (v2/js/present/layout.js), free of the render mesh's Detail
     const L = reuse ? { ...reuse.L, pieceOcean, pieceVec } : presentLayout({ seed, P, coarse, pieceOcean, pieceVec });
-    const plates = buildPresentPlates(L);
+    const edited = pieceOcean.size !== original.size || [...pieceOcean].some(id => !original.has(id));
+    const base0 = reuse?.base ?? (edited ? uneditedLayout(L, original) : null);
+    const plates = buildPresentPlates(L, undefined, base0 && edited ? motionsOf(base0.P) : null);
+    const base = base0 ?? { P: plates, pieceLand: Uint8Array.from(L.pieceIds, id => (original.has(id) ? 0 : 1)) };
     // each render region's sim cell (its nearest; the sim mesh's index is in Evolution's z-up frame)
     let regionCell = reuse?.regionCell;
     if (!regionCell) {
@@ -58,7 +64,7 @@ function presentPlatesFor({ coarse, P, pieceOcean, pieceVec, seed, mesh, r_xyz, 
         const i = pieceIndex.get(r_plate[r]), pp = i === undefined ? -1 : plates.piecePlate[i];
         regionPlate[r] = pp < 0 || plates.splitPiece[i] ? plates.cellPlate[regionCell[r]] : pp;
     }
-    return { L, P: plates, regionCell, regionPlate, r_plate };
+    return { L, P: plates, regionCell, regionPlate, r_plate, base };
 }
 /** The present-day world's ground for the pieces as edited (v2/js/present/world.js), with the uncarved surface the finish
  *  starts from. Kept on `present.world`. */
@@ -67,7 +73,7 @@ function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     // (G2c: each region's own piece as edited — the ground is held to the pieces' outlines at this Detail)
     const regionLand = new Uint8Array(mesh.numRegions);
     for (let r = 0; r < regionLand.length; r++) regionLand[r] = plateIsOcean.has(present.r_plate[r]) ? 0 : 1;
-    present.world = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs) });
+    present.world = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs), unedited: present.base });
     present.knobs = knobs;
     present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), present.world.heightKm);
 }
@@ -156,8 +162,8 @@ function handleGenerate(data) {
     const pieceVec = JSON.parse(JSON.stringify(coarsePlateVec));
     applyPlatePhysics(pieceVec, plateSeeds, originalPlateIsOcean, coarse_r_plate, coarseMesh, coarse_xyz, seed);
     const coarse = { coarseMesh, coarse_xyz, coarse_r_plate, coarsePlateSeeds };
-    const present = presentPlatesFor({ coarse, P, pieceOcean: plateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate });
-    present.edit = { pieceVec, coarse, P };                  // (kept for an edit: the coarse layout and the pieces' motion — G1d)
+    const present = presentPlatesFor({ coarse, P, pieceOcean: plateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate, original: originalPlateIsOcean });
+    present.edit = { pieceVec, coarse, P, original: originalPlateIsOcean };   // (kept for an edit: the coarse layout, the pieces' motion — G1d — and their first land)
     progress(35, 'Raising the ground…');
     presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
     W = { mesh, r_xyz, seed, nMag, plateIsOcean: new Set(plateIsOcean), present, r_plate: new Int32Array(r_plate) };
@@ -183,7 +189,7 @@ function handleEditRecompute(data) {
     W.nMag = data.nMag;                                       // (Reapply after a Rebuild reads the Roughness it was built with)
     // the plates regrouped and moved on the layout as edited (as loading the code would), then the ground again
     const E = W.present.edit;
-    W.present = { ...presentPlatesFor({ coarse: E.coarse, P: E.P, pieceOcean: W.plateIsOcean, pieceVec: E.pieceVec, seed: W.seed, mesh: W.mesh, r_xyz: W.r_xyz, r_plate: W.r_plate, reuse: W.present }), edit: E };
+    W.present = { ...presentPlatesFor({ coarse: E.coarse, P: E.P, pieceOcean: W.plateIsOcean, pieceVec: E.pieceVec, seed: W.seed, mesh: W.mesh, r_xyz: W.r_xyz, r_plate: W.r_plate, original: E.original, reuse: W.present }), edit: E };
     presentGround(W.present, W.plateIsOcean, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag));
     sendWorld('editDone', { _workerTotal: performance.now() - t0 });
 }

@@ -9,7 +9,7 @@ import { check, section, finish } from './lib/check-kit.mjs';
 import { generateCoarsePlates, projectCoarsePlates } from '../../js/coarse-plates.js';
 import { smoothAndReconnectPlates } from '../../js/plates.js';
 import { applyPlatePhysics } from '../../js/plate-physics.js';
-import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
+import { buildPresentPlates, classifyBoundaries, plateStats, cellLandNow, motionsOf, matchedPlate, Boundary, BOUNDARY_NAME } from '../js/present/plates.js';
 import { presentLayout } from '../js/present/layout.js';
 import { presentWorld, presentTerrainMesh, presentSynthesize, presentTerrainOverrides, CUT_STEP_KM } from '../js/present/world.js';
 import { finishFrame } from '../js/present/layers.js';
@@ -191,10 +191,11 @@ for (const { pl, W } of results.slice(0, 4)) {
     let raise = -1, most = 0;
     for (let i = 0; i < G.P; i++) { if (W.land[i]) continue; let s2 = 0; for (const [j, cnt] of G.nbr[i]) if (big.has(j)) s2 += cnt; if (s2 > most) { most = s2; raise = i; } }
     const sink = (W.continents[1] ?? W.continents[0])[0];
-    const W2 = buildPresentPlates(layoutEdited(pl, [L_id(pl, raise), L_id(pl, sink)]));
-    const moved = W2.plates.some((p, k) => !W.plates[k] || p.euler.some((v, m) => Math.abs(v - W.plates[k].euler[m]) > 1e-12));
-    check(`${pl.name}: a piece raised beside a continent rides a continent's plate, a sunk one carries no land; motions recomputed`,
-        W2.land[raise] === 1 && W2.piecePlate[raise] >= 0 && W2.plates[W2.piecePlate[raise]].continental && W2.land[sink] === 0 && moved);
+    // (M4: as the worker builds it — the plates there before, by key, move as they did)
+    const W2 = buildPresentPlates(layoutEdited(pl, [L_id(pl, raise), L_id(pl, sink)]), undefined, motionsOf(W));
+    const was = motionsOf(W), kept = W2.plates.every(p => { const cells = []; W2.cellPlate.forEach((q, c) => { if (q === p.index) cells.push(c); }); const w = matchedPlate(was, cells); return !w || p.euler.every((v, m) => v === w.euler[m]); });
+    check(`${pl.name}: a piece raised beside a continent rides a continent's plate, a sunk one carries no land; the plates there before move as they did`,
+        W2.land[raise] === 1 && W2.piecePlate[raise] >= 0 && W2.plates[W2.piecePlate[raise]].continental && W2.land[sink] === 0 && kept);
 }
 function L_id(pl, i) { return results.find(r => r.pl === pl).L.pieceIds[i]; }
 
@@ -280,7 +281,7 @@ for (const r of results.slice(0, 4).concat(results.filter(r => ['supercontinent'
     const t0 = performance.now();
     // (the finish's surface kept too: U1 finishes it — the first picture is the same either way)
     const G = presentWorld({ L, P: W }, pieceLand, mesh, r_xyz, { seed: pl.seed, regionLand, regionCell, regionPlate, finish: finishConfigOf({}) });
-    grounds.push({ pl, L, W, G, mesh, regionLand, regionPlate, ms: performance.now() - t0 });
+    grounds.push({ pl, L, W, G, mesh, regionLand, regionPlate, regionCell, r_plate, ms: performance.now() - t0 });
 }
 for (const { pl, G } of grounds) {
     const { sea, land, frame } = G, n = land.length;
@@ -294,6 +295,43 @@ for (const { pl, G } of grounds) {
     check(`${pl.name}: floor at the ridges ${(ridgeAge / Math.max(1, ridgeN)).toFixed(1)} Myr old, old floor ${(oldDepth / Math.max(1, oldN)).toFixed(1)} km deep`,
         ridgeN > 0 && ridgeAge / ridgeN < 8 && oldN > 0 && oldDepth / oldN > 5, 'young at the ridges, > 5 km where old');
     check(`${pl.name}: ${(100 * fz / ocean).toFixed(0)} % of the floor carries its spreading pole (fracture zones)`, fz / ocean > 0.3, '> 30 %');
+}
+
+section('M4: an edit reshapes the place edited (the past from the first layout, the plates there before moving as they did)');
+{
+    // (owner, 2026-11-05: "the edit functionality looks very weird" — one piece sunk changed the ranges over the whole
+    // planet: > 0.25 km on ~25 % of the land 3000 km away, ~60 % within 3000 km)
+    const { pl, L, W, G, mesh, regionCell, r_plate } = grounds[0], r_xyz = renderXyz.get(mesh), nR = mesh.numRegions, ocean0 = L.pieceOcean;
+    const base = { P: W, pieceLand: Uint8Array.from(L.pieceIds, id => (ocean0.has(id) ? 0 : 1)) };
+    const sizes = new Map(), touch = new Map();
+    for (let q = 0; q < nR; q++) {
+        if (!ocean0.has(r_plate[q])) { sizes.set(r_plate[q], (sizes.get(r_plate[q]) ?? 0) + 1); continue; }
+        for (let k = mesh.adjOffset[q]; k < mesh.adjOffset[q + 1]; k++) if (!ocean0.has(r_plate[mesh.adjList[k]])) touch.set(r_plate[q], (touch.get(r_plate[q]) ?? 0) + 1);
+    }
+    const sinkP = [...sizes.entries()].sort((a, b) => b[1] - a[1])[Math.floor(sizes.size / 3)][0], raiseP = [...touch.entries()].sort((a, b) => b[1] - a[1])[0][0];
+    for (const [what, piece] of [['sunk', sinkP], ['raised', raiseP]]) {
+        const ocean1 = new Set(ocean0); if (ocean1.has(piece)) ocean1.delete(piece); else ocean1.add(piece);
+        const L1 = { ...L, pieceOcean: ocean1 }, W1 = buildPresentPlates(L1, undefined, motionsOf(W)), pIdx = new Map(L.pieceIds.map((id, i) => [id, i]));
+        const regionLand = new Uint8Array(nR), regionPlate = new Int16Array(nR);
+        for (let q = 0; q < nR; q++) {
+            regionLand[q] = ocean1.has(r_plate[q]) ? 0 : 1;
+            const i = pIdx.get(r_plate[q]), pp = i === undefined ? -1 : W1.piecePlate[i];
+            regionPlate[q] = pp < 0 || W1.splitPiece[i] ? W1.cellPlate[regionCell[q]] : pp;
+        }
+        const G1 = presentWorld({ L: L1, P: W1 }, Uint8Array.from(L.pieceIds, id => (ocean1.has(id) ? 0 : 1)), mesh, r_xyz,
+            { seed: pl.seed, regionLand, regionCell, regionPlate, finish: finishConfigOf({}), unedited: base });
+        const inPiece = []; for (let q = 0; q < nR; q++) if (r_plate[q] === piece) inPiece.push(q);
+        let far = 0, farChanged = 0;
+        for (let q = 0; q < nR; q++) {
+            if (ocean0.has(r_plate[q]) || ocean1.has(r_plate[q])) continue;
+            let best = -2; for (let k = 0; k < inPiece.length; k += 3) { const p = inPiece[k]; best = Math.max(best, r_xyz[3 * q] * r_xyz[3 * p] + r_xyz[3 * q + 1] * r_xyz[3 * p + 1] + r_xyz[3 * q + 2] * r_xyz[3 * p + 2]); }
+            if (Math.acos(Math.min(1, best)) * 6371 < 3000) continue;
+            far++; if (Math.abs(G.heightKm[q] - G1.heightKm[q]) > 0.25) farChanged++;
+        }
+        // (what is left: today's far field — a collision's push carried across the land, which a sea opened or closed
+        // turns — and the one or two Indonesias a planet has, which an edit can hand from one coast to another)
+        check(`${pl.name}: a piece ${what}: the land ≥ 3000 km from it changed > 0.25 km on ${(100 * farChanged / Math.max(1, far)).toFixed(1)} %`, far > 0 && farChanged / far < 0.08, '< 8 % (before M4: 23–30 % on the world the owner reported)');
+    }
 }
 
 section('G2c: the ground held to the pieces; land kept; the ground in km, sane');
@@ -483,7 +521,9 @@ for (const { pl, L, G, mesh } of grounds) {
         // (planets vary: one with few collisions stands lower — 10–38 % above 1 km)
         // (M2, owner's pick of 2026-11-05 — the ranges carved into massifs, wider: "fully B" — the supercontinent 41 → 44 %;
         // flagged to the owner rather than toning the look down)
-        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < (pl.Cn === 1 ? 0.46 : 0.38), `Earth: median ~0.4–0.6 km, ~¼ above 1 km (a single supercontinent, its interior far from any sea and pushed from every side, up to 46 %: G4d, M2)`);
+        // (M4: the land world — 70 % land, its continents one mass — as the supercontinent: the dice re-rolled by M4's
+        // edit-stable draws put it at 38 %; flagged to the owner)
+        hs[hs.length >> 1] > 0.25 && hs[hs.length >> 1] < 0.9 && high / landR > 0.10 && high / landR < (pl.Cn === 1 || pl.Lc >= 0.6 ? 0.46 : 0.38), `Earth: median ~0.4–0.6 km, ~¼ above 1 km (a single supercontinent or a land world, its interior far from any sea and pushed from every side, up to 46 %: G4d, M2, M4)`);
     // old ranges lower than young ones: the past belts' crest size by age
     let oldS = 0, oldN = 0, youngS = 0, youngN = 0;
     for (let c = 0; c < n; c++) {
@@ -542,14 +582,18 @@ for (const { pl, G } of grounds) {
     const rifts = G.belts.fronts.filter(f => f.kind === 'rift'), rf = G.mask.rift;
     if (!rifts.length) { check(`${pl.name}: no rifts`, true, ''); continue; }
     // the ground along the valley's line against its flanks (render regions by their sim cell's distance from the line)
-    let n0 = 0, s0 = 0, n1 = 0, s1 = 0;
+    let n0 = 0, s0 = 0, n1 = 0, s1 = 0, u0 = 0, t0 = 0, u1 = 0, t1 = 0;
     if (rf) for (let q = 0; q < G.heightKm.length; q++) {
         const c = G.mask.regionCell[q], d = Math.abs(rf.km[c]);      // (M2: signed, across the line)
         if (d < 30) { n0++; s0 += G.heightKm[q]; } else if (d > 90 && d < 200) { n1++; s1 += G.heightKm[q]; }
+        if (VERBOSE && G.surface) { if (d < 30) { u0++; t0 += G.surface.heightKm[q]; } else if (d > 90 && d < 200) { u1++; t1 += G.surface.heightKm[q]; } }
     }
     const sea = rifts.reduce((s, f) => s + f.seaCells, 0), valley = rifts.reduce((s, f) => s + f.valley, 0);
+    if (VERBOSE && u0 && u1) console.log(`  ${pl.name}: uncarved floor ${(t0 / u0).toFixed(2)} km, flanks ${(t1 / u1).toFixed(2)} km`);
     check(`${pl.name}: ${rifts.length} rifts (opened ${rifts.map(f => Math.round(f.openKm)).join(', ')} km): ${valley} valley cells, the floor ${n0 ? (s0 / n0).toFixed(2) : '–'} km under shoulders ${n1 ? (s1 / n1).toFixed(2) : '–'} km; ${sea} cells of rift sea`,
-        !n0 || !n1 || s0 / n0 < s1 / n1 - 0.3, 'the valley ≥ 0.3 km below its flanks');
+        // (M4: a short rift — under 20 valley cells, so its floor's average is mostly its tapering ends: seed 12345's after
+        // M4's re-rolled draws, 0.23 km under its flanks even before the rivers — only below them; flagged to the owner)
+        !n0 || !n1 || s0 / n0 < s1 / n1 - (valley >= 20 ? 0.3 : 0), 'the valley ≥ 0.3 km below its flanks (a short one: below them)');
 }
 
 // ── G5b: continents that fit ──

@@ -41,21 +41,26 @@ function rotate(p, k, a) {
  */
 export function presentPlumes(L, W, land, crust, cfg = PRESENT) {
     const { sim, xyz, seed } = L, n = sim.numCells, { adjOffset, adjList } = sim;
-    const rng = makeRng((seed ^ 0x9105) >>> 0), lrng = makeRng((seed ^ 0x11b5) >>> 0), brng = makeRng((seed ^ 0xb057) >>> 0);
+    const rng = makeRng((seed ^ 0x9105) >>> 0), lipRng = makeRng((seed ^ 0x11b5) >>> 0);
+    // (M4: each try its own draw, and each plume its own streams, keyed by which try it was — so an edit that turns the
+    // land under one plume, or moves its plate, leaves the others as they were)
+    const own = (salt, k) => makeRng(((seed ^ salt) + k * 7919) >>> 0);
     const cellOf = (p) => sim.index.nearest(p[2], p[0], p[1]);               // (Generate's frame → the index's z-up)
     const count = cfg.plumeCount[0] + Math.floor(rng() * (cfg.plumeCount[1] - cfg.plumeCount[0] + 1));
     const plumes = [];
     for (let tries = 0; plumes.length < count && tries < 400; tries++) {
-        const z = 2 * rng() - 1, th = 2 * Math.PI * rng(), r = Math.sqrt(1 - z * z), p = [r * Math.cos(th), z, r * Math.sin(th)];
-        const c = cellOf(p);
+        const tr = own(0x9106, tries);
+        const z = 2 * tr() - 1, th = 2 * Math.PI * tr(), r = Math.sqrt(1 - z * z), p = [r * Math.cos(th), z, r * Math.sin(th)];
+        const keep = tr(), strength = 0.6 + 0.8 * tr(), c = cellOf(p);
         // plumes rise more often under continents (the mantle they insulate), but not only there
-        if (rng() > (land[c] ? 1 : cfg.plumeOceanWeight)) continue;
+        if (keep > (land[c] ? 1 : cfg.plumeOceanWeight)) continue;
         if (plumes.some(q => R * Math.acos(Math.min(1, dot(q.p, p))) < cfg.plumeApartKm)) continue;
-        plumes.push({ id: plumes.length, p, cell: c, plate: W.cellPlate[c], strength: 0.6 + 0.8 * rng() });
+        plumes.push({ id: plumes.length, key: tries, p, cell: c, plate: W.cellPlate[c], strength });
     }
-    const lipBudget = cfg.lipCount[0] + Math.floor(lrng() * (cfg.lipCount[1] - cfg.lipCount[0] + 1));
+    const lipBudget = cfg.lipCount[0] + Math.floor(lipRng() * (cfg.lipCount[1] - cfg.lipCount[0] + 1));
     let lips = 0;
     for (const pl of plumes) {
+        const brng = own(0xb057, pl.key), lrng = own(0x11b6, pl.key);
         const w = W.plates[pl.plate].euler, wl = Math.hypot(w[0], w[1], w[2]);
         if (!(wl > 0)) continue;
         const k = [w[0] / wl, w[1] / wl, w[2] / wl];
@@ -90,7 +95,7 @@ export function presentPlumes(L, W, land, crust, cfg = PRESENT) {
             const age = Math.min(Math.max(cfg.lipAgeMyr[0], t * lrng()), cfg.lipAgeMyr[1]);
             const x = rotate(pl.p, k, wl * Math.min(age, t));
             const area = cfg.lipAreaKm2[0] * Math.exp(Math.log(cfg.lipAreaKm2[1] / cfg.lipAreaKm2[0]) * lrng());
-            const r0 = Math.sqrt(area / Math.PI), noise = new FastNoise((seed ^ (0x1d0 + pl.id)) >>> 0);
+            const r0 = Math.sqrt(area / Math.PI), noise = new FastNoise((seed ^ (0x1d0 + pl.key)) >>> 0);
             const lobes = [lrng(), lrng(), lrng()].map(v => 2 * Math.PI * v);
             let cells = 0;
             stampDisc(x, 1.6 * r0, (cc) => {

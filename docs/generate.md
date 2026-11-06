@@ -150,7 +150,10 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
 ### Pipeline
 
 1. **The mesh** — a Fibonacci sphere of Detail regions (`js/sphere-mesh.js`).
-2. **The layout** — Generate's pieces on a fixed ~20K reference grid, projected onto the mesh (`js/coarse-plates.js`, `js/plates.js`, `js/ocean-land.js`) and their motion (`js/plate-physics.js`); a planet code's edits toggle pieces.
+2. **The layout** — Generate's pieces on a fixed ~20K reference grid, projected onto the mesh (`js/coarse-plates.js`, `js/plates.js`, `js/ocean-land.js`) and their motion (`js/plate-physics.js`); a planet code's edits toggle pieces. An edit reshapes the place edited, as on the old page: the
+   world's past is the layout's as first built, the plates there before keep their pieces and their motion (a raised piece
+   joins the plate it borders most), and each mechanism's draws are keyed by who they belong to, so the rest of the planet
+   stays as it was (`v2/js/present/world.js`, `plates.js`) — a planet code's edits build the same.
 3. **The present-day world** — on Evolution's 40K sim mesh (`v2/js/present/`): plates, boundaries, sea floor, coast, past, belts, plumes and far field (their ranges shaped by `ranges.js`), record, Frame.
 4. **The ground** — Evolution's synthesis and carving (`v2/js/terrain/`) on Generate's mesh, with Generate's fine relief, rift valleys, interlocking coasts and hold to the pieces (`v2/js/present/world.js`); the uncarved surface kept for the finish.
 5. **The first picture** — the ground and its hillshade, painted on the GPU (`v2/js/view/planet-view.js`).

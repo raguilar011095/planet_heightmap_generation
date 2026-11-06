@@ -273,14 +273,23 @@ export function presentRecord(L, land, crust, past, geo, cfg = PRESENT) {
 function oldFloodBasalts(sim, crust, isLand, toSea, seed, cfg, kmOf) {
     const n = sim.numCells, { xyz } = sim, rng = makeRng((seed ^ 0x01d1) >>> 0), noise = new FastNoise((seed ^ 0x01d2) >>> 0);
     const age = new Float32Array(n), worn = new Float32Array(n);
-    const inland = [];
-    for (let c = 0; c < n; c++) if (isLand(c) && toSea[c] > cfg.recOldLipCoastKm && crust.volcType[c] === VolcanicType.NONE) inland.push(c);
-    const count = inland.length ? Math.round(cfg.recOldLipCount[0] + (cfg.recOldLipCount[1] - cfg.recOldLipCount[0]) * rng()) : 0;
-    let cells = 0;
+    const inland = (c) => isLand(c) && toSea[c] > cfg.recOldLipCoastKm && crust.volcType[c] === VolcanicType.NONE;
+    const count = Math.round(cfg.recOldLipCount[0] + (cfg.recOldLipCount[1] - cfg.recOldLipCount[0]) * rng());
+    let cells = 0, provinces = 0;
     for (let i = 0; i < count; i++) {
-        const c0 = inland[Math.floor(rng() * inland.length)], a = cfg.recOldLipAgeMyr[0] + (cfg.recOldLipAgeMyr[1] - cfg.recOldLipAgeMyr[0]) * rng();
-        const r0 = Math.sqrt(cfg.recOldLipAreaKm2[0] * Math.exp(Math.log(cfg.recOldLipAreaKm2[1] / cfg.recOldLipAreaKm2[0]) * rng()) / Math.PI);
-        const w = Math.min(1, cfg.recOldLipWornShare[0] + (cfg.recOldLipWornShare[1] - cfg.recOldLipWornShare[0]) * rng()), off = 10 * rng();
+        // (each province its own stream, its centre the first of its random places that lies inland — M4: so an edit far
+        // from it leaves it where it was)
+        const pr = makeRng(((seed ^ 0x01d3) + i * 7919) >>> 0);
+        let c0 = -1;
+        for (let t = 0; t < 400 && c0 < 0; t++) {
+            const z = 2 * pr() - 1, th = 2 * Math.PI * pr(), r = Math.sqrt(1 - z * z), c = sim.index.nearest(r * Math.cos(th), r * Math.sin(th), z);
+            if (inland(c)) c0 = c;
+        }
+        if (c0 < 0) continue;
+        provinces++;
+        const a = cfg.recOldLipAgeMyr[0] + (cfg.recOldLipAgeMyr[1] - cfg.recOldLipAgeMyr[0]) * pr();
+        const r0 = Math.sqrt(cfg.recOldLipAreaKm2[0] * Math.exp(Math.log(cfg.recOldLipAreaKm2[1] / cfg.recOldLipAreaKm2[0]) * pr()) / Math.PI);
+        const w = Math.min(1, cfg.recOldLipWornShare[0] + (cfg.recOldLipWornShare[1] - cfg.recOldLipWornShare[0]) * pr()), off = 10 * pr();
         for (let c = 0; c < n; c++) {
             if (!isLand(c) || crust.volcType[c] !== VolcanicType.NONE || age[c] > 0) continue;
             const d = kmOf(c, c0);
@@ -290,7 +299,7 @@ function oldFloodBasalts(sim, crust, isLand, toSea, seed, cfg, kmOf) {
             age[c] = a; worn[c] = w; cells++;
         }
     }
-    return { age, worn, cells, provinces: count };
+    return { age, worn, cells, provinces };
 }
 
 /** km from the cells `isSource` marks, over the cells `canEnter` allows, out to maxKm (Infinity beyond); with `carry`, each

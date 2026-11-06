@@ -110,12 +110,17 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         if (k === Boundary.RIDGE || k === Boundary.INACTIVE) continue;
         if (k === Boundary.TRANSFORM && !(B.openCmYr[i] < 0 && (B.landA[i] || B.landB[i]))) continue;   // only pressed together, on land
         const key = `${k}:${Math.min(B.a[i], B.b[i])}:${Math.max(B.a[i], B.b[i])}`;
-        if (!groups.has(key)) groups.set(key, { kind: k, pa: Math.min(B.a[i], B.b[i]), pb: Math.max(B.a[i], B.b[i]), edges: [] });
+        if (!groups.has(key)) {
+            const pa = Math.min(B.a[i], B.b[i]), pb = Math.max(B.a[i], B.b[i]), ka = plates[pa]?.key ?? pa, kb = plates[pb]?.key ?? pb;
+            // (its draws keyed by who its plates are — their first pieces — not by their numbers, which an edit elsewhere
+            // renumbers: so a front an edit leaves alone stays as it was)
+            groups.set(key, { kind: k, pa, pb, edges: [], id: Math.min(ka, kb) * 131 + Math.max(ka, kb) * 17 });
+        }
         groups.get(key).edges.push(i);
     }
     // a front's time active, drawn in its kind's range — each front its own draw on its own stream, in a fixed order
     const timeOf = (g, range) => {
-        const r = makeRng((seed ^ 0xbe17) + g.kind * 7919 + g.pa * 131 + g.pb * 17);
+        const r = makeRng((seed ^ 0xbe17) + g.kind * 7919 + g.id);
         return range[0] + (range[1] - range[0]) * r();
     };
     const fronts = [];
@@ -129,7 +134,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         if (m.size) pushes.push({ plate: p, cells: m, frontKm });
     };
     // (rifts first, so a young sea opened inland is there before the belts that might reach it)
-    const order = [...groups.values()].sort((a, b) => (a.kind === Boundary.RIFT ? 0 : 1) - (b.kind === Boundary.RIFT ? 0 : 1) || a.kind - b.kind || a.pa - b.pa || a.pb - b.pb);
+    const order = [...groups.values()].sort((a, b) => (a.kind === Boundary.RIFT ? 0 : 1) - (b.kind === Boundary.RIFT ? 0 : 1) || a.kind - b.kind || a.id - b.id);
     for (const g of order) {
         // each edge's motion: closing rate (km/Myr), head-on share, obliquity, both sides
         const E = g.edges.map(i => {
@@ -159,7 +164,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         // split off its edge and a sea open behind it (Japan and the Japan Sea, the Kurils, the Philippines, Indonesia's
         // arcs) — by the front's mean drive and slab age, on a draw of its own
         // (G3d: and along a long front each stretch its own: the chance as the front's, where along it by a noise)
-        const splitChance = marginSplits(g, E), sr = makeRng((seed ^ 0xbac6) + g.pa * 131 + g.pb * 17), splitOff = 1000 * sr();
+        const splitChance = marginSplits(g, E), sr = makeRng((seed ^ 0xbac6) + g.id), splitOff = 1000 * sr();
         for (const e of E) {
             const overA = B.over[e.i] === 0, over = overA ? e.ca : e.cb, down = overA ? e.cb : e.ca, op = plateOf[over];
             const rateKmMyr = Math.abs(e.closing), rate = rateKmMyr / 10, slabKm = rateKmMyr * T, slabAge = sea.ageMyr[down];
@@ -218,14 +223,14 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             const p = overPlate(arc.cells);
             // (each arc its own age, on its own draw: a young one a submerged ridge its volcanoes break, an old one long
             // islands — the Marianas beside the Philippines, Java)
-            const arcAge = cfg.arcAgeMyr[0] + (cfg.arcAgeMyr[1] - cfg.arcAgeMyr[0]) * makeRng((seed ^ 0xa7c1) + g.pa * 131 + g.pb * 17)();
+            const arcAge = cfg.arcAgeMyr[0] + (cfg.arcAgeMyr[1] - cfg.arcAgeMyr[0]) * makeRng((seed ^ 0xa7c1) + g.id)();
             // G3d (owner, 2026-11-04: the ocean arcs "too uniform and everywhere … less likely on ocean to ocean … or on an
             // ocean plate right by land on the same major plate, that is good as it looks like a trailing/edge arc"):
             // an arc stands along only part of its trench — most likely near its own plate's continent (the Aleutians
             // off Alaska, the Antilles and the Scotia arc trailing from theirs), seldom out in the open ocean (the
             // Marianas) — and where it stands it varies along its strike: wider and narrower, nearer the trench and
             // farther back, mature in its middle and young toward its ends (a submerged ridge its volcanoes break)
-            const near = landKmOf(p), r = makeRng((seed ^ 0xa7c3) + g.pa * 131 + g.pb * 17), off = [1000 * r(), 1000 * r(), 1000 * r()];
+            const near = landKmOf(p), r = makeRng((seed ^ 0xa7c3) + g.id), off = [1000 * r(), 1000 * r(), 1000 * r()];
             // G3e: and where a continent rides the diving plate toward the trench, the arc has met it (Timor and the Banda
             // arc before Australia, Taiwan, New Guinea's north coast): there it always stands, mature, broad and raised
             const keep = [];
@@ -267,7 +272,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             // the continent's edge split off as an island arc (arc crust: chains of islands, a mature arc long ones — a
             // Japan, a Java) and the sea opened behind it (young ocean floor: a back-arc basin), never through a craton;
             // (G3d) the sea narrowing toward the stretch's ends, where the arc joins its continent again (Kamchatka, Sakhalin)
-            const p = overPlate(split.cells), r = makeRng((seed ^ 0xbac5) + g.pa * 131 + g.pb * 17);
+            const p = overPlate(split.cells), r = makeRng((seed ^ 0xbac5) + g.id);
             const arcKm = cfg.backArcArcKm[0] + (cfg.backArcArcKm[1] - cfg.backArcArcKm[0]) * r();
             let seaKm = cfg.backArcSeaKm[0] + (cfg.backArcSeaKm[1] - cfg.backArcSeaKm[0]) * r();
             const seaAge = cfg.backArcAgeMyr[0] + (cfg.backArcAgeMyr[1] - cfg.backArcAgeMyr[0]) * r();
@@ -277,7 +282,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
             // into blocks with young seas between them (Sundaland and eastern Indonesia: Borneo, Sulawesi, the Java and
             // Banda seas; the Aegean). Seas a few hundred km across lie on the blocks' shelves — shallow (the Java Sea);
             // wider ones open deep basins (the Banda, Celebes and Sulu seas). Each split its own draw.
-            const rs = makeRng((seed ^ 0x5d0a) + g.pa * 131 + g.pb * 17), sunda = rs() < cfg.sundaChance && sundaFronts < cfg.sundaMax;
+            const rs = makeRng((seed ^ 0x5d0a) + g.id), sunda = rs() < cfg.sundaChance && sundaFronts < cfg.sundaMax;
             if (sunda) sundaFronts++;
             if (sunda) seaKm = cfg.sundaShelfKm[0] + (cfg.sundaShelfKm[1] - cfg.sundaShelfKm[0]) * rs();
             const fragOff = 1000 * rs(), blockOff = 1000 * rs();
@@ -398,7 +403,7 @@ export function presentBelts(L, W, B, land, sea, cfg = PRESENT, config = present
         // Africa); only a strong one, where it nears a coast, has pulled apart into a young sea — widest at the coast,
         // narrowing inland into the valley (the Red Sea and the Gulf of Aden, the Gulf of California). Each its own way
         // along its length.
-        const r = makeRng((seed ^ 0x41f7) + g.pa * 131 + g.pb * 17), off = [1000 * r(), 1000 * r(), 1000 * r(), 1000 * r()];
+        const r = makeRng((seed ^ 0x41f7) + g.id), off = [1000 * r(), 1000 * r(), 1000 * r(), 1000 * r()];
         const inland = seaKmOf();
         let seaCells = 0;
         if (openKm > cfg.riftSeaMinKm) {

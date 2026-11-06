@@ -141,15 +141,17 @@ function componentsOf(G, members) {
  * @param {Object} L  the layout (present/layout.js): { mesh: {numRegions, adjOffset, adjList}, xyz (Generate's frame),
  *   cellPiece, pieceIds (the planet code's toggle order), pieceOcean (Set — as edited), pieceVec ({id: {pole, omega}}:
  *   the pieces' motion today on the unedited layout), seed }
+ * @param {{cellPlate, plates}} [motionFrom]  M4, on an edited layout: the plates as first built (motionsOf) — each plate
+ *   most of whose cells rode one of them moves as that one did
  * @returns {Object} W: { M, units, continents, cellPlate (plate per cell), piecePlate (plate per piece index; −1 for a
  *   piece too small to hold a sim cell), plates[], graph, land (per piece, unedited), cellLand (per cell, unedited),
  *   oceanSeeds }
  */
-export function buildPresentPlates(L, cfg = PRESENT) {
+export function buildPresentPlates(L, cfg = PRESENT, motionFrom = null) {
     // Every continent has an active margin somewhere (G1d, owner 2026-11-03: "each continent have at least 1 active
     // orogeny/plate boundary"): built once as drawn; a continent of at least activeMinShare of the sphere left with no
     // trench, collision or pressed transform on it then leads into the ocean with its biggest unit, and all is built again
-    const W = buildPlatesWith(L, cfg, null);
+    const W = buildPlatesWith(L, cfg, null, motionFrom);
     const B = classifyBoundaries(L, W, W.cellLand, cfg), active = new Uint8Array(W.cellPlate.length);
     for (let i = 0; i < B.count; i++) {
         const k = B.kind[i];
@@ -161,11 +163,11 @@ export function buildPresentPlates(L, cfg = PRESENT) {
         for (const i of cont) for (const c of W.graph.cells[i]) { cells++; hit ||= active[c] === 1; }
         if (!hit && cells >= cfg.activeMinShare * W.cellPlate.length) quiet.add(ci);
     });
-    return quiet.size ? buildPlatesWith(L, cfg, quiet) : W;
+    return quiet.size ? buildPlatesWith(L, cfg, quiet, motionFrom) : W;
 }
 
 /** The plates, built with the continents in `forced` (indices; or null) leading into the ocean whatever their draw. */
-function buildPlatesWith(L, cfg, forced) {
+function buildPlatesWith(L, cfg, forced, motionFrom = null) {
     const { mesh, xyz, pieceIds, pieceOcean, seed } = L;
     const n = mesh.numRegions, { adjOffset, adjList } = mesh;
     const G = pieceGraph(L);
@@ -192,7 +194,27 @@ function buildPlatesWith(L, cfg, forced) {
     // today's pieces converged or parted hardest (a collision or a rift inside it: India–Asia, Africa–Arabia) ──
     const units = [];                       // { pieces, cells, continent, euler }
     let splitBudget = Math.max(0, Math.floor((M - continents.length - cfg.oceanPlateMin) / 2));
-    continents.forEach((cont, ci) => {
+    // (M4: on an edited layout, each continent's pieces ride the units they rode as first built — `motionFrom` — so a
+    // piece raised or sunk does not tip a continent over a split's threshold and regroup all of it: a raised piece joins
+    // the unit it borders most, a continent an edit cut in two keeps each part on its unit, two joined by a raised piece
+    // stay two plates meeting there)
+    const was = motionFrom?.piecePlate ?? null;
+    if (was) continents.forEach((cont, ci) => {
+        const by = new Map(), loose = [];
+        for (const p of cont) { const u = motionFrom.land[p] ? was[p] : -1; if (u < 0) loose.push(p); else { if (!by.has(u)) by.set(u, []); by.get(u).push(p); } }
+        for (let pass = 0; loose.length && pass < cont.length; pass++) {
+            for (let i = loose.length - 1; i >= 0; i--) {
+                const p = loose[i], border = new Map();
+                for (const [j, cnt] of G.nbr[p]) for (const [u, ps] of by) if (ps.includes(j)) border.set(u, (border.get(u) ?? 0) + cnt);
+                if (!border.size) continue;
+                const u = [...border.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0][0];
+                by.get(u).push(p); loose.splice(i, 1);
+            }
+        }
+        if (loose.length) units.push({ pieces: loose.sort((a, b) => a - b), continent: ci, base: -1 });
+        for (const u of [...by.keys()].sort((a, b) => a - b)) units.push({ pieces: by.get(u).sort((a, b) => a - b), continent: ci, base: u });
+    });
+    else continents.forEach((cont, ci) => {
         const share = sumArea(cont) / n;
         let parts = [cont];
         const wanted = share >= cfg.splitTwiceShare ? 2 : share >= cfg.splitMinShare ? 1 : 0;
@@ -225,8 +247,19 @@ function buildPlatesWith(L, cfg, forced) {
     const K = Math.max(cfg.oceanPlateMin, M - U);
     const fromLand = dijkstraCells(mesh, xyz, cellLand);
     const oceanPieces = []; for (let i = 0; i < P; i++) if (!land[i] && area[i]) oceanPieces.push(i);
-    const pieceFromLand = new Map(oceanPieces.map(i => { let s = 0; for (const c of cells[i]) s += fromLand[c]; return [i, s / cells[i].length]; }));
     const oceanSeeds = [];                  // each ocean-only plate's seed pieces: { pieces, unit (the continent it dives under, or −1) }
+    if (was) {
+        // (M4: on an edited layout, the ocean plates are the first build's, each ocean piece on the plate it rode — a
+        // piece sunk on its continent's, as that plate's trailing ocean — so an edit does not reseed the oceans)
+        const U0 = motionFrom.units, unitOf = new Map();          // (W.units: how many plates are units)
+        units.forEach((u, ui) => { if (u.base >= 0 && !unitOf.has(u.base)) unitOf.set(u.base, ui); });
+        const to = (b) => (b < 0 ? -1 : b < U0 ? (unitOf.get(b) ?? -1) : U + (b - U0));
+        motionFrom.oceanSeeds.forEach(o => oceanSeeds.push({ pieces: o.pieces.filter(p => !land[p]), unit: o.unit >= 0 ? (unitOf.get(o.unit) ?? -1) : -1 }));
+        for (const i of oceanPieces) piecePlate[i] = to(motionFrom.piecePlate[i]);
+        // (an ocean plate whose seed pieces were all raised: anchored on another of its pieces)
+        oceanSeeds.forEach((o, k) => { if (!o.pieces.length) { const i = oceanPieces.find(q => piecePlate[q] === U + k); if (i !== undefined) o.pieces.push(i); } });
+    } else {
+    const pieceFromLand = new Map(oceanPieces.map(i => { let s = 0; for (const c of cells[i]) s += fromLand[c]; return [i, s / cells[i].length]; }));
     const taken = new Uint8Array(P);
     // Some continents lead into an ocean plate that dives under them (an active margin: South America's Andes); the
     // rest lead into nothing (Africa). For each of the first, the ocean pieces its coast faces along its motion seed an
@@ -300,7 +333,6 @@ function buildPlatesWith(L, cfg, forced) {
     // ── the oceans divided: a Dijkstra in km, cell by cell, from every plate's land and seeds — a continent's growing
     // less far ahead of its motion than behind, so it trails its ocean — and each ocean piece then goes whole to the
     // plate that reached most of it ──
-    const NP = U + oceanSeeds.length;
     const reach = new Int16Array(n).fill(-1);
     const dist = new Float64Array(n).fill(Infinity), heap = new MinHeap(4096);
     const source = (c, pl) => { reach[c] = pl; dist[c] = 0; heap.push(0, c); };
@@ -335,6 +367,8 @@ function buildPlatesWith(L, cfg, forced) {
         for (const [pl, v] of votes) if (v > bn || (v === bn && pl < best)) { best = pl; bn = v; }
         piecePlate[i] = best;
     }
+    }
+    const NP = U + oceanSeeds.length;
 
     // ── every plate one piece of the globe: a stray group of ocean pieces (or one nothing reached) joins the plate it
     // borders most ──
@@ -599,8 +633,10 @@ function buildPlatesWith(L, cfg, forced) {
             if (norm(d) > 0) pl.dir = d;
         }
         // speeds: continents slow (the bigger the slower), ocean plates fast where they dive under continents
-        const srng = makeRng(seed ^ 0x5bed);
+        // (each plate's jitter its own draw, keyed by who it is — its first piece — so an edit that renumbers the plates
+        // leaves the others' speeds as they were)
         for (const pl of plates) {
+            const srng = makeRng(((seed ^ 0x5bed) + pl.key * 7919) >>> 0);
             let cm;
             if (pl.continental) {
                 const [slow, fast] = cfg.continentSpeedCmYr;
@@ -617,10 +653,27 @@ function buildPlatesWith(L, cfg, forced) {
             pl.speedCmYr = cm;
             pl.euler = [pl.dir[0] * w, pl.dir[1] * w, pl.dir[2] * w];
         }
+        // (M4: on an edited layout, a plate there before — most of its cells rode it — moves as it did: a piece raised or
+        // sunk does not turn or speed up the rest of its plate, so its other edges' belts stay as they were)
+        if (motionFrom) for (const pl of plates) {
+            const was = matchedPlate(motionFrom, plateCells[pl.index]);
+            if (was) { pl.dir = was.dir.slice(); pl.speedCmYr = was.speedCmYr; pl.euler = was.euler.slice(); }
+        }
         return plates;
     }
 
     return { M: NPk, units: U, continents, cellPlate: plateOf, piecePlate, splitPiece, plates, graph: G, land, cellLand, oceanSeeds, conjugates };
+}
+
+/** The plates as built, for buildPresentPlates' `motionFrom` (M4): which plate each cell and land piece rode, the pieces'
+ *  land, and the plates. */
+export const motionsOf = (W) => ({ cellPlate: W.cellPlate, piecePlate: W.piecePlate, land: W.land, plates: W.plates, units: W.units, oceanSeeds: W.oceanSeeds });
+/** The plate of `was` (motionsOf) that most of these cells rode — if at least half of them did — else null. */
+export function matchedPlate(was, cells) {
+    const count = new Map();
+    let best = -1, most = 0;
+    for (const c of cells) { const p = was.cellPlate[c], k = (count.get(p) ?? 0) + 1; count.set(p, k); if (k > most) { most = k; best = p; } }
+    return best >= 0 && 2 * most >= cells.length ? was.plates[best] : null;
 }
 
 /** Distance in km from the cells flagged in `src` (a plain Dijkstra over the mesh). */

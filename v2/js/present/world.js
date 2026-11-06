@@ -8,7 +8,7 @@ import { sampleOnto, terrainMesh } from '../terrain/terrain-mesh.js';
 import { carveTerrain } from '../terrain/carve.js';
 import { surfaceConfig } from '../finish/finish.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
-import { classifyBoundaries, cellLandNow } from './plates.js';
+import { buildPresentPlates, classifyBoundaries, cellLandNow } from './plates.js';
 import { naturalCoast } from './coast.js';
 import { seaFloorAges } from './seafloor.js';
 import { presentFrame } from './frame.js';
@@ -59,15 +59,27 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     ms.seaFloor = clock() - t0; t0 = clock();
     // the continents' past first (G4: old orogenies replayed), then today's belts over it
     const config = presentTectonics(), crust = newCrust(L, land, sea);
+    // (M4: the past is the layout's as first built — `o.unedited`: its plates and its pieces' land before any edit. An edit
+    // changes today's world, its coasts, plates and belts, not the history: a piece sunk takes its past under with it, a
+    // piece raised is young land with none of its own, and the rest of the planet keeps the past it had — so a Ctrl-click
+    // reshapes the place clicked, as on the old page, not every range on the planet. A planet code's edits read the same.)
+    const base = o.unedited && o.unedited.P !== P ? o.unedited : null;
+    if (base && !base.land) {
+        base.crustLand = cellLandNow(L, base.P, base.pieceLand);
+        base.land = naturalCoast(L, base.crustLand, base.P.cellPlate);
+        base.B = classifyBoundaries(L, base.P, base.land, undefined, base.crustLand);
+    }
+    const pastP = base?.P ?? P, pastB = base?.B ?? B, pastLand = base?.land ?? land, pastCrustLand = base?.crustLand ?? crustLand;
     // (G3b: the inner seams — where two land pieces of one plate meet — replayed with the past, or sagged)
     // (G4c: the pieces' outlines bent — by today's plates' drag and a slow warp — and the smaller terranes within them)
-    const bent = bentPieces(L, P, B, land, crustLand);
-    // (G5b: the continents that fit across their ocean, and the rotation that closes it)
-    const fits = continentFits(L, P, land);
-    const seams = pieceSeams(L, P, land, crustLand, PRESENT, bent.wp);
-    const past = presentPast(L, land, crust, config, PRESENT, seams.events, { ...bent, fits });
+    const bent = bentPieces(L, pastP, pastB, pastLand, pastCrustLand);
+    // (G5b: the continents that fit across their ocean, and the rotation that closes it — today's coasts', and the past's)
+    const fits = continentFits(L, P, land), pastFits = base ? (base.fits ??= continentFits(L, pastP, pastLand)) : fits;
+    const seams = pieceSeams(L, pastP, pastLand, pastCrustLand, PRESENT, bent.wp);
+    const past = presentPast(L, pastLand, crust, config, PRESENT, seams.events, { ...bent, fits: pastFits });
     past.bent = bent;
-    sagSeams(L, land, crust, seams.sags);
+    sagSeams(L, pastLand, crust, seams.sags);
+    if (base) drownPast(crust, newCrust(L, land, sea), land, pastLand);
     past.seams = { closing: seams.events.length, parting: seams.sags.length, count: seams.count };
     past.sagCells = seams.sags.flatMap(s => s.cells);         // (the parting seams: old failed rifts — the record's rift basins)
     ms.past = clock() - t0; t0 = clock();
@@ -91,6 +103,20 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
     return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, order: G.order, lava: G.lava, young: G.young, cut: G.cut, surface: G.surface, ms };
+}
+
+/** M4: where land of the past is sea now (a piece sunk by an edit), the crust as the sea floor it became — every record
+ *  of the past there dropped (`fresh`: the crust as today's land and sea floor alone would have it). */
+function drownPast(crust, fresh, land, pastLand) {
+    const n = crust.numCells, keys = Object.keys(crust).filter(k => ArrayBuffer.isView(crust[k]) && crust[k].length === n);
+    for (let c = 0; c < n; c++) if (pastLand[c] && !land[c]) for (const k of keys) crust[k][c] = fresh[k][c];
+}
+
+/** The layout as first built, for the past (presentWorld's `o.unedited`): its plates (present/plates.js on the pieces'
+ *  land before any edit) and each piece's land then. */
+export function uneditedLayout(L, originalOcean) {
+    const L0 = { ...L, pieceOcean: originalOcean };
+    return { P: buildPresentPlates(L0), pieceLand: Uint8Array.from(L.pieceIds, id => (originalOcean.has(id) ? 0 : 1)) };
 }
 
 /**
