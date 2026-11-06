@@ -384,9 +384,11 @@ export const TERRAIN = {
     oldComb: 0.8,               // the share of the massif and of the hills drawn out along the strike, once old
     oldHillsStretch: 4,
     oldRidgeGain: 1,            // the parallel ridges this much stronger, once old…
-    oldEven: 0.7,               // …and this much more even along the strike: their segments' fading, their crests' rise and fall
-                                // and the crests' roughening × 1 − this (old ranges' even-crested ridges, the Appalachians'),
-                                // so their troughs run on and catch the rivers — broken only where ridgeBreak breaks them
+    oldEven: -0.1,              // …and this much more even along the strike: their segments' fading, their crests' rise and fall
+                                // and the crests' roughening × 1 − this. Negative: a little LESS even than a young belt's — 0.7
+                                // (the Appalachians' even crests, troughs running on to catch the rivers) until the owner's
+                                // 2026-10-28 ask, "old belts should not be more even, maybe it should even be slightly less"
+                                // (PR #83's R1/R4, stranded; landed 2026-11-05)
     oldGrainHardness: 0.6,      // erodibility × 1 ∓ this on the ridges and in the troughs (×0.4 … ×1.6, the same on the whole), once old
 
     // ── Ridges inside a belt: strike-parallel stripes (stripes.js) ──
@@ -418,15 +420,16 @@ export const TERRAIN = {
     detailRenewMyr: 150,        // …over about this long (0: never — the detail stays frozen on the crust)
     stripeMeanderKm: 16,        // stripes wander by about this much…
     stripeMeanderAlongKm: 350,  // …over this distance (so they bend by ~15° at most, and stay parallel to the front)
-    // …and they may undulate at every scale about their own, in every direction (developer, 2026-10-28: "the overall shape
-    // is great, but its too uniform. It needs to undulate in every direction … and at every scale"; PR #83's R2/R4, not
-    // landed — off here, Generate's own: present-config.js PRESENT_TERRAIN): octaves of a noise at these multiples of the
-    // ridges' wavelength, where the mesh can show them, bend the ridges — each by ± ridgeVaryBend of its own wavelength —
-    // and raise and lower them: the parallel ridges and the ridge noise × e^(ridgeVaryHeight × the octaves' sum), mean kept
-    ridgeVaryScales: [],        // (PR #83's: [2, 1, 0.5, 0.25])
-    ridgeVaryWeights: [],       // ([1, 1, 0.8, 0.6])
-    ridgeVaryBend: 0,           // (0.025)
-    ridgeVaryHeight: 0,         // (0.35)
+    // …and they undulate at every scale about their own, in every direction (developer, 2026-10-28: "the overall shape is
+    // great, but its too uniform. It needs to undulate in every direction … and at every scale (larger than phasor and less
+    // than phasor)"; PR #83's R2/R4, stranded; landed 2026-11-05): octaves of a noise at these multiples of the ridges'
+    // wavelength, where the mesh can show them, bend the ridges — each by ± ridgeVaryBend of its own wavelength — and raise
+    // and lower them: the parallel ridges and the ridge noise × e^(ridgeVaryHeight × the octaves' sum), mean kept. Peaks and
+    // saddles along each ridge, one ridge higher than the next, groups of them higher, uneven flanks (empty scales: none)
+    ridgeVaryScales: [2, 1, 0.5, 0.25],
+    ridgeVaryWeights: [1, 1, 0.8, 0.6],
+    ridgeVaryBend: 0.025,       // (0.035 and 0.5 for a day on PR #83: toned down — developer, 2026-10-28)
+    ridgeVaryHeight: 0.35,
     // En-echelon ridges: where plates met obliquely, fold axes turn by half the obliquity. Along a transform that is
     // the whole story (the Transverse Ranges); at an oblique trench or collision most of the sideways motion goes onto
     // a separate fault along the margin (strain partitioning — the Great Sumatran Fault), so folds stay nearly parallel.
@@ -435,15 +438,18 @@ export const TERRAIN = {
     // Ridge noise along each range (developer, 8b round 5: "simplex noise that is aggressively stretched along the
     // direction of the ridges — can increase or decrease things"): read at the distance across the belt (fast) and the
     // position along it (slow), so its highs and lows are drawn out along the strike, over the whole belt
-    ridgeNoiseShare: 0.25,      // ± this share of the belt’s relief…
-    ridgeNoiseBaseKm: 0.08,     // …plus ± this much (× the belt's intensity)
+    ridgeNoiseShare: 0.3,       // ± this share of the belt’s relief… (0.25 until the owner's 2026-10-28 ask: "slightly more of
+                                // the ridge noise layered on top to both increase height and decrease height a bit which can
+                                // help give purchase to carving later")
+    ridgeNoiseBaseKm: 0.095,    // …plus ± this much (× the belt's intensity; 0.08 until then)
     ridgeNoiseAcross: 0.8,      // its features are this share of the belt kind's ridge wavelength (stripeKm) across the strike…
     ridgeNoiseStretch: 8,       // …and this many times as long along it
     ridgeNoiseOctaves: 3,       // (then halves and quarters of that, where the mesh can show them)
-    // …and may be read at several scales, each this many times its size, this strong, their sum kept to one scale's spread
-    // (developer, 2026-10-28: "the same as now but also much larger and smaller"; PR #83's R3/R4, not landed — off here)
-    ridgeNoiseScales: [],       // (PR #83's: [4, 1, 0.25])
-    ridgeNoiseWeights: [],      // ([0.45, 1, 0.35])
+    // …at three scales: its own, and much larger and much smaller (developer, 2026-10-28: "the same as now but also much
+    // larger and smaller, the orogeny should be the main driver"; PR #83's R3/R4, stranded; landed 2026-11-05) — each this
+    // many times its size, this strong; their sum kept to one scale's spread (empty: its own scale alone)
+    ridgeNoiseScales: [4, 1, 0.25],
+    ridgeNoiseWeights: [0.45, 1, 0.35],   // (0.6, 1, 0.5 for a day on PR #83: toned down)
     // Broken ridgelines (developer, 2026-10-27: "the perfectly intact ridgelines we have may be unrealistic and they should
     // be broken a little (less so in the front …)" — the main range by the plate edge the most whole, though it can break;
     // the Andes least broken, "very close to what we have today", then Laramide, Ural, Himalayan). In patches of a noise
