@@ -31,6 +31,9 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
      from its shore and the land under its rivers lifted gently above the sea where the model drowned it, each river
      re-routed along the model's own valleys within 5 km of its line (a least-cost path, pulled gently toward the line)
      and made to descend. Renders `renders/{range,islands,river}.png`.
+   - `--sweep`: variants of the light guards on each patch (the lock at 15 / 30 / 60 km, the rivers' corridor 2 / 5 / 9 km,
+     steeper valleys, lifted ground left bald), a sheet per patch (`renders/*-sweep.png`) for choosing by eye; the dials
+     are `LIGHT` at the top of the script.
    - `--mode strict` (the first design): the model's high band (σ 12 km) gated by slope and ruggedness and laid on top of
      today's procedural detail, coasts free within 12 km of today's and each island's core held, each reach's bed carved
      monotone along its fixed line. Renders `renders/*-strict.png`.

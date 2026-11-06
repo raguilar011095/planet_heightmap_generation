@@ -519,7 +519,10 @@ valleys within 5 km; renders `tuning/learned-detail/renders/{range,islands,river
 The texture is the model's, unchanged (the relief figures match the raw's); the broad shape is ours (the plateau's rim
 back where the history put it, the islands whole with the model's ridge spine on them and its bays cut into their
 margins, the lowland's coast grown headlands and islets); the rivers run down the model's valleys within a couple of km
-of their lines. This is the version the owner asked for.
+of their lines. This is the version the owner asked for. On the lowland the owner saw blur: it was local, where the model had drowned
+today's land and the lift raised the model's smooth sea floor as bald ground; lifted ground now takes today's procedural
+high band. The dials (the lock's scale, the rivers' corridor and pull, the valleys' steepness, the lift's texture) are
+one table in `guards.py`, and `--sweep` renders their variants side by side (`renders/*-sweep.png`).
 
 **What this says for §8.** The owner's judgment on the renders: the model's raw texture is "the best by far", and the
 light guards keep enough of the shape and the rivers at almost no cost to it. That changes the question from quality to
@@ -546,6 +549,54 @@ branch as the model's do rather than run as parallel stripes.
 January and July alone; the 90 m model's 23 km cell matched our 20 km pixel but its training excluded |lat| > 60° (the
 river patch sits at 51°); the renders use a flat palette and a single light, not the page's. A GPU run of more patches,
 the 30 m model, and the patch lattice rotated (§6.4's seam check) would be the next measurements.
+
+## 11. Fine-tuning Terrain Diffusion to know rivers and coasts (the owner's question, 2026-11-06)
+
+"What if we were to retrain the diffusion model starting with its weights to respect Earth rivers, giving it as an
+input? And sort of respecting coastlines (or at least giving a penalty when it's too far away)."
+
+Yes, and it is the cleanest way out of the guards: a model that *sees* the rivers and the coast draws its valleys where
+the rivers are and its shore where the coast is, so nothing has to be overruled afterwards. PlanetDiffusion (Borg et
+al. 2026) already conditions on a river network extracted from the sketch, so the idea is proven in the open; Terrain
+Diffusion's author ships the training code (`TRAINING.md`) and trains the whole stack in about a week on one RTX 5090,
+and a fine-tune from his weights is a fraction of that. What it would take:
+
+- **The data.** Earth's rivers at the model's scales: MERIT Hydro (3″, the same grid as MERIT DEM the 90 m model was
+  trained on) gives flow accumulation and direction for every pixel; HydroSHEDS / HydroRIVERS give the network as lines
+  with discharge. Rasterise a **river channel** (log of the upstream area, or discharge, zero off-channel) at the latent
+  resolution (720 m) and at 90 m, and a **coast mask** (land/sea, plus a signed distance to the coast) at both. Both
+  come from the same tiles the model already trains on, so no new sampling pipeline.
+- **The model.** Two new input channels for the core latent model (the 254 M UNet; today 5 in: the noisy latent and
+  the coarse conditioning): the river raster and the coast distance, downsampled to the latent grid. The input
+  convolution grows by two channels initialised to zero (the ControlNet trick: at step zero the model is exactly the
+  pretrained one, and it learns to use the new channels without forgetting). The decoder (28 M) likewise gets the 90 m
+  river raster, so the channel itself is drawn at full resolution. The coarse model (2.8 M) can take a river-density
+  channel too, cheaply. Condition dropout (the channels zeroed 10–20 % of the time) keeps the model usable without
+  rivers, which Generate's early seconds would want.
+- **The losses.** The diffusion loss itself does most of the work once the channels are there: the model learns that a
+  valley sits under a channel because every training tile says so. Two explicit penalties, applied on the predicted
+  clean sample x̂₀ (consistency models give it directly, every step): a **river penalty**, the height along the
+  channel's pixels must fall downstream and sit below its neighbours (hinge losses on the differences, weighted by
+  discharge); and a **coast penalty**, the sign of the predicted height must agree with the coast mask beyond a distance
+  d of the coast (a hinge on height × sign, zero within d, so the shore itself is free to wander by d: the owner's "quite
+  a bit, just not that aggressively", with d the dial). Both are a few lines on top of the training step.
+- **The cost.** The fine-tune runs on the author's 2048² tiles with the new rasters; a few days on one high-end GPU, or
+  hours on a rented node, since the weights start trained. Inference is unchanged (2 + 1 steps), so §10's delivery
+  problem is the same as before: half a gigabyte, a GPU. Orogen then supplies the river channel from its own rivers
+  (`rivers.q`, rasterised on the patch) and the coast mask from its picture, exactly as the guards did, but as inputs.
+- **What it removes and what stays.** The river re-routing and the river carve go (the valleys will be where the
+  rivers are, and the rivers can keep their lines, which also spares the change to how moments store rivers); the lift
+  goes (the coast penalty keeps islands); the coarsest-band lock probably stays, since the model's coarse stage still
+  regenerates the layout and nothing in a 46 km tile knows where the plateau's rim should be. A small guard is cheaper
+  than a loss for something a tile cannot see.
+- **The order.** Before training: run the untouched model with a river raster painted into the *elevation* channel of
+  its coarse conditioning (a crude trench along our rivers) to see how much it already follows; it costs nothing and
+  shows whether the mid band obeys the coarse map. Then the fine-tune with the two channels and the diffusion loss alone;
+  then the penalties, only if the channels alone leave rivers climbing.
+
+This is a better Phase 2 than training a small residual network from scratch: the teacher's texture is the one the owner
+chose, and the fine-tune adds what it lacks. The 30 m model is the same recipe with Copernicus GLO-30 and its 7.7 km
+coarse cell, closer to the page's finest zoom.
 
 ## Sources
 
