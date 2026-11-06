@@ -251,16 +251,22 @@ the model's output and correct as little as possible.
 1. **Only the coarsest band is ours.** The model's heights relative to their own low band at σ 30 km (the mesh's cell
    at 640K; a km target, so the same at every Detail) are laid on today's low band. Everything the model drew below
    30 km stays, its carving included; the plateau, the basins and the islands stay where the history put them.
-2. **Low land is lifted, not clipped.** Where the model drowned today's land farther than ~12 km from its shore (an
-   island's core, a continent's interior) or the land under today's rivers, the ground is lifted gently as a whole
-   (the deficit below sea level, dilated and blurred, added back), so an island keeps its body and its texture, while
-   within 12 km of the shore the model's bays, straits and islets stand.
+2. **Low land is lifted, not clipped.** Where the model drowned today's land, the ground is lifted gently as a whole
+   (the deficit below sea level, dilated and blurred, added back), feathered by distance from today's shore: nothing
+   within ~7 km, all beyond ~19 km (an island's core, a continent's interior), a ramp between. So the shoreline is the
+   model's everywhere, only raised toward the core: an island keeps its body and its texture, and its bays, straits and
+   fringing islets are the model's. (A hard edge at a fixed offset, and strips held under the rivers, traced today's
+   outline and drew square tongues: the owner, "the island coasts still look a little bad".) Lifted ground gets today's
+   procedural high band, so the model's sea floor does not come up bald; an island the model sank whole keeps its core
+   above the sea whatever it drew.
 3. **Rivers follow the model's valleys, loosely where they were.** Each reach is re-routed between its ends by the
    least-cost path through the model's heights within a corridor of ~5 km about its line (cost: height above the
    corridor's floor, climbs dearly, a gentle pull toward the line), so it runs down the valley the model drew where
    there is one and keeps its line where there is none; then its bed is made monotone descending and the ground about it
-   lowered to the bed with a wide shallow V where the model had no valley. In §10 the rivers moved 1–2 km on average and
-   fewer than 0.4 % of their steps climb. The page would draw the re-routed lines (the rivers' points re-snapped), which
+   lowered to the bed with a wide shallow V where the model had no valley. The sea is kept out of the corridor except
+   about the reach's mouth (the sea floor is the lowest ground near a coast, and the router sent rivers along the shore
+   until it was), and each reach is cut where it meets the model's sea. In §10 the rivers moved 1–2 km on average and
+   fewer than 0.5 % of their steps climb. The page would draw the re-routed lines (the rivers' points re-snapped), which
    is a change to how a detailed moment keeps its rivers.
 4. **No slope gate, no coast band.** The model's texture is wanted everywhere, plains included (the owner: "the raw
    ones really are the best by far"); coasts are free, held only by the lift of 2.
@@ -443,6 +449,9 @@ coasts), on every device.
   integrated GPUs (the operator list flags Conv as "needs performance optimisation").
 - How a learned residual behaves at a Detail change: the band split in km makes the low band identical, but the
   residual's statistics at 2.5M and 10M must be checked, as the scale-invariance rule asks.
+- The rivers of the experiment's moment include reaches that run across the sea between islands (their ends 1–3 km
+  deep in the picture; the lines cross the strait in every panel). Whether they are the finish's rivers reaching a coast
+  the 2048 px picture draws elsewhere, or something in how `rivers` is built, is worth a look on its own.
 - What the detailed moment should store: the residual itself (a 10M moment's picture is 8192 px: 130 MB as Int16) or
   only the model's version and seed, drawing it again on load. The latter keeps `.orogen` files small and is how the
   procedural detail works today.

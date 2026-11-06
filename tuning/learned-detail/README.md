@@ -27,10 +27,11 @@ SIGGRAPH 2026; MIT; its 90 m model from Hugging Face, `xandergos/terrain-diffusi
    model's low band's drift from the picture's) and a four-panel render per patch: the base, today's detail, the model
    raw, and the guarded result.
    - `--mode light` (the default; the owner's call after seeing the strict renders: "the raw ones really are the best by
-     far"): the model kept whole below 30 km (its coarsest band replaced by today's), today's land farther than 12 km
-     from its shore and the land under its rivers lifted gently above the sea where the model drowned it, each river
-     re-routed along the model's own valleys within 5 km of its line (a least-cost path, pulled gently toward the line)
-     and made to descend. Renders `renders/{range,islands,river}.png`.
+     far"): the model kept whole below 30 km (its coarsest band replaced by today's), today's land lifted gently above
+     the sea where the model drowned it, feathered from nothing at 7 km from today's shore to all at 19 km (so the
+     shoreline is the model's, raised toward each island's core), with today's procedural texture on lifted ground;
+     each river re-routed along the model's own valleys within 5 km of its line (a least-cost path over land, pulled
+     gently toward the line), cut where it meets the sea, and made to descend. Renders `renders/{range,islands,river}.png`.
    - `--sweep`: variants of the light guards on each patch (the lock at 15 / 30 / 60 km, the rivers' corridor 2 / 5 / 9 km,
      steeper valleys, lifted ground left bald), a sheet per patch (`renders/*-sweep.png`) for choosing by eye; the dials
      are `LIGHT` at the top of the script.

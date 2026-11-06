@@ -95,7 +95,9 @@ def along(h, rr, cc):
 def river_ascents(h, reaches, base):
     """Of the steps along the reaches (downstream by the base's fall), the share that climb more than 2 m, and the biggest climb (m)."""
     climbs, steps = 0, 0; worst = 0.0
-    for rr, cc, qq in reaches:
+    for reach in reaches:
+        if reach is None: continue
+        rr, cc, qq = reach
         v = along(h, rr, cc); vb = along(base, rr, cc)
         if len(v) < 2: continue
         if vb[0] < vb[-1]: v = v[::-1]
@@ -146,24 +148,49 @@ def light_guards(learned, fine, fine_sea, reaches, N, P):
     GL = lambda a: ndi.gaussian_filter(a, P['lockKm'] / PXKM, mode='nearest')
     out = learned - GL(learned) + GL(fine)
     dist = ndi.distance_transform_edt(~fine_sea) * PXKM if fine_sea.any() else np.full((N, N), np.inf)
-    inland = (~fine_sea) & (dist > P['liftKm'])
-    under = np.zeros((N, N), bool)
-    for rr, cc, qq in reaches: under[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
-    inland |= ndi.binary_dilation(under, iterations=2) & (~fine_sea) & (dist > 1.5 * PXKM)
-    deficit = np.where(inland, np.maximum(0, 0.004 - out), 0)
-    lift = ndi.gaussian_filter(ndi.maximum_filter(deficit, size=7), 2, mode='nearest')
+    # the lift, feathered: nothing within 0.6 × liftKm of today's shore (the model's coast decides there), all beyond 1.6 ×
+    # (an island's core), a smooth ramp between — so the shoreline is the model's everywhere, only raised toward the core,
+    # and no edge of today's outline is traced (a hard mask at a fixed offset drew one, and strips held under the rivers
+    # drew square tongues)
+    w = smooth(0.6 * P['liftKm'], 1.6 * P['liftKm'], dist) * (~fine_sea)
+    deficit = w * np.maximum(0, 0.004 - out)
+    lift = ndi.gaussian_filter(ndi.maximum_filter(deficit, size=7), 3, mode='nearest')
     out = out + lift
-    out = np.where(inland, np.maximum(out, 0.002), out)
+    core = (~fine_sea) & (dist > 1.6 * P['liftKm'])
+    out = np.where(core, np.maximum(out, 0.002), out)
+    # an island the model sank whole (no land left of it): its core held above the sea whatever the model drew
+    lab, n = ndi.label(~fine_sea)
+    for k in range(1, n + 1):
+        m = lab == k
+        if m.sum() * PXKM * PXKM >= ISLAND_KM2 or (out[m] > 0).any(): continue
+        ck = m & (dist > 0.35 * dist[m].max()); out[ck] = np.maximum(out[ck], 0.002); lift[ck] = np.maximum(lift[ck], 0.03)
     if P['liftTexture'] > 0:
         # (the model's sea floor raised is bald: today's procedural detail's high band laid on it, by how much was lifted)
         wl = smooth(0.0, 0.03, lift)
         Gt = lambda a: ndi.gaussian_filter(a, 6 / PXKM, mode='nearest')
         out = out + P['liftTexture'] * wl * (fine - Gt(fine))
-    routed = river_route(out, reaches, N, corridor=P['corridorPx'], pull=P['linePull'], passes=P['smooth'])
+    routed = river_route(out, reaches, N, corridor=P['corridorPx'], pull=P['linePull'], passes=P['smooth'], sea=out <= 0)
+    routed = clip_at_sea(routed, out <= 0, N)
     out = river_corridor_carve(out, routed, N, K=P['vK'], rmax=P['vRmax'])
     return out, out <= 0, routed
 
-def river_route(h, reaches, N, corridor=None, pull=1.5, passes=2):
+def clip_at_sea(reaches, sea, N):
+    """Each reach cut where it first enters the sea (downstream: from its higher end), a point into it; one wholly at sea dropped."""
+    out = []
+    for reach in reaches:
+        if reach is None: out.append(None); continue
+        rr, cc, qq = reach
+        ri = np.clip(np.rint(rr).astype(int), 0, N - 1); ci = np.clip(np.rint(cc).astype(int), 0, N - 1)
+        at_sea = sea[ri, ci]
+        if at_sea.all(): out.append(None); continue
+        if not at_sea.any(): out.append((rr, cc, qq)); continue
+        land_idx = np.nonzero(~at_sea)[0]
+        a, b = land_idx[0], land_idx[-1]
+        lo, hi = max(0, a - 1), min(len(rr) - 1, b + 1)
+        out.append((rr[lo:hi + 1], cc[lo:hi + 1], qq[lo:hi + 1]))
+    return out
+
+def river_route(h, reaches, N, corridor=None, pull=1.5, passes=2, sea=None):
     """Light mode's rivers, "loosely in the same spot and going in the same direction": each reach re-routed between its ends
     along the least-cost path through the model's heights within a corridor about its line (cost: height above the corridor's
     floor, climbs dearly), so it follows the model's own valleys where there are any. Returns the routed reaches."""
@@ -176,7 +203,13 @@ def river_route(h, reaches, N, corridor=None, pull=1.5, passes=2):
         # the corridor: pixels within `corridor` of any point of the line
         mask = np.zeros((N, N), bool); mask[ri, ci] = True
         mask = ndi.binary_dilation(mask, iterations=corridor)
-        ys, xs = np.nonzero(mask); floor = h[mask].min()
+        if sea is not None:
+            # (the sea is not a valley: kept out of the corridor, except about the reach's lower end, where its mouth may be)
+            lo_end = (ri[-1], ci[-1]) if h[ri[0], ci[0]] >= h[ri[-1], ci[-1]] else (ri[0], ci[0])
+            near = np.zeros((N, N), bool); near[lo_end] = True; near = ndi.binary_dilation(near, iterations=corridor)
+            mask &= (~sea) | near
+            mask[ri[0], ci[0]] = True; mask[ri[-1], ci[-1]] = True
+        ys, xs = np.nonzero(mask); floor = h[mask].min()                   # (the corridor's lowest, its mouth's sea included: no step costs less than nothing)
         idx = {(y, x): k for k, (y, x) in enumerate(zip(ys, xs))}
         line = np.ones((N, N), bool); line[ri, ci] = False
         dline = ndi.distance_transform_edt(line) / corridor                   # 0 on the line … 1 at the corridor's edge
@@ -193,7 +226,7 @@ def river_route(h, reaches, N, corridor=None, pull=1.5, passes=2):
                     v = (u[0] + dy, u[1] + dx)
                     if v not in idx: continue
                     step = math.hypot(dy, dx)
-                    cost = step * (0.2 + (h[v] - floor) * 10 + pull * dline[v]) + 40 * max(0.0, h[v] - h[u])   # km above the floor, the line's pull, climbs ×40
+                    cost = step * (0.2 + max(0.0, h[v] - floor) * 10 + pull * dline[v]) + 40 * max(0.0, h[v] - h[u])   # km above the floor, the line's pull, climbs ×40
                     nd = d + cost
                     if nd < dist.get(v, np.inf): dist[v] = nd; prev[v] = u; heapq.heappush(pq, (nd, v))
         if b not in prev: out.append((rr, cc, qq)); continue
@@ -215,7 +248,9 @@ def river_corridor_carve(h, reaches, N, K=0.01, rmax=5):
     nearby), its bed monotone descending, the ground about it lowered to the bed with a wide shallow V (K km a pixel)."""
     out = h.copy(); bed = np.full((N, N), np.inf); rad = np.zeros((N, N))
     yy, xx = np.mgrid[0:N, 0:N]
-    for rr, cc, qq in reaches:
+    for reach in reaches:
+        if reach is None: continue
+        rr, cc, qq = reach
         ri = np.clip(np.rint(rr).astype(int), 0, N - 1); ci = np.clip(np.rint(cc).astype(int), 0, N - 1)
         r = np.clip(0.5 * np.log10(np.maximum(qq, 1)), 1.5, rmax)
         v = np.empty(len(ri))
@@ -246,7 +281,9 @@ def hillshade_rgb(h, sea, rivers_px, title, scale=2):
     rgb = np.where(sea[..., None], seacol, rgb)
     im = Image.fromarray((rgb * 255).astype(np.uint8)).resize((N * scale, N * scale), Image.NEAREST)
     d = ImageDraw.Draw(im)
-    for rr, cc, qq in rivers_px:
+    for reach in rivers_px:
+        if reach is None: continue
+        rr, cc, qq = reach
         pts = list(zip((cc + 0.5) * scale, (rr + 0.5) * scale))
         if len(pts) > 1: d.line(pts, fill=(80, 190, 255), width=1 if qq.max() < 3000 else 2)
     d.rectangle([0, 0, 8 * len(title) + 10, 16], fill=(0, 0, 0)); d.text((5, 2), title, fill=(255, 255, 255))
@@ -312,7 +349,9 @@ def main(orogen, work, sigma_km, mode):
             return float(np.median((ndi.maximum_filter(a, s) - ndi.minimum_filter(a, s))[m])) if m.any() else 0
         accb = d8_accumulation(fine); acco = d8_accumulation(out)      # (catchments against today's: the model's effect alone)
         rp = np.zeros((N, N), bool)
-        for rr, cc, qq in reaches_drawn: rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
+        for reach in reaches_drawn:
+            if reach is None: continue
+            rr, cc, qq = reach; rp[np.clip(np.rint(rr).astype(int), 0, N - 1), np.clip(np.rint(cc).astype(int), 0, N - 1)] = True
         ratio = (acco[rp] + 1) / (accb[rp] + 1)
         isl_lost = int(sum(1 for k in range(1, n + 1) if sizes[k - 1] < ISLAND_KM2 and not (~out_sea)[lab == k].any()))
         rlab, rn = ndi.label(~base_sea); rsizes = ndi.sum(~base_sea, rlab, index=np.arange(1, rn + 1)) * PXKM * PXKM
@@ -330,7 +369,7 @@ def main(orogen, work, sigma_km, mode):
             'riverCatchment_medianRatioVsToday': float(np.median(ratio)) if rp.any() else None,
             'riverCatchment_shareBelowHalfVsToday': float((ratio < 0.5).mean()) if rp.any() else None,
             'gateMeanLand': float(gate[land].mean()),
-            'riverMoved_km_mean': float(np.mean([np.mean([np.min(np.hypot(o[0] - y, o[1] - x)) for y, x in zip(r[0], r[1])]) for o, r in zip(reaches, reaches_drawn)]) * PXKM) if reaches else 0.0,
+            'riverMoved_km_mean': float(np.mean([np.mean([np.min(np.hypot(o[0] - y, o[1] - x)) for y, x in zip(r[0], r[1])]) for o, r in zip(reaches, reaches_drawn) if r is not None]) * PXKM) if any(r is not None for r in reaches_drawn) else 0.0,
         }
         results[name] = m
         np.save(f'{d}/todayPlusModel.npy', out); np.save(f'{d}/base.npy', base); np.save(f'{d}/today.npy', fine)
