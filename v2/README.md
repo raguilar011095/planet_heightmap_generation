@@ -896,6 +896,13 @@ the hills on it are drawn out along its strike (`oldComb`, `oldHillsStretch`), i
 on evenly (`oldRidgeGain`, `oldEven`: fewer segment gaps, crests that rise and fall less), and its rock is banded with
 them — harder on the ridges, softer in the troughs, the same on the whole (`oldGrainHardness`) — so its rivers settle
 into the valleys along the strike and cross the ridges in gaps. `oldGrainMyr: 0` draws old belts as before.
+**Ridges with variety (2026-10-28, landed 2026-11-05).** The owner's ask: "the overall shape is great, but its too
+uniform". Old belts are a little *less* even than young ones, not more (`oldEven` −0.1, was 0.7). The ridges undulate at
+every scale about their own wavelength, in every direction: octaves of a noise at 2, 1, ½ and ¼ of it bend them by ±2.5 %
+of each wavelength and raise and lower them, mean kept (`ridgeVaryScales`, `ridgeVaryWeights`, `ridgeVaryBend`,
+`ridgeVaryHeight`): peaks and saddles along each ridge, one ridge higher than the next. The ridge noise is a little
+stronger (`ridgeNoiseShare` 0.3, `ridgeNoiseBaseKm` 0.095) and read at three scales, its own and four times larger and
+smaller (`ridgeNoiseScales`, `ridgeNoiseWeights`). Empty scales draw the ridges as before.
 **The land's floor (2026-10-27).** A push down that would take land under the sea — a valley between crests, a failed
 arm's sag, a fold's trough, the massif's lows, a dyke's — used to stop dead at 20–30 m: flat sheets at sea level. It now
 eases into a floor (`landFloorSoftKm`), and the floor is low, rough country: it rolls above `landFloorKm` by up to
