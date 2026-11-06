@@ -1,13 +1,7 @@
 /* The Evolution page (evolution.html): V1's layout (styles.css) plus the timeline and the build status. */
 
 #canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; }
-/* the map's frame: the globe's canvas draws the map under it (letterboxed in this box); it takes the pointer */
-#mapCanvas {
-    position: fixed; top: var(--nav-h); left: 0; width: 100vw; height: calc(100vh - var(--nav-h));
-    background: transparent;
-}
-#mapCanvas[hidden] { display: none; }
-#ui [hidden], #layerBar [hidden], #legendCard [hidden], #timeline [hidden] { display: none !important; }
+#ui [hidden], #timeline [hidden] { display: none !important; }
 /* the readout above the timeline (V1's sits where the timeline is) */
 #hoverInfo { bottom: 112px; }
 
@@ -87,35 +81,6 @@
 .evo-climate-info:empty { display: none; }
 .evo-climate-info a { color: var(--ui-link); text-decoration: none; }
 .evo-climate-info a:hover { text-decoration: underline; }
-#climateLegend canvas { width: 100%; height: 22px; display: block; }
-.evo-legend-note {
-    font: 500 11.5px/1.4 var(--font-ui); color: var(--muted); margin-top: 2px;
-}
-.evo-koppen { display: flex; flex-wrap: wrap; gap: 3px 10px; }
-.evo-koppen span { white-space: nowrap; }
-.evo-koppen i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: -1px; }
-.evo-koppen em { color: var(--ui-faint-2); font-style: normal; }
-/* the Deposits legend: a row per ore family, its metals in words (docs/style-guide/maps.md, Ore families) */
-.evo-ore-family { display: flex; flex-direction: column; gap: 1px; margin: 0 0 6px; }
-.evo-ore-family > span:first-child { font: 600 12px/1.3 var(--font-ui); color: var(--ink); }
-.evo-ore-family i { display: inline-block; width: 12px; height: 12px; border-radius: var(--radius-xs); margin-right: 6px; vertical-align: -2px; }
-.evo-ore-members { padding-left: 18px; font: 400 13.5px/1.35 var(--font-text); color: var(--body); }
-#regimeRow { margin-top: 0; margin-bottom: 6px; }
-.evo-regime-legend {
-    font: 500 12px/1.4 var(--font-ui); color: var(--body); margin-bottom: 8px;
-}
-.evo-chip {
-    position: fixed; top: calc(var(--nav-h) + 16px); left: 50%; transform: translateX(-50%); z-index: 20;
-    display: flex; align-items: center; gap: 10px; max-width: calc(100vw - 32px);
-    background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px); border: var(--line-hair) solid var(--rule); box-shadow: var(--shadow-card);
-    border-radius: var(--radius-full); padding: 5px 6px 5px 16px; color: var(--body); font: 400 15px/1.3 var(--font-text);
-}
-.evo-chip[hidden] { display: none; }
-.evo-chip button {
-    flex: none; border-radius: var(--radius-full); min-height: 32px; padding: 0 14px; font: 600 12.5px/1 var(--font-ui); cursor: pointer;
-    border: var(--line-hair) solid var(--accent); background: var(--accent); color: var(--on-accent);
-}
-.evo-chip button[hidden] { display: none; }
 
 /* the finish: its progress */
 .evo-finish-bar {
@@ -156,13 +121,6 @@
 .evo-badge.detailed {
     background: var(--layer-land-tint); color: var(--layer-land-ink);
 }
-/* Geology and Food are in beta: a tag at the end of their sub-bars (on the main tabs it wrapped the bar below 1360 px),
-   and a line in the tutorial (beside Evolution's "best on a desktop") */
-.evo-beta {
-    display: inline-block; vertical-align: 2px; margin-left: 4px; font: 600 10px/1 var(--font-ui); text-transform: uppercase; letter-spacing: 0.1em;
-    padding: 4px 8px; border-radius: var(--radius-full); background: color-mix(in srgb, var(--gold) 16%, transparent); color: var(--gold-ink);
-}
-.map-tabs > .evo-beta { align-self: center; margin: 0 6px 0 5px; }
 #ui .evo-beta-note { font-size: 12px; color: var(--ui-beta-note); margin-top: 4px; }
 #tutorialCard .evo-beta-note { font-size: 13px; color: var(--ui-beta-note); }
 #tutorialCard .evo-beta-note strong { color: var(--ui-beta); }
@@ -209,46 +167,11 @@
 .evo-card-ghost:disabled { opacity: 0.65; cursor: default; }
 /* the collapsed bottom sheet's line (phones): the moment and what is going on */
 .evo-sheet-line { display: none; }
-/* Satellite, Geology and Food come with detail: their tabs locked on previews */
-.map-tab[data-layer="satellite"]::after, .map-tab[data-layer="geology"]::after, .map-tab[data-layer="farming"]::after {
-    content: ''; display: inline-block; width: 10px; height: 11px; margin-left: 2px; background: currentColor; opacity: 0.7; visibility: hidden;
-    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='11' width='14' height='10' rx='2'/%3E%3Cpath d='M8 11V7a4 4 0 0 1 8 0v4'/%3E%3C/svg%3E") center / contain no-repeat;
-}
-.map-tab.locked::after { visibility: visible; }               /* (its room kept: the tabs do not shift as it comes and goes) */
-.evo-legend-head {
-    font: 500 12px/1.4 var(--font-ui); color: var(--muted); margin-bottom: 6px;
-}
-/* the Ages legend's entries are its switch: tap one to see it alone */
-.evo-age-chips [data-age-res] { cursor: pointer; border-radius: 6px; padding: 1px 4px; margin: -1px -4px; }
-.evo-age-chips [data-age-res]:hover { background: var(--ui-white-06); }
-.evo-age-chips [data-age-res].on { background: var(--ui-sky-18); box-shadow: inset 0 0 0 1px var(--ui-sky-45); }
 /* the view strip, the layers and the legend (styles.css .layer-bar, .view-strip, .legend-card): here the legend clears
    the timeline, and the chip (what a layer needs) ends the bar's column */
 @media (min-width: 769px) { #legendCard { bottom: 110px; } }
-#layerBar .evo-chip { position: static; transform: none; }
 /* Playback Speed, on the timeline beside Play */
 .evo-rate { flex: none; width: auto; padding: 4px 22px 4px 8px; font-size: 12px; background-position: right 8px center; }
-/* the Food legend: its techniques as chips (on or off), and its ramps as bars */
-.evo-farm-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
-.evo-farm-chip {
-    padding: 4px 10px; border-radius: var(--radius-full); font: 600 11.5px/1.2 var(--font-ui); cursor: pointer;
-    border: var(--line-hair) solid var(--rule); background: var(--surface); color: var(--muted);
-}
-.evo-farm-chip.on {
-    border-color: var(--layer-food); background: var(--layer-food-tint); color: var(--layer-food-ink);
-}
-.evo-farm-chip:hover {
-    color: var(--ink);
-}
-/* (a staple's chip: its colour, its share of the land; lit while it is shown alone) */
-.evo-farm-staple { color: var(--ui-label); }
-.evo-farm-staple i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
-.evo-farm-staple em { color: var(--ui-faint-2); font-style: normal; }
-.evo-farm-staple.on { border-color: var(--ui-white-50); background: var(--ui-white-12); color: var(--ui-ink); }
-.evo-farm-bar { display: flex; align-items: center; gap: 8px; margin: 0 0 5px; }
-.evo-farm-bar i { flex: none; width: 100px; height: 10px; border-radius: 2px; }
-.evo-farm-bar span { min-width: 0; }
-.evo-farm-bar + .evo-koppen, .evo-farm-chips + .evo-koppen { margin-top: 2px; }
 /* the context card's button, on the timeline beside the moment (Add detail · Replace · Cancel · Export) */
 .evo-timeline { width: min(880px, calc(100vw - 420px)); }
 .evo-act {
@@ -330,7 +253,7 @@
     #timeline .evo-badge { display: none; }   /* (the sheet's line says Preview or Detailed) */
     .evo-time { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; text-align: left; font-size: 18px; }
     .evo-timeline select { min-height: 44px; }
-    #finishCells, #riverDensity, #rate, #quality, #simCells, #terrainCells, #ending { min-height: 44px; }
+    #finishCells, #rate, #quality, #simCells, #terrainCells, #ending { min-height: 44px; }
     .evo-card-btn, .evo-card-ghost { min-height: 48px; }
     .evo-card-link { min-height: 44px; padding: 0; }
     #worldSection summary { min-height: 44px; }
@@ -343,18 +266,9 @@
     #ui:not(.collapsed) .evo-sheet-line { display: none; }
     #exportCard select, #exportCard .btn-primary, #exportCard .btn-ghost { min-height: 44px; }
     .evo-act { min-height: 44px; }
-    /* the Food row's views: in the layer list too (as the Geology row's, below); its legend's chips and choices 44 px */
-    .layer-bar #farmingTabs { display: none !important; }
-    .evo-farm-chip { min-height: 44px; padding: 0 12px; font-size: 12px; }
     #exportClose { min-width: 44px; min-height: 44px; top: 4px; right: 6px; }
     #ui .toggle-label { min-height: 44px; }
-    #mapCanvas { top: 36px; height: calc(100vh - 36px); }
     #info { display: none; }
     #hoverInfo { bottom: 176px; }
-    /* (the Geology row's views are in the layer list there, as the Climate row's are; its pickers stay, under the list) */
-    .layer-bar #geologyTabs { display: none !important; }
-    .evo-age-chips [data-age-res] { min-height: 32px; display: inline-flex; align-items: center; }
-    .evo-chip { font-size: 12px; }
-    .evo-chip button { min-height: 44px; padding: 0 16px; }
     .evo-climate-btn { min-height: 44px; }
 }
