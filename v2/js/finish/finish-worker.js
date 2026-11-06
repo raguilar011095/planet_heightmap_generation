@@ -7,6 +7,10 @@
 //              rotations), simMesh {numCells, xyz, adjOffset, adjList}, seed, cells, width, delaunatorUrl, poolSize?}
 //              · {type: 'prepare', cells, simCells, delaunatorUrl} — the meshes a finish at `cells` needs, built ahead
 //              while nothing waits on them (no reply; a finish asked for meanwhile waits for them, then finds them built)
+//              A page that draws its own surface (Generate: plans/SHARED_CORE_PLAN.md U1) adds mesh {numCells, xyz, adjOffset,
+//              adjList} (its own mesh, finished on instead of a terrain mesh), surface {heightKm, carveIn, recCell, cues}
+//              (drawn on it with finish.js surfaceConfig's terrain config), and the overrides of its terrain config
+//              (`terrain`) and of the finish's (`finish`) — no terrain pool then
 // Messages out: {type: 'stage', id, stage} · {type: 'progress', id, share} (the picture) · {type: 'done', id, raster:
 //              {w, h, heightM, ocean, water, geology, farming (farming/farming.js: its parts per pixel)}, rivers
 //              (finish-hydro.js), climate (the moment's own, at its detail: the
@@ -14,6 +18,8 @@
 //              climate, at most 4096 px wide), stats, ms} · {type: 'error', id, message}
 
 import { finishPlanet, finishRaster, FARM_KEYS } from './finish.js';
+import { FINISH } from './finish-config.js';
+import { terrainConfig } from '../terrain/terrain-config.js';
 import { driverWidth, DRIVER_FIELDS } from './finish-drivers.js';
 import { climateTransfers } from '../evolution/climate-fields.js';
 import { TerrainPool } from '../terrain/terrain-pool.js';
@@ -36,13 +42,17 @@ self.onmessage = async ({ data }) => {
         return;
     }
     if (data.type !== 'finish') return;
-    const { id, frame, seed, cells, width, poolSize = null, climateOptions = {} } = data;
+    const { id, frame, seed, width, poolSize = null, climateOptions = {}, surface = null } = data;
     try {
         if (!delaunatorSet) { setDelaunator((await import(data.delaunatorUrl)).default); delaunatorSet = true; }
         if (!sim || simCells !== data.simMesh.numCells) { sim = meshFromArrays(data.simMesh); simCells = data.simMesh.numCells; }
-        keepOnlyTerrainMesh(cells, ...ladderCells(sim.numCells, cells));   // (another detail's mesh goes: one fine mesh at a time; the coarser ones its carving climbs stay)
-        const pool = await TerrainPool.create(sim, poolSize);
-        const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: true, climateOptions, driversWidth: driverWidth(width), onStage: stage => self.postMessage({ type: 'stage', id, stage }) });
+        // (the page's own mesh and surface, or a terrain mesh of `cells` and the history's surface drawn by the pool)
+        const mesh = data.mesh ? meshFromArrays(data.mesh) : null, cells = mesh ? mesh.numCells : data.cells;
+        keepOnlyTerrainMesh(...(mesh ? [] : [cells]), ...ladderCells(sim.numCells, cells));   // (another detail's mesh goes: one fine mesh at a time; the coarser ones its carving climbs stay)
+        const pool = surface ? null : await TerrainPool.create(sim, poolSize);
+        const own = mesh && surface ? { mesh, surface: () => surface } : {};
+        const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: !!pool, climateOptions, driversWidth: driverWidth(width), onStage: stage => self.postMessage({ type: 'stage', id, stage }),
+            ...own, ...(data.terrain ? { cfg: terrainConfig(data.terrain) } : {}), ...(data.finish ? { F: { ...FINISH, ...data.finish } } : {}) });
         self.postMessage({ type: 'stage', id, stage: 'picture' });
         const t0 = performance.now();
         const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
