@@ -8,46 +8,46 @@
    "base": 100.1125323291211,
    "today": 39.19232823061408,
    "learnedRaw": 198.35463166236877,
-   "todayPlusModel": 201.14597608740877
+   "todayPlusModel": 203.32864761924506
   },
   "relief5km_m": {
    "base": 47.85950854038969,
    "today": 11.684911241405201,
    "learnedRaw": 82.44933187961578,
-   "todayPlusModel": 87.85847376539071
+   "todayPlusModel": 88.94484602625418
   },
   "medianSlopeLand": {
    "base": 0.008615634922957926,
    "today": 0.0008608115766378365,
    "learnedRaw": 0.012789292261004448,
-   "todayPlusModel": 0.01381121611181023
+   "todayPlusModel": 0.013913488688528937
   },
   "riverClimbShare": {
    "base": 0.03668763102725367,
    "today": 0.025157232704402517,
    "learnedRaw": 0.1441299790356394,
-   "todayPlusModel": 0.0011086474501108647
+   "todayPlusModel": 0.004932587964485367
   },
   "riverWorstClimb_m": {
    "base": 27.55759280037004,
    "today": 27.55759280037004,
    "learnedRaw": 183.6511993408203,
-   "todayPlusModel": 22.209334684100025
+   "todayPlusModel": 22.419334684099944
   },
   "landShare": {
    "base": 0.4019978841145833,
    "today": 0.3229844835069444,
    "learnedRaw": 0.10752360026041667,
-   "todayPlusModel": 0.3041449652777778
+   "todayPlusModel": 0.2840440538194444
   },
   "islandsLost": {
    "learnedRaw": 0,
    "todayPlusModel": 0
   },
-  "riverCatchment_medianRatioVsToday": 16.0,
-  "riverCatchment_shareBelowHalfVsToday": 0.04228707564026206,
+  "riverCatchment_medianRatioVsToday": 12.23611111111111,
+  "riverCatchment_shareBelowHalfVsToday": 0.021671826625386997,
   "gateMeanLand": 1.0,
-  "riverMoved_km_mean": 2.00157759447028
+  "riverMoved_km_mean": 0.2624224960710865
  },
  "range": {
   "patchKm": 276.0,
@@ -108,25 +108,25 @@
    "base": 23.86587305295984,
    "today": 23.78969041574199,
    "learnedRaw": 187.12356686592102,
-   "todayPlusModel": 187.56094966849167
+   "todayPlusModel": 187.39620283158905
   },
   "relief5km_m": {
    "base": 12.052993356401615,
    "today": 11.93193982666635,
    "learnedRaw": 116.0295307636261,
-   "todayPlusModel": 117.89463391758075
+   "todayPlusModel": 117.60239338021111
   },
   "medianSlopeLand": {
    "base": 0.0022209319151251326,
    "today": 0.0021815812231007013,
    "learnedRaw": 0.023399651050567627,
-   "todayPlusModel": 0.022516082717352094
+   "todayPlusModel": 0.02238626686834539
   },
   "riverClimbShare": {
    "base": 0.0032414910858995136,
    "today": 0.0032414910858995136,
    "learnedRaw": 0.3209076175040519,
-   "todayPlusModel": 0.001129540455383152
+   "todayPlusModel": 0.001443298969072165
   },
   "riverWorstClimb_m": {
    "base": 10.000593522970892,
@@ -138,15 +138,15 @@
    "base": 0.4776679144965278,
    "today": 0.4693332248263889,
    "learnedRaw": 0.4434611002604167,
-   "todayPlusModel": 0.4724595811631944
+   "todayPlusModel": 0.4669257269965278
   },
   "islandsLost": {
    "learnedRaw": 0,
    "todayPlusModel": 0
   },
-  "riverCatchment_medianRatioVsToday": 5.794117647058823,
-  "riverCatchment_shareBelowHalfVsToday": 0.10612638687891944,
+  "riverCatchment_medianRatioVsToday": 5.558470764617692,
+  "riverCatchment_shareBelowHalfVsToday": 0.12302006335797254,
   "gateMeanLand": 1.0,
-  "riverMoved_km_mean": 1.0674231320832581
+  "riverMoved_km_mean": 1.044212378720158
  }
 }
