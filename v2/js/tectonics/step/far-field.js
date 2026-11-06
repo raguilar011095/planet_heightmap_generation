@@ -158,7 +158,7 @@ function rejuvenate(world, plate, sources, widths, works) {
 const rj = { d: null, src: null };
 
 /** The strike of the weak line through `c`: the long axis of the weak cells within two rings of it (null if too few). */
-function lineStrike(crust, mesh, c) {
+export function lineStrike(crust, mesh, c) {
     const { xyz, adjOffset, adjList } = mesh, { mask, flags } = crust;
     const near = [c], seen = new Set(near);
     for (let ring = 0, from = 0; ring < 2; ring++) {
