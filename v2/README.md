@@ -453,7 +453,8 @@ js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of a
                    only paints
 js/view/           DOM-free painting: clouds (the clouds' noise in GLSL for the globe and the map and its JavaScript twin for
                    the export, and their cover from the climate), equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
-                   gpu-paint (Evolution's moments painted on the GPU: the terrain mesh's triangles drawn flat on the texture),
+                   gpu-paint (Evolution's moments painted on the GPU: the terrain mesh drawn on the sphere onto a cube, read out
+                   into the texture),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All);
                    and the planet on screen, one for every page that shows a planet built from a Frame
@@ -1005,6 +1006,19 @@ Detailed moments are still painted on canvases (their pictures come from the Fin
 is painted as before (`?gpu=0` forces it, for comparison). The map view is the same texture drawn flat by the globe's
 renderer, letterboxed under the `#mapCanvas` frame. Zoom is V1's (`app/globe-view.js`): a wheel's notch is 14 % nearer
 (OrbitControls' own was 5 %, and stepped), a pinch the fingers' ratio, and the camera eases to it.
+
+On the globe first (2026-11-05; owner: "almost everything at the poles are getting distorted, instead of doing things on
+the globe first"). The triangles drawn flat on the equirectangular texture were smeared across their longitudes near a
+pole — the triangle round the pole drawn as strips to its row — so coasts there came out as spikes and saw-teeth. Now the
+mesh is drawn where it stands on the sphere, seen from the planet's centre onto the six faces of a cube render target
+(three.js's CubeCamera; each face's texels a little finer than the texture's pixels), its heights and shade in half floats
+where the GPU can draw them (`EXT_color_buffer_float`), else already coloured; the cube is then read into the
+equirectangular texture, each pixel looking out along its own direction, coloured there (the coasts as crisp as before),
+the overlay's lines blended over. And the globe reads the texture where each pixel looks (its place on the sphere, not the
+sphere mesh's UVs) at the level the place's own size calls for — toward a pole a texel is narrower than it is tall, so the
+hardware, going by its stretched width, had chosen ever coarser levels: a radial smear and blocks
+(`app/globe-view.js`). Still left: the close-up patch's tiles are cut on the latitude–longitude grid, and stay off where
+the view reaches past 85°.
 
 ## The realism pass (2026-10-18; plans/V2_REALISM_PASS_PLAN.md)
 

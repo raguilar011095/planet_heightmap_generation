@@ -82,13 +82,33 @@ export class GlobeView {
         this.patch = { uPatchSlot: { value: 1 } };
         for (const k of [0, 1]) Object.assign(this.patch, { [`uPatchAtl${k}`]: { value: null }, [`uPatchTab${k}`]: { value: null }, [`uPatchRange${k}`]: { value: new THREE.Vector4() }, [`uPatchGrid${k}`]: { value: new THREE.Vector4() } });
         this.patchLayers = [0, 1].map(() => ({ atl: null, tab: null, cols: 0, rows: 0, range: null }));
+        // (the texture read where each pixel looks — its place on the sphere, not the sphere mesh's UVs, which smear across
+        // the triangles round a pole — and at the level the place's own size calls for: toward a pole a texel of the
+        // equirectangular texture is narrower than it is tall, so the hardware, going by its stretched width, chose ever
+        // coarser levels — a radial smear and blocks; the gradients across the date line taken the short way round, so no
+        // seam. Owner, 2026-11-05: "almost everything at the poles are getting distorted")
         this.globe.material.onBeforeCompile = shader => {
             Object.assign(shader.uniforms, this.patch);
+            shader.vertexShader = shader.vertexShader
+                .replace('#include <common>', '#include <common>\nvarying vec3 vSphere;')
+                .replace('#include <begin_vertex>', '#include <begin_vertex>\nvSphere = position;');
             shader.fragmentShader = shader.fragmentShader
-                .replace('#include <common>', `#include <common>\n${PATCH_GLSL}`)
-                .replace('#include <map_fragment>', `#ifdef USE_MAP
-    vec4 sampledDiffuseColor = withPatch(texture2D(map, vMapUv), vMapUv);
+                .replace('#include <common>', `#include <common>\nvarying vec3 vSphere;\n${PATCH_GLSL}`)
+                .replace('#include <map_fragment>', `vec3 sd = normalize(vSphere);
+    vec2 tcS = vec2(fract(atan(sd.z, -sd.x) / 6.283185307179586), 1.0 - acos(clamp(sd.y, -1.0, 1.0)) / 3.141592653589793);
+    vec2 gxS = dFdx(tcS), gyS = dFdy(tcS);
+    gxS.x -= floor(gxS.x + 0.5); gyS.x -= floor(gyS.x + 0.5);
+    float clS = max(sqrt(max(0.0, 1.0 - sd.y * sd.y)), 0.02);
+    gxS.x *= clS; gyS.x *= clS;
+#ifdef USE_MAP
+    vec4 sampledDiffuseColor = withPatch(textureGrad(map, tcS, gxS, gyS), tcS);
     diffuseColor *= sampledDiffuseColor;
+#endif`)
+                .replace('#include <specularmap_fragment>', `float specularStrength;
+#ifdef USE_SPECULARMAP
+    specularStrength = textureGrad(specularMap, tcS, gxS, gyS).r;
+#else
+    specularStrength = 1.0;
 #endif`);
         };
         this.initClouds();
