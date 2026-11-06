@@ -473,6 +473,37 @@ each checked in the browser.
   column never narrower than the widest line, so from 901 to 1200 px the globe gives way instead of the title breaking
   onto four lines (or one word a line); on phones two lines at 1.1 leading, the least that clears the y's tail. And the
   tool cards' tags fit beside their tiles on a 360 px phone ("Your map brought to life" had pushed the page 1 px wide).
+- [x] The tools and their worlds in one (feedback the owner passed on: the old page's tool pictures showed "how each tool
+  works"; then the owner: "combine the 2 sections so its not tools then planets"). **Orogen tools** is now a card per
+  tool down the left, one open at a time and at the top (opening another slides it up), beside the map of the world
+  chosen; the open tool's views right-aligned above the map, level with the line. The columns end together (the owner:
+  "all the extra space on the bottom I hate"): the open card keeps the tallest card's height, so the map is one size
+  whichever tool is open (762 × 381 px at 1440, as drawn; trimmed 4 % at its sides at 1280). Narrower than 1280 px, one
+  column: the open card, the map, its views, the other cards. Every world opens on Satellite. **Generate**:
+  Halden (planet code 0003z69iwszmoha1wbvhn3: two continents, Land 0.4) and Merrin (00001641lx5ilk8fg5tsw3: six, Land
+  0.4), also in Plates (the plates over their relief, a faint coast) and Terrain. **Import**: Earth and Mars, each Hot &
+  dry (Temperature +24 W/m², Precipitation −100 %) or Cold & wet (−10, +100 %), also in Your map (the grey heightmap
+  that goes in) and Climate (Köppen); Mars is NASA's MOLA map (MEGDR, 4 px/degree, public domain) with the seas filled
+  to the Deuteronilus shoreline (−3.76 km, Head et al. 1999) and its heights scaled by 0.24 into Import's 0–6 km, under
+  Earth's sun and air. **Evolution** (the owner's picks, each at the end of its link's history): Calder
+  (`?seed=319958795&cont=30&len=1200&end=none&sim=40000&terrain=160000&more=1410`, 1,410 Myr: one supercontinent, pole to
+  pole; drawn centred on 180°) and Linmore (`…seed=413761762…&more=1600`, 1,600 Myr), also in Terrain and Rocks: built in
+  the owner's Chrome 155 (a link's history differs between browser versions), detail added at the page's default 2.5M
+  cells and drawn by this stack's own Export maps at 4096 px. The Generate and Import pictures come from the new pages
+  on the shared core (generate/u5-switch-over, PR #134: the owner's call), drawn by their own Export maps at 2048 px;
+  they predate this stack's light and colours (R5, R6), so they are retaken once both stacks are in.
+- [x] Copy (the owner's words): the hero's buttons read **Generate your world** and **Evolve your world**; Import
+  Heightmap is now just **Import**, one word like Generate and Evolution (the nav, its page, the Studio, the exports'
+  notes, llms.txt and the docs; VISION.md waits for the owner); Evolution's **Geology** is out of beta and **Food** keeps
+  its tag (its sub-bar, its tooltip, the tutorial, the Studio card). The current What's New still says both are in beta:
+  it is the last release's record, and the next one can say Geology is out.
+- [x] The hero's globe turns (the owner: "the rotating globe up top, maybe transitioning between map modes as it does it"):
+  Linmore, eastward, a turn in 100 s, fading from one view to the next (Satellite, Terrain, Climate, Rocks: 6 s each, a
+  1.6 s fade), the view named in the caption beside a pause button (WCAG 2.2.2: moving for more than five seconds). A
+  small WebGL 2 shader draws the orthographic globe from each view's map (assets/studio/globe/, 2048 × 1024, ~330 KB
+  each: Evolution's own Export maps at 4096 px), its mipmaps sampled with seam-safe gradients; the still
+  (globe-linmore.webp, the same view at its first moment, drawn by the same maths) shows until the first map is in and
+  stays with reduced motion or without WebGL 2. It rests off screen and in a hidden tab. It replaces Arden's still.
 
 ## Every phase is done when
 

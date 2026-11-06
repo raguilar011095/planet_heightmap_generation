@@ -25,7 +25,7 @@ Set the continents, plates and climate with sliders, then reshape any plate you 
 on a desktop, or tap in edit mode on a phone. Every planet comes with wind, ocean currents, rain and Köppen climate
 zones, and a planet code that rebuilds it exactly. The fastest of the tools, and the most at home on a phone.
 
-### Import Heightmap: your own landmass, its climate
+### Import: your own landmass, its climate
 
 **[orogen.studio/import](https://orogen.studio/import)** · [guide](docs/import.md)
 
@@ -39,8 +39,8 @@ well the climate matches.
 
 Watch a supercontinent break up, oceans open and close, and continents collide and gather again over hundreds of
 millions of years. Stop on a moment and add detail: rivers and lakes, glaciers and fjords, its own climate, a satellite
-view with clouds, the rocks, ores and gems its history left (Geology, in beta) and what the land could feed (Food, in
-beta). Save the whole planet as one file. Works best on a desktop computer for now.
+view with clouds, the rocks, ores and gems its history left (Geology) and what the land could feed (Food, in beta).
+Save the whole planet as one file. Works best on a desktop computer for now.
 
 ### What they share
 
@@ -70,13 +70,14 @@ Then open **http://localhost:8000** for the Studio.
 ## Project structure
 
 ```
-index.html              Home page: the Studio — the tools, worlds to explore and curated resources; sends Generate's old links (/#code) on to /generate
+index.html              Home page: the Studio — the tools with worlds made in each, and curated resources; sends Generate's old links (/#code) on to /generate
 generate.html           Generate page — HTML markup + import map + structured data
 import.html             Import page — heightmap upload + climate visualization
 evolution.html          Evolution page — a planet's tectonic history (v2/)
 studio.html             The Studio's old address (/studio): sends on to /
 studio.css              Studio page styles
-assets/studio/          The Studio's pictures: the hero globe, the worlds to explore (worlds/), the tools' screenshots
+assets/studio/          The Studio's pictures: the hero globe (its still, and globe/: the maps it turns through), the worlds
+                        (worlds/: two from each tool), the tools' screenshots
                         (evolution.jpg is Evolution's social image)
 assets/social.svg       The GitHub, Bluesky, X and Threads marks for the follow links (one <symbol> each)
 tokens.css              The style guide's design tokens (all pages): colours for Paper and Night, type, spacing, corners,
@@ -101,7 +102,7 @@ CLAUDE.md               Rules for Claude Code sessions (imports VISION.md)
 docs/                   Each tool's guide (generate.md, import.md, evolution.md) and what they share (shared.md)
 docs/style-guide/       The look: the brand book, maps and the globe, page patterns, and the components (reference CSS and
                         JS); plans/REDESIGN_PLAN.md moves the app onto it
-js/                     Generate and Import Heightmap (file by file: docs/generate.md, "Code")
+js/                     Generate and Import (file by file: docs/generate.md, "Code")
 v2/                     World Orogen V2 — the Evolution page (/evolution) and the climate every page runs;
                         tectonic *history* engine built in confirmed phases; see v2/README.md and
                         plans/V2_TECTONIC_HISTORY_DESIGN.md. Open /v2/ for the Tectonics Lab (locally: the deploy leaves

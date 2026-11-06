@@ -38,61 +38,86 @@ body.studio {
 .hero-ring .tick { stroke: var(--gold); stroke-width: 1; }
 .hero-ring .tick-long { stroke: var(--gold); stroke-width: 1.4; }
 .hero-ring .ring-num { fill: var(--muted); font: 500 12.5px var(--font-ui); text-anchor: middle; dominant-baseline: central; }
-.hero-globe figcaption { font: italic 400 15px/1.45 var(--font-text); color: var(--muted); text-align: center; }
+.hero-globe figcaption { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 4px 6px; font: italic 400 15px/1.45 var(--font-text); color: var(--muted); text-align: center; }
+/* the globe turning (index.html, heroGlobe): drawn over its still, which shows until the first map is in; the view's
+   name in the caption fades as the globe does, and a quiet button pauses it */
+.hero-globe__canvas { position: absolute; inset: 11%; width: 78%; height: 78%; opacity: 0; transition: opacity 0.4s; }
+.hero-globe__canvas.is-on { opacity: 1; }
+#globeView { transition: opacity 0.25s; }
+#globeView.is-fading { opacity: 0; }
+.hero-globe__pause {
+    display: inline-grid; place-items: center; width: 32px; height: 32px; padding: 0; border: none; border-radius: var(--radius-full);
+    background: transparent; color: var(--muted); cursor: pointer;
+}
+.hero-globe__pause[hidden] { display: none; }
+.hero-globe__pause .is-play, .hero-globe__pause[aria-pressed="true"] .is-pause { display: none; }
+.hero-globe__pause[aria-pressed="true"] .is-play { display: inline; }
+@media (hover: hover) { .hero-globe__pause:hover { background: var(--chip-track); color: var(--ink); } }
 
 /* ── the sections ── */
 .studio-section { margin-bottom: 96px; }
-.studio-section > h2, .worlds-side > h2 { margin: 10px 0 var(--space-6); font: 500 42px/1 var(--font-display); color: var(--ink); text-wrap: balance; }
+.studio-section > h2 { margin: 10px 0 var(--space-6); font: 500 42px/1 var(--font-display); color: var(--ink); text-wrap: balance; }
 .studio-intro { margin: -12px 0 var(--space-6); max-width: 40em; font: 400 19px/1.5 var(--font-text); color: var(--muted); }
 
-/* the tools: a card each (ToolCard) */
-.tool-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-6); }
+/* the tools and their worlds, in one (ToolCard, WorldPicker): the line, and on the right the open tool's views (and
+   Import's climate) level with it; below, a card per tool down the left, the open one at the top (its line, note, two
+   worlds, Open …), and the map of the world chosen on the right, its name just below. The open card keeps the height of
+   the tallest (--open-h, set by the page), so the map stays one size whichever tool is open. The two columns end together: the open card stretches to the map's foot, or, where the cards run
+   longer, the map does, trimmed at its sides. Narrower than 1280 px: one column, the map under the open card. */
+.atlas { display: grid; grid-template-columns: 380px minmax(0, 1fr); grid-template-rows: auto 1fr auto auto; column-gap: var(--space-8); row-gap: 10px; }
+.atlas > .atlas-intro { grid-column: 1; grid-row: 1; align-self: end; margin: 0 0 10px; order: -1; }
+.atlas > .atlas-views { grid-column: 2; grid-row: 1; align-self: end; margin-bottom: 3px; order: 2; }   /* (level with the line's last line of text) */
+.atlas > .tool-card { grid-column: 1; scroll-margin-top: calc(var(--nav-h) + 12px); }
+.atlas > .tool-card.is-open { min-height: var(--open-h, auto); }
+.atlas > [data-tool="import"] { order: 4; }
+.atlas > [data-tool="evolution"] { order: 6; }
+.atlas > .worlds-picture { grid-column: 2; grid-row: 2 / span 3; order: 1; }
 .tool-card {
-    display: flex; flex-direction: column; gap: var(--space-3);
-    padding: var(--space-6) 26px 0; border: var(--line-hair) solid var(--rule); border-radius: var(--radius-xl);
-    background: var(--surface); box-shadow: var(--shadow-card); color: var(--ink); text-decoration: none;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    display: flex; flex-direction: column; min-width: 0;
+    border: var(--line-hair) solid var(--rule); border-radius: var(--radius-xl); background: transparent; color: var(--ink);
+    transition: background 0.15s ease, box-shadow 0.15s ease;
 }
-.tool-card:hover { transform: translateY(-2px); }
-.tool-card__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-3); }
+.tool-card.is-open { background: var(--surface); box-shadow: var(--shadow-card); }
+.tool-card:not(.is-open):hover { background: var(--surface); }
+.tool-card__head { margin: 0; font: inherit; }
+.tool-card__toggle {
+    display: flex; align-items: center; gap: 12px; width: 100%; padding: 8px 14px; border: none; border-radius: inherit;
+    background: none; color: inherit; font: inherit; text-align: left; cursor: pointer;
+}
+.tool-card.is-open .tool-card__toggle { cursor: default; }
 .tool-tile { width: var(--size-tile); height: var(--size-tile); flex: none; display: flex; align-items: center; justify-content: center; border-radius: var(--radius-lg); background: var(--l-tint); color: var(--l-ink); }
-.tool-card .og-tag { align-self: center; }
-.tool-card h3 { margin: 4px 0 0; font: 600 28px/1.05 var(--font-display); color: var(--ink); }
+.tool-card .tool-tile { width: 42px; height: 42px; }
+.tool-card__title { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; min-width: 0; }
+.tool-card__name { font: 600 23px/1.05 var(--font-display); color: var(--ink); }
+.tool-card__chevron { margin-left: auto; flex: none; color: var(--muted); transition: transform 0.2s ease; }
+.tool-card.is-open .tool-card__chevron { transform: rotate(180deg); color: var(--l-ink); }
+.tool-card__body { flex: 1 1 auto; display: flex; flex-direction: column; gap: 8px; padding: 0 18px; }
+.tool-card__body[hidden] { display: none; }
 .tool-card__text { margin: 0; font: 400 18px/1.45 var(--font-text); color: var(--body); }
 .tool-card__note { margin: 0; font: 500 12.5px/1.45 var(--font-ui); color: var(--muted); }
 .tool-card__cta {
-    margin-top: auto; padding: 14px 0 18px; border-top: var(--line-hair) solid var(--rule);
+    margin-top: auto; padding: 12px 0 13px; border-top: var(--line-hair) solid var(--rule);
     display: flex; align-items: center; justify-content: space-between;
-    font: 600 15px/1 var(--font-ui); color: var(--l-ink);
+    font: 600 15px/1 var(--font-ui); color: var(--l-ink); text-decoration: none;
 }
-
-/* worlds to explore: the heading and the picker on the left, the map on the right, from the heading's top to the
-   picker's foot (the row takes the taller of the two: on a wide screen the map, and the picker sits at its foot; on a
-   narrower one the column, and the map fills it, trimmed at its sides), its name just below (WorldPicker) */
-.worlds { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: var(--space-8); align-items: stretch; }
-.worlds-side { display: flex; flex-direction: column; min-width: 0; }
-.worlds-side > .og-eyebrow { margin: 0; }
-.worlds-panel {
-    margin-top: auto;
-    display: flex; flex-direction: column; gap: var(--space-2); padding: var(--space-3);
-    border-radius: var(--radius-2xl); background: var(--panel);
-}
+@media (hover: hover) { .tool-card__cta:hover { text-decoration: underline; } }
+/* a tool's two worlds, side by side on a tinted panel */
+.tool-worlds { margin: 2px 0 4px; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px; padding: 4px; border-radius: var(--radius-lg); background: var(--panel); }
 .world {
-    display: flex; align-items: center; gap: 14px; padding: 8px; border-radius: var(--radius-lg); cursor: pointer;
+    display: flex; align-items: center; gap: 10px; min-width: 0; padding: 6px; border-radius: var(--radius-md); cursor: pointer;
     border: var(--line-hair) solid transparent; background: transparent; color: var(--ink); text-align: left; font: inherit;
 }
-.world img { width: 72px; height: 36px; border-radius: var(--radius-sm); object-fit: cover; flex: none; }
-.world b { display: block; font: 600 22px/1.1 var(--font-display); }
-.world small { display: block; font: italic 400 14px/1.3 var(--font-text); color: var(--muted); }
-.world.is-on { background: var(--surface); border-color: var(--rule); box-shadow: var(--shadow-card); }
-.worlds-panel .og-seg { margin-top: var(--space-2); align-self: flex-start; }
-.worlds-panel .og-link { align-self: flex-start; }
-.worlds-picture { margin: 0; position: relative; min-width: 0; }
-.worlds-picture img {
-    display: block; width: 100%; height: 100%; aspect-ratio: 2; object-fit: cover; border-radius: var(--radius-lg);
-    border: var(--line-hair) solid var(--rule); background: var(--desk);
-}
-.worlds-picture figcaption { position: absolute; top: 100%; left: 0; margin-top: var(--space-2); font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
+.world img { width: 56px; height: 28px; border-radius: var(--radius-sm); object-fit: cover; flex: none; }
+.world b { font: 600 19px/1.1 var(--font-display); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.world.is-on { background: var(--surface); border-color: var(--rule); box-shadow: var(--shadow-chip); }
+/* the open tool's views, right-aligned above the map */
+.worlds-views { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.worlds-views[hidden] { display: none; }
+/* the map: at least 2 : 1 whole, taller (trimmed at its sides) to reach the cards' foot */
+.worlds-picture { margin: 0; min-width: 0; display: flex; flex-direction: column; }
+.worlds-map { position: relative; flex: 1 0 auto; aspect-ratio: 2; border-radius: var(--radius-lg); overflow: hidden; border: var(--line-hair) solid var(--rule); background: var(--desk); }
+.worlds-map img { position: absolute; inset: 0; display: block; width: 100%; height: 100%; object-fit: cover; }
+.worlds-picture figcaption { margin-top: var(--space-2); font: italic 400 16px/1.4 var(--font-text); color: var(--muted); }
 .worlds-picture figcaption b { font-style: normal; font-weight: 600; color: var(--ink); }
 
 /* ── the resources: a card per link, grouped ── */
@@ -124,14 +149,17 @@ body.studio {
 .studio-footer p { margin: 0; font: 400 15px/1.5 var(--font-text); color: var(--muted); }
 .studio-footer a { color: var(--accent); }
 
-@media (prefers-reduced-motion: reduce) { .tool-card { transition: none; } .tool-card:hover { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .tool-card, .tool-card__chevron { transition: none; } }
+@media (max-width: 1279px) {
+    /* one column: the line, the open card, the map, its views, then the other cards (no reserved height) */
+    .atlas { display: flex; flex-direction: column; align-items: stretch; gap: 10px; max-width: 720px; }
+    .atlas > .atlas-intro { align-self: stretch; margin: 0 0 var(--space-3); }
+    .atlas > .atlas-views { align-self: stretch; margin-bottom: var(--space-3); }
+    .worlds-views { justify-content: flex-start; }
+    .atlas > .tool-card.is-open { min-height: 0; }
+}
 @media (max-width: 1100px) {
     .studio-hero h1 { font-size: 72px; }
-    .tool-grid { grid-template-columns: 1fr; max-width: 640px; }
-    .worlds { grid-template-columns: 1fr; gap: var(--space-6); }
-    .worlds-panel { margin-top: 0; }
-    .worlds-picture img { height: auto; }
-    .worlds-picture figcaption { position: static; }
 }
 @media (max-width: 900px) {
     .studio-page { padding: calc(var(--nav-h) + 32px) var(--space-6) var(--space-7); }
@@ -145,9 +173,11 @@ body.studio {
     .hero-lede { font-size: 20px; }
     .hero-actions .og-btn { flex: 1 1 auto; }
     .studio-section { margin-bottom: 72px; }
-    .studio-section > h2, .worlds-side > h2 { font-size: 34px; }
-    .worlds-panel .og-seg { align-self: stretch; }
-    .worlds-panel .og-seg__opt { flex: 1 1 0; min-height: var(--size-touch); }
+    .studio-section > h2 { font-size: 34px; }
+    .worlds-views .og-seg { flex: 1 1 auto; }
+    .worlds-views .og-seg__opt { flex: 1 1 0; min-height: var(--size-touch); }
+    .world { min-height: var(--size-touch); }
+    .hero-globe__pause { width: var(--size-touch); height: var(--size-touch); }
     .studio-follow-links a { min-height: var(--size-touch); }
     /* (the links in running text — a resource's name, the footer's Ideas and bug reports — a finger's height to tap,
        their padding reaching over the lines beside them rather than spacing the text out) */
@@ -157,6 +187,9 @@ body.studio {
 @media (max-width: 600px) {
     .studio-hero h1 { min-width: 0; line-height: 1.1; }
     .hero-break { display: none; }
-    /* room for the longest tag beside its tile on a 360 px phone (narrower ones put it under the tile) */
-    .tool-card { padding-left: 20px; padding-right: 20px; }
+    /* (a smaller tile, so the longest tag fits beside it on a 360 px phone; narrower, the tag takes two lines) */
+    .tool-card__toggle { gap: 10px; padding: 12px; }
+    .tool-card .tool-tile { width: 40px; height: 40px; }
+    .tool-card__title .og-tag { white-space: normal; }
+    .tool-card__body { padding: 0 14px; }
 }
