@@ -564,6 +564,8 @@ button#generate.generating {
     pointer-events: none; display: none; line-height: 1.6;
     max-width: 360px; text-align: left;
 }
+/* (plate edits waiting: the readout steps up over the Rebuild button) */
+body.edits-pending #hoverInfo { bottom: 112px; }
 .hi-label {
     display: inline-block; min-width: 52px; font-size: 11px;
     color: #889; text-transform: uppercase; white-space: nowrap;
@@ -1214,6 +1216,7 @@ button#generate.generating {
     /* Info bars: shift up above collapsed sheet */
     #info { bottom: 68px; }
     #hoverInfo { bottom: 92px; max-width: calc(100vw - 32px); font-size: 13px; }
+    body.edits-pending #hoverInfo { bottom: 190px; }
 
     /* Tutorial card — tighter padding */
     #tutorialCard { padding: 24px 20px 18px; }

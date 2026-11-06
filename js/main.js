@@ -114,7 +114,7 @@ function received(msg) {
         n: sh.mesh.numCells,
     };
     if (kind === 'editDone' && old) { w.seed = old.seed; w.plateIsOcean = old.plateIsOcean; w.originalPlateIsOcean = old.originalPlateIsOcean; }
-    world = w; building = null; dirty = true;
+    world = w; building = null; dirty = true; hoveredPiece = -1;
     if (pv.gpu) pv.gpu.setMesh(w.tMesh);
     resetBuildButton();
     hideBuildOverlay();
@@ -199,8 +199,11 @@ requestAnimationFrame(tick);
 
 // ── the hover, and the plate edits: Ctrl-click (⌘-click) a piece, or tap it in edit mode, then Rebuild ──
 const regionAt = (e) => { const p = world ? pv.placeUnder(e) : null; return p ? { p, r: pv.cellUnder(world.tMesh, p) } : null; };
-const editing = (e) => e.ctrlKey || e.metaKey || (IS_TOUCH && state.editMode);
+// (Ctrl or ⌘ held: the piece under the pointer lights up at once, before the pointer moves — as on the old page)
+let editKey = false, lastPointer = null;
+const editing = (e) => e.ctrlKey || e.metaKey || editKey || (IS_TOUCH && state.editMode);
 function readout(e) {
+    lastPointer = e;
     const at = regionAt(e);
     if (!at) { pv.hover(null); setHovered(-1); return; }
     const { p, r } = at, w = world, piece = w.r_plate[r], isOcean = w.plateIsOcean.has(piece), isPending = pending.has(piece);
@@ -240,19 +243,25 @@ for (const el of [pv.ui.canvas, pv.ui.map]) {
     });
     el.addEventListener('contextmenu', (e) => { if (e.ctrlKey || e.metaKey) e.preventDefault(); });
 }
-addEventListener('keyup', (e) => { if ((e.key === 'Control' || e.key === 'Meta') && hoveredPiece >= 0) setHovered(-1); });
+addEventListener('keydown', (e) => {
+    if ((e.key === 'Control' || e.key === 'Meta') && !e.repeat) { editKey = true; if (lastPointer && pv.ui.hover.style.display !== 'none' && !building) readout(lastPointer); }
+});
+addEventListener('keyup', (e) => { if (e.key === 'Control' || e.key === 'Meta') { editKey = false; setHovered(-1); } });
+addEventListener('blur', () => { editKey = false; setHovered(-1); });
+for (const el of [pv.ui.canvas, pv.ui.map]) el.addEventListener('pointerleave', () => { lastPointer = null; if (!(IS_TOUCH && state.editMode)) setHovered(-1); });
 const rebuildFab = $('rebuildFab');
 function pendingChanged() {
     dirty = true;
     rebuildFab.querySelector('span').textContent = `Rebuild (${pending.size})`;
     rebuildFab.style.display = pending.size ? '' : 'none';
+    document.body.classList.toggle('edits-pending', pending.size > 0);      // (the readout steps up over the button)
 }
 function clearPending() { pending.clear(); pendingChanged(); }
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && pending.size) clearPending(); });
 rebuildFab.addEventListener('click', () => {
     if (!pending.size || !world || building) return;
     for (const id of pending) { if (world.plateIsOcean.has(id)) world.plateIsOcean.delete(id); else world.plateIsOcean.add(id); }
-    clearPending();
+    clearPending(); setHovered(-1);
     building = 'edit'; finisher.cancel();
     $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
     pv.hover(['⏳ Rebuilding…']);

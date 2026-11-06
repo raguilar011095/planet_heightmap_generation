@@ -94,7 +94,10 @@ The hover card reads as Evolution's (`v2/js/view/planet-view.js` readoutLines), 
 (land or ocean, and what Ctrl-click would do), the plate it rides (its number and speed here) and its crust (an ocean
 floor's age, a belt and when it was last active, a shield, a flood basalt). Then the height, the river (its flow, its year
 and its floods) or lake, the place, and the layer's own — the climate, the rock and its record, the deposits or the age's
-resources and the district's story, or the land's food. Pending pieces are drawn amber over every view.
+resources and the district's story, or the land's food. Over every view, as on the old page: the piece under the pointer
+lightens while Ctrl (⌘) is held, and each pending piece is tinted by what it will become — green to rise as land, blue to
+sink — with the ground showing through, to its own outline (`js/generate-plates.js`). The hover card steps up over the
+Rebuild button while edits wait.
 
 ## Mobile Support
 
