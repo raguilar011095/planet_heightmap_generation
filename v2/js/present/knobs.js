@@ -1,10 +1,11 @@
 // G6 — Generate's sculpting knobs on the present-day world (plans/GENERATE_REDESIGN_PLAN.md §3.6): each slider scales the
 // Evolution terrain tunables that do what its name says, around Evolution's own defaults — at Generate's default slider
-// positions the terrain is drawn exactly as Evolution draws its own (every factor 1). Reapply re-runs only the synthesis
+// positions the terrain is drawn as Generate's own defaults draw it (every factor 1: Evolution's, with PRESENT_TERRAIN's over
+// them). Reapply re-runs only the synthesis
 // and the carving with them: the Frame is kept.
 
 import { TERRAIN } from '../terrain/terrain-config.js';
-import { PRESENT } from './present-config.js';
+import { PRESENT, PRESENT_TERRAIN } from './present-config.js';
 import { FINISH } from '../finish/finish-config.js';
 
 // Generate's defaults (js/planet-code.js SLIDERS): where every factor is 1
@@ -16,7 +17,8 @@ const DEFAULTS = { nMag: 0.4, terrainWarp: 0.75, smoothing: 0.1, hydraulicErosio
  */
 export function knobOverrides(s = {}) {
     const k = (key) => (s[key] ?? DEFAULTS[key]) / DEFAULTS[key];
-    const T = TERRAIN, o = {};
+    // (around Generate's own terrain defaults: Evolution's, with present-config.js PRESENT_TERRAIN's over them)
+    const T = { ...TERRAIN, ...PRESENT_TERRAIN }, o = {};
     // Roughness: hills, the coast's bays and its fine detail
     const rough = k('nMag');
     o.hillsKm = T.hillsKm * rough;

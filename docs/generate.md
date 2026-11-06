@@ -158,7 +158,7 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
    joins the plate it borders most), and each mechanism's draws are keyed by who they belong to, so the rest of the planet
    stays as it was (`v2/js/present/world.js`, `plates.js`) — a planet code's edits build the same.
 3. **The present-day world** — on Evolution's 40K sim mesh (`v2/js/present/`): plates, boundaries, sea floor, coast, past, belts, plumes and far field (their ranges shaped by `ranges.js`), record, Frame.
-4. **The ground** — Evolution's synthesis and carving (`v2/js/terrain/`) on Generate's mesh, with Generate's fine relief, rift valleys, interlocking coasts and hold to the pieces (`v2/js/present/world.js`); the uncarved surface kept for the finish.
+4. **The ground** — Evolution's synthesis and carving (`v2/js/terrain/`) on Generate's mesh, with Generate's fine relief, rift valleys, interlocking coasts and hold to the pieces (`v2/js/present/world.js`); the uncarved surface kept for the finish. Generate draws the ranges' ridges with the variety the owner asked of Evolution's on 2026-10-28 (PR #83, not landed there): old belts a little less even than young ones, the ridges undulating at every scale about their own wavelength, and more ridge noise at three scales (`present-config.js` PRESENT_TERRAIN; the shared code's switches are off for Evolution).
 5. **The first picture** — the ground and its hillshade, painted on the GPU (`v2/js/view/planet-view.js`).
 6. **The finish** — Evolution's (`v2/js/finish/finish.js`), in its own worker, from that surface: the climate (`v2/js/climate/`), bedrock, rivers, sediment, hillslopes, the ice age, wind, sea, water, detail drivers, geology, the land's climate and cover, deposits, farming — then its pictures.
 

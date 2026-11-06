@@ -16,6 +16,21 @@ export const PRESENT_TERRAIN = {
     // maybe it should even be slightly less" — PR #83's R1/R4, never landed in main). The rest of M6 is the past's own
     // ages and wear (present/past.js): a range's age now shows in how high it stands, as in Evolution
     oldEven: -0.1,
+    // M7 (owner, 2026-11-05: "is it in generate now?" — the rest of those changes, R2–R4): the ridges undulate at every
+    // scale about their own wavelength — octaves at 2, 1, ½ and ¼ of it bend them by ± 2.5 % of each wavelength and raise
+    // and lower them (× e^(0.35 Σ), mean kept): peaks and saddles along each ridge, one higher than the next, groups of
+    // them higher (owner, 2026-10-28: "the overall shape is great, but its too uniform. It needs to undulate in every
+    // direction … and at every scale")…
+    ridgeVaryScales: [2, 1, 0.5, 0.25],
+    ridgeVaryWeights: [1, 1, 0.8, 0.6],
+    ridgeVaryBend: 0.025,
+    ridgeVaryHeight: 0.35,
+    // …and a little more ridge noise, at three scales: its own, four times larger and four times smaller ("slightly more of
+    // the ridge noise … to both increase height and decrease height … the same as now but also much larger and smaller")
+    ridgeNoiseShare: 0.3,
+    ridgeNoiseBaseKm: 0.095,
+    ridgeNoiseScales: [4, 1, 0.25],
+    ridgeNoiseWeights: [0.45, 1, 0.35],
 };
 
 export const PRESENT = {
