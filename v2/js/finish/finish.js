@@ -49,26 +49,40 @@ export function erosionAt(F, cfg) {
 export const STAGES = [['mesh', 0.12], ['surface', 0.18], ['climate', 0.1], ['bedrock', 0.03], ['rivers', 0.2], ['sediment', 0.06], ['hillslopes', 0.05], ['ice age', 0.08], ['wind', 0.05], ['sea', 0.02], ['water', 0.05], ['detail', 0.02], ['geology', 0.03], ['final climate', 0.03], ['deposits', 0.04], ['farming', 0.02], ['picture', 0.09]];
 
 /**
+ * The terrain config the finish's surface is drawn with: the carving's inputs at the finish's erosion strength (its stream
+ * power's k, its crests' hardness) — for a page that draws the surface itself (finishPlanet's `surface`).
+ */
+export function surfaceConfig(F, cfg) {
+    const E = erosionAt(F, cfg);
+    return { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness };
+}
+
+/**
  * @param {{frame: Object, simMesh: Object, seed: number, cells: number, pool: import('../terrain/terrain-pool.js').TerrainPool,
- *          onStage?: (name: string) => void, F?: Object, cfg?: Object}} o
+ *          onStage?: (name: string) => void, F?: Object, cfg?: Object, mesh?: Object, surface?: Function}} o
+ *   mesh: the mesh to finish on (else the terrain mesh of `cells`); surface: the page's own surface on it, instead of
+ *   the history's drawn here — (mesh, cfg) → {heightKm, carveIn, recCell, cues} (or a promise of it), drawn with
+ *   surfaceConfig's cfg (Generate: v2/js/present/world.js presentSynthesize's `surface`); no pool is needed then
  * @returns {Promise<{mesh: Object, z: Float32Array, ocean: Uint8Array, ms: Object, stats: Object}>}
  */
-export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null }) {
+export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null, mesh: givenMesh = null, surface = null }) {
     const ms = {}, stats = {};
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
     onStage('mesh');
-    const mesh = terrainMesh(cells), n = mesh.numCells, cellKm2 = 4 * Math.PI * R * R / n;
+    const mesh = givenMesh ?? terrainMesh(cells), n = mesh.numCells, cellKm2 = 4 * Math.PI * R * R / n;
     lap('mesh');
 
-    // ── F1: the surface, domain-warped (its positions displaced before anything is read there), roughened where high ──
+    // ── F1: the surface, domain-warped (its positions displaced before anything is read there), roughened where high —
+    // or the page's own (Generate's present-day ground: its own warp and fine relief) ──
     onStage('surface');
     // (memory: at 10M cells every array is 40 MB or more — each let go as soon as it is done with, the warped positions
     // and the sampler with the surface, the carving's inputs and caches with the carve)
-    let warped = { numCells: n, xyz: warpPositions(mesh, seed, F), edgeKm: mesh.edgeKm };
+    let warped = surface ? null : { numCells: n, xyz: warpPositions(mesh, seed, F), edgeKm: mesh.edgeKm };
     // (the carving's inputs at the finish's erosion strength: its stream power's k, its crests' hardness)
     const E = erosionAt(F, cfg), fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / mesh.edgeKm);
-    const surfJob = pool.synthesize(frame, warped, { cfg: { ...cfg, carveK: cfg.carveK * E.kMul, carveCrestHardness: E.crestHardness }, seed, records: false, carveInputs: true, recCells: !!frame.coverKm });
+    const surfJob = surface ? Promise.resolve(surface(mesh, surfaceConfig(F, cfg)))
+        : pool.synthesize(frame, warped, { cfg: surfaceConfig(F, cfg), seed, records: false, carveInputs: true, recCells: !!frame.coverKm });
     // (while the workers draw the surface, this thread builds ahead what needs only the mesh — the carving's ladder of
     // meshes, their distances and the maps between them and to the lake sites' coarser mesh, the rivers' meander: the same
     // values, ~2 s sooner at 2.5M. Up to PREP_CELLS: at 10M their memory waits for the carve, as before)
@@ -77,15 +91,15 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     let meanderV = null;
     if (n <= PREP_CELLS) { prepareCarve(ladder, broad ? [[broad, mesh]] : []); meanderV = meanderValues(mesh, seed, F, fade); }
     let surf = await surfJob;
-    if (closePool) pool.terminate();                                  // (its workers' memory back before the heavy stages)
-    pool.forget?.(warped);
+    if (closePool) pool?.terminate();                                 // (its workers' memory back before the heavy stages)
+    if (warped) pool?.forget?.(warped);
     let carveIn = surf.carveIn;
     // (for the geology: the world cell whose record each cell shows, as the surface read it, and the structure the
     // surface drew there — an old belt's bands, the far field's folds, a shield's grain: geology/rocks.js)
     const recCell = surf.recCell, cues = surf.cues;
     const z = surf.heightKm;
     surf = null; warped = null;
-    roughen(mesh, z, seed, F, fade, carveIn.lip);
+    if (!surface) roughen(mesh, z, seed, F, fade, carveIn.lip);
     lap('surface');
 
     // ── the climate, on this surface ──
@@ -136,7 +150,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     // carve's stream power and critical slope by the rock. A moment without the record: none of it ──
     const grid = new LatLonGrid(0.25);
     let rocks0 = null, lithoDz = null;
-    if (frame.coverKm && recCell) {
+    if (frame?.coverKm && recCell) {
         onStage('bedrock');
         rocks0 = rocksBefore({ mesh, z, frame, simMesh, seed, cfg, recCell, cues, lat, lon, rain: pAnn, temp: tAnn, grid });
         lithoDz = differentialRelief(mesh, z, rocks0, { frame, recCell, lat, lon, hold: carveIn.hold, lip: carveIn.lip }, F);
@@ -206,7 +220,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool, closePoo
     onStage('sediment');
     // (for the geology: how deep the rivers cut here — the carving and its dissection, from the surface before — and how
     // much sediment they lay; a byte each: 20 m, and 2 m, steps)
-    const geo = frame.coverKm ? { cut: new Uint8Array(n), cutStepKm: 0.02, alluv: new Uint8Array(n), alluvStepKm: 0.002 } : null;
+    const geo = frame?.coverKm ? { cut: new Uint8Array(n), cutStepKm: 0.02, alluv: new Uint8Array(n), alluvStepKm: 0.002 } : null;
     if (geo) for (let c = 0; c < n; c++) geo.cut[c] = Math.min(255, Math.max(0, Math.round((before[c] - C.z[c]) / geo.cutStepKm)));
     let zPre = geo ? C.z.slice() : null;
     stats.deltas = depositSediment(mesh, before, C, B.sink, cellKm2, F).deltas;
