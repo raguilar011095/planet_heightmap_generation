@@ -203,6 +203,9 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 #topNav { overflow-x: auto; scrollbar-width: none; }
 #topNav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: none; white-space: nowrap; }
+/* a tablet or a narrow window: the follow links leave the masthead (the panel's foot and the Studio's footer have
+   them), so the theme switch stays on it */
+@media (max-width: 1000px) { .nav-follow { display: none; } }
 
 #ui {
     position: absolute; top: calc(var(--nav-h) + 16px); left: 16px;
@@ -464,12 +467,15 @@ button#generate.generating {
     position: fixed; top: calc(var(--nav-h) + 12px); left: calc(50% + var(--open-shift, 0px)); transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (with the planet, js/open-area.js; the nudge clear of the panel: js/view-strip.js) */
     display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
     /* (as wide as its tabs, up to the room beside the panel: placed from the middle, the bar otherwise shrank to the
-       half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen) */
-    width: max-content; max-width: calc(100vw - var(--open-left, 0px) - 32px);
+       half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen. The room:
+       right of the panel, open or folded (72 px), less the arrow that hangs off the tabs' left, and left of the help
+       button; js/view-strip.js nudges the bar into it, and its rows wrap when it is short — a tablet, a narrow window) */
+    width: max-content; max-width: calc(100vw - max(var(--open-left, 0px), 72px) - 56px - var(--bar-help, 16px));
 }
+body:has(#helpBtn) { --bar-help: 64px; }
 .layer-bar > * { pointer-events: auto; }
 .layer-bar .map-tabs {
-    margin: 0; gap: 0; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px);
+    margin: 0; gap: 0; flex-wrap: wrap; justify-content: center; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px);
     border: var(--line-hair) solid var(--rule); border-radius: var(--radius-lg); padding: 0 var(--space-2);
     box-shadow: var(--shadow-card);
 }
@@ -499,7 +505,7 @@ button#generate.generating {
 /* (the arrow hangs off the tabs' left, so the tabs stay centred) */
 .layer-row { position: relative; }
 .vs-fold {
-    position: absolute; top: 0; bottom: 0; right: calc(100% + 6px); width: 42px; display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 0; height: 44px; right: calc(100% + 6px); width: 42px;   /* (level with the tabs' first row) */ display: flex; align-items: center; justify-content: center;
     background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px); border: var(--line-hair) solid var(--rule); border-radius: var(--radius-lg);
     color: var(--muted); cursor: pointer; padding: 0; box-shadow: var(--shadow-card);
 }
@@ -509,7 +515,7 @@ button#generate.generating {
 .vs-fold svg { transition: transform 0.15s; }
 .vs-fold[aria-expanded="true"] { color: var(--ink); }
 .vs-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
-.layer-subbar { display: flex; align-items: center; gap: 8px; }
+.layer-subbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 .layer-subbar[hidden], .layer-subbar [hidden] { display: none; }
 .layer-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
 .layer-subbar select {
@@ -1212,8 +1218,19 @@ body.edits-pending #hoverInfo { bottom: 112px; }
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
-/* Edit toggle — hidden on desktop */
+/* Edit toggle — hidden on desktop; on a touch screen wider than a phone (a tablet, where Ctrl-click can't reach) under
+   the help button */
 .edit-toggle { display: none; }
+@media (min-width: 769px) {
+    body.touch .edit-toggle {
+        display: flex; align-items: center; justify-content: center;
+        position: fixed; top: calc(var(--nav-h) + 64px); right: 14px; z-index: 25;
+        width: var(--size-touch); height: var(--size-touch); padding: 0; border-radius: 50%;
+        background: var(--surface); border: var(--line-hair) solid var(--rule); box-shadow: var(--shadow-card);
+        color: var(--accent); cursor: pointer;
+    }
+    body.touch .edit-toggle.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+}
 
 /* Refresh FAB — hidden on desktop */
 .refresh-fab { display: none; }
