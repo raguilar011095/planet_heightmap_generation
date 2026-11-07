@@ -203,6 +203,9 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
 #topNav { overflow-x: auto; scrollbar-width: none; }
 #topNav::-webkit-scrollbar { display: none; }
 .nav-tab { flex: none; white-space: nowrap; }
+/* a tablet or a narrow window: the follow links leave the masthead (the panel's foot and the Studio's footer have
+   them), so the theme switch stays on it */
+@media (max-width: 1000px) { .nav-follow { display: none; } }
 
 #ui {
     position: absolute; top: calc(var(--nav-h) + 16px); left: 16px;
@@ -309,20 +312,19 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
     cursor: help; position: relative; vertical-align: text-top;
     margin-left: 3px; flex-shrink: 0; transform: translateY(1px);
 }
-.tip:hover {
+.tip:hover, .tip.is-open {
     background: var(--ink); color: var(--bg);
 }
-.tip:hover::after {
-    content: attr(data-tip);
-    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+/* a tip's words (js/a11y.js): beside it on a desktop, above it on a phone, kept on the screen; shown on hover, focus or a
+   tap, hidden by Escape */
+.tip-pop {
+    position: fixed; z-index: 300; box-sizing: border-box; max-width: calc(100vw - 16px);
     background: var(--surface);
     border: var(--line-hair) solid var(--rule); border-radius: var(--radius-sm);
     padding: 8px 12px; font: 400 15px/1.4 var(--font-text); color: var(--body);
-    text-transform: none; letter-spacing: 0;
-    width: 240px; white-space: normal;
-    z-index: 200; pointer-events: none;
-    box-shadow: var(--shadow-card);
+    white-space: normal; box-shadow: var(--shadow-card);
 }
+.tip-pop[hidden] { display: none; }
 input[type="range"] { width: 100%; height: 20px; margin: 0; accent-color: var(--ink); cursor: pointer; }
 
 /* Slider thumb tooltip */
@@ -464,12 +466,15 @@ button#generate.generating {
     position: fixed; top: calc(var(--nav-h) + 12px); left: calc(50% + var(--open-shift, 0px)); transform: translateX(calc(-50% + var(--bar-shift, 0px))); z-index: 20;   /* (with the planet, js/open-area.js; the nudge clear of the panel: js/view-strip.js) */
     display: flex; flex-direction: column; align-items: center; gap: 6px; pointer-events: none;
     /* (as wide as its tabs, up to the room beside the panel: placed from the middle, the bar otherwise shrank to the
-       half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen) */
-    width: max-content; max-width: calc(100vw - var(--open-left, 0px) - 32px);
+       half of the window right of its centre, and Evolution's tabs broke onto two rows on a 1440 px screen. The room:
+       right of the panel, open or folded (72 px), less the arrow that hangs off the tabs' left, and left of the help
+       button; js/view-strip.js nudges the bar into it, and its rows wrap when it is short — a tablet, a narrow window) */
+    width: max-content; max-width: calc(100vw - max(var(--open-left, 0px), 72px) - 56px - var(--bar-help, 16px));
 }
+body:has(#helpBtn) { --bar-help: 64px; }
 .layer-bar > * { pointer-events: auto; }
 .layer-bar .map-tabs {
-    margin: 0; gap: 0; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px);
+    margin: 0; gap: 0; flex-wrap: wrap; justify-content: center; background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px);
     border: var(--line-hair) solid var(--rule); border-radius: var(--radius-lg); padding: 0 var(--space-2);
     box-shadow: var(--shadow-card);
 }
@@ -499,7 +504,7 @@ button#generate.generating {
 /* (the arrow hangs off the tabs' left, so the tabs stay centred) */
 .layer-row { position: relative; }
 .vs-fold {
-    position: absolute; top: 0; bottom: 0; right: calc(100% + 6px); width: 42px; display: flex; align-items: center; justify-content: center;
+    position: absolute; top: 0; height: 44px; right: calc(100% + 6px); width: 42px;   /* (level with the tabs' first row) */ display: flex; align-items: center; justify-content: center;
     background: color-mix(in srgb, var(--bg) 96%, transparent); backdrop-filter: blur(12px); border: var(--line-hair) solid var(--rule); border-radius: var(--radius-lg);
     color: var(--muted); cursor: pointer; padding: 0; box-shadow: var(--shadow-card);
 }
@@ -509,7 +514,7 @@ button#generate.generating {
 .vs-fold svg { transition: transform 0.15s; }
 .vs-fold[aria-expanded="true"] { color: var(--ink); }
 .vs-fold[aria-expanded="true"] svg { transform: rotate(90deg); }
-.layer-subbar { display: flex; align-items: center; gap: 8px; }
+.layer-subbar { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 8px; }
 .layer-subbar[hidden], .layer-subbar [hidden] { display: none; }
 .layer-subbar .map-tab { padding: 5px 12px; font-size: 12px; }
 .layer-subbar select {
@@ -805,7 +810,9 @@ button#generate.generating {
 #info {
     position: absolute; bottom: 16px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
     font: 500 13px/1.3 var(--font-ui); color: var(--muted); transition: color 0.4s ease;
-    pointer-events: none;
+    pointer-events: none; text-align: center;
+    /* (one line wherever it fits: placed from the middle, it otherwise shrank to the half of the window right of it) */
+    width: max-content; max-width: calc(100vw - var(--open-left, 0px) - 32px);
 }
 #info.nudge { animation: infoNudge 2.5s ease; }
 @keyframes infoNudge {
@@ -815,12 +822,12 @@ button#generate.generating {
     100% { color: var(--ui-faintest); }
 }
 #hoverInfo {
-    position: absolute; bottom: 76px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);   /* (clear of Rebuild, under it) */
+    position: absolute; bottom: 76px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);   /* (clear of the hint; over Rebuild while edits wait) */
     font: 400 15px/1.5 var(--font-text); color: var(--body); background: var(--surface);
     padding: 10px 16px; border-radius: var(--radius-lg);
     border: var(--line-hair) solid var(--rule); box-shadow: var(--shadow-card);
     pointer-events: none; display: none;
-    max-width: 380px; text-align: left;
+    width: max-content; max-width: 380px; text-align: left;   /* (as wide as its lines up to its max: from the middle it shrank to half the window) */
 }
 /* (plate edits waiting: the readout steps up over the Rebuild button) */
 body.edits-pending #hoverInfo { bottom: 112px; }
@@ -852,11 +859,14 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
+/* (closed, every dialog leaves the Tab order and the accessibility tree once it has faded: js/a11y.js makes it inert at once) */
 #tutorialOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
+/* (focus moves onto an opened dialog's card: js/a11y.js) */
+#tutorialCard:focus, #exportCard:focus, #surveyCard:focus, #whatsNewCard:focus { outline: none; }
 
 /* Tutorial card */
 #tutorialCard {
@@ -1042,10 +1052,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease, visibility 0s linear 0s;
 }
 #exportOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s;
 }
 #exportCard {
     position: relative; max-width: 380px; width: 90%; padding: 28px 24px 20px;
@@ -1078,10 +1088,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
 #surveyOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
 #surveyCard {
     position: relative; max-width: 400px; width: 90%; padding: 28px 24px 20px;
@@ -1121,10 +1131,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
 #whatsNewOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
 #whatsNewCard {
     position: relative; max-width: 460px; width: 90%; padding: 32px 28px 24px; transition: opacity 0.5s ease, transform 0.5s ease;
@@ -1210,15 +1220,26 @@ body.edits-pending #hoverInfo { bottom: 112px; }
 /* Sheet handle — hidden on desktop */
 .sheet-handle { display: none; }
 
-/* Edit toggle — hidden on desktop */
+/* Edit toggle — hidden on desktop; on a touch screen wider than a phone (a tablet, where Ctrl-click can't reach) under
+   the help button */
 .edit-toggle { display: none; }
+@media (min-width: 769px) {
+    body.touch .edit-toggle {
+        display: flex; align-items: center; justify-content: center;
+        position: fixed; top: calc(var(--nav-h) + 64px); right: 14px; z-index: 25;
+        width: var(--size-touch); height: var(--size-touch); padding: 0; border-radius: 50%;
+        background: var(--surface); border: var(--line-hair) solid var(--rule); box-shadow: var(--shadow-card);
+        color: var(--accent); cursor: pointer;
+    }
+    body.touch .edit-toggle.active { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+}
 
 /* Refresh FAB — hidden on desktop */
 .refresh-fab { display: none; }
 
-/* Rebuild FAB — appears when pending plate edits exist */
+/* Rebuild FAB — appears when pending plate edits exist: above the hint line, which explains the gesture */
 .rebuild-fab {
-    position: fixed; bottom: 20px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
+    position: fixed; bottom: 60px; left: calc(50% + var(--open-shift, 0px)); transform: translateX(-50%);
     background: var(--accent); color: var(--on-accent);
     border: var(--line-hair) solid var(--accent); border-radius: var(--radius-full);
     min-height: var(--size-touch); padding: 0 24px;
@@ -1233,6 +1254,9 @@ body.edits-pending #hoverInfo { bottom: 112px; }
 }
 
 /* ─── Import page ─── */
+/* (out of sight, still in the Tab order and named by its label: Import's file input) */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.import-upload-area:has(input:focus-visible) .import-file-label { outline: 2px solid var(--focus); outline-offset: 2px; }
 .import-upload-area {
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
@@ -1361,10 +1385,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     /* Hide desktop sidebar toggle */
     #sidebarToggle { display: none; }
 
-    /* Mobile view switcher — to the left of the help button */
+    /* Mobile view switcher — to the left of the help button, under the masthead (its 47 px follow --nav-h) */
     .mobile-view-switch {
         display: block;
-        position: fixed; top: 40px; left: 16px;
+        position: fixed; top: calc(var(--nav-h) + 8px); left: 16px;
         width: calc(100vw - 16px - 44px - 16px - 12px);
         background: var(--ui-navy-70); backdrop-filter: blur(12px);
         border: 1px solid var(--ui-sky-25);
@@ -1442,22 +1466,26 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     #debugLayer, #climateSeason { min-height: 44px; }
     /* the layers: the list at the top (#mobileViewSwitch), the season beneath it, the legend under that; the view
        strip at the top of the bottom sheet */
-    .layer-bar { top: 92px; }
+    .layer-bar { top: calc(var(--nav-h) + 60px); max-width: calc(100vw - 32px); }   /* (under the list: its 44 px, 8 px either side; the window's width, the tabs being in the list) */
     .layer-bar .layer-row, .layer-bar #climateTabs, .layer-bar #climateMore { display: none !important; }
     .layer-subbar select { min-height: 44px; }
-    .legend-card { top: 140px; bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
+    .legend-card { top: calc(var(--nav-h) + 108px); bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
     .view-strip.in-sheet { font-size: 14px; }
     .view-strip.in-sheet select, .vs-seg button { min-height: 44px; font-size: 14px; }
     .vs-seg button { padding: 0 18px; }
     .view-strip.in-sheet input[type=range] { width: 150px; height: 44px; }
     .view-strip.in-sheet .toggle-label { min-height: 44px; font-size: 14px; }
-    #helpBtn { width: 44px; height: 44px; font-size: 20px; top: 40px; right: 12px; }
+    #helpBtn { width: 44px; height: 44px; font-size: 20px; top: calc(var(--nav-h) + 8px); right: 12px; }
     .toggle-track { width: 38px; height: 22px; border-radius: 11px; }
     .toggle-thumb { width: 18px; height: 18px; }
     .toggle-label input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); }
     button#generate { padding: 14px; font-size: 16px; }
     select { padding: 10px 12px; }
     #seedRow button { padding: 8px 12px; }
+    /* (a finger's height: the planet code, Copy and Load, Export map, Stats, the tutorial's and What's New's buttons) */
+    #seedCode, #seedRow button, #exportBtn, .stats-toggle summary, .tutorial-nav button { min-height: var(--size-touch); }
+    #seedRow button { min-width: var(--size-touch); }
+    #tutorialClose, #whatsNewClose, #surveyClose { min-width: var(--size-touch); min-height: var(--size-touch); top: 4px; right: 6px; }
 
     /* Font sizes */
     .cg label { font-size: 15px; }
@@ -1466,16 +1494,12 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     .slider-hint { font-size: 12px; }
     #seedCode { font-size: 14px; }
 
-    /* Tooltips: reposition above */
-    .tip:hover::after {
-        left: 50%; top: auto;
-        bottom: calc(100% + 8px);
-        transform: translateX(-50%);
-    }
+    /* the tips: a finger's target round the 16 px "?" (their words sit above them: js/a11y.js) */
+    .tip::before { content: ''; position: absolute; inset: -14px; }
 
     /* Info bars: shift up above collapsed sheet */
     #info { bottom: 68px; }
-    #hoverInfo { bottom: 92px; max-width: calc(100vw - 32px); font-size: 13px; }
+    #hoverInfo { bottom: 112px; max-width: calc(100vw - 32px); font-size: 13px; }   /* (clear of the hint, two lines on a 360 px phone) */
     body.edits-pending #hoverInfo { bottom: 190px; }
 
     /* Tutorial card — tighter padding */

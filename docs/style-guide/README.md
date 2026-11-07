@@ -114,4 +114,5 @@ The mark is a ring of `ink` holding three strata, `logo-violet`, `logo-ochre`, `
 
 - Text holds 4.5:1 on its grounds in both themes (3:1 at 24px and up); marks and borders that carry meaning hold 3:1. The token notes give the numbers.
 - Keyboard focus: a 2px solid `focus` ring, offset 2px, on every control.
+- Dialogs are dialogs by role and name: opened, focus moves onto them and stays within; closed, it goes back to what opened them, and they leave the Tab order. A `?` tip is a button: its words show beside it on hover, focus or a tap (above it on a phone), never off the screen, and Escape hides them (`js/a11y.js`).
 - Colour is never alone: the readout names every value, legends name every colour, numbered pins carry the names, and patterns carry the second answers. Map palettes are checked over every pair for normal and colour-blind sight (see [Maps and the globe](maps.md)).

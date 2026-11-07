@@ -168,7 +168,7 @@ export function climateRows(needs = 'climate') {
         row('precip', 'Precipitation', true, [d('precip', '', 'Precipitation')], 'Rain and snow, mm a month (the year: the monthly mean)'),
         row('pressure', 'Pressure', true, [d('pressure', '', 'Sea-level pressure')], 'Sea-level pressure, hPa'),
         row('wind', 'Wind', true, [d('windSpeed', 'speed', 'Wind speed'), d('windU', 'u', 'Wind, eastward'), d('windV', 'v', 'Wind, northward')], 'Surface wind: its speed, and as data its east and north parts too'),
-        row('currents', 'Ocean Currents', true, [d('sstAnom', 'warmth', 'Sea surface temperature against its latitude\'s mean'), d('currentU', 'u', 'Current, eastward'), d('currentV', 'v', 'Current, northward')], 'Warm and cold currents (the sea against its latitude\'s average), and the current itself as data'),
+        row('currents', 'Ocean currents', true, [d('sstAnom', 'warmth', 'Sea surface temperature against its latitude\'s mean'), d('currentU', 'u', 'Current, eastward'), d('currentV', 'v', 'Current, northward')], 'Warm and cold currents (the sea against its latitude\'s average), and the current itself as data'),
         row('upwelling', 'Upwelling', true, [d('upwelling', '', 'Upwelling')], 'Cold water rising where the wind pushes the surface away, m a day'),
         row('ice', 'Ice', true, [d('seaIce', 'sea-ice', 'Sea ice cover'), d('snow', 'snow', 'Snow cover on land'), d('iceSheet', 'ice-sheet', 'Ice sheet')], 'Sea ice, the season\'s snow on land and the ice sheets — three data files'),
         row('tempRange', 'Temperature range', false, [d('tempRange', '', 'Temperature range')], 'Warmest month minus coldest, °C'),

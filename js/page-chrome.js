@@ -32,8 +32,8 @@ export function sliderTooltip(slider) {
 export function detailWarning(detail, isTouch) {
     const orange = isTouch ? 200000 : 640000, red = isTouch ? 500000 : 1280000, cg = $('sN').closest('.cg'), warn = $('detailWarn');
     cg.classList.remove('detail-orange', 'detail-red'); warn.className = 'detail-warn';
-    if (detail > red) { cg.classList.add('detail-red'); warn.classList.add('red'); warn.textContent = '⚠ Very high — generation may be slow and unstable'; }
-    else if (detail > orange) { cg.classList.add('detail-orange'); warn.classList.add('orange'); warn.textContent = '⚠ High detail — generation may be slow and unstable'; }
+    if (detail > red) { cg.classList.add('detail-red'); warn.classList.add('red'); warn.textContent = 'Very high — generation may be slow and unstable'; }
+    else if (detail > orange) { cg.classList.add('detail-orange'); warn.classList.add('orange'); warn.textContent = 'High detail — generation may be slow and unstable'; }
     else warn.textContent = '';
 }
 
@@ -112,7 +112,7 @@ export function buildOverlay() {
 export function tutorial({ key, firstDone, isTouch, touchStep2 = null }) {
     const overlay = $('tutorialOverlay'), card = $('tutorialCard'), steps = card.querySelectorAll('.tutorial-step'), dots = card.querySelectorAll('.dot');
     let current = 0;
-    const show = (i) => { current = i; steps.forEach((s, k) => s.classList.toggle('active', k === i)); dots.forEach((d, k) => d.classList.toggle('active', k === i)); $('tutorialBack').disabled = i === 0; $('tutorialNext').textContent = i === steps.length - 1 ? 'Get Started' : 'Next'; card.scrollTop = 0; };
+    const show = (i) => { current = i; steps.forEach((s, k) => s.classList.toggle('active', k === i)); dots.forEach((d, k) => d.classList.toggle('active', k === i)); $('tutorialBack').disabled = i === 0; $('tutorialNext').textContent = i === steps.length - 1 ? 'Get started' : 'Next'; card.scrollTop = 0; };
     const open = () => { show(0); overlay.classList.remove('hidden'); };
     const close = () => { overlay.classList.add('hidden'); store.set(key, '1'); };
     $('tutorialNext').addEventListener('click', () => (current < steps.length - 1 ? show(current + 1) : close()));

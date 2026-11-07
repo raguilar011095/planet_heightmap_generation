@@ -21,7 +21,7 @@ see [shared.md](shared.md). Back to the [README](../README.md).
 ## What it does
 
 1. The image is laid onto the sphere at the Detail chosen and shaped by the sculpting sliders that shape an image
-   (Terrain Warp, Smoothing, Ridge Sharpening): the first picture.
+   (Terrain warp, Smoothing, Ridge sharpening): the first picture.
 2. Evolution's finish then runs on it in the background (`v2/js/finish/finish.js`; plans/SHARED_CORE_PLAN.md U4): the
    climate, the rivers routed — and carved as deep as the erosion sliders ask, by the climate's runoff (at their
    defaults, 0, not at all: the map as drawn) — lakes, the last ice age, dunes and loess, the land's cover (the Satellite
@@ -31,7 +31,7 @@ see [shared.md](shared.md). Back to the [README](../README.md).
 
 - **Detail**: how finely the image is laid onto the sphere, from Coarse to Fine (204,000 regions by default), then
   **Import**.
-- **Terrain sculpting**: Terrain Warp, Smoothing and Ridge Sharpening shape the image; Glacial, Hydraulic and Thermal
+- **Terrain sculpting**: Terrain warp, Smoothing and Ridge sharpening shape the image; Glacial, Hydraulic and Thermal
   Erosion are read by the finish's carving (how far fjords reach, how long its rivers work, how gentle the valley sides
   are). All at 0 by default, so your map is used as drawn. **Reapply** shapes and finishes it again.
 - **Climate**: **Temperature** (−30 to +30 W/m²) and **Precipitation** (±50 %), as on Generate; releasing either finishes

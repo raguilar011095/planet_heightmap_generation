@@ -60,7 +60,7 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
             <option value="topographic">Topographic</option>
             <option value="natural">Natural</option>
             <option value="swiss">Swiss</option>
-            <option value="school">School Atlas</option>
+            <option value="school">School atlas</option>
             <option value="etopo">ETOPO</option>
             <option value="dem">DEM</option>
             <option value="scientific">Scientific</option>
@@ -79,8 +79,8 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
             <label class="toggle-label" title="Shade the planet by its relief, lit from the north-west. Off, every view is flat colour, the mountains shown by their colours alone and no sun glinting on the sea (a texture to light in a 3D program; the export has its own Hillshade switch)"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade</label>
             <label class="toggle-label" title="Clouds over the planet, from its climate — more where it rains, fewer under the dry highs — drifting slowly with the winds. On the Satellite view; the export has a Clouds layer and Satellite with clouds"><input type="checkbox" id="chkClouds" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Clouds</label>
             <span class="vs-item" id="waterGroup">
-                <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; Lakes</label>
-                <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By Regime</label>
+                <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; lakes</label>
+                <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By regime</label>
                 <span class="vs-item" id="riverDensityGroup" title="Which rivers are drawn, by how much water they carry: Few — 150 m³/s and more; Normal — 40 m³/s; Many — 8 m³/s. The bigger a river, the stronger its line; seasonal rivers are dashed, and those dry most of the year dotted"><select id="riverDensity">
                 <option value="150">Few</option>
                 <option value="40" selected>Normal</option>
@@ -146,6 +146,8 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
         <optgroup id="mobileFarming" label="Food">${[['farmLand', 'Farmland'], ['farmStaple', 'Staple food'], ['farmLife', 'Lifestyle'], ['farmPeople', 'People'], ['farmSoil', 'Soil'], ['farmSeason', 'Growing season']].map(([v, l]) => opt(v, l)).join('')}</optgroup>
         <optgroup label="Climate: more">${CLIMATE_MORE.flatMap(([, list]) => list).map(([v, l]) => opt(v, l)).join('')}</optgroup>`;
     $('legendCard').innerHTML = '<div id="climateLegend" class="viz-legend"></div><div id="regimeLegend" class="evo-koppen evo-regime-legend" hidden></div>';
+    // (the tabs say which is shown: aria-pressed, kept by LayerBar.setLayer)
+    for (const b of document.querySelectorAll('#layerBar .map-tab')) { b.type = 'button'; b.setAttribute('aria-pressed', String(b.classList.contains('active'))); }
     // (the layers a page has nothing for — an imported heightmap has no plates and no history for its rocks: `without`)
     for (const id of without) {
         document.querySelector(`#mapTabs [data-layer="${id}"]`)?.remove();
@@ -199,8 +201,9 @@ export class LayerBar {
         if (geo) last.geology = layer;
         if (farm) last.farming = layer;
         this.view.layer = layer;
-        for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
-        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
+        const press = (b, on) => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); };
+        for (const b of document.querySelectorAll('#mapTabs .map-tab')) press(b, b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
+        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) press(b, b.dataset.layer === layer);
         const more = $('climateMore'), inMore = !!more.querySelector(`option[value="${layer}"]`);
         more.value = inMore ? layer : ''; more.classList.toggle('active', inMore);
         $('mobileViewSwitch').value = layer;

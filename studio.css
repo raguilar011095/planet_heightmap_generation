@@ -179,9 +179,10 @@ body.studio {
     .world { min-height: var(--size-touch); }
     .hero-globe__pause { width: var(--size-touch); height: var(--size-touch); }
     .studio-follow-links a { min-height: var(--size-touch); }
+    .tool-card__cta { min-height: var(--size-touch); }
     /* (the links in running text — a resource's name, the footer's Ideas and bug reports — a finger's height to tap,
        their padding reaching over the lines beside them rather than spacing the text out) */
-    .res-link, .studio-footer p a { padding: 13px 0; }
+    .res-link, .res-note a, .studio-footer p a { padding: 13px 0; }
 }
 /* a phone's: two lines, set further apart, as there the y of "your" falls over the h of "the" */
 @media (max-width: 600px) {

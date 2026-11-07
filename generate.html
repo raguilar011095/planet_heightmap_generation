@@ -88,7 +88,7 @@
                 "name": "Can I use the exported maps in my own projects?",
                 "acceptedAnswer": {
                     "@type": "Answer",
-                    "text": "Yes. World Orogen exports maps up to 65,536px wide in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten): every map as colour — terrain, satellite, Köppen climate zones, each climate layer — or as 16-bit data on fixed, documented scales — heightmaps, a hillshade, temperature, rain, pressure, winds, currents, ice, the Köppen class index — one file as a PNG or several as a ZIP with a README. Everything is free to use in your own projects."
+                    "text": "Yes. World Orogen exports maps up to 16,384px wide in ten projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten): every map as colour — terrain, satellite, Köppen climate zones, each climate layer — or as 16-bit data on fixed, documented scales — heightmaps, a hillshade, temperature, rain, pressure, winds, currents, ice, the Köppen class index — one file as a PNG or several as a ZIP with a README. Everything is free to use in your own projects."
                 }
             },
             {
@@ -134,7 +134,7 @@
     <nav id="topNav">
         <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
-        <a href="/generate" class="nav-tab active">Generate</a>
+        <a href="/generate" class="nav-tab active" aria-current="page">Generate</a>
         <a href="/import" class="nav-tab">Import</a>
         <a href="/evolution" class="nav-tab">Evolution</a>
         <div class="nav-follow">
@@ -192,7 +192,7 @@
                 <h2>Generate</h2>
                 <div class="sub">A planet in seconds, shaped by hand</div>
             </div>
-            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+            <button id="sidebarToggle" title="Collapse panel" aria-label="Collapse panel" aria-expanded="true">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
@@ -226,21 +226,21 @@
                     <div class="slider-hint"><span>Smooth</span><span>Rugged</span></div>
                 </div>
                 <div class="cg">
-                    <label>Continent Size Variety <span class="tip" data-tip="How much continent sizes vary — at 0 all continents are similar in size, at 1 you get a mix of large and small landmasses">?</span> <span class="v" id="vCsv">0.35</span></label>
+                    <label>Continent size variety <span class="tip" data-tip="How much continent sizes vary — at 0 all continents are similar in size, at 1 you get a mix of large and small landmasses">?</span> <span class="v" id="vCsv">0.35</span></label>
                     <input type="range" id="sCsv" min="0" max="1" value="0.35" step="0.05">
                     <div class="slider-hint"><span>Equal</span><span>Varied</span></div>
                 </div>
                 <div class="cg">
-                    <label>Land Coverage <span class="tip" data-tip="Percentage of the planet covered by land — low values create ocean worlds, high values create large continents, whose interiors are far from the sea and drier">?</span> <span class="v" id="vLc">30%</span></label>
+                    <label>Land coverage <span class="tip" data-tip="Percentage of the planet covered by land — low values create ocean worlds, high values create large continents, whose interiors are far from the sea and drier">?</span> <span class="v" id="vLc">30%</span></label>
                     <input type="range" id="sLc" min="0" max="1" value="0.3" step="0.01">
-                    <div class="slider-hint"><span>Ocean World</span><span>Desert World</span></div>
+                    <div class="slider-hint"><span>Ocean world</span><span>Desert world</span></div>
                 </div>
             </div>
         </details>
         <button id="generate">Build new world</button>
         <div id="seedRow">
-            <input type="text" id="seedCode" placeholder="Planet code">
-            <button id="copyBtn" title="Copy code">&#x2398;</button>
+            <input type="text" id="seedCode" placeholder="Planet code" aria-label="Planet code" autocomplete="off" spellcheck="false">
+            <button id="copyBtn" title="Copy code" aria-label="Copy code">&#x2398;</button>
             <button id="loadBtn" title="Load planet from code">Load</button>
         </div>
         <div id="seedError">Invalid planet code</div>
@@ -248,7 +248,7 @@
             <summary>Terrain sculpting <span class="tip" data-tip="Erosion and smoothing passes that refine the raw terrain. Adjust sliders and click Reapply — no full rebuild needed.">?</span></summary>
             <div class="section-body">
                 <div class="cg">
-                    <label>Terrain Warp <span class="tip" data-tip="Deforms the elevation field on the sphere using noise, producing more organic, squiggly coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.75</span></label>
+                    <label>Terrain warp <span class="tip" data-tip="Deforms the elevation field on the sphere using noise, producing more organic, squiggly coastlines and mountain ridges">?</span> <span class="v" id="vTw">0.75</span></label>
                     <input type="range" id="sTw" min="0" max="1" value="0.75" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Heavy</span></div>
                 </div>
@@ -258,22 +258,22 @@
                     <div class="slider-hint"><span>None</span><span>Heavy</span></div>
                 </div>
                 <div class="cg">
-                    <label>Glacial Erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.50</span></label>
+                    <label>Glacial erosion <span class="tip" data-tip="Ice-age sculpting — carves fjords, U-shaped valleys, and lake basins at high latitudes and altitudes">?</span> <span class="v" id="vGl">0.50</span></label>
                     <input type="range" id="sGl" min="0" max="1" value="0.50" step="0.05">
-                    <div class="slider-hint"><span>None</span><span>Ice Age</span></div>
+                    <div class="slider-hint"><span>None</span><span>Ice age</span></div>
                 </div>
                 <div class="cg">
-                    <label>Hydraulic Erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.50</span></label>
+                    <label>Hydraulic erosion <span class="tip" data-tip="Iterative stream-power erosion — carves river valleys and dendritic drainage networks">?</span> <span class="v" id="vHEr">0.50</span></label>
                     <input type="range" id="sHEr" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Deep</span></div>
                 </div>
                 <div class="cg">
-                    <label>Thermal Erosion <span class="tip" data-tip="Slope-driven material transport — softens ridges and creates natural talus slopes">?</span> <span class="v" id="vTEr">0.10</span></label>
+                    <label>Thermal erosion <span class="tip" data-tip="Slope-driven material transport — softens ridges and creates natural talus slopes">?</span> <span class="v" id="vTEr">0.10</span></label>
                     <input type="range" id="sTEr" min="0" max="1" value="0.10" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Heavy</span></div>
                 </div>
                 <div class="cg">
-                    <label>Ridge Sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain">?</span> <span class="v" id="vRs">0.50</span></label>
+                    <label>Ridge sharpening <span class="tip" data-tip="Accentuates mountain ridgelines — pushes peaks further above their surroundings for more dramatic terrain">?</span> <span class="v" id="vRs">0.50</span></label>
                     <input type="range" id="sRs" min="0" max="1" value="0.50" step="0.05">
                     <div class="slider-hint"><span>None</span><span>Jagged</span></div>
                 </div>
@@ -331,11 +331,11 @@
     <div id="layerBar" class="layer-bar"></div>
     <div id="legendCard" class="legend-card" hidden></div>
     <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer"></select>
-    <button id="helpBtn" title="Tutorial">?</button>
+    <button id="helpBtn" title="Tutorial" aria-label="Tutorial">?</button>
 
     <div id="tutorialOverlay" class="hidden">
         <div id="tutorialCard">
-            <button id="tutorialClose">&times;</button>
+            <button id="tutorialClose" aria-label="Close">&times;</button>
             <div class="tutorial-step" data-step="0">
                 <h3>Welcome to World Orogen</h3>
                 <p>Procedural planets inspired by real tectonics, erosion, and climate.</p>
@@ -343,19 +343,19 @@
             </div>
             <div class="tutorial-step" data-step="1">
                 <h3>Shape your world</h3>
-                <p>Use the <strong>Shape your world</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build new world</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain Sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
+                <p>Use the <strong>Shape your world</strong> sliders to control detail, plates, continents, and roughness, then hit <strong>Build new world</strong>. The <strong>Detail</strong> slider only changes rendering resolution &mdash; continent shapes stay the same, so you can iterate quickly at low detail and crank it up when the planet looks good. Expand <strong>Terrain sculpting</strong> to fine-tune erosion and smoothing &mdash; these can be reapplied instantly with the <strong>&#x21bb;</strong> button.</p>
                 <p>The planet shows in seconds; a few seconds later its climate, rivers and lakes, ice age, rocks and food are worked out in the background, and the Satellite, Climate, Geology and Food views open.</p>
             </div>
             <div class="tutorial-step" data-step="2">
-                <h3>Explore &amp; Edit</h3>
+                <h3>Explore &amp; edit</h3>
                 <p><strong>Drag</strong> to rotate the globe. <strong>Scroll</strong> to zoom in and out. <strong>Ctrl-click</strong> plates (&#8984;-click on a Mac) to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Ctrl-click again to undo a pending selection. <strong>Hover</strong> any place to see its plate and crust, height, river or lake, climate &mdash; and on the Geology and Food views its rock, ores and what the land could feed.</p>
             </div>
             <div class="tutorial-step" data-step="3">
-                <h3>Visualize Your World</h3>
+                <h3>Visualize your world</h3>
                 <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. <strong>Climate</strong> opens its own row of maps &mdash; K&ouml;ppen, temperature, rain, wind, currents, and under <strong>More&hellip;</strong> pressure, sea ice, aridity, growing season and more &mdash; each for the year, January or July (the Satellite view too); <strong>Geology</strong> its rocks, deposits and what each technological age could reach; <strong>Food</strong> its farmland, staple foods, ways of life and people. The arrow at the tabs' left opens the view options above them: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong>, its centre, the grid, the terrain's <strong>Colours</strong>, the hillshade, the clouds and the rivers; the world's past is in <strong>Inspect (advanced)</strong> in the sidebar.</p>
             </div>
             <div class="tutorial-step" data-step="4">
-                <h3>Save &amp; Share</h3>
+                <h3>Save &amp; share</h3>
                 <p>Every planet gets a unique <strong>planet code</strong> shown below the Build button &mdash; including any plates you've edited. <strong>Copy</strong> it to share with others, or <strong>paste</strong> a code and click <strong>Load</strong> to recreate someone else's world. You can also share the URL directly.</p>
                 <p>Use <strong>Export map</strong> to save any map the page draws &mdash; the terrain, satellite (with clouds or without), climate zones, every climate layer, rivers and lakes, heightmaps, a hillshade, plates, rocks, deposits, food &mdash; as <strong>Colour</strong> (as shown) or as <strong>Data</strong> (16-bit greyscales on fixed scales, for other tools), for the year, January or July, in ten map projections, centred where you like. One map saves as a PNG; several as a ZIP with a README that explains every file.</p>
             </div>
@@ -375,14 +375,14 @@
 
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
-            <button id="exportClose">&times;</button>
+            <button id="exportClose" aria-label="Close">&times;</button>
             <h3>Export</h3>
         </div>
     </div>
 
     <div id="surveyOverlay" class="hidden">
         <div id="surveyCard">
-            <button id="surveyClose">&times;</button>
+            <button id="surveyClose" aria-label="Close">&times;</button>
             <h3>Thanks for exploring!</h3>
             <p>You've spent some real time with World Orogen &mdash; that means a lot. If you have a minute, I'd love to hear what you think.</p>
             <div class="survey-actions">
@@ -454,7 +454,7 @@
             </div>
         </div>
     </div>
-    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
+    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode" aria-pressed="false">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
         </svg>
@@ -485,5 +485,6 @@
     </script>
 
     <script type="module" src="js/main.js" onerror="orogenCantRun()"></script>
+    <script type="module" src="js/a11y.js"></script>
 </body>
 </html>

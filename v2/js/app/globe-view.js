@@ -157,10 +157,17 @@ export class GlobeView {
         this._raycaster = new THREE.Raycaster();
         this._ndc = new THREE.Vector2();
         this._sphere = new THREE.Sphere(new THREE.Vector3(), 1); this._hit = new THREE.Vector3();
+        // (the canvas's size read only when it may have changed — as the window resizes, and as the canvas does, read just
+        // after the layout that changed it — not every frame: while the page writes its progress, each read laid it out again)
+        this._size = null;
+        addEventListener('resize', () => { this._size = null; });
+        this._sized = typeof ResizeObserver !== 'undefined';
+        if (this._sized) new ResizeObserver(() => { this._size = [glCanvas.clientWidth, glCanvas.clientHeight]; }).observe(glCanvas);
     }
 
     resize(force = false) {
-        const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
+        if (force || !this._size || !this._sized) this._size = [this.canvas.clientWidth, this.canvas.clientHeight];
+        const [w, h] = this._size;
         if (!w || !h || (!force && w === this._w && h === this._h)) return;
         this._w = w; this._h = h;
         this.renderer.setSize(w, h, false);

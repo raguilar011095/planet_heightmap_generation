@@ -239,7 +239,7 @@ function clearView(len, { play, label }) {
     setScale(len); ui.time.value = 0; rail();
     pv.blank();                                                                       // (the old world goes at once: a new one is starting)
     ui.timeLabel.textContent = label;
-    ui.play.innerHTML = play ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(play);
     ui.timeline.hidden = false;
     updateCard();
 }
@@ -451,7 +451,7 @@ async function setTerrainDetail() {
     } catch (err) {
         if (B === b) {
             b.retexturing = null;
-            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain Detail.`;
+            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain detail.`;
             status(`Could not build the terrain: ${err.message}`, null);
             loading.hide('terrain');
             updateCard();
@@ -707,7 +707,7 @@ function updateCard() {
     }
     const t = frame ? frame.time.toFixed(0) : '', dt = detFrame?.time.toFixed(0), pct = job ? (100 * Math.min(1, job.share)).toFixed(0) : 0;
     // the one thing to do next: the card's button and the timeline's
-    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate, the Satellite view and its geology (seconds to a minute)';
+    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate, the Satellite view and its geology (seconds to a few minutes)';
     if (job) { main = short = `Cancel · ${pct}%`; title = `Adding detail to ${job.frame.time.toFixed(0)} Myr (${stageWords(job.stage).toLowerCase()}) — click to cancel`; }
     else if (isDet) { main = short = 'Export'; title = 'Save this detailed moment as map files: heightmaps (the sea floor too), a land mask and the colour map'; }
     else if (detFrame) title = `Add detail to ${t} Myr — it replaces the detailed ${dt} Myr once it is done (one moment is kept in detail)`;
@@ -768,11 +768,11 @@ function updateCard() {
     // Satellite and Geology come with detail: their tabs locked on previews
     const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology), farmOk = !!(frame && b?.finishes.get(frame));
     document.querySelector('#mapTabs [data-layer="satellite"]').classList.toggle('locked', !satOk);
-    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite 🔒';
+    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite (with detail)';
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
-    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
+    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology (with detail)';
     document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
-    $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
+    $('mobileFarming').label = farmOk ? 'Food' : 'Food (with detail)';
     pv.syncLegendCard(isDet);
 }
 /** The card's and the timeline's button: Cancel while adding detail; Export on the detailed moment; else Add detail. */
@@ -912,7 +912,7 @@ function tick(now) {
                     const tries = (b.drawFailed?.frame === frame ? b.drawFailed.tries : 0) + 1;
                     b.drawFailed = { frame, tries, retryAt: performance.now() + (tries >= 3 ? Infinity : 2000 * tries) };
                     b.problem = `Could not draw ${frame.time.toFixed(0)} Myr: ${String(err.message).split('\n')[0]}` +
-                        (tries >= 3 ? '. Try a lower Terrain Detail, or reload the page.' : ' — trying again…');
+                        (tries >= 3 ? '. Try a lower Terrain detail, or reload the page.' : ' — trying again…');
                     updateCard();
                 })
                 .finally(() => { if (preparing === p) preparing = null; dirty = true; });
@@ -924,9 +924,14 @@ function tick(now) {
 requestAnimationFrame(tick);
 
 // ── the timeline ──
+/** The play button: the line icon and the name of what a press does (Pause while playing, else Play). */
+function showPlaying(on) {
+    ui.play.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${on ? 'M9 6v12M15 6v12' : 'M8 5.5v13l10.5-6.5z'}"/></svg>`;
+    ui.play.setAttribute('aria-label', on ? 'Pause' : 'Play');
+}
 function setPlaying(on) {
     playing = on;
-    ui.play.innerHTML = on ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(on);
     if (on && !B.live && playTime >= builtTo()) playTime = 0;                      // (at the end: from the start again)
     updateClimateUi();
 }
@@ -1031,7 +1036,7 @@ $('sidebarToggle').addEventListener('click', () => { ui.panel.classList.toggle('
         steps.forEach((s, k) => s.classList.toggle('active', k === i));
         dots.forEach((d, k) => d.classList.toggle('active', k === i));
         $('tutorialBack').disabled = i === 0;
-        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get Started' : 'Next';
+        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get started' : 'Next';
         $('tutorialCard').scrollTop = 0;     // (a card taller than the screen scrolls: each step from its top)
     };
     const open = () => { show(0); overlay.classList.remove('hidden'); };

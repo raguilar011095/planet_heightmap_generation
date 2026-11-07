@@ -48,6 +48,8 @@ const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: new URLSearchParams(location
     infoText: (mode) => (IS_TOUCH ? 'Drag to rotate · Pinch to zoom · Use edit button to reshape' : `Drag to ${mode === 'map' ? 'move the map' : 'rotate'} · Scroll to zoom · Ctrl-click (⌘-click on a Mac) to reshape continents`) });
 const view = pv.view;
 if (IS_TOUCH) $('info').textContent = 'Drag to rotate · Pinch to zoom · Use edit button to reshape';
+// (a touch screen wider than a phone — a tablet — keeps the edit button too: styles.css body.touch)
+if (IS_TOUCH) document.body.classList.add('touch');
 console.info(`[generate] painting ${pv.gpu ? `on the GPU at ${pv.GPU_WIDTH} px` : 'on the CPU'}`);
 
 let world = null;            // the planet shown: its mesh, first picture, plates and edits, and its finished moment once done
@@ -116,6 +118,7 @@ function received(msg) {
     };
     if (kind === 'editDone' && old) { w.seed = old.seed; w.plateIsOcean = old.plateIsOcean; w.originalPlateIsOcean = old.originalPlateIsOcean; }
     world = w; building = null; dirty = true; hoveredPiece = -1;
+    pv.forget();                                         // (the old world's finished moment let go)
     if (pv.gpu) pv.gpu.setMesh(w.tMesh);
     resetBuildButton();
     hideBuildOverlay();
@@ -265,10 +268,10 @@ rebuildFab.addEventListener('click', () => {
     clearPending(); setHovered(-1);
     building = 'edit'; finisher.cancel();
     $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
-    pv.hover(['⏳ Rebuilding…']);
+    pv.hover(['Rebuilding…']);
     worker.postMessage({ cmd: 'editRecompute', plateIsOcean: [...world.plateIsOcean], ...sliders() });
 });
-$('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); if (!state.editMode) setHovered(-1); });
+$('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); $('editToggle').setAttribute('aria-pressed', String(state.editMode)); if (!state.editMode) setHovered(-1); });
 
 // ── the sliders: their values, the stale build button, Reapply, the climate ──
 const sliderIds = ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc'], PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'], SCULPT = ['sTw', 'sS', 'sGl', 'sHEr', 'sTEr', 'sRs'];
