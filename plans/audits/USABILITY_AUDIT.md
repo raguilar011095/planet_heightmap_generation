@@ -6,6 +6,13 @@ and as phones (390×844 and 360×800, touch, DPR 2), Paper and Night. Screenshot
 only, not in git; paths below are relative to it); scripts and their raw logs (JSON):
 `v2/out/audits/usability-scripts/`. Nothing in the repo was edited.
 
+## Status
+
+Fixed on this PR (#148), 2026-11-06: U-01, U-02, U-03, U-04, U-05, U-07, U-08, U-14, U-16, U-19 and U-23. U-06 is
+partly fixed: every control now has a name, but the lock on Satellite, Geology and Food is still invisible to assistive
+tech (U-22). The rest are open. The before and after screenshots are local, in `v2/out/audits/fixes/` (`index.html`
+puts them side by side).
+
 ## Summary
 
 **Verdict: the redesign is in good shape on desktops of 1280 px and up and on phones.** Every core task worked: the

@@ -13,6 +13,21 @@ renderer, the GPU process, the browser), and per-thread **JS heap + ArrayBuffer 
 on the page and on each worker). The worker numbers are taken without forcing their GC, so right after a heavy job they
 include garbage; "settled" figures are taken later.
 
+## Status
+
+On this PR (#148), 2026-11-06, each verified byte-identical by hashing before and after:
+- P-04: page arrays after New world 883 → 241 MB (a fresh page holds 203–212 MB); Generate after Reapply 381 → 179 MB.
+- P-02, its first step only: the screen's picture of a finished moment is kept per width (~53 ms off each repaint at
+  4096, ~48 MB more per detailed moment, gone with it).
+- P-08: the 10M option, its tip, the tutorial, Add detail's tooltip and the docs say about three minutes.
+- P-13: the globe's `resize` went from 556 to 2 ms of the page's thread over a 2.5M Add detail.
+- P-14: the Studio's `load` on 4G 10.8 → 7.0 s; each later map arrives ~5.7 s before its turn.
+
+Tried and not kept: P-03's `willReadFrequently` on the export's river canvas. It changes 2.3–3.5 % of a colour map's
+pixels (all within 2 px of a river or lake, up to 128 levels) and the Rivers & lakes layer's edges, so it is not exact.
+It would take a 16384 colour map's GPU process from ~6 GB to 0.8 GB (the browser 9.8 → 5.6 GB): the owner's call.
+The rest are open.
+
 ## Summary
 
 **Verdict.** The live experience is in good shape: playback, scrubbing, turning the globe, the map, the projections,

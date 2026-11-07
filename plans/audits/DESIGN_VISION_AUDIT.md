@@ -7,6 +7,12 @@ at a 390 × 844 phone: Generate and Import built once per size, Evolution built 
 with Add detail at 160K, one phone history). No console errors on any page. Screenshots: `v2/out/audits/design-shots/`
 (local only, not in git) (named below), scripts: `v2/out/audits/design-scripts/`.
 
+## Status
+
+Fixed on this PR (#148), 2026-11-06: D-01, D-07, D-27, D-28, D-29 and D-33, and the desktop half of D-15 (the opened
+view strip stays clear of the help button). The rest are open. The before and after screenshots are local, in
+`v2/out/audits/fixes/`.
+
 ## Summary
 
 **Verdict.** The redesign reads as one brand. The masthead, the theme switch, the tokens, the layer bar, the graticule
