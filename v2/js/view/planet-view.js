@@ -326,7 +326,7 @@ export class PlanetView {
         // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
         // farming views their lakes too, as water)
         paintFinished(fin.raster, t, lut, { seaImage: this.glinting ? this.seaMask.image.data : null, seaWidth: this.MAP_WIDTH, exaggeration: this.SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm,
-            shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+            shaded: view.shaded, keep: true, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
         if (this.glinting) { this.seaMask.ctx.putImageData(this.seaMask.image, 0, 0); this.globe.seaMaskChanged(); }
         t.ctx.putImageData(t.image, 0, 0);
         // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
