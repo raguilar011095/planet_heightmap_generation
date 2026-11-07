@@ -37,8 +37,8 @@ Core world parameters that control the planet's structure (changing these requir
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
 | Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
-| Continent Size Variety | 0 – 1 | 0.35 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
-| Land Coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create large continents whose interiors, far from the sea, are drier |
+| Continent size variety | 0 – 1 | 0.35 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
+| Land coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create large continents whose interiors, far from the sea, are drier |
 
 ### Terrain sculpting
 
@@ -48,12 +48,12 @@ defaults the ground is drawn exactly as Evolution draws its own (`v2/js/present/
 
 | Control | Range | Default | What it scales |
 |---------|-------|---------|-------------|
-| Terrain Warp | 0 – 1 | 0.75 | How far the records are read off-place: the organic wander of coasts and belts |
+| Terrain warp | 0 – 1 | 0.75 | How far the records are read off-place: the organic wander of coasts and belts |
 | Smoothing | 0 – 1 | 0.10 | Wear: crests spread wider and lower (the same bulk) |
-| Glacial Erosion | 0 – 1 | 0.50 | How far fjords reach up their valleys (the finish's ice age carves its own) |
-| Hydraulic Erosion | 0 – 1 | 0.50 | How long the rivers work: the first picture's carve and the finish's, by the climate's runoff |
-| Thermal Erosion | 0 – 1 | 0.10 | The valley sides' critical slope: more, gentler talus-softened slopes |
-| Ridge Sharpening | 0 – 1 | 0.50 | The parallel ridges, the ridge noise and the crests' ruggedness |
+| Glacial erosion | 0 – 1 | 0.50 | How far fjords reach up their valleys (the finish's ice age carves its own) |
+| Hydraulic erosion | 0 – 1 | 0.50 | How long the rivers work: the first picture's carve and the finish's, by the climate's runoff |
+| Thermal erosion | 0 – 1 | 0.10 | The valley sides' critical slope: more, gentler talus-softened slopes |
+| Ridge sharpening | 0 – 1 | 0.50 | The parallel ridges, the ridge noise and the crests' ruggedness |
 
 Roughness (in Shape your world) scales the hills, the coast's bays and the fine relief.
 
@@ -74,7 +74,7 @@ Mountain belts by age, Cratons. **None** returns to the tab shown.
 
 ## Tutorial & Help
 
-A five-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, visualization, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+A five-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, visualization, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get started" button on the final step.
 
 A **What's New** modal is shown once per release to returning users (those who have already dismissed the tutorial). It highlights new features, changes, and a heads-up when saved links, planet codes or planet files give a different world, with the address where the previous version still opens them. The modal uses a versioned `localStorage` flag (`wo-whatsnew-seen`) — bump the `VERSION` constant in `whatsNew()` (`js/main.js`) to trigger it again on the next release.
 
@@ -105,8 +105,8 @@ Generate is fully usable on phones and tablets:
 
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map.
-- **View switcher** — the layer list (top-right) holds every view: Terrain, Satellite, Heightmap, Plates, the climate's, Geology's and Food's; the Geology pickers stay under it.
-- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap pieces to mark them. Tap the Rebuild button to apply all changes at once.
+- **View switcher** — the layer list (top-left, across to the help button) holds every view: Terrain, Satellite, Heightmap, Plates, the climate's, Geology's and Food's; the Geology pickers stay under it.
+- **Edit-mode toggle** — a floating pencil button (bottom-right on a phone; on a wider touch screen, a tablet, under the help button) activates plate editing. Tap it to toggle edit mode (it fills with the accent colour when active), then tap pieces to mark them. Tap the Rebuild button to apply all changes at once.
 - **Touch-friendly targets** — buttons, chips, pickers and sliders are 44 px or more.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K); the finished picture is 2048 px wide; export widths above 4096 px are off.
 - **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.

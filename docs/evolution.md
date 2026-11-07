@@ -23,12 +23,12 @@ building) holds its settings, with **Build this world** and **Load planet…**:
 | Setting | Range | Default | What it does |
 |---------|-------|---------|--------------|
 | Seed | 0 – 2,147,483,645, or any word or phrase | random | What the world is built from. A word is hashed to a number: the same word, the same world |
-| Starting Continent Size | 20 – 40 % | 30 % | How much of the planet the first supercontinent covers, shelves included |
-| History Length | 300 – 1500 Myr | 1200 Myr | How long the history runs. A supercontinent breaks up and gathers again roughly every 600–700 million years |
-| End As | Wherever the history has got to · A supercontinent · A supercontinent breaking up · Continents dispersed | Wherever the history has got to | The history runs on past its length until the planet is in that stage (at most 1000 Myr further) |
+| Starting continent size | 20 – 40 % | 30 % | How much of the planet the first supercontinent covers, shelves included |
+| History length | 300 – 1500 Myr | 1200 Myr | How long the history runs. A supercontinent breaks up and gathers again roughly every 600–700 million years |
+| End as | Wherever the history has got to · A supercontinent · A supercontinent breaking up · Continents dispersed | Wherever the history has got to | The history runs on past its length until the planet is in that stage (at most 1000 Myr further) |
 | Temperature | −30 – +30 W/m² | 0 | Warms or cools the whole planet, through the climate's physics |
 | Precipitation | ±50 % | 0 | Speeds up or slows down the water cycle |
-| Quality | Fast · Balanced · Best · Custom | Balanced | How finely the history is simulated and drawn while you watch. Fast: 20K plate cells, terrain 160K. Balanced: 40K, 160K. Best: 80K, 640K. Custom: Plates (20K–160K cells) and Terrain Detail (160K–2.5M) |
+| Quality | Fast · Balanced · Best · Custom | Balanced | How finely the history is simulated and drawn while you watch. Fast: 20K plate cells, terrain 160K. Balanced: 40K, 160K. Best: 80K, 640K. Custom: Plates (20K–160K cells) and Terrain detail (160K–2.5M) |
 
 Temperature and Precipitation change the climate only: previews are worked out again when shown, and a detailed moment
 says it was made with the old ones.
@@ -62,7 +62,7 @@ tells you when it will.
 Zoomed in, a detailed moment shows detail finer than its mesh, drawn in tiles at the screen's resolution as you pan and
 zoom (and in exports wider than the moment's picture): faint ridges and valleys on its mountains, cut by their rock,
 benches stepped through layered rock, ice-scoured knobs and karst hollows, dunes in its sand seas, coves along its
-coasts. The rivers' options (Rivers & Lakes, By Regime, density) are in the view strip.
+coasts. The rivers' options (Rivers & lakes, By regime, density) are in the view strip.
 
 ## Look around
 
