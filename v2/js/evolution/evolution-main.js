@@ -451,7 +451,7 @@ async function setTerrainDetail() {
     } catch (err) {
         if (B === b) {
             b.retexturing = null;
-            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain Detail.`;
+            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain detail.`;
             status(`Could not build the terrain: ${err.message}`, null);
             loading.hide('terrain');
             updateCard();
@@ -768,11 +768,11 @@ function updateCard() {
     // Satellite and Geology come with detail: their tabs locked on previews
     const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology), farmOk = !!(frame && b?.finishes.get(frame));
     document.querySelector('#mapTabs [data-layer="satellite"]').classList.toggle('locked', !satOk);
-    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite 🔒';
+    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite (with detail)';
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
-    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
+    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology (with detail)';
     document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
-    $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
+    $('mobileFarming').label = farmOk ? 'Food' : 'Food (with detail)';
     pv.syncLegendCard(isDet);
 }
 /** The card's and the timeline's button: Cancel while adding detail; Export on the detailed moment; else Add detail. */
@@ -912,7 +912,7 @@ function tick(now) {
                     const tries = (b.drawFailed?.frame === frame ? b.drawFailed.tries : 0) + 1;
                     b.drawFailed = { frame, tries, retryAt: performance.now() + (tries >= 3 ? Infinity : 2000 * tries) };
                     b.problem = `Could not draw ${frame.time.toFixed(0)} Myr: ${String(err.message).split('\n')[0]}` +
-                        (tries >= 3 ? '. Try a lower Terrain Detail, or reload the page.' : ' — trying again…');
+                        (tries >= 3 ? '. Try a lower Terrain detail, or reload the page.' : ' — trying again…');
                     updateCard();
                 })
                 .finally(() => { if (preparing === p) preparing = null; dirty = true; });
@@ -1031,7 +1031,7 @@ $('sidebarToggle').addEventListener('click', () => { ui.panel.classList.toggle('
         steps.forEach((s, k) => s.classList.toggle('active', k === i));
         dots.forEach((d, k) => d.classList.toggle('active', k === i));
         $('tutorialBack').disabled = i === 0;
-        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get Started' : 'Next';
+        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get started' : 'Next';
         $('tutorialCard').scrollTop = 0;     // (a card taller than the screen scrolls: each step from its top)
     };
     const open = () => { show(0); overlay.classList.remove('hidden'); };

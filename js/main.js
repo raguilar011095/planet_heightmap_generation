@@ -267,7 +267,7 @@ rebuildFab.addEventListener('click', () => {
     clearPending(); setHovered(-1);
     building = 'edit'; finisher.cancel();
     $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
-    pv.hover(['⏳ Rebuilding…']);
+    pv.hover(['Rebuilding…']);
     worker.postMessage({ cmd: 'editRecompute', plateIsOcean: [...world.plateIsOcean], ...sliders() });
 });
 $('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); if (!state.editMode) setHovered(-1); });

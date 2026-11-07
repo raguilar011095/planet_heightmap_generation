@@ -119,17 +119,17 @@
                     <div id="seedRow"><input type="text" id="seedCode" placeholder="A number or a word" aria-label="World seed" autocomplete="off" spellcheck="false"></div>
                 </div>
                 <div class="cg">
-                    <label>Starting Continent Size <span class="tip" data-tip="How much of the planet the first supercontinent covers, shelves included">?</span> <span class="v" id="vCont">30%</span></label>
+                    <label>Starting continent size <span class="tip" data-tip="How much of the planet the first supercontinent covers, shelves included">?</span> <span class="v" id="vCont">30%</span></label>
                     <input type="range" id="sCont" min="20" max="40" value="30" step="1">
                     <div class="slider-hint"><span>Small</span><span>Large</span></div>
                 </div>
                 <div class="cg">
-                    <label>History Length <span class="tip" data-tip="How long the planet's tectonic history runs. A supercontinent breaks up and gathers again roughly every 600–700 million years">?</span> <span class="v" id="vLen">1200 Myr</span></label>
+                    <label>History length <span class="tip" data-tip="How long the planet's tectonic history runs. A supercontinent breaks up and gathers again roughly every 600–700 million years">?</span> <span class="v" id="vLen">1200 Myr</span></label>
                     <input type="range" id="sLen" min="300" max="1500" value="1200" step="50">
                     <div class="slider-hint"><span>Short</span><span>Long</span></div>
                 </div>
                 <div class="cg">
-                    <label>End As <span class="tip" data-tip="Where the history should end: it runs on past its length until the planet is in that stage (at most 1000 Myr further)">?</span></label>
+                    <label>End as <span class="tip" data-tip="Where the history should end: it runs on past its length until the planet is in that stage (at most 1000 Myr further)">?</span></label>
                     <select id="ending"></select>
                 </div>
                 <div class="cg">
@@ -162,7 +162,7 @@
                         </select>
                     </div>
                     <div class="cg">
-                        <label>Terrain Detail <span class="tip" data-tip="Resolution of the terrain drawn while you watch — finer detail takes longer to build each moment. Changing it redraws the same history straight away">?</span></label>
+                        <label>Terrain detail <span class="tip" data-tip="Resolution of the terrain drawn while you watch — finer detail takes longer to build each moment. Changing it redraws the same history straight away">?</span></label>
                         <select id="terrainCells">
                             <option value="160000" selected>160K cells · 61 km</option>
                             <option value="640000">640K cells · 30 km</option>
@@ -244,13 +244,13 @@
         <div id="tutorialCard">
             <button id="tutorialClose" aria-label="Close">&times;</button>
             <div class="tutorial-step" data-step="0">
-                <h3>A Planet's History</h3>
+                <h3>A planet's history</h3>
                 <p>Evolution simulates a planet's tectonic history: a supercontinent breaks up, oceans open and close, and the continents collide and gather again.</p>
                 <p>A history is already building behind this card &mdash; you can watch it while you read.</p>
                 <p class="evo-beta-note">Evolution works best on a desktop computer for now. It runs on a phone with lighter settings: coarser plates, and Add detail up to 640K cells. Its Food tab is new and in <strong>beta</strong>, and neither it nor Geology has been tried on a phone yet.</p>
             </div>
             <div class="tutorial-step" data-step="1">
-                <h3>Scrub the Timeline</h3>
+                <h3>Scrub the timeline</h3>
                 <p>Every moment on the timeline is a <strong>Preview</strong>: a quick look at the planet at that time. <strong>Drag</strong> the timeline to any moment, or press <strong>play</strong>. The shaded part of the rail is the history computed so far, and you can scrub through all of it while the rest fills in.</p>
                 <p><strong>Drag</strong> the globe to turn it, <strong>scroll</strong> to zoom, and <span data-touch="tap">hover</span> the planet for its height, crust and climate.</p>
             </div>
@@ -260,7 +260,7 @@
                 <p>One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card tells you when it will.</p>
             </div>
             <div class="tutorial-step" data-step="3">
-                <h3>Look Around</h3>
+                <h3>Look around</h3>
                 <p>Switch between <strong>Terrain</strong>, <strong>Satellite</strong>, <strong>Climate</strong>, <strong>Geology</strong>, <strong>Food</strong>, <strong>Heightmap</strong> and <strong>Plates</strong> with the tabs over the planet. Clouds drift over the Satellite view, from the planet&rsquo;s own climate; turn them off with <strong>Clouds</strong> beside Hillshade.</p>
                 <p><strong>Climate</strong> shows Köppen zones, temperature, rain, wind and currents, with more layers (pressure, upwelling, ice, aridity, growing season and others) under <strong>More…</strong> or in the layer list. It also works on a paused preview.</p>
                 <p>The arrow at the tabs' left opens the view options: <strong>Globe</strong> or <strong>Map</strong>, the map in any of ten <strong>projections</strong> (<span data-touch="pinch">scroll</span> to zoom it, drag to move around), the terrain's colours, and <strong>Hillshade</strong>, which turns the relief's shading off for flat colour.</p>
@@ -286,12 +286,12 @@
                 <p>Several maps save as one ZIP with a README, at any width up to 16384 px, in any of ten map projections, centred as you like, with or without the hillshade.</p>
             </div>
             <div class="tutorial-step" data-step="7">
-                <h3>Keep a Planet</h3>
+                <h3>Keep a planet</h3>
                 <p>Found a world worth keeping? In <strong>Export</strong>, <strong>Save planet</strong> puts its whole history and its detailed moment in one file. <strong>Load planet…</strong> in World opens it again later<span data-touch="">, or drop the file anywhere on the page</span> &mdash; with no waiting for either.</p>
                 <p>The file holds the history itself, so it opens exactly as it was saved, in any browser. <strong>Extend history</strong> on an opened planet first runs the history again here from its seed (as long as it took to build), and then goes on from where the file ends &mdash; if it comes out the same in this browser.<span data-touch=" On a phone, a detailed moment saved on a desktop is too big to show: the history opens, ready for you to add detail at the phone's size."></span></p>
             </div>
             <div class="tutorial-step" data-step="8">
-                <h3>Steer It</h3>
+                <h3>Steer it</h3>
                 <p><strong>New world</strong> starts a fresh history from a random seed, one of over two billion. Open <strong>World</strong> to set the seed (any number up to 2,147,483,645, or any word or phrase: the same word always builds the same world), the starting continent size, how long the history runs, how it should end, the planet's <strong>Temperature</strong> and <strong>Precipitation</strong>, and the <strong>Quality</strong>.</p>
                 <p>At the end of a history, <strong>Extend history</strong> runs it on for as long as you like. The link in your address bar rebuilds the same history, so you can share it.</p>
             </div>

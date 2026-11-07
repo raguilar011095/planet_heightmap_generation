@@ -32,12 +32,12 @@ const KOPPEN_RGB = KOPPEN_CLASSES.map(k => k.color.map(v => Math.round(255 * v))
 /** The catalogue of a moment's maps (the panel's rows): as Colour, as Data, or both. */
 export const CATALOGUE = [
     { id: 'maps', label: 'Maps', rows: [
-        { id: 'color', label: 'Colour Map', colour: true, tip: 'The Terrain view as shown, in your Terrain Colours, with rivers and lakes if Rivers &amp; Lakes is on' },
+        { id: 'color', label: 'Colour map', colour: true, tip: 'The Terrain view as shown, in your terrain colours, with rivers and lakes if Rivers &amp; lakes is on' },
         { id: 'satellite', label: 'Satellite', colour: true, seasonal: true, needs: 'satellite', tip: 'The Satellite view for the year, January or July' },
         { id: 'satelliteClouds', label: 'Satellite with clouds', colour: true, seasonal: true, needs: 'satellite', tip: 'The Satellite view with its clouds over it — one still moment of them, from the climate in the season' },
         { id: 'clouds', label: 'Clouds', colour: true, seasonal: true, needs: 'satellite', tip: 'The clouds alone, with their faint shadows, on a transparent ground — to lay over another map' },
         { id: 'koppen', label: 'Climate zones (Köppen)', colour: true, needs: 'climate', data: [{ key: 'koppenIndex', suffix: 'index', label: 'Köppen class index', scale: SC.koppenIndex, bits: 8 }], tip: 'The Köppen zones in their own colours, unshaded; as data, each class\'s index (the README lists them)' },
-        { id: 'rivers', label: 'Rivers &amp; Lakes', colour: true, needs: 'rivers', tip: 'The rivers and lakes alone on a transparent ground, to lay over another map' },
+        { id: 'rivers', label: 'Rivers &amp; lakes', colour: true, needs: 'rivers', tip: 'The rivers and lakes alone on a transparent ground, to lay over another map' },
     ] },
     { id: 'elevation', label: 'Elevation', rows: [
         { id: 'heightmap', label: 'Heightmap with sea floor', data: [{ key: 'heightmap', suffix: '', label: 'Heightmap with sea floor', scale: { unit: 'km (sea level at 55 %)', lo: -11, hi: 9 }, bits: 16 }], tip: '16-bit greyscale, the same scale on every planet: black −11 km, white +9 km (sea level at 55 %)' },

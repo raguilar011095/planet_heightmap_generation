@@ -11,7 +11,7 @@ import { RAMPS, rampColor } from '../v2/js/climate-lab/palettes.js';
 export const CLIMATE_INSPECT = [
     { id: 'pressure',    label: 'Pressure',          seasonal: true,  arrows: 'wind', itcz: true },
     { id: 'wind',        label: 'Wind',              seasonal: true,  arrows: 'wind' },
-    { id: 'currents',    label: 'Ocean Currents',    seasonal: true,  arrows: 'currents' },
+    { id: 'currents',    label: 'Ocean currents',    seasonal: true,  arrows: 'currents' },
     { id: 'upwelling',   label: 'Upwelling',         seasonal: true },
     { id: 'ice',         label: 'Ice',               seasonal: true },
     { id: 'temperature', label: 'Temperature',       seasonal: true },
