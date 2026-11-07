@@ -74,6 +74,20 @@ Click **Export map** at the foot of the sidebar (on Evolution, **Export** on a d
 
 The control panel can be collapsed and expanded with the **«** toggle button in the sidebar header. On small screens (≤ 768px) the sidebar becomes a bottom sheet with a drag handle — starts collapsed, showing only the handle and header. Drag up or tap the handle to expand. An overlay with a spinner (the logo, its ring turning), title, and progress bar covers the planet during every generation and import — fully opaque on initial load, semi-transparent on subsequent builds so the previous planet is dimmed behind it. It sits behind the page's controls: the sidebar, the top bars and the buttons stay in view, held (they take no clicks) until the build is done or has failed. Stage labels (shaping, plates, oceans, mountains, painting) update as the pipeline progresses.
 
+## Keyboard and screen readers
+
+Every tool page (`js/a11y.js`):
+- **The ? tips** are buttons the keyboard reaches. Hovering, focusing or tapping one shows its words beside it (above it on a
+  phone), always on the screen; Escape hides them first, before it closes a dialog under them. A screen reader hears each
+  as "About <the control>" with its words as the description.
+- **The dialogs** (the tutorial, What's New, the survey, the export panel) are dialogs by role and name. Opened, focus moves
+  onto the dialog and Tab stays within it; Escape or × closes it and focus goes back to what opened it. Closed, they are
+  out of the Tab order and the accessibility tree.
+- **Names and states** — each slider and menu is named by its label, a slider's value read as the panel shows it
+  (Detail's "204,000"); the layer tabs and Generate's edit button say whether they are on (`aria-pressed`), the
+  masthead marks the current page, the play button says Play or Pause, the export panel's boxes name their map and column.
+- Import's **Choose image** is reached by Tab, its focus ring on the button.
+
 ## Previous versions
 
 `orogen.studio` always runs the newest release; from 2.1 on, each minor release also stays online at `orogen.studio/v/<major>.<minor>/` (its last patch, e.g. `orogen.studio/v/2.1/generate#…`), so a planet can be opened in the version it was made with even after later releases change how worlds are built. The deploy (`.github/workflows/deploy.yml`) unpacks each from its release tag; search engines are asked to leave them out.

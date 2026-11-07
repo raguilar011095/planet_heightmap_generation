@@ -146,6 +146,8 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
         <optgroup id="mobileFarming" label="Food">${[['farmLand', 'Farmland'], ['farmStaple', 'Staple food'], ['farmLife', 'Lifestyle'], ['farmPeople', 'People'], ['farmSoil', 'Soil'], ['farmSeason', 'Growing season']].map(([v, l]) => opt(v, l)).join('')}</optgroup>
         <optgroup label="Climate: more">${CLIMATE_MORE.flatMap(([, list]) => list).map(([v, l]) => opt(v, l)).join('')}</optgroup>`;
     $('legendCard').innerHTML = '<div id="climateLegend" class="viz-legend"></div><div id="regimeLegend" class="evo-koppen evo-regime-legend" hidden></div>';
+    // (the tabs say which is shown: aria-pressed, kept by LayerBar.setLayer)
+    for (const b of document.querySelectorAll('#layerBar .map-tab')) { b.type = 'button'; b.setAttribute('aria-pressed', String(b.classList.contains('active'))); }
     // (the layers a page has nothing for — an imported heightmap has no plates and no history for its rocks: `without`)
     for (const id of without) {
         document.querySelector(`#mapTabs [data-layer="${id}"]`)?.remove();
@@ -199,8 +201,9 @@ export class LayerBar {
         if (geo) last.geology = layer;
         if (farm) last.farming = layer;
         this.view.layer = layer;
-        for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
-        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
+        const press = (b, on) => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); };
+        for (const b of document.querySelectorAll('#mapTabs .map-tab')) press(b, b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
+        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) press(b, b.dataset.layer === layer);
         const more = $('climateMore'), inMore = !!more.querySelector(`option[value="${layer}"]`);
         more.value = inMore ? layer : ''; more.classList.toggle('active', inMore);
         $('mobileViewSwitch').value = layer;

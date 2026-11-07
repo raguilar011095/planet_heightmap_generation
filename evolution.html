@@ -73,7 +73,7 @@
         <a href="/" class="nav-tab">Studio</a>
         <a href="/generate" class="nav-tab">Generate</a>
         <a href="/import" class="nav-tab">Import</a>
-        <a href="/evolution" class="nav-tab active">Evolution</a>
+        <a href="/evolution" class="nav-tab active" aria-current="page">Evolution</a>
         <div class="nav-follow">
             <a class="nav-icon" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub" aria-label="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg></a>
             <span class="nav-follow-label">Follow</span>
@@ -105,7 +105,7 @@
                 <div class="sub">A planet with a past</div>
                 <div class="evo-beta-note">Best on a desktop for now</div>
             </div>
-            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+            <button id="sidebarToggle" title="Collapse panel" aria-label="Collapse panel" aria-expanded="true">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
@@ -212,10 +212,10 @@
     <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer"></select>
     <!-- the layer bar: view/layer-bar.js mountLayerBar (the view strip, the tabs, their rows, the chip) -->
     <div id="layerBar" class="layer-bar"></div>
-    <button id="helpBtn" title="How it works">?</button>
+    <button id="helpBtn" title="How it works" aria-label="How it works">?</button>
     <div id="legendCard" class="legend-card" hidden></div>
     <div id="timeline" class="evo-timeline" hidden>
-        <button id="playBtn" class="evo-play" aria-label="Play / pause">&#x25B6;</button>
+        <button id="playBtn" class="evo-play" aria-label="Play"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg></button>
         <select id="rate" class="evo-rate" aria-label="Playback speed" title="Playback speed">
         <option value="5">5 Myr/s</option>
         <option value="10">10 Myr/s</option>
@@ -324,5 +324,6 @@
     }
     </script>
     <script type="module" src="v2/js/evolution/evolution-main.js" onerror="orogenCantRun()"></script>
+    <script type="module" src="js/a11y.js"></script>
 </body>
 </html>

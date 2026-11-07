@@ -312,20 +312,19 @@ body { background: var(--ui-page); overflow: hidden; font-family: var(--font-ui)
     cursor: help; position: relative; vertical-align: text-top;
     margin-left: 3px; flex-shrink: 0; transform: translateY(1px);
 }
-.tip:hover {
+.tip:hover, .tip.is-open {
     background: var(--ink); color: var(--bg);
 }
-.tip:hover::after {
-    content: attr(data-tip);
-    position: absolute; left: calc(100% + 8px); top: 50%; transform: translateY(-50%);
+/* a tip's words (js/a11y.js): beside it on a desktop, above it on a phone, kept on the screen; shown on hover, focus or a
+   tap, hidden by Escape */
+.tip-pop {
+    position: fixed; z-index: 300; box-sizing: border-box; max-width: calc(100vw - 16px);
     background: var(--surface);
     border: var(--line-hair) solid var(--rule); border-radius: var(--radius-sm);
     padding: 8px 12px; font: 400 15px/1.4 var(--font-text); color: var(--body);
-    text-transform: none; letter-spacing: 0;
-    width: 240px; white-space: normal;
-    z-index: 200; pointer-events: none;
-    box-shadow: var(--shadow-card);
+    white-space: normal; box-shadow: var(--shadow-card);
 }
+.tip-pop[hidden] { display: none; }
 input[type="range"] { width: 100%; height: 20px; margin: 0; accent-color: var(--ink); cursor: pointer; }
 
 /* Slider thumb tooltip */
@@ -860,11 +859,14 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
+/* (closed, every dialog leaves the Tab order and the accessibility tree once it has faded: js/a11y.js makes it inert at once) */
 #tutorialOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
+/* (focus moves onto an opened dialog's card: js/a11y.js) */
+#tutorialCard:focus, #exportCard:focus, #surveyCard:focus, #whatsNewCard:focus { outline: none; }
 
 /* Tutorial card */
 #tutorialCard {
@@ -1050,10 +1052,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.3s ease;
+    transition: opacity 0.3s ease, visibility 0s linear 0s;
 }
 #exportOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.3s ease, visibility 0s linear 0.3s;
 }
 #exportCard {
     position: relative; max-width: 380px; width: 90%; padding: 28px 24px 20px;
@@ -1086,10 +1088,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
 #surveyOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
 #surveyCard {
     position: relative; max-width: 400px; width: 90%; padding: 28px 24px 20px;
@@ -1129,10 +1131,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     background: var(--ui-scrim);
     z-index: 200;
     display: flex; align-items: center; justify-content: center;
-    transition: opacity 0.5s ease;
+    transition: opacity 0.5s ease, visibility 0s linear 0s;
 }
 #whatsNewOverlay.hidden {
-    opacity: 0; pointer-events: none;
+    opacity: 0; pointer-events: none; visibility: hidden; transition: opacity 0.5s ease, visibility 0s linear 0.5s;
 }
 #whatsNewCard {
     position: relative; max-width: 460px; width: 90%; padding: 32px 28px 24px; transition: opacity 0.5s ease, transform 0.5s ease;
@@ -1252,6 +1254,9 @@ body.edits-pending #hoverInfo { bottom: 112px; }
 }
 
 /* ─── Import page ─── */
+/* (out of sight, still in the Tab order and named by its label: Import's file input) */
+.visually-hidden { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); clip-path: inset(50%); white-space: nowrap; }
+.import-upload-area:has(input:focus-visible) .import-file-label { outline: 2px solid var(--focus); outline-offset: 2px; }
 .import-upload-area {
     display: flex; align-items: center; gap: 8px;
     margin-bottom: 8px;
@@ -1485,12 +1490,8 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     .slider-hint { font-size: 12px; }
     #seedCode { font-size: 14px; }
 
-    /* Tooltips: reposition above */
-    .tip:hover::after {
-        left: 50%; top: auto;
-        bottom: calc(100% + 8px);
-        transform: translateX(-50%);
-    }
+    /* the tips: a finger's target round the 16 px "?" (their words sit above them: js/a11y.js) */
+    .tip::before { content: ''; position: absolute; inset: -14px; }
 
     /* Info bars: shift up above collapsed sheet */
     #info { bottom: 68px; }

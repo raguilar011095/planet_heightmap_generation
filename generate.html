@@ -134,7 +134,7 @@
     <nav id="topNav">
         <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
-        <a href="/generate" class="nav-tab active">Generate</a>
+        <a href="/generate" class="nav-tab active" aria-current="page">Generate</a>
         <a href="/import" class="nav-tab">Import</a>
         <a href="/evolution" class="nav-tab">Evolution</a>
         <div class="nav-follow">
@@ -192,7 +192,7 @@
                 <h2>Generate</h2>
                 <div class="sub">A planet in seconds, shaped by hand</div>
             </div>
-            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+            <button id="sidebarToggle" title="Collapse panel" aria-label="Collapse panel" aria-expanded="true">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
@@ -239,8 +239,8 @@
         </details>
         <button id="generate">Build new world</button>
         <div id="seedRow">
-            <input type="text" id="seedCode" placeholder="Planet code">
-            <button id="copyBtn" title="Copy code">&#x2398;</button>
+            <input type="text" id="seedCode" placeholder="Planet code" aria-label="Planet code" autocomplete="off" spellcheck="false">
+            <button id="copyBtn" title="Copy code" aria-label="Copy code">&#x2398;</button>
             <button id="loadBtn" title="Load planet from code">Load</button>
         </div>
         <div id="seedError">Invalid planet code</div>
@@ -331,11 +331,11 @@
     <div id="layerBar" class="layer-bar"></div>
     <div id="legendCard" class="legend-card" hidden></div>
     <select id="mobileViewSwitch" class="mobile-view-switch" aria-label="Layer"></select>
-    <button id="helpBtn" title="Tutorial">?</button>
+    <button id="helpBtn" title="Tutorial" aria-label="Tutorial">?</button>
 
     <div id="tutorialOverlay" class="hidden">
         <div id="tutorialCard">
-            <button id="tutorialClose">&times;</button>
+            <button id="tutorialClose" aria-label="Close">&times;</button>
             <div class="tutorial-step" data-step="0">
                 <h3>Welcome to World Orogen</h3>
                 <p>Procedural planets inspired by real tectonics, erosion, and climate.</p>
@@ -375,14 +375,14 @@
 
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
-            <button id="exportClose">&times;</button>
+            <button id="exportClose" aria-label="Close">&times;</button>
             <h3>Export</h3>
         </div>
     </div>
 
     <div id="surveyOverlay" class="hidden">
         <div id="surveyCard">
-            <button id="surveyClose">&times;</button>
+            <button id="surveyClose" aria-label="Close">&times;</button>
             <h3>Thanks for exploring!</h3>
             <p>You've spent some real time with World Orogen &mdash; that means a lot. If you have a minute, I'd love to hear what you think.</p>
             <div class="survey-actions">
@@ -454,7 +454,7 @@
             </div>
         </div>
     </div>
-    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode">
+    <button id="editToggle" class="edit-toggle" title="Toggle plate edit mode" aria-pressed="false">
         <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M14.5 2.5l3 3L6 17H3v-3L14.5 2.5z"/>
         </svg>
@@ -485,5 +485,6 @@
     </script>
 
     <script type="module" src="js/main.js" onerror="orogenCantRun()"></script>
+    <script type="module" src="js/a11y.js"></script>
 </body>
 </html>

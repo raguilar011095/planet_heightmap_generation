@@ -239,7 +239,7 @@ function clearView(len, { play, label }) {
     setScale(len); ui.time.value = 0; rail();
     pv.blank();                                                                       // (the old world goes at once: a new one is starting)
     ui.timeLabel.textContent = label;
-    ui.play.innerHTML = play ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(play);
     ui.timeline.hidden = false;
     updateCard();
 }
@@ -924,9 +924,14 @@ function tick(now) {
 requestAnimationFrame(tick);
 
 // ── the timeline ──
+/** The play button: the line icon and the name of what a press does (Pause while playing, else Play). */
+function showPlaying(on) {
+    ui.play.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${on ? 'M9 6v12M15 6v12' : 'M8 5.5v13l10.5-6.5z'}"/></svg>`;
+    ui.play.setAttribute('aria-label', on ? 'Pause' : 'Play');
+}
 function setPlaying(on) {
     playing = on;
-    ui.play.innerHTML = on ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(on);
     if (on && !B.live && playTime >= builtTo()) playTime = 0;                      // (at the end: from the start again)
     updateClimateUi();
 }

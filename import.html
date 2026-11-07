@@ -44,7 +44,7 @@
         <a class="nav-logo" href="/" aria-label="World Orogen: the Studio"><svg class="og-mark" width="30" height="30" viewBox="0 0 32 32" aria-hidden="true"><defs><clipPath id="navMarkClip"><circle cx="16" cy="16" r="12.8"/></clipPath></defs><g clip-path="url(#navMarkClip)"><rect class="s1" x="0" y="9.6" width="32" height="3.2"/><rect class="s2" x="0" y="14.4" width="32" height="3.2"/><rect class="s3" x="0" y="19.2" width="32" height="3.2"/></g><circle class="ring" cx="16" cy="16" r="13.6" stroke-width="1.8"/></svg><span class="nav-logo__word">World Orogen</span></a>
         <a href="/" class="nav-tab">Studio</a>
         <a href="/generate" class="nav-tab">Generate</a>
-        <a href="/import" class="nav-tab active">Import</a>
+        <a href="/import" class="nav-tab active" aria-current="page">Import</a>
         <a href="/evolution" class="nav-tab">Evolution</a>
         <div class="nav-follow">
             <a class="nav-icon" href="https://github.com/raguilar011095/planet_heightmap_generation" target="_blank" rel="noopener" title="Source code on GitHub" aria-label="Source code on GitHub"><svg width="16" height="16" aria-hidden="true"><use href="assets/social.svg#github"/></svg></a>
@@ -75,7 +75,7 @@
                 <h2>Import</h2>
                 <div class="sub">Your own landmass, its climate</div>
             </div>
-            <button id="sidebarToggle" title="Collapse panel">&#x00AB;</button>
+            <button id="sidebarToggle" title="Collapse panel" aria-label="Collapse panel" aria-expanded="true">&#x00AB;</button>
         </div>
         <div id="sidebarContent">
         <div id="viewStripSlot"></div>
@@ -87,7 +87,7 @@
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                         Choose image
                     </label>
-                    <input type="file" id="heightmapFile" accept="image/png,image/jpeg,image/webp" style="display:none">
+                    <input type="file" id="heightmapFile" class="visually-hidden" accept="image/png,image/jpeg,image/webp">
                     <div id="importFileName" class="import-file-name"></div>
                 </div>
                 <canvas id="importPreview" class="import-preview" style="display:none"></canvas>
@@ -177,7 +177,7 @@
 
     <div id="exportOverlay" class="hidden">
         <div id="exportCard">
-            <button id="exportClose">&times;</button>
+            <button id="exportClose" aria-label="Close">&times;</button>
             <h3>Export</h3>
         </div>
     </div>
@@ -198,5 +198,6 @@
     </script>
 
     <script type="module" src="js/import-main.js" onerror="orogenCantRun()"></script>
+    <script type="module" src="js/a11y.js"></script>
 </body>
 </html>

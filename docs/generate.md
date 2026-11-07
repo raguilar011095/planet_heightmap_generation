@@ -109,7 +109,7 @@ Generate is fully usable on phones and tablets:
 - **Edit-mode toggle** — a floating pencil button (bottom-right on a phone; on a wider touch screen, a tablet, under the help button) activates plate editing. Tap it to toggle edit mode (it fills with the accent colour when active), then tap pieces to mark them. Tap the Rebuild button to apply all changes at once.
 - **Touch-friendly targets** — buttons, chips, pickers and sliders are 44 px or more.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K); the finished picture is 2048 px wide; export widths above 4096 px are off.
-- **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.
+- **Tips** — a tap on a **?** opens its words above it, kept on the screen (a tap elsewhere closes them); the **?** takes a finger's 44 px.
 
 ## What it builds
 
@@ -178,6 +178,10 @@ js/
                         no Geology)
   page-chrome.js        The chrome both pages share: slider bubbles, the Detail warning, the side panel and bottom sheet,
                         the build overlay, the tutorial
+  a11y.js               Every tool page's keyboard and screen-reader basics (Evolution's too, loaded after each page's own
+                        module): the dialogs (named, focus in and back, Tab kept inside, inert while closed), the "?" tips
+                        (buttons with their words as a description, shown beside or above them, never off screen), the
+                        controls' names from their labels and the sliders' values as shown
   generate-plates.js    Generate's own layers on the planet view: the Plates view (colours, boundaries, arrows; its export
                         map), the Inspect list's layers of the world's past, the edits pending drawn over the picture
   present-crust.js      The present-day world's crust in words (the hover's Crust line)

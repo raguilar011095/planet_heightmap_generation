@@ -100,6 +100,9 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
                 `<label class="xp-check">${row.data ? '<input type="checkbox" data-variant="data">' : '<i>–</i>'}</label>`;
             g.appendChild(el);
             const r = { row, el, colour: el.querySelector('[data-variant="colour"]'), data: el.querySelector('[data-variant="data"]') };
+            // (each box named by its map and its column, as a screen reader can't see the grid)
+            const name = el.querySelector('.xp-name').firstChild?.textContent.trim() || row.id;
+            r.colour?.setAttribute('aria-label', `${name}: Colour`); r.data?.setAttribute('aria-label', `${name}: Data`);
             rows.push(r); byId.set(row.id, r);
         }
         els.layers.appendChild(g);
