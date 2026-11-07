@@ -1482,6 +1482,10 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     button#generate { padding: 14px; font-size: 16px; }
     select { padding: 10px 12px; }
     #seedRow button { padding: 8px 12px; }
+    /* (a finger's height: the planet code, Copy and Load, Export map, Stats, the tutorial's and What's New's buttons) */
+    #seedCode, #seedRow button, #exportBtn, .stats-toggle summary, .tutorial-nav button { min-height: var(--size-touch); }
+    #seedRow button { min-width: var(--size-touch); }
+    #tutorialClose, #whatsNewClose, #surveyClose { min-width: var(--size-touch); min-height: var(--size-touch); top: 4px; right: 6px; }
 
     /* Font sizes */
     .cg label { font-size: 15px; }
