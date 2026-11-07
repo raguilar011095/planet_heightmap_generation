@@ -1466,7 +1466,7 @@ body.edits-pending #hoverInfo { bottom: 112px; }
     #debugLayer, #climateSeason { min-height: 44px; }
     /* the layers: the list at the top (#mobileViewSwitch), the season beneath it, the legend under that; the view
        strip at the top of the bottom sheet */
-    .layer-bar { top: calc(var(--nav-h) + 60px); }                 /* (under the list: its 44 px, 8 px either side) */
+    .layer-bar { top: calc(var(--nav-h) + 60px); max-width: calc(100vw - 32px); }   /* (under the list: its 44 px, 8 px either side; the window's width, the tabs being in the list) */
     .layer-bar .layer-row, .layer-bar #climateTabs, .layer-bar #climateMore { display: none !important; }
     .layer-subbar select { min-height: 44px; }
     .legend-card { top: calc(var(--nav-h) + 108px); bottom: auto; left: 8px; right: 8px; width: auto; max-height: 28vh; }
