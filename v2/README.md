@@ -225,8 +225,9 @@ basin (or a full trapped sea's lowland) left without water drains whole: every
 pocket in it (a sub-basin behind its own sill, which the gorge from the basin's floor does not reach) gets its own gorge
 out from its lowest point. Drawn on the Terrain view as a flow map (hairlines, stronger for bigger
 rivers, seasonal ones dashed; a River Density choice; a Rivers & Lakes toggle; Colour by Regime with a legend; the readout
-names a river's discharge, regime and flood months, and a lake's kind). Measured (20K plates, desktop): 640K
-~8 s, 2.5M ~15 s, 10M ~53 s the first time (~40 s after: the mesh is kept), the browser ~3 GB above the page at 10M.
+names a river's discharge, regime and flood months, and a lake's kind). Measured on a desktop: 640K ~8 s (20K plates,
+before the geology, the food and the deposits); 2.5M ~44 s, 10M ~3 min the first time (~2.5 min after: the mesh is kept),
+the browser ~3 GB above the page at 10M (40K plates, plans/audits/PERFORMANCE_AUDIT.md, 2026-11-06).
 **Export** (on the timeline once the moment shown is finished; the panel every page shares, `js/view/export-panel.js`,
 this page's maps in `js/evolution/export.js`, PNG files by `js/view/png.js`, the ZIP by `js/view/zip.js`, the projections
 by `js/view/projections.js`): every map as Colour and / or as Data — the colour map as the Terrain view shows it (palette,

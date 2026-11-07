@@ -51,7 +51,7 @@ says it was made with the old ones.
 Found a moment you like? Press **Add detail**. It sculpts that moment again, much more finely: rivers and lakes
 (permanent, flooding each year or dry for months, fed by the moment's own rain), glaciers and fjords, sand seas, its own
 climate, and the Satellite, Geology and Food views. Its **Detail** is 160K, 640K, 2.5M (the default) or 10M cells
-(about a minute); phones go up to 640K. It takes from a few seconds to about a minute. Meanwhile a loading screen over
+(about three minutes); phones go up to 640K. It takes from a few seconds to a few minutes. Meanwhile a loading screen over
 the planet names each step as it comes (shaping the surface, working out the climate, carving the rivers, carving with
 the last ice age, mapping the rocks, finding the ore deposits, painting the picture…) with how far along it is; Cancel
 stays on the timeline.
