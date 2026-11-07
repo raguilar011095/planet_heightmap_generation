@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$CLAUDE_PROJECT_DIR/v2/tools/check-style.mjs\" --hook",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

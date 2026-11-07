@@ -41,12 +41,15 @@ mountLayerBar({ comes: 'Comes a few seconds after the planet',
 const inspectEl = $('debugLayer');
 
 const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: new URLSearchParams(location.search).get('gpu') !== '0', paletteKey: 'orogen.generate.palette',
+    band: { below: document.getElementById('info'), gap: 24 },
     onChange: viewChanged, alive: (fin) => fin === world?.fin,
     extraLines: (ctx, W, view) => drawPlateLines(ctx, W, view, world, { pending, hovered: hoveredPiece }),
     extraLinesKey: (view) => `${world?.version ?? 0}|${view.layer === 'plates'}|${[...pending].join(',')}|${hoveredPiece}`,
     infoText: (mode) => (IS_TOUCH ? 'Drag to rotate · Pinch to zoom · Use edit button to reshape' : `Drag to ${mode === 'map' ? 'move the map' : 'rotate'} · Scroll to zoom · Ctrl-click (⌘-click on a Mac) to reshape continents`) });
 const view = pv.view;
 if (IS_TOUCH) $('info').textContent = 'Drag to rotate · Pinch to zoom · Use edit button to reshape';
+// (a touch screen wider than a phone — a tablet — keeps the edit button too: styles.css body.touch)
+if (IS_TOUCH) document.body.classList.add('touch');
 console.info(`[generate] painting ${pv.gpu ? `on the GPU at ${pv.GPU_WIDTH} px` : 'on the CPU'}`);
 
 let world = null;            // the planet shown: its mesh, first picture, plates and edits, and its finished moment once done
@@ -97,7 +100,7 @@ function failed(message) {
     resetBuildButton();
     showBuildError(describeFailure(message), message);
 }
-function resetBuildButton() { const b = $('generate'); b.disabled = false; b.classList.remove('generating', 'stale', 'regen'); b.textContent = 'Build New World'; }
+function resetBuildButton() { const b = $('generate'); b.disabled = false; b.classList.remove('generating', 'stale', 'regen'); b.textContent = 'Build new world'; }
 
 /** A world from the worker: its first picture shown, its finish started. */
 function received(msg) {
@@ -115,6 +118,7 @@ function received(msg) {
     };
     if (kind === 'editDone' && old) { w.seed = old.seed; w.plateIsOcean = old.plateIsOcean; w.originalPlateIsOcean = old.originalPlateIsOcean; }
     world = w; building = null; dirty = true; hoveredPiece = -1;
+    pv.forget();                                         // (the old world's finished moment let go)
     if (pv.gpu) pv.gpu.setMesh(w.tMesh);
     resetBuildButton();
     hideBuildOverlay();
@@ -193,7 +197,7 @@ function tick(now) {
     requestAnimationFrame(tick);
     if (world && dirty) { dirty = false; paint(); }
     pv.updatePatch(now, world ? pv.shows(world.fin) : null, world?.fin, world?.seed);
-    pv.render();
+    pv.render(now);
 }
 requestAnimationFrame(tick);
 
@@ -209,7 +213,7 @@ function readout(e) {
     const { p, r } = at, w = world, piece = w.r_plate[r], isOcean = w.plateIsOcean.has(piece), isPending = pending.has(piece);
     setHovered(editing(e) ? piece : -1);
     const dot = `<span style="color:${isOcean ? '#4af' : '#6b3'}">●</span>`, action = IS_TOUCH ? 'Tap' : 'Ctrl-click', head = [];
-    head.push(isPending ? `${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${isOcean ? 'Land' : 'Ocean'}</b> <span style="color:#fa0">(pending)</span> · ${action} to undo`
+    head.push(isPending ? `${dot} <b>${isOcean ? 'Ocean' : 'Land'} → ${isOcean ? 'Land' : 'Ocean'}</b> <span style="color:var(--gold-ink)">(pending)</span> · ${action} to undo`
         : `${dot} <b>${isOcean ? 'Ocean' : 'Land'}</b> plate · ${action} to ${isOcean ? 'raise land' : 'flood'}`);
     const pr = w.present, pl = pr?.plates[pr.regionPlate[r]];
     if (pl) {
@@ -264,10 +268,10 @@ rebuildFab.addEventListener('click', () => {
     clearPending(); setHovered(-1);
     building = 'edit'; finisher.cancel();
     $('generate').disabled = true; $('generate').textContent = 'Building…'; $('generate').classList.add('generating');
-    pv.hover(['⏳ Rebuilding…']);
+    pv.hover(['Rebuilding…']);
     worker.postMessage({ cmd: 'editRecompute', plateIsOcean: [...world.plateIsOcean], ...sliders() });
 });
-$('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); if (!state.editMode) setHovered(-1); });
+$('editToggle')?.addEventListener('click', () => { state.editMode = !state.editMode; $('editToggle').classList.toggle('active', state.editMode); $('editToggle').setAttribute('aria-pressed', String(state.editMode)); if (!state.editMode) setHovered(-1); });
 
 // ── the sliders: their values, the stale build button, Reapply, the climate ──
 const sliderIds = ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc'], PLATE_SLIDERS = ['sP', 'sCn', 'sCsv', 'sLc'], SCULPT = ['sTw', 'sS', 'sGl', 'sHEr', 'sTEr', 'sRs'];
@@ -281,7 +285,7 @@ function checkStale() {
     btn.classList.remove('stale', 'regen');
     if (plateChanged) { btn.classList.add('regen'); btn.textContent = 'Regenerate'; }
     else if (detailChanged) { btn.classList.add('stale'); btn.textContent = 'Rebuild'; }
-    else btn.textContent = 'Build New World';
+    else btn.textContent = 'Build new world';
 }
 const reapplyBtn = $('reapplyBtn');
 for (const s of ['sN', 'sP', 'sCn', 'sJ', 'sNs', 'sCsv', 'sLc', ...SCULPT, 'sTmp', 'sPrc']) {
@@ -353,7 +357,7 @@ function setSlidersFrom(params) {
 function applyCode(code) {
     const params = decodePlanetCode(code);
     if (!params) {
-        seedInput.style.borderColor = '#c44'; seedError.classList.add('visible');
+        seedInput.style.borderColor = 'var(--ui-error)'; seedError.classList.add('visible');
         setTimeout(() => { seedInput.style.borderColor = ''; }, 1500);
         return;
     }

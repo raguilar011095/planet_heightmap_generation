@@ -1,5 +1,5 @@
-// Evolution — World Orogen's tectonic-history generator, a side page beside Generate and Import Heightmap
-// (plans/V2_FULL_PLANET_PLAN.md). Build New World runs the history in a worker and shows the planet AS IT BUILDS (each
+// Evolution — World Orogen's tectonic-history generator, a side page beside Generate and Import
+// (plans/V2_FULL_PLANET_PLAN.md). Build New world runs the history in a worker and shows the planet AS IT BUILDS (each
 // frame drawn as it arrives, rivers and all); then the whole history is a timeline to scrub and play. Three settings
 // (starting continent size, history length, where it should end) and two resolutions (plates, terrain) — "way way fewer
 // settings" than the lab (developer). The drawing is the lab's: a shaded equirectangular texture on a globe (fast to
@@ -26,6 +26,7 @@ import { FARMING_LAYERS } from './farming-view.js';
 import { FRAME_FIELDS } from '../terrain/terrain-pool.js';
 import { STAGES as FINISH_STAGES } from '../finish/finish.js';
 import { initEvolutionExport } from './export.js';
+import { createLoading } from './loading.js';
 import { savePlanet, planetBytes, openPlanet } from '../save/planet-file.js';
 import { PackedFrame } from '../tectonics/frame-pack.js';
 import { SMALL_DEVICE } from '../core/device.js';
@@ -126,9 +127,9 @@ document.addEventListener('click', e => {
     else if (tipFor) hideTip();
 }, true);
 $('sidebarContent').addEventListener('scroll', hideTip, { passive: true });
-ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); build(); });   // (New World: a new seed)
+ui.build.addEventListener('click', () => { ui.seed.value = String(randomSeed()); build(); });   // (New world: a new seed)
 $('rebuildBtn').addEventListener('click', () => build());                                                         // (Settings: this seed, these settings)
-// Load Planet…: a planet file saved from the Export panel (a phone's picker may not know .orogen: there it shows every file)
+// Load planet…: a planet file saved from the Export panel (a phone's picker may not know .orogen: there it shows every file)
 if (IS_TOUCH) $('loadFile').removeAttribute('accept');
 $('loadBtn').addEventListener('click', () => $('loadFile').click());
 $('loadFile').addEventListener('change', e => { const f = e.target.files[0]; e.target.value = ''; if (f) loadPlanet(f); });
@@ -166,6 +167,7 @@ ui.seed.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
 // bar over it (view/layer-bar.js), shared with Generate (plans/SHARED_CORE_PLAN.md U2) ──
 mountLayerBar();
 const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: url.get('gpu') !== '0', paletteKey: 'orogen.evolution.palette', onChange: viewChanged,
+    band: { below: $('timeline'), gap: 26, phones: true }, frameHidden: () => !B?.frames?.length || loading.showing,
     // (the Satellite view drawn ahead only for a moment still kept)
     alive: fin => !!B && [...B.finishes.values()].includes(fin) });
 const view = pv.view, gpu = pv.gpu;
@@ -179,6 +181,16 @@ function viewChanged(what) {
     if (what === 'layer') updateClimateUi();
 }
 const setLayer = layer => pv.setLayer(layer);
+// (the loading screen, for the waits with nothing to watch: loading.js; the first world's over nothing yet)
+const loading = createLoading($('buildOverlay'));
+let firstWorld = true;
+// (Add detail's stages, as the loading screen and the card say them)
+const STAGE_WORDS = { starting: 'Starting', mesh: 'Laying out the fine mesh', surface: 'Shaping the surface', climate: 'Working out the climate',
+    bedrock: 'Reading the bedrock', rivers: 'Carving the rivers', sediment: 'Settling the sediment', hillslopes: 'Wearing down the hillslopes',
+    'ice age': 'Carving with the last ice age', wind: 'Letting the wind work the land', sea: 'Letting in the sea', water: 'Filling the rivers and lakes',
+    detail: 'Drawing the fine detail', geology: 'Mapping the rocks', 'final climate': 'Working out the climate and the land’s cover',
+    deposits: 'Finding the ore deposits', farming: 'Weighing the land for farming', picture: 'Painting the picture' };
+const stageWords = s => STAGE_WORDS[s] ?? s;
 const climate = new ClimateService();   // the climate, on request, for the moment shown (climate-view.js)
 const finisher = new FinishService();   // the Finish step, on request, for the moment shown (finish-view.js)
 // (one detailed moment per history — its pictures, rivers and climate: ~50 MB on a phone, ~190 MB at 2.5M on a desktop,
@@ -213,6 +225,7 @@ function newWorld(o) {
 /** The world shown goes (its history's worker, its detail under way, its terrain's): another takes its place. */
 function leaveWorld() {
     $('loadNote').hidden = true;
+    loading.clear();                                       // (the old world's waits — Add detail, a terrain — go with it)
     if (B?.finishJob) finisher.cancel();
     B?.controller.abort();
     B?.player?.dispose();
@@ -226,7 +239,7 @@ function clearView(len, { play, label }) {
     setScale(len); ui.time.value = 0; rail();
     pv.blank();                                                                       // (the old world goes at once: a new one is starting)
     ui.timeLabel.textContent = label;
-    ui.play.innerHTML = play ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(play);
     ui.timeline.hidden = false;
     updateCard();
 }
@@ -241,11 +254,15 @@ async function build() {
     // (watching it build is playing it from the start, at the speed chosen — held at the newest moment built)
     clearView(len, { play: true, label: 'Starting…' });
     status(`Starting a world (seed ${seedShown()})…`, 0);
+    // (the loading screen until its first moment is drawn — then the history builds in view)
+    loading.show('start', { title: 'Starting a world', label: `Seed ${seedShown()} · laying out the plates…`, share: null, opaque: firstWorld });
+    firstWorld = false;
     if (IS_TOUCH) ui.panel.classList.add('collapsed');
     await new Promise(r => requestAnimationFrame(() => setTimeout(r, 0)));            // (let the status paint first)
     if (B !== b) return;
     try {
         b.simMesh = simMeshOf(simCells);
+        loading.update('start', { label: `Seed ${seedShown()} · building the start world…` });
         const meshReady = terrainMeshAsync(terrainCells);
         const run = runHistory({ list: 'terrain', scene: SCENE, ending, start: { continentalFraction: cont }, lengthMyr: len, keep: true }, b.simMesh, seed, SNAPSHOT_MYR,
             t => { if (B === b) progress(b, t); },
@@ -276,6 +293,7 @@ async function build() {
         b.error = err;
         b.problem = `Could not build this world: ${String(err.message).split('\n')[0]}. Try a lower Quality, or reload the page.`;
         status(`Could not build this world: ${err.message}`, null);
+        loading.hide('start');
         updateCard();
         console.error(err);
     }
@@ -393,7 +411,7 @@ async function replayHistory(b) {
         b.replay = null;
         if (differs) {
             b.noReplay = true;
-            b.doneText = `Run again in this browser, this history comes out otherwise from ${differs.time.toFixed(0)} Myr — another browser, or an earlier World Orogen, built it — so it is here to view, not to extend. Build This World builds it again here, to extend it.`;
+            b.doneText = `Run again in this browser, this history comes out otherwise from ${differs.time.toFixed(0)} Myr — another browser, or an earlier World Orogen, built it — so it is here to view, not to extend. Build this world builds it again here, to extend it.`;
             console.info(`[evolution] history run again: it differs from the file's at ${differs.time.toFixed(0)} Myr`);
         } else if (err.name !== 'AbortError') { b.doneText = `Could not run the history again: ${String(err.message).split('\n')[0]}`; console.error(err); }
         status(b.doneText, differs ? null : 1);
@@ -419,10 +437,13 @@ async function setTerrainDetail() {
     if (!b?.player || b.error) return;                          // (no world yet, or still starting: build() reads the setting)
     if (b.terrainCells === cells) {                              // (back to the detail shown: nothing to build)
         if (b.retexturing) { b.retexturing = null; if (b.doneText) status(b.doneText, 1); }
+        loading.hide('terrain');
         return;
     }
     b.retexturing = cells; b.retextureAt = performance.now();
     status(`Building the terrain at ${ui.terrain.selectedOptions[0].textContent.split(' ·')[0]}…`, null);
+    // (the loading screen until it is drawn — not over a history being built: that stays in view)
+    if (!b.live) loading.show('terrain', { title: 'Building the terrain', label: `At ${ui.terrain.selectedOptions[0].textContent.split(' ·')[0]}: the same history, drawn again…`, share: null });
     try {
         const tMesh = await terrainMeshAsync(cells);
         if (B !== b || b.retexturing !== cells) return;
@@ -430,8 +451,9 @@ async function setTerrainDetail() {
     } catch (err) {
         if (B === b) {
             b.retexturing = null;
-            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain Detail.`;
+            b.problem = `Could not build the terrain at this detail: ${String(err.message).split('\n')[0]}. Try a lower Terrain detail.`;
             status(`Could not build the terrain: ${err.message}`, null);
+            loading.hide('terrain');
             updateCard();
         }
         console.error(err);
@@ -440,13 +462,13 @@ async function setTerrainDetail() {
 
 // ── a planet file opened (plans/V2_SAVE_LOAD_PLAN.md): its history and its detailed moment as they were saved — the
 // plates exactly so, in any browser — their terrain, previews and pictures drawn again here, with today's code. The
-// history is to view, not to extend: the simulation that made it is not in the file (Build This World builds it again) ──
+// history is to view, not to extend: the simulation that made it is not in the file (Build this world builds it again) ──
 const mb = n => (n / 2 ** 20).toFixed(0);
 // (a phone holds a detailed moment of its own size — ~60 MB at 2048 px — not a desktop's 4096 or 8192 px ones)
 const DETAIL_BYTES = IS_TOUCH ? 150e6 : Infinity;
 async function loadPlanet(file) {
     const name = file.name || 'the planet file';
-    const refuse = why => { const text = `Could not open ${name}: ${why}`; status(text, null); $('loadNote').textContent = text; $('loadNote').hidden = false; };
+    const refuse = why => { const text = `Could not open ${name}: ${why}`; status(text, null); loading.hide('open'); $('loadNote').textContent = text; $('loadNote').hidden = false; };
     let planet;
     try { planet = await openPlanet(file); } catch (err) { refuse(String(err.message).split('\n')[0]); console.error(err); return; }
     const m = planet.manifest, s = m.settings;
@@ -464,9 +486,12 @@ async function loadPlanet(file) {
     $('customGroup').hidden = ui.quality.value !== 'custom';
     clearView(m.history.toMyr, { play: false, label: 'Opening…' });
     status(`Opening ${name}…`, 0);
+    // (the loading screen until its moment is drawn)
+    loading.show('open', { title: `Opening ${name}`, label: 'Reading the file…', share: 0, opaque: firstWorld });
+    firstWorld = false;
     if (IS_TOUCH) ui.panel.classList.add('collapsed');
     try {
-        const { mesh, frames, detail, detailNote, lacking } = await planet.read({ detail: withDetail, onProgress: (share, text) => { if (B === b) status(text, share); } });
+        const { mesh, frames, detail, detailNote, lacking } = await planet.read({ detail: withDetail, onProgress: (share, text) => { if (B === b) { status(text, share); loading.update('open', { label: text, share }); } } });
         if (B !== b) return;
         // (a file saved without the mesh's neighbours: the same mesh's, found again here)
         const near = mesh.adjOffset ? mesh : simMeshOf(mesh.numCells);
@@ -483,6 +508,7 @@ async function loadPlanet(file) {
             b.loadNote = detailNote ? `${detailNote} — add detail to see it again.` : `${name} holds this moment in detail, but at ${mb(planet.detailBytes)} MB it is more than a phone can show — add detail to see it at this device’s size.`;
         }
         status(`Building the terrain at ${ui.terrain.selectedOptions[0]?.textContent.split(' ·')[0] ?? terrainCells}…`, null);
+        loading.update('open', { label: `Building the terrain at ${ui.terrain.selectedOptions[0]?.textContent.split(' ·')[0] ?? terrainCells}…`, share: null });
         const tMesh = await terrainMeshAsync(terrainCells);
         if (B !== b) return;
         b.loading = false;
@@ -496,12 +522,14 @@ async function loadPlanet(file) {
         b.doneText = `Opened ${name} in ${secs.toFixed(0)} s — ${b.endMyr.toFixed(0)} Myr of history · ${b.steps} steps` + (detail ? `, detailed at ${shown.time.toFixed(0)} Myr` : '');
         console.info(`[evolution] opened ${name}: ${b.frames.length} frames, ${mb(planet.historyBytes)} MB of history + ${detail ? mb(planet.detailBytes) : 0} MB of detail in ${secs.toFixed(1)} s`);
         status(b.doneText, 1);
+        loading.update('open', { label: detail ? `Painting the detailed ${shown.time.toFixed(0)} Myr…` : `Painting ${shown.time.toFixed(0)} Myr…` });
         saveUrl(); labels(); updateCard(); dirty = true;
     } catch (err) {
         if (B !== b) return;
         b.loading = false; b.error = err;
         b.problem = `Could not open ${name}: ${String(err.message).split('\n')[0]}`;
         status(b.problem, null);
+        loading.hide('open');
         updateCard();
         console.error(err);
     }
@@ -571,12 +599,10 @@ function paint(frame, sharpTable = null, sharp = !!sharpTable) {
             } });
         if (!B.firstDrawn) { B.firstDrawn = true; console.info(`[evolution] first frame drawn at ${((performance.now() - B.started) / 1000).toFixed(1)} s`); }
     }
+    loading.hide('start'); loading.hide('open');
     painted = frame; paintedT = T; paintedMesh = B.tMesh; paintedSharp = sharp;
     updateClimateUi();
-    if (!fin && B.retexturing && B.retexturing === B.terrainCells) {
-        console.info(`[evolution] terrain at ${B.retexturing} cells drawn in ${((performance.now() - B.retextureAt) / 1000).toFixed(1)} s`);
-        B.retexturing = null; if (B.doneText) status(B.doneText, 1);
-    }
+    terrainDrawn();
     ui.timeLabel.textContent = `${frame.time.toFixed(0)} Myr`;
     rail();
     stats(T, frame);
@@ -585,6 +611,14 @@ function paint(frame, sharpTable = null, sharp = !!sharpTable) {
 /** The finished moment shown for a frame on the layer shown, if any (view/planet-view.js shows): on the height layers, and
  *  on the climate layers (a finish brings the moment's own climate) — or null. */
 const finishedShown = frame => (B ? pv.shows(B.finishes.get(frame)) : null);
+
+/** Terrain Detail's new terrain drawn (under a preview, or under a detailed moment's picture): its wait over. */
+function terrainDrawn() {
+    if (!B.retexturing || B.retexturing !== B.terrainCells) return;
+    console.info(`[evolution] terrain at ${B.retexturing} cells drawn in ${((performance.now() - B.retextureAt) / 1000).toFixed(1)} s`);
+    B.retexturing = null; if (B.doneText) status(B.doneText, 1);
+    loading.hide('terrain');
+}
 
 // ── the Finish step: on request, for the moment shown — kept per moment while the history is open ──
 const CANCEL_GRACE_MS = 600;
@@ -599,6 +633,7 @@ async function finishMoment(again = null) {
     const started = performance.now(), done = new Map(FINISH_STAGES);
     b.finishNote = null; b.finishOk = false;
     b.finishJob = { frame, cells, stage: 'starting', share: 0, startedAt: performance.now() };
+    loading.show('detail', { title: `Adding detail to ${frame.time.toFixed(0)} Myr`, label: 'Starting…', share: 0 });
     updateClimateUi();
     // (the terrain's fields, and the geological record for the rocks: geology/rocks.js — none from a history saved before
     // it was kept: its frames read the record as zeros, and the finish then makes no geology)
@@ -606,8 +641,8 @@ async function finishMoment(again = null) {
     slim.plates = frame.plates.map(p => p && { quat: p.quat });
     // (progress: the stages' shares so far, and the picture's own)
     let before = 0;
-    const onStage = s => { if (!b.finishJob) return; before = 0; for (const [k, v] of FINISH_STAGES) { if (k === s) break; before += v; } b.finishJob.stage = s; b.finishJob.share = before; updateClimateUi(); };
-    const onProgress = p => { if (b.finishJob) { b.finishJob.share = before + p * (done.get('picture') ?? 0.1); updateClimateUi(); } };
+    const onStage = s => { if (!b.finishJob) return; before = 0; for (const [k, v] of FINISH_STAGES) { if (k === s) break; before += v; } b.finishJob.stage = s; b.finishJob.share = before; loading.update('detail', { label: `${stageWords(s)}…`, share: before }); updateClimateUi(); };
+    const onProgress = p => { if (b.finishJob) { b.finishJob.share = before + p * (done.get('picture') ?? 0.1); loading.update('detail', { share: b.finishJob.share }); updateClimateUi(); } };
     try {
         const { simMesh } = b;
         const key = climateKey();
@@ -645,6 +680,7 @@ async function finishMoment(again = null) {
         if (err.name !== 'AbortError') console.error(err);
     } finally {
         b.player?.wake();
+        loading.hide('detail');
         if (B === b && b.finishJob?.frame === frame) { b.finishJob = null; dirty = true; updateClimateUi(); }
     }
 }
@@ -671,8 +707,8 @@ function updateCard() {
     }
     const t = frame ? frame.time.toFixed(0) : '', dt = detFrame?.time.toFixed(0), pct = job ? (100 * Math.min(1, job.share)).toFixed(0) : 0;
     // the one thing to do next: the card's button and the timeline's
-    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate, the Satellite view and its geology (seconds to a minute)';
-    if (job) { main = short = `Cancel · ${pct}%`; title = `Adding detail to ${job.frame.time.toFixed(0)} Myr (${job.stage}) — click to cancel`; }
+    let main = 'Add detail', short = main, title = 'Sculpt the moment shown again, in detail: its rivers, lakes and glaciers, its own climate, the Satellite view and its geology (seconds to a few minutes)';
+    if (job) { main = short = `Cancel · ${pct}%`; title = `Adding detail to ${job.frame.time.toFixed(0)} Myr (${stageWords(job.stage).toLowerCase()}) — click to cancel`; }
     else if (isDet) { main = short = 'Export'; title = 'Save this detailed moment as map files: heightmaps (the sea floor too), a land mask and the colour map'; }
     else if (detFrame) title = `Add detail to ${t} Myr — it replaces the detailed ${dt} Myr once it is done (one moment is kept in detail)`;
     for (const [btn, label] of [[$('cardAction'), main], [$('timelineAction'), short]]) {
@@ -687,10 +723,13 @@ function updateCard() {
     for (const el of [$('cardBadge'), $('momentBadge')]) {
         if (showIf(el, !!badge)) { el.textContent = badge; el.classList.toggle('detailed', isDet); }
     }
-    $('cardTitle').textContent = frame ? `${t} Myr` : b?.loading ? 'Opening…' : 'Starting…';
+    // (before its first moment: a planet file opening, until it is drawn; a world starting; or either failed — the note
+    // below says why)
+    const failed = !!b?.error, opening = !!b?.opened && !failed;
+    $('cardTitle').textContent = frame ? `${t} Myr` : failed ? (b.opened ? 'Could not open' : 'Could not start') : opening ? 'Opening…' : 'Starting…';
     const computing = !!b?.live && !b.going;
-    $('cardText').textContent = !frame ? (b?.loading ? 'Opening a planet file…' : b?.problem ? '' : 'A new world is starting…')
-        : job ? `Adding detail to ${job.frame.time.toFixed(0)} Myr: ${job.stage}…`
+    $('cardText').textContent = !frame ? (b?.problem ? '' : opening ? 'Opening a planet file…' : 'A new world is starting…')
+        : job ? `Adding detail to ${job.frame.time.toFixed(0)} Myr: ${stageWords(job.stage).toLowerCase()}…`
         : isDet ? 'This moment, sculpted in detail. Look around — Satellite, Climate and Geology show it at its detail — then export it as map files.'
         : playing ? (computing ? 'Computing the history — scrub through any of it as it fills in. Pause on a moment you like, then add detail.' : 'Pause on a moment you like, then add detail.')
         : 'This is a preview. Add detail sculpts it again, finely: rivers and lakes, glaciers, its own climate, the Satellite view and its geology — ready to export.';
@@ -729,11 +768,11 @@ function updateCard() {
     // Satellite and Geology come with detail: their tabs locked on previews
     const satOk = !!(frame && b?.finishes.get(frame)?.climate?.raster?.sat), geoOk = !!(frame && b?.finishes.get(frame)?.raster.geology), farmOk = !!(frame && b?.finishes.get(frame));
     document.querySelector('#mapTabs [data-layer="satellite"]').classList.toggle('locked', !satOk);
-    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite 🔒';
+    $('mobileViewSwitch').querySelector('option[value="satellite"]').textContent = satOk ? 'Satellite' : 'Satellite (with detail)';
     document.querySelector('#mapTabs [data-layer="geology"]').classList.toggle('locked', !geoOk);
-    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology 🔒';
+    $('mobileGeology').label = geoOk ? 'Geology' : 'Geology (with detail)';
     document.querySelector('#mapTabs [data-layer="farming"]').classList.toggle('locked', !farmOk);
-    $('mobileFarming').label = farmOk ? 'Food' : 'Food 🔒';
+    $('mobileFarming').label = farmOk ? 'Food' : 'Food (with detail)';
     pv.syncLegendCard(isDet);
 }
 /** The card's and the timeline's button: Cancel while adding detail; Export on the detailed moment; else Add detail. */
@@ -820,7 +859,7 @@ function updateClimateUi() {
     const chip = $('climateChip'), shown = frame ? finishedShown(frame) : null, t = frame ? frame.time.toFixed(0) : '';
     let text = null, act = null;
     if (frame && GEOLOGY_LAYERS.has(view.layer) && b.noGeology) {
-        text = 'This planet was saved before Evolution kept a record of its rocks — Build This World (under World) builds its history again with one, to see its geology';
+        text = 'This planet was saved before Evolution kept a record of its rocks — Build this world (under World) builds its history again with one, to see its geology';
     } else if (frame && (view.layer === 'satellite' || GEOLOGY_LAYERS.has(view.layer) || FARMING_LAYERS.has(view.layer)) && !shown) {
         const fjob = b.finishJob, again = !!fin && GEOLOGY_LAYERS.has(view.layer);
         const what = view.layer === 'satellite' ? 'Satellite view comes' : GEOLOGY_LAYERS.has(view.layer) ? 'Geology views come' : 'Food views come';
@@ -873,21 +912,26 @@ function tick(now) {
                     const tries = (b.drawFailed?.frame === frame ? b.drawFailed.tries : 0) + 1;
                     b.drawFailed = { frame, tries, retryAt: performance.now() + (tries >= 3 ? Infinity : 2000 * tries) };
                     b.problem = `Could not draw ${frame.time.toFixed(0)} Myr: ${String(err.message).split('\n')[0]}` +
-                        (tries >= 3 ? '. Try a lower Terrain Detail, or reload the page.' : ' — trying again…');
+                        (tries >= 3 ? '. Try a lower Terrain detail, or reload the page.' : ' — trying again…');
                     updateCard();
                 })
                 .finally(() => { if (preparing === p) preparing = null; dirty = true; });
         }
     }
     pv.updatePatch(now, painted && !playing ? finishedShown(painted) : null, detailedOf(B)?.[1], B?.seed);
-    pv.render();
+    pv.render(now);
 }
 requestAnimationFrame(tick);
 
 // ── the timeline ──
+/** The play button: the line icon and the name of what a press does (Pause while playing, else Play). */
+function showPlaying(on) {
+    ui.play.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="${on ? 'M9 6v12M15 6v12' : 'M8 5.5v13l10.5-6.5z'}"/></svg>`;
+    ui.play.setAttribute('aria-label', on ? 'Pause' : 'Play');
+}
 function setPlaying(on) {
     playing = on;
-    ui.play.innerHTML = on ? '&#x23F8;' : '&#x25B6;';
+    showPlaying(on);
     if (on && !B.live && playTime >= builtTo()) playTime = 0;                      // (at the end: from the start again)
     updateClimateUi();
 }
@@ -992,7 +1036,7 @@ $('sidebarToggle').addEventListener('click', () => { ui.panel.classList.toggle('
         steps.forEach((s, k) => s.classList.toggle('active', k === i));
         dots.forEach((d, k) => d.classList.toggle('active', k === i));
         $('tutorialBack').disabled = i === 0;
-        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get Started' : 'Next';
+        $('tutorialNext').textContent = i === steps.length - 1 ? 'Get started' : 'Next';
         $('tutorialCard').scrollTop = 0;     // (a card taller than the screen scrolls: each step from its top)
     };
     const open = () => { show(0); overlay.classList.remove('hidden'); };

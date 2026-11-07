@@ -31,15 +31,15 @@ the developer before the next begins.**
 ## Running it
 
 **Evolution** (`/evolution`, `evolution.html`) is the product page built on this engine — a side generator beside V1's
-Generate and Import Heightmap. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New World** (a new seed),
+Generate and Import. Its layout (plans/V2_EVOLUTION_UI_PLAN.md): the sidebar holds **New world** (a new seed),
 the **World** section — folded to a one-line summary once a history is building: the seed (a number from 0 to
-2,147,483,645 — New World draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
+2,147,483,645 — New world draws one — or any word or phrase, hashed into that range: `js/core/seed.js`; a number reads as
 it always did, so a link shared before builds its world again), starting continent size,
 history length, ending, the planet's **Temperature** (−30…+30 W/m²) and **Precipitation** (±50 %) — the climate's
 options (`greenhouseWm2`: a radiative forcing in the energy balance; `precipScale`: the evaporation in the rain budget — so the ice, winds, currents and rain answer them), for the preview climate and Add detail alike; they change the climate only, so
 previews are worked out again when shown and a detailed moment says it was made with the old ones (in the link: `greenhouse=`,
 `rain=`) — and **Quality** (Fast 20K plates / 160K terrain · Balanced 40K / 160K · Best 80K / 640K · Custom,
-which shows the two resolutions), with Build This World and **Load Planet…** (a planet file saved from the Export panel —
+which shows the two resolutions), with Build this world and **Load planet…** (a planet file saved from the Export panel —
 or drop one anywhere on the page) — then the **context card**, and **Stats**. The view's
 settings sit in the **view strip** above the layer tabs, folded behind the arrow at their left (`js/view-strip.js`, shared with Generate and Import): Globe |
 Map, the map's projection and centre, auto-rotate, grid, terrain colours, hillshade, and on a detailed moment the
@@ -225,8 +225,9 @@ basin (or a full trapped sea's lowland) left without water drains whole: every
 pocket in it (a sub-basin behind its own sill, which the gorge from the basin's floor does not reach) gets its own gorge
 out from its lowest point. Drawn on the Terrain view as a flow map (hairlines, stronger for bigger
 rivers, seasonal ones dashed; a River Density choice; a Rivers & Lakes toggle; Colour by Regime with a legend; the readout
-names a river's discharge, regime and flood months, and a lake's kind). Measured (20K plates, desktop): 640K
-~8 s, 2.5M ~15 s, 10M ~53 s the first time (~40 s after: the mesh is kept), the browser ~3 GB above the page at 10M.
+names a river's discharge, regime and flood months, and a lake's kind). Measured on a desktop: 640K ~8 s (20K plates,
+before the geology, the food and the deposits); 2.5M ~44 s, 10M ~3 min the first time (~2.5 min after: the mesh is kept),
+the browser ~3 GB above the page at 10M (40K plates, plans/audits/PERFORMANCE_AUDIT.md, 2026-11-06).
 **Export** (on the timeline once the moment shown is finished; the panel every page shares, `js/view/export-panel.js`,
 this page's maps in `js/evolution/export.js`, PNG files by `js/view/png.js`, the ZIP by `js/view/zip.js`, the projections
 by `js/view/projections.js`): every map as Colour and / or as Data — the colour map as the Terrain view shows it (palette,
@@ -235,7 +236,7 @@ the Köppen climate zones in their own colours, unshaded, and as a class index; 
 samplers, finishedClimateColor and finishedClimateValue) as colour and as a 16-bit greyscale on a fixed scale
 (export-raster.js DATA_SCALES); a 16-bit heightmap with the sea floor on a fixed scale (black −11 km, white +9 km — the
 same shade the same height on every planet); a 16-bit land heightmap (the sea black, land 0…+9 km; re-imports on the
-Import Heightmap page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
+Import page, which reads white as 6 km); a land mask; a hillshade; and the rivers and lakes alone on a transparent
 ground (the Terrain view's density and colouring). And the geology's, a Geology group (`js/evolution/geology-export.js`): the
 Rocks map (as data, each pixel's rock type, 8-bit, the README listing them), the Deposits map as shown (as data, a richness
 mask per metal, mineral and fuel: 8-bit, 0 none … 255 the richest, the sea black but for oil and gas on the shelf), each

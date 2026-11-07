@@ -8,6 +8,8 @@
 
 import { PROJECTIONS } from '../v2/js/view/projections.js';
 import { renderProjectionOptions } from '../v2/js/view/export-panel.js';
+import { wireSpaceToggle } from './stage.js';
+import { onOpenArea } from './open-area.js';
 
 const OPEN_KEY = 'orogen.view-strip-open';
 // (one projection for the three pages; Evolution's own key, from before they shared it, read when there is none)
@@ -52,6 +54,7 @@ export function initViewStrip() {
     });
     mode.addEventListener('change', sync);
     sync();
+    wireSpaceToggle();
     // (folded until opened)
     const fold = document.getElementById('viewFold');
     if (fold) {
@@ -71,21 +74,26 @@ export function initViewStrip() {
         });
     }
     const narrow = matchMedia('(max-width: 768px)');
-    // (beside an open sidebar — a narrow window, a tablet — the bar moves right just enough to clear it, as far as the
-    // room before the help button allows; centred over the planet otherwise)
+    // (centred over the planet, js/open-area.js; if that still runs under the sidebar, open or folded — a narrow window, a
+    // tablet — or under the help button, it moves just enough to clear them: its room between them, the arrow at its
+    // left included, is its max-width in styles.css, so both can hold)
     const bar = document.getElementById('layerBar'), panel = document.getElementById('ui'), help = document.getElementById('helpBtn');
     if (bar && panel && typeof ResizeObserver !== 'undefined') {
         const clear = () => {
             bar.style.removeProperty('--bar-shift');
             if (narrow.matches) return;
-            const b = bar.getBoundingClientRect(), want = panel.getBoundingClientRect().right + 8 - b.left;
-            if (want <= 0) return;
-            const room = (help?.checkVisibility?.() ? help.getBoundingClientRect().left : innerWidth) - 8 - b.right;
-            bar.style.setProperty('--bar-shift', `${Math.max(0, Math.min(want, room))}px`);
+            const b = bar.getBoundingClientRect(), f = fold?.getBoundingClientRect();
+            const left = f?.width ? Math.min(b.left, f.left) : b.left;
+            const lo = panel.getBoundingClientRect().right + 8 - left;
+            const hi = (help?.checkVisibility?.() ? help.getBoundingClientRect().left : innerWidth) - 8 - b.right;
+            // (the least move that clears both; where there is no such room, the panel kept clear)
+            const shift = lo > hi ? lo : Math.min(Math.max(0, lo), hi);
+            if (shift) bar.style.setProperty('--bar-shift', `${shift}px`);
         };
         const watch = new ResizeObserver(clear);
         watch.observe(bar); watch.observe(panel);
         addEventListener('resize', clear);
+        onOpenArea(clear);                                 // (the bar moves with the planet: js/open-area.js)
     }
     // (a phone: at the top of the bottom sheet; wider: back where the page put it)
     const slot = document.getElementById('viewStripSlot'), home = strip.parentElement, after = strip.nextElementSibling;

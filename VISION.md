@@ -16,7 +16,7 @@ carries a short public version. When a change would contradict something here, f
   ancient shields. Evolution simulates the history instead. It automates the hand methods of the worldbuilding guides
   (Worldbuilding Pasta's GPlates workflow; Madeline James's rocks, ores and food). From that history come the land, its
   climate, its rocks and what it can feed. The test became *does it hold up when you look closer, and does it make sense?*
-- **The Studio.** Generate, Import Heightmap and Evolution became separate ways into the same idea, under one home page.
+- **The Studio.** Generate, Import and Evolution became separate ways into the same idea, under one home page.
 
 Orogen is now beyond concept art, but it keeps concept art's instinct: the output has to look good first.
 
@@ -68,7 +68,7 @@ Weigh all three together. When they conflict, break ties in this order:
 Each tool is a different way into a believable world. They are equals in the long run, even when one gets most of the
 attention for a while. Today that is Evolution, and the others are brought up to the same completeness later.
 
-| | **Generate** | **Import Heightmap** | **Evolution** |
+| | **Generate** | **Import** | **Evolution** |
 |---|---|---|---|
 | The way in | A planet in seconds, shaped by hand | Your own landmass, its climate | A planet with a past |
 | Optimises for | Speed and fast iteration | Showing how a drawn or real world would behave | Depth and cause; science weighs a little more here |

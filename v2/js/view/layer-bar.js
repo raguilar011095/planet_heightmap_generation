@@ -18,7 +18,7 @@ export const CLIMATE_SUB = new Set([...CLIMATE_LAYERS].filter(l => !FINISHED_ONL
 const esc = s => String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
 const opt = (value, label, selected = false) => `<option value="${value}"${selected ? ' selected' : ''}>${esc(label)}</option>`;
 const CLIMATE_MORE = [['Atmosphere', [['pressure', 'Pressure']]], ['Ocean', [['upwelling', 'Upwelling'], ['ice', 'Ice']]],
-    ['Land', [['tempRange', 'Temperature Range'], ['rainShadow', 'Rain Shadow'], ['aridity', 'Aridity'], ['growing', 'Growing Season'], ['rainSeason', 'Rain Seasonality']]]];
+    ['Land', [['tempRange', 'Temperature range'], ['rainShadow', 'Rain shadow'], ['aridity', 'Aridity'], ['growing', 'Growing season'], ['rainSeason', 'Rain seasonality']]]];
 const DEPOSIT_KINDS = [['metal', 'from the history'], ['mineral', 'climate and rivers'], ['fuel', 'fuel'], ['stone', 'stone'], ['gem', 'gems'], ['building', 'building stone']];
 
 /** The Deposits view's menu: everything, each metal or fuel, each kind of deposit by how it formed — from their lists. */
@@ -44,8 +44,9 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
             </select>
             <span class="vs-item" id="mapProjectionGroup" data-view="map" title="The map's shape: equirectangular (the plain 2 : 1 map), Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, the globe as two hemispheres, an azimuthal (polar) map, or Van der Grinten's world in a circle. Each has its own options; the export offers the same"><label for="mapProjection">Projection</label> <select id="mapProjection"></select><span id="mapProjOpts" class="xp-proj-opts" hidden></span></span>
             <label class="vs-item" id="mapCenterLonGroup" data-view="map">Centre <input type="range" id="sMapCenterLon" min="-180" max="180" value="0" step="5" aria-label="Centre longitude"><span class="v" id="vMapCenterLon">0&deg;</span></label>
-            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-Rotate</label>
-            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid Lines</label>
+            <label class="toggle-label" data-view="globe"><input type="checkbox" id="chkRotate"><span class="toggle-track"><span class="toggle-thumb"></span></span>Auto-rotate</label>
+            <label class="toggle-label" data-view="globe" title="The globe in space, with stars, instead of on the page"><input type="checkbox" id="chkSpace"><span class="toggle-track"><span class="toggle-thumb"></span></span>Stars</label>
+            <label class="toggle-label"><input type="checkbox" id="chkGrid" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Grid lines</label>
             <span class="vs-item" id="gridSpacingGroup"><select id="gridSpacing" aria-label="Grid spacing">
                 <option value="30">30&deg;</option>
                 <option value="15" selected>15&deg;</option>
@@ -59,7 +60,7 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
             <option value="topographic">Topographic</option>
             <option value="natural">Natural</option>
             <option value="swiss">Swiss</option>
-            <option value="school">School Atlas</option>
+            <option value="school">School atlas</option>
             <option value="etopo">ETOPO</option>
             <option value="dem">DEM</option>
             <option value="scientific">Scientific</option>
@@ -78,8 +79,8 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
             <label class="toggle-label" title="Shade the planet by its relief, lit from the north-west. Off, every view is flat colour, the mountains shown by their colours alone and no sun glinting on the sea (a texture to light in a 3D program; the export has its own Hillshade switch)"><input type="checkbox" id="chkShade" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Hillshade</label>
             <label class="toggle-label" title="Clouds over the planet, from its climate — more where it rains, fewer under the dry highs — drifting slowly with the winds. On the Satellite view; the export has a Clouds layer and Satellite with clouds"><input type="checkbox" id="chkClouds" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Clouds</label>
             <span class="vs-item" id="waterGroup">
-                <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; Lakes</label>
-                <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By Regime</label>
+                <label class="toggle-label"><input type="checkbox" id="chkWater" checked><span class="toggle-track"><span class="toggle-thumb"></span></span>Rivers &amp; lakes</label>
+                <label class="toggle-label" id="regimeRow" title="Colour the rivers by their year — each month's rain and snowmelt, run down the rivers: blue, permanent; violet, permanent with a yearly flood season (the Nile's, from rains far upstream; a snowmelt flood); cyan, seasonal — dry some months; brown, dry most of the year. Hover a river for its flood months"><input type="checkbox" id="chkRegime"><span class="toggle-track"><span class="toggle-thumb"></span></span>By regime</label>
                 <span class="vs-item" id="riverDensityGroup" title="Which rivers are drawn, by how much water they carry: Few — 150 m³/s and more; Normal — 40 m³/s; Many — 8 m³/s. The bigger a river, the stronger its line; seasonal rivers are dashed, and those dry most of the year dotted"><select id="riverDensity">
                 <option value="150">Few</option>
                 <option value="40" selected>Normal</option>
@@ -93,7 +94,7 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
                 <button class="map-tab active" data-layer="terrain">Terrain</button>
                 <button class="map-tab" data-layer="satellite" title="The planet as from space: each climate's colours climbing with the land to rock and snow, rivers and fresh lakes greening dry country, snow and ice from its climate, its clouds from its climate too (the Clouds toggle hides them), for the year, January or July. ${esc(comes)}">Satellite</button>
                 <button class="map-tab" data-layer="climate" title="The moment's climate: Köppen zones, temperature, rain, winds and currents — and under More, pressure, upwelling, ice, aridity and more">Climate</button>
-                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. ${esc(comes)}. In beta">Geology</button>
+                <button class="map-tab" data-layer="geology" title="What the history left in the rock: its rocks, its ore, fuel and mineral deposits and what each technological age could reach. ${esc(comes)}">Geology</button>
                 <button class="map-tab" data-layer="farming" title="What the land could feed, and how its people would live: farmland — soil × ground × growing season, by rain alone or with water brought by flood farming and canals, terraces and raised fields — each place's staple food, whether its people would farm, herd or gather, and how many it could feed. ${esc(comes)}. In beta">Food</button>
                 <button class="map-tab" data-layer="heightmap">Heightmap</button>
                 <button class="map-tab" data-layer="plates"${platesTip ? ` title="${esc(platesTip)}"` : ''}>Plates</button>
@@ -115,7 +116,6 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
                 <button class="map-tab" data-layer="geoRocks" title="What the land is made of at the surface: sediment and sedimentary rock, volcanic rock, granite, metamorphic rock and the ancient shields — from the history's rock record">Rocks</button>
                 <button class="map-tab" data-layer="geoDeposits" title="Where the ores, fuels and minerals lie — each system from the history's arcs, belts, basins, plumes and cratons, and from the climate and the rivers: poor, moderate or rich">Deposits</button>
                 <button class="map-tab" data-layer="geoAges" title="What a people of each technological age could reach — Stone, Copper, Bronze, Iron, Industrial — and fuel, gems and building stone: each one's resources, poor to rich, and where bronze or iron could be made">Ages</button>
-                <span class="evo-beta">Beta</span>
             </div>
             <select id="depositPick" aria-label="Which deposits" title="Which deposits: all the metals and minerals together (each place its richest), one metal or fuel alone — or a kind of deposit, by how it formed" hidden>${depositOptions()}</select>
             <select id="agePick" aria-label="Age" title="The technological age: what its people could reach — deeper and poorer ore as technology grows" hidden>${AGES.map(a => opt(a.id, a.name, a.id === 'bronze')).join('')}</select>
@@ -146,6 +146,8 @@ export function mountLayerBar({ comes = 'Comes with Add detail', platesTip = '',
         <optgroup id="mobileFarming" label="Food">${[['farmLand', 'Farmland'], ['farmStaple', 'Staple food'], ['farmLife', 'Lifestyle'], ['farmPeople', 'People'], ['farmSoil', 'Soil'], ['farmSeason', 'Growing season']].map(([v, l]) => opt(v, l)).join('')}</optgroup>
         <optgroup label="Climate: more">${CLIMATE_MORE.flatMap(([, list]) => list).map(([v, l]) => opt(v, l)).join('')}</optgroup>`;
     $('legendCard').innerHTML = '<div id="climateLegend" class="viz-legend"></div><div id="regimeLegend" class="evo-koppen evo-regime-legend" hidden></div>';
+    // (the tabs say which is shown: aria-pressed, kept by LayerBar.setLayer)
+    for (const b of document.querySelectorAll('#layerBar .map-tab')) { b.type = 'button'; b.setAttribute('aria-pressed', String(b.classList.contains('active'))); }
     // (the layers a page has nothing for — an imported heightmap has no plates and no history for its rocks: `without`)
     for (const id of without) {
         document.querySelector(`#mapTabs [data-layer="${id}"]`)?.remove();
@@ -199,8 +201,9 @@ export class LayerBar {
         if (geo) last.geology = layer;
         if (farm) last.farming = layer;
         this.view.layer = layer;
-        for (const b of document.querySelectorAll('#mapTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
-        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) b.classList.toggle('active', b.dataset.layer === layer);
+        const press = (b, on) => { b.classList.toggle('active', on); b.setAttribute('aria-pressed', String(on)); };
+        for (const b of document.querySelectorAll('#mapTabs .map-tab')) press(b, b.dataset.layer === layer || (b.dataset.layer === 'climate' && CLIMATE_SUB.has(layer)) || (b.dataset.layer === 'geology' && geo) || (b.dataset.layer === 'farming' && farm));
+        for (const b of document.querySelectorAll('#climateTabs .map-tab, #geologyTabs .map-tab, #farmingTabs .map-tab')) press(b, b.dataset.layer === layer);
         const more = $('climateMore'), inMore = !!more.querySelector(`option[value="${layer}"]`);
         more.value = inMore ? layer : ''; more.classList.toggle('active', inMore);
         $('mobileViewSwitch').value = layer;

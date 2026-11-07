@@ -11,22 +11,22 @@ The view (the layer tabs, the map projections), the climate and the export panel
 
 ## Building a planet
 
-Click **Build New World** to create a new random planet. The button changes color and label based on what you've adjusted:
-- **Build New World** (blue) — generates a fresh planet with a new random seed
-- **Rebuild** (amber) — re-renders the current planet at a new detail/roughness level without changing continent shapes
-- **Regenerate** (red) — creates new tectonic plates when the Plates or Continents slider has changed
+Click **Build new world** to create a new random planet. The button's label says what it will do, from what you've adjusted:
+- **Build new world** — generates a fresh planet with a new random seed
+- **Rebuild** — re-renders the current planet at a new detail/roughness level without changing continent shapes
+- **Regenerate** — creates new tectonic plates when the Plates or Continents slider has changed
 
 ## Sharing planets
 
 Every generated planet produces a **planet code** (shown below the Build button) that encodes the random seed, all slider values, and any plate edits. The seed is one of 2,147,483,646 (0 to 2,147,483,645: each its own world — the seeded generator's every starting state; before 2026-10 new planets drew from the first 16.7 million, whose codes read as they always did). An unedited planet is 22 characters; plate edits (applied via Rebuild) extend the code to include the toggled plates. Older codes (13–21 characters) from previous versions are still supported — missing sliders default to their current default values. To share a planet:
 
 - **Copy** the code with the copy button and send it to someone
-- **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button turns blue when a new code is ready to apply.
+- **Load** a code by pasting it into the planet code field and clicking Load (or pressing Enter). The Load button lights up in the accent when a new code is ready to apply.
 - **URL sharing** — the code is also stored in the URL hash (e.g. `#a7f3kq9xp2b`), so you can share the full URL directly (`orogen.studio/generate#…`; a link from before Generate moved there, `orogen.studio/#…`, is sent on to it by the home page). Opening a URL with a valid hash auto-loads that planet, including any plate edits.
 
 ## Controls
 
-### Shape Your World
+### Shape your world
 
 Core world parameters that control the planet's structure (changing these requires a full rebuild):
 
@@ -37,10 +37,10 @@ Core world parameters that control the planet's structure (changing these requir
 | Plates | 4 – 120 | 80 | Number of tectonic plates |
 | Continents | 1 – 10 | 4 | Target number of separate landmasses |
 | Roughness | 0 – 0.5 | 0.40 | Fractal noise magnitude for terrain roughness |
-| Continent Size Variety | 0 – 1 | 0.35 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
-| Land Coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create large continents whose interiors, far from the sea, are drier |
+| Continent size variety | 0 – 1 | 0.35 | How much continent sizes vary — 0 keeps continents similar in size, 1 allows a mix of large and small landmasses |
+| Land coverage | 0 – 1 | 0.3 | Percentage of the planet covered by land. Low values create ocean worlds, high values create large continents whose interiors, far from the sea, are drier |
 
-### Terrain Sculpting
+### Terrain sculpting
 
 Knobs on the ground drawn from the present-day world (collapsed by default). They do not rebuild the world: adjusting any
 slider lights up **Reapply**, which draws the ground again from the same plates and past, then finishes it again. At their
@@ -48,14 +48,14 @@ defaults the ground is drawn exactly as Evolution draws its own (`v2/js/present/
 
 | Control | Range | Default | What it scales |
 |---------|-------|---------|-------------|
-| Terrain Warp | 0 – 1 | 0.75 | How far the records are read off-place: the organic wander of coasts and belts |
+| Terrain warp | 0 – 1 | 0.75 | How far the records are read off-place: the organic wander of coasts and belts |
 | Smoothing | 0 – 1 | 0.10 | Wear: crests spread wider and lower (the same bulk) |
-| Glacial Erosion | 0 – 1 | 0.50 | How far fjords reach up their valleys (the finish's ice age carves its own) |
-| Hydraulic Erosion | 0 – 1 | 0.50 | How long the rivers work: the first picture's carve and the finish's, by the climate's runoff |
-| Thermal Erosion | 0 – 1 | 0.10 | The valley sides' critical slope: more, gentler talus-softened slopes |
-| Ridge Sharpening | 0 – 1 | 0.50 | The parallel ridges, the ridge noise and the crests' ruggedness |
+| Glacial erosion | 0 – 1 | 0.50 | How far fjords reach up their valleys (the finish's ice age carves its own) |
+| Hydraulic erosion | 0 – 1 | 0.50 | How long the rivers work: the first picture's carve and the finish's, by the climate's runoff |
+| Thermal erosion | 0 – 1 | 0.10 | The valley sides' critical slope: more, gentler talus-softened slopes |
+| Ridge sharpening | 0 – 1 | 0.50 | The parallel ridges, the ridge noise and the crests' ruggedness |
 
-Roughness (in Shape Your World) scales the hills, the coast's bays and the fine relief.
+Roughness (in Shape your world) scales the hills, the coast's bays and the fine relief.
 
 ### Climate
 
@@ -74,7 +74,7 @@ Mountain belts by age, Cratons. **None** returns to the tab shown.
 
 ## Tutorial & Help
 
-A five-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, visualization, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get Started" button on the final step.
+A five-step tutorial modal introduces the tool on first visit (auto-shown via `localStorage`). It covers planet generation, slider controls, interactive editing, visualization, saving/sharing via planet codes, and map export. A **?** help button in the top-right corner reopens the tutorial at any time. The modal can be dismissed with the close button, backdrop click, Escape key, or the "Get started" button on the final step.
 
 A **What's New** modal is shown once per release to returning users (those who have already dismissed the tutorial). It highlights new features, changes, and a heads-up when saved links, planet codes or planet files give a different world, with the address where the previous version still opens them. The modal uses a versioned `localStorage` flag (`wo-whatsnew-seen`) — bump the `VERSION` constant in `whatsNew()` (`js/main.js`) to trigger it again on the next release.
 
@@ -105,11 +105,11 @@ Generate is fully usable on phones and tablets:
 
 - **Bottom-sheet sidebar** — on screens 768px or narrower, the sidebar becomes a bottom sheet with a drag handle. Drag or tap the handle to expand/collapse. The globe stays visible above.
 - **Pinch-to-zoom** — two-finger pinch zooms the globe and map.
-- **View switcher** — the layer list (top-right) holds every view: Terrain, Satellite, Heightmap, Plates, the climate's, Geology's and Food's; the Geology pickers stay under it.
-- **Edit-mode toggle** — a floating pencil button (bottom-right) activates plate editing. Tap it to toggle edit mode (glows green when active), then tap pieces to mark them. Tap the Rebuild button to apply all changes at once.
+- **View switcher** — the layer list (top-left, across to the help button) holds every view: Terrain, Satellite, Heightmap, Plates, the climate's, Geology's and Food's; the Geology pickers stay under it.
+- **Edit-mode toggle** — a floating pencil button (bottom-right on a phone; on a wider touch screen, a tablet, under the help button) activates plate editing. Tap it to toggle edit mode (it fills with the accent colour when active), then tap pieces to mark them. Tap the Rebuild button to apply all changes at once.
 - **Touch-friendly targets** — buttons, chips, pickers and sliders are 44 px or more.
 - **Performance** — detail warning thresholds are lowered on touch devices (orange at 200K, red at 500K); the finished picture is 2048 px wide; export widths above 4096 px are off.
-- **Tooltips** reposition above their trigger instead of to the right, so they stay on screen.
+- **Tips** — a tap on a **?** opens its words above it, kept on the screen (a tap elsewhere closes them); the **?** takes a finger's 44 px.
 
 ## What it builds
 
@@ -164,7 +164,7 @@ finish (plans/GENERATE_REDESIGN_PLAN.md, plans/SHARED_CORE_PLAN.md):
 
 ## Code
 
-Generate and Import Heightmap live in `js/` (the climate they run is `v2/js/climate/`; Generate's present-day world is
+Generate and Import live in `js/` (the climate they run is `v2/js/climate/`; Generate's present-day world is
 `v2/js/present/`, listed in `v2/README.md`):
 
 ```
@@ -173,11 +173,15 @@ js/
                         the first picture, Evolution's finish in the background, on Evolution's planet view, layer bar and
                         export (v2/js/view/planet-view.js, layer-bar.js; v2/js/evolution/export.js); its own: the sliders,
                         the planet code, the plate edits, the build overlay, the tutorial and What's New
-  import-main.js        Import Heightmap's page, on the shared core: the image's heights as the first picture, Evolution's
+  import-main.js        Import's page, on the shared core: the image's heights as the first picture, Evolution's
                         finish in the background (its climate, rivers, lakes, ice, dunes, Satellite, Food — no Frame, so
                         no Geology)
   page-chrome.js        The chrome both pages share: slider bubbles, the Detail warning, the side panel and bottom sheet,
                         the build overlay, the tutorial
+  a11y.js               Every tool page's keyboard and screen-reader basics (Evolution's too, loaded after each page's own
+                        module): the dialogs (named, focus in and back, Tab kept inside, inert while closed), the "?" tips
+                        (buttons with their words as a description, shown beside or above them, never off screen), the
+                        controls' names from their labels and the sliders' values as shown
   generate-plates.js    Generate's own layers on the planet view: the Plates view (colours, boundaries, arrows; its export
                         map), the Inspect list's layers of the world's past, the edits pending drawn over the picture
   present-crust.js      The present-day world's crust in words (the hover's Crust line)
@@ -188,6 +192,16 @@ js/
   build-error.js        A failed build or import shown in the build overlay, with a Close button; the controls held during a build
   view-strip.js         The view strip above the layer tabs (every page), folded behind an arrow: Globe | Map and what applies,
                         the projection picker; in the sheet on phones
+  stage.js              The stage round the globe (the theme's desk, or space with Stars), the air, map colours from tokens
+  graticule-frame.js    The gold ring round the globe (at home zoom) and the gold frame round a map, in every projection:
+                        ticks and degrees where the grid lines meet them, in step as the view turns, pans and zooms
+  graticule-view.js     Generate's and Import's globe and map, handed to the graticule frame each frame
+  open-area.js          The room beside the open sidebar: where the globe, the map and the bars over them sit (--open-left,
+                        --open-shift; centred on the window with room to spare, on the space beside the sidebar when short)
+  map-band.js           The band a flat map is fitted in (every page, Evolution too): below all that sits over the planet,
+                        above the hint or the timeline, room for its frame's numerals; it glides when the tabs' rows change
+  theme.js              Classic script in each page's <head>: Paper or Night, the device's choice until the theme switch
+                        saves one (before the first paint, so no flash); window.orogenTheme lets the globes' stage follow
   support-check.js      Classic script run before the modules: a browser that cannot run the app (no import maps, no
                         WebGL) or app code that fails to load gets a plain message instead of a blank page
   rng.js                Seeded PRNG (Park-Miller LCG)

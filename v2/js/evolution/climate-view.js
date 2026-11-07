@@ -3,8 +3,8 @@
 // worker (climate-worker.js), kept per moment while the history is open, and drawn as layers: Köppen (per terrain
 // cell), Temperature and Rain (Year / January / July), Wind (its speed and arrows) and Currents (the sea's warm and cold
 // water and its surface currents) — and Generate's other Inspect layers (js/climate-layers.js: their colours and
-// legends): Pressure (with the winds and the ITCZ), Upwelling, Ice, Temperature Range, Rain Shadow, Aridity, Growing
-// Season, Rain Seasonality — each shaded by the relief, as the Plates tab is.
+// legends): Pressure (with the winds and the ITCZ), Upwelling, Ice, Temperature range, Rain shadow, Aridity, Growing
+// Season, Rain seasonality — each shaded by the relief, as the Plates tab is.
 
 import { KOPPEN_CLASSES } from '../climate/koppen.js';
 import { BIOME_WORDS } from '../finish/finish-cover.js';
@@ -15,7 +15,7 @@ import { styledSatellite, SAT_SHADE } from './sat-style.js';
 import { QUANTITY_COLORS, ICE_SHEET_RGB, SNOW_RGB, climateLegendHTML, classLabel } from '../../../js/climate-layers.js';
 
 /** The land's measures beyond Köppen (cell-stats.js), per cell or per pixel of a finished moment's picture: each
- *  layer's stat key (Temperature Range's layer is tempRange, its stat tRange). */
+ *  layer's stat key (Temperature range's layer is tempRange, its stat tRange). */
 const STAT_KEY = { tempRange: 'tRange', aridity: 'aridity', growing: 'growing', rainSeason: 'rainSeason' };
 export const CLIMATE_LAYERS = new Set(['satellite', 'koppen', 'temperature', 'rain', 'wind', 'currents',
     'pressure', 'upwelling', 'ice', 'tempRange', 'rainShadow', 'aridity', 'growing', 'rainSeason']);
