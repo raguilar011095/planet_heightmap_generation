@@ -350,9 +350,9 @@
 <script>
     // The hero's globe: Linmore turning slowly, its views fading one into the next (Satellite, Terrain, Climate, Rocks).
     // A small WebGL 2 shader draws an orthographic globe, seen from 18° north, from each view's map (VIEWS: 2048 × 1024,
-    // drawn by Evolution's own Export maps). The still (the same globe at its first moment) shows until the
-    // first map is in, and stays with reduced motion or without WebGL 2. The globe rests off screen and in a hidden tab,
-    // and its button pauses it.
+    // drawn by Evolution's own Export maps), each fetched a turn ahead of its own: the next but one as a view fades in.
+    // The still (the same globe at its first moment) shows until the first map is in, and stays with reduced motion or
+    // without WebGL 2. The globe rests off screen and in a hidden tab, and its button pauses it.
     (function heroGlobe() {
         const frame = document.querySelector('.hero-globe__frame'), canvas = frame?.querySelector('canvas'), still = frame?.querySelector('img');
         const label = document.getElementById('globeView'), button = document.getElementById('globePause');
@@ -406,8 +406,8 @@
         const U = Object.fromEntries(['uA', 'uB', 'uMix', 'uLon', 'uTilt', 'uPx'].map((k) => [k, gl.getUniformLocation(prog, k)]));
         gl.uniform1i(U.uA, 0); gl.uniform1i(U.uB, 1); gl.uniform1f(U.uTilt, TILT * RAD);
         const aniso = gl.getExtension('EXT_texture_filter_anisotropic');
-        const maps = [];
-        const load = (i) => new Promise((done) => {
+        const maps = [], asked = [];
+        const load = (i) => asked[i] ??= new Promise((done) => {
             const img = new Image();
             img.onload = () => {
                 const t = gl.createTexture();
@@ -449,7 +449,7 @@
             lon -= (2 * Math.PI / TURN_S) * dt;                  // (eastward, as a planet turns: the land moves to the right)
             held += dt;
             if (held > HOLD_S && maps[next()]) {
-                if (mix === 0) name(VIEWS[next()][0]);
+                if (mix === 0) { name(VIEWS[next()][0]); load((next() + 1) % VIEWS.length); }
                 mix = Math.min(1, (held - HOLD_S) / FADE_S);
                 if (mix === 1) { view = next(); mix = 0; held = 0; }
             }
@@ -472,14 +472,14 @@
             button.setAttribute('aria-pressed', String(!playing));
             run();
         });
-        load(0).then(async (ok) => {
+        load(0).then((ok) => {
             if (!ok) return;
             size(); draw();
             canvas.classList.add('is-on');                  // (over the still, which is this same picture; then without it)
             setTimeout(() => { still.style.visibility = 'hidden'; }, 450);
             button.hidden = false;
             run();
-            for (let i = 1; i < VIEWS.length; i++) await load(i);
+            load(1);
         });
     })();
 </script>
