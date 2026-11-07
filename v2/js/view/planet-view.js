@@ -168,8 +168,17 @@ export class PlanetView {
         return this.sharp.table;
     }
 
-    /** A plain sea, while a new world starts. */
+    /** The finished moment painted last let go, its world gone: what the view kept of it — the legend's, the tiles'
+     *  colours, the Satellite view drawn ahead — held it, and every cache hung on it, in memory until another was painted. */
+    forget() {
+        this.legendFin = null; this.patchClimate = null;
+        this.tileColors = { look: -1, byWidth: new Map() };
+        this.satPrep = null;
+    }
+
+    /** A plain sea, while a new world starts (the old world's finished moment let go). */
     blank() {
+        this.forget();
         const px = new Uint8Array(3), t = this.tex.lo;
         this.tint(new Float32Array([-4]), new Float32Array([0.8]), px);
         this.glint(false);

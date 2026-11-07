@@ -118,6 +118,7 @@ function received(msg) {
     };
     if (kind === 'editDone' && old) { w.seed = old.seed; w.plateIsOcean = old.plateIsOcean; w.originalPlateIsOcean = old.originalPlateIsOcean; }
     world = w; building = null; dirty = true; hoveredPiece = -1;
+    pv.forget();                                         // (the old world's finished moment let go)
     if (pv.gpu) pv.gpu.setMesh(w.tMesh);
     resetBuildButton();
     hideBuildOverlay();

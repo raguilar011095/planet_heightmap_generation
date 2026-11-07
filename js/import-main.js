@@ -67,6 +67,7 @@ function received(msg) {
     const sh = msg.shared;
     world = { version: ++version, seed: msg.seed, tMesh: meshFromArrays(sh.mesh), meshArrays: sh.mesh, heightKm: sh.heightKm, shade: sh.shade, finishJob: sh.finish, fin: null, finishing: null, problem: null, n: sh.mesh.numCells };
     building = null; dirty = true;
+    pv.forget();                                         // (the old world's finished moment let go)
     importBtn.disabled = false; importBtn.textContent = 'Import';
     reapplyBtn.classList.remove('spinning');
     overlay.hide();
