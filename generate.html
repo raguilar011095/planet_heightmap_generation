@@ -61,7 +61,7 @@
         ],
         "screenshot": "https://orogen.studio/preview.png",
         "sameAs": ["https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t", "https://x.com/worldorogen", "https://www.threads.com/@orogen.studio", "https://www.instagram.com/orogen.studio/", "https://github.com/raguilar011095/planet_heightmap_generation"],
-        "softwareVersion": "2.3.0",
+        "softwareVersion": "3.0.0",
         "creator": {
             "@type": "Organization",
             "name": "World Orogen"
@@ -396,48 +396,49 @@
         <div id="whatsNewCard">
             <button id="whatsNewClose">&times;</button>
             <div class="whatsnew-step" data-step="0">
-                <h3>What's New in World Orogen</h3>
-                <p>In <strong>Evolution</strong>, the <strong>Satellite</strong> view is redrawn, and <strong>clouds</strong> worked out from each planet's own climate now drift over it. In <strong>Geology</strong>, the deposits take their shapes from the rock: districts along mountain belts and fault lines, each metal in its own provinces, and coal, oil and gas at every latitude.</p>
-                <p class="whatsnew-warn"><strong>Heads up:</strong> A saved Evolution link or seed grows the same continents as before, but its deposits are placed anew. Planet files keep the deposits they were saved with. To see a link exactly as it was, open it at orogen.studio/v/2.2/evolution. Generate and Import are unchanged.</p>
+                <h3>What's new in World Orogen 3.0</h3>
+                <p>Every page has a <strong>new look</strong>, in <strong>Paper</strong> or <strong>Night</strong>, the Studio included. <strong>Generate</strong> is rebuilt on Evolution's ground: its worlds now have a past, with plates that move and mountains worn to their age, and they get Evolution's <strong>Geology</strong> and <strong>Food</strong> tabs. In <strong>Evolution</strong>, ridges are more varied, deposits are coloured by metal family, and <strong>Geology</strong> is out of beta.</p>
+                <p class="whatsnew-warn"><strong>Heads up:</strong> A saved Generate planet code builds the same continents in the same places, with new coasts, mountains and rivers. An Evolution link gives the same history, its ridges drawn a little differently. To see either exactly as it was, open it at orogen.studio/v/2.3/generate or orogen.studio/v/2.3/evolution.</p>
             </div>
             <div class="whatsnew-step" data-step="1">
-                <h3>The Satellite View, Redrawn</h3>
-                <p>On a detailed moment, the <strong>Satellite</strong> view now reads more like a planet seen from space, from the whole globe down to a single valley.</p>
+                <h3>A new look</h3>
+                <p>Every page is redrawn, calmer, so the planet is the star.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>The land in the colour</strong> &mdash; Valleys and basins richer, ridges paler, highlands greyer, and the tree line and snow line bending with the ground. Each climate's base colour, by its warmth and rain, is fitted to Earth's as seen from space.</li>
-                    <li><strong>Climates that blend</strong> &mdash; Neighbouring climates fade into each other instead of meeting at a line, with a faint patchwork on top. Rock and snow still follow the height.</li>
-                    <li><strong>The ground's character</strong> &mdash; Bedrock tints, sand seas streaked by the wind, banded fold belts, patchy forest canopy, the margins of the ice sheets, and broad floodplains, basins and plateaus.</li>
-                    <li><strong>Green rivers</strong> &mdash; Rivers and fresh lakes green the dry country along them, in the place's own colours.</li>
-                    <li><strong>A smoother globe</strong> &mdash; Zoomed out, every view averages its detail instead of speckling.</li>
+                    <li><strong>Paper and Night</strong> &mdash; A light and a dark theme. They follow your device; the sun-and-moon switch in the top bar overrides it, and every page remembers your choice.</li>
+                    <li><strong>The Studio</strong> &mdash; The home page turns a planet through its views, and shows each tool with two worlds made in it.</li>
+                    <li><strong>A calmer globe</strong> &mdash; Lit from the upper left wherever you turn it, with a thin rim of air, on the page's own colour. Stars are still an option.</li>
+                    <li><strong>The degree ring</strong> &mdash; A gold ring with its degrees around the globe, and a frame with degrees around every map, in every projection.</li>
+                    <li><strong>Loading that says what's happening</strong> &mdash; In Evolution, each stage of Add detail is named as it runs.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="2">
-                <h3>Clouds from the Climate</h3>
-                <p>Clouds now drift over the <strong>Satellite</strong> view, worked out from the detailed moment's own climate: more where it rains, fewer under the dry highs. Turn them off with <strong>Clouds</strong>, beside Hillshade.</p>
+                <h3>Generate, rebuilt</h3>
+                <p>Generate now builds its worlds on Evolution's ground, and still takes seconds.</p>
                 <ul class="whatsnew-list">
-                    <li><strong>Four layers</strong> &mdash; Low decks over cool seas and the polar oceans, towering clouds in the wet tropics and over warm summer land, sheets along the storm tracks, and high cirrus streaked along the wind.</li>
-                    <li><strong>Storms</strong> &mdash; Spirals at the season's pressure lows and along the storm tracks, and tropical cyclones over seas of 27&nbsp;&deg;C or more.</li>
-                    <li><strong>Always moving</strong> &mdash; They drift with the planet's winds and change shape as they go. The year, January and July each have their own.</li>
-                    <li><strong>Export</strong> &mdash; Two new maps: the clouds alone, on a transparent background, and Satellite with clouds.</li>
+                    <li><strong>Plates that move</strong> &mdash; The pieces you edit are grouped into plates that carry continents and ocean together. Most coasts are passive, and each continent has an active margin.</li>
+                    <li><strong>A past</strong> &mdash; Continents are assembled from their pieces, with old mountain belts along their seams, cratons, hotspot chains and flood basalts. Coasts on either side of an ocean fit together.</li>
+                    <li><strong>Mountains with a cause</strong> &mdash; Andean margins, collisions, island arcs and rift valleys, carved into massifs, each worn down to its age.</li>
+                    <li><strong>Geology and Food</strong> &mdash; Evolution's Geology and Food (beta) tabs, with their exports and readout.</li>
+                    <li><strong>Editing</strong> &mdash; Ctrl-click a plate and Rebuild: the edit changes the place you edit and little else. And in every tool, the poles no longer smear.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="3">
-                <h3>Deposits Shaped by the Rock <span class="whatsnew-beta">Beta</span></h3>
-                <p>In the <strong>Geology</strong> tab, deposits now take their shapes from the geology, and noise only breaks a shape into districts.</p>
+                <h3>Also in 3.0</h3>
                 <ul class="whatsnew-list">
-                    <li><strong>Districts like real ones</strong> &mdash; Clusters of many sizes, drawn out along mountain belts and ancient shields and gathered on fault lines, with lobed outlines. Each metal has its own provinces, so different metals no longer sit in the same clumps.</li>
-                    <li><strong>Layers that crop out</strong> &mdash; Coal, ironstone and oil shale appear where the land cuts through their layer, as on the Rocks map. Laterite and bauxite cap old uplands, peat and bog iron lie on wet ground, and salt flats in dry pans.</li>
-                    <li><strong>Oil, gas and coal</strong> &mdash; Source rock at any latitude and on continental shelves, coal on the coastal plains behind shallow seas, and oil gathered under fold crests and arches.</li>
-                    <li><strong>Iron and stone</strong> &mdash; Iron in most mountain belts, banded iron only in greenstone belts and at craton edges. Building stone where there's rock to quarry and it's easy to get at (basalt and tuff now count), clay where stone is scarce, and stone for knapping almost anywhere off the great plains.</li>
+                    <li><strong>Varied ridges in Evolution</strong> &mdash; Mountain ridges bend, rise and fall at every scale, with peaks and saddles along each one, and old belts are a little less even. The history itself is the same.</li>
+                    <li><strong>Deposits by metal family</strong> &mdash; Four colours instead of eleven: iron and alloy, base, precious and salt, each with its row in the legend.</li>
+                    <li><strong>Geology, out of beta</strong> &mdash; Its rocks, deposits and ages. Food stays in beta.</li>
+                    <li><strong>Import</strong> &mdash; Your map gets the new Satellite view, with clouds, and Food (beta). Import Heightmap is now just Import.</li>
+                    <li><strong>Phones, tablets and keyboards</strong> &mdash; Touch targets of 44&nbsp;px on phones, plate editing on tablets, and dialogs that hold the keyboard's focus.</li>
                 </ul>
             </div>
             <div class="whatsnew-step" data-step="4">
-                <h3>Also Since 2.0</h3>
+                <h3>Since 2.0</h3>
                 <ul class="whatsnew-list">
                     <li><strong>Evolution</strong> &mdash; A planet's whole tectonic history, over up to one and a half billion years: play it like a film, share its link, or save it as a planet file and open it again later.</li>
-                    <li><strong>Add detail</strong> &mdash; Any moment sculpted again, finely: rivers through the seasons, glaciers and fjords, sand seas and a climate of its own.</li>
+                    <li><strong>Add detail</strong> &mdash; Any moment sculpted again, finely: rivers through the seasons, glaciers and fjords, sand seas, and a climate of its own, with its clouds.</li>
                     <li><strong>Export anything</strong> &mdash; Every map on every page, as colour or as 16-bit data, in ten map projections.</li>
-                    <li><strong>Seasons and a look from space</strong> &mdash; Every climate layer for the year, January or July, and a Satellite view on every page.</li>
+                    <li><strong>Older versions online</strong> &mdash; Each version since 2.1 stays at orogen.studio/v/&lt;version&gt;/, so links and planet files open as they were made.</li>
                 </ul>
                 <p class="whatsnew-follow">World Orogen is now on <a href="https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t" target="_blank" rel="noopener">Bluesky</a>, <a href="https://x.com/worldorogen" target="_blank" rel="noopener">X</a> and <a href="https://www.threads.com/@orogen.studio" target="_blank" rel="noopener">Threads</a>: new releases, work in progress and sneak peeks of what's coming. If it's been useful to you, you can also support it on <a href="https://ko-fi.com/orogenstudio" target="_blank" rel="noopener">Ko-fi</a>. It stays free either way.</p>
             </div>
