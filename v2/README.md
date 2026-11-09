@@ -293,6 +293,7 @@ node v2/tools/check-far-field.mjs      # the far field: records only, through cr
 node v2/tools/check-scale.mjs          # the same scenes at 40K and 80K cells agree in km / km² / Myr; recording rate never changes a history
 node v2/tools/check-geology.mjs        # the geology (plans/V2_GEOLOGY_PLAN.md): the record changes no history; seas, cover, wear; rocks; deposits (+ an Earth check); ages; districts and exports; gems; the washes' contrast
 node tuning/geology/earth-deposits.mjs   # the deposits' climate tests on observed Earth beside where bauxite, peat, salt, enriched copper, opal and turquoise are
+node v2/tools/check-groundwater.mjs    # the ground's water (issue #87): it only reads; its water balances; it follows its causes (slope, rain, permeability); the same at 160K and 640K
 node v2/tools/check-farming.mjs        # the farming (plans/V2_FARMING_PLAN.md): the same at 160K and 640K; soils, seasons, water, slopes where they belong
 node tuning/farming/earth-farming.mjs  # the farming's climate part on Earth's observed climate: breadbaskets, the irrigated river valleys, black earth, leaching, podzol, staples
 node v2/tools/trace-forces.mjs india mobility=3.5     # speeds / force-balance targets / situations over time
@@ -652,6 +653,15 @@ tools/             check scripts (+ lib/check-kit.mjs: shared frame helpers), tr
    darkened on the paper, a dark one lightened at sea, its hue kept (`geology-view.js ink`; `check-geology.mjs` holds it
    for every colour, grade and light, and where two colours meet). With Hillshade off the paper is flat; the views follow
    the map's projections and zoom as every view does.
+   **The ground's water** (issue #87, plans/V2_GROUNDWATER_RESEARCH.md; off unless asked — `finishPlanet`'s `groundwater`, which no page passes yet): the
+   finish's `groundwater` stage (`finish/finish-groundwater.js`), after the deposits and before the farming, reads the
+   finished moment and changes nothing of it. Soils from the rock and the climate (Songs of the Eons' parent material and
+   weathering, MIT; Cosby et al. 1984's conductivity); recharge, a share of the runoff by the rock's permeability (Gleeson
+   et al. 2011), the soil's infiltration, the slope and frozen ground, with part of what dry rivers lose through their
+   beds; the water table at equilibrium after Fan, Li & Miguez-Macho 2013 (Darcy flow between cells, the transmissivity
+   falling with depth, the sea and the lakes as fixed levels, the streams finer than the mesh as drains spaced by the
+   rock's valley density, evaporation where it is shallow in dry country); and from it springs, oases and wetlands by
+   kind (marsh, wet meadow, peat, mangrove, salt marsh, floodplain). Its layers (`ground*`) are debug layers only.
    **Farming** (plans/V2_FARMING_PLAN.md, after Madeline James's culture series, Part 4, and Ramankutty et al. 2002's
    cropland suitability): the finish's `farming` stage (`farming/farming.js`) works out each land cell's parts — the
    growing season from its final climate's months (each month warm, 5 → 15 °C, × wet, its rain, melt and 100 mm of soil

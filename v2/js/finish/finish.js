@@ -30,6 +30,7 @@ import { classifyRocks } from '../geology/rocks.js';
 import { softFamilies, softFamilyGrid } from '../climate/koppen-soft.js';
 import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
 import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests } from '../farming/farming.js';
+import { groundwater as groundAndWater, GROUNDWATER } from './finish-groundwater.js';
 
 const DEPOSIT_IDS = DEPOSITS.map(d => d.id);
 
@@ -63,9 +64,12 @@ export function surfaceConfig(F, cfg) {
  *   mesh: the mesh to finish on (else the terrain mesh of `cells`); surface: the page's own surface on it, instead of
  *   the history's drawn here — (mesh, cfg) → {heightKm, carveIn, recCell, cues} (or a promise of it), drawn with
  *   surfaceConfig's cfg (Generate: v2/js/present/world.js presentSynthesize's `surface`); no pool is needed then
+ *   groundwater: {} (or overrides of finish-groundwater.js GROUNDWATER) — soils, the water table, springs, oases and
+ *   wetlands, read off the finished moment after the deposits (issue #87); null (the default): none, and nothing else
+ *   differs. Needs the rocks, so a moment without the geological record (an import's) has none
  * @returns {Promise<{mesh: Object, z: Float32Array, ocean: Uint8Array, ms: Object, stats: Object}>}
  */
-export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null, mesh: givenMesh = null, surface = null }) {
+export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null, mesh: givenMesh = null, surface = null, groundwater = null }) {
     const ms = {}, stats = {};
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
@@ -323,6 +327,8 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     const farmC = newFarmClimate(n);
     // (and the climate as shares, for the Satellite view's transitions — climate/koppen-soft.js: a few places a 0.35° cell)
     const famGrid = softFamilyGrid(1024), famBuf = new Float64Array(10);
+    // (and, for the ground's water, each cell's coldest and warmest month: finish-groundwater.js)
+    const gT = groundwater ? { cold: new Float32Array(n).fill(NaN), warm: new Float32Array(n).fill(NaN) } : null;
     const cellsClimate = cellClimate(gridClimate, mesh.xyz, C.z, land, {}, (c, T12, P12) => {
         cellStats.add(c, T12, P12);
         { const g = famGrid.wants(lat[c], lon[c]); if (g >= 0) famGrid.add(g, softFamilies(T12, P12, famBuf)); }
@@ -335,6 +341,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
             for (let m = 0; m < 12; m++) T12c[m] = T12[m] - dT;
             T = T12c;
         }
+        if (gT) { let lo = T[0], hi = T[0]; for (let m = 1; m < 12; m++) { if (T[m] < lo) lo = T[m]; if (T[m] > hi) hi = T[m]; } gT.cold[c] = lo; gT.warm[c] = hi; }
         if (clim) climateTests(T, P12, c, clim);
         landCover(T, coverRainScale(P12, rainTarget[c], P12c), cv, F, COVER, lat[c]);
         addFarmClimate(farmC, c, T, P12c, cv);
@@ -366,6 +373,17 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
         stats.metals = Object.fromEntries(METALS.map((m, i) => [m.id, [+Dp.metalShares[3 * i].toFixed(4), +Dp.metalShares[3 * i + 1].toFixed(4), +Dp.metalShares[3 * i + 2].toFixed(4)]]));
         lap('deposits');
     }
+    // ── the ground's water (issue #87; finish-groundwater.js): soils, the water table, springs, oases and wetlands — before
+    // the farming, which lets the rocks go. It only reads ──
+    let ground = null;
+    if (groundwater && Rk) {
+        onStage('groundwater');
+        ground = groundAndWater({ mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, q: Hy.q, recv: Hy.recv, runoff, pet, rain: pAnn,
+            tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, tCold: gT.cold, tWarm: gT.warm, rock: Rk.rock, loess: W.loess,
+            erg: W.erg, till: I.till, glaciated: I.ice, ice, cellKm2, loessKm: F.loessKm, lat, budykoW: F.budykoW }, { ...GROUNDWATER, ...groundwater });
+        stats.groundwater = ground.stats;
+        lap('groundwater');
+    }
 
     // ── farming (plans/V2_FARMING_PLAN.md C1): each cell's soil, ground and the water rivers and lakes could bring — with
     // the growing season the final climate gave (farming/farming.js) ──
@@ -380,7 +398,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, drivers, ms, stats, geology, farming,
         climate: { page: pageC, cell: { koppen: cellsClimate.koppen, tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, sat, cover, stats: cellStats.stats, mottleSeed: ((seed | 0) * 0x2f71 + 0x6d) >>> 0,
             flow, young, rivers: Hy.rivers, ripSat, families: famGrid.done() } },
-        layers: debug ? { ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
+        layers: debug ? { ...(ground ? ground.layers : {}), ...(ground && I.till ? { groundTill: I.till } : {}), ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
 }
 
 /** The mesh's positions displaced by a smooth noise field (km-sized waves, three octaves): a domain warp of everything read there. */
