@@ -425,7 +425,7 @@ const panel = sidePanel();
 tutorial({ key: 'atlas-engine-tutorial-seen', firstDone: genBtn, isTouch: IS_TOUCH,
     touchStep2: '<strong>Drag</strong> to rotate the globe. <strong>Pinch</strong> to zoom in and out. Tap the <strong>edit button</strong> (pencil icon) then <strong>tap</strong> plates to mark them for reshaping &mdash; select multiple, then hit <strong>Rebuild</strong> to apply all at once. Tap again to undo a pending selection.' });
 (function whatsNew() {
-    const VERSION = '6', LS_KEY = 'wo-whatsnew-seen', overlay = $('whatsNewOverlay'), card = $('whatsNewCard');
+    const VERSION = '7', LS_KEY = 'wo-whatsnew-seen', overlay = $('whatsNewOverlay'), card = $('whatsNewCard');
     if (!overlay || !card) return;
     const steps = card.querySelectorAll('.whatsnew-step'), dots = card.querySelectorAll('.dot');
     let current = 0;

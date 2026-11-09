@@ -18,7 +18,8 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 
 ## Key capabilities
 
-- The same views on every tool: terrain with rivers and lakes, satellite with clouds, Köppen climate and every climate layer, geology, food, heightmap, plates — on a 3D globe or a flat map in any of ten projections
+- One set of views across the tools: terrain with rivers and lakes, satellite with clouds, Köppen climate and every climate layer, food and heightmap, plus geology and plates in Generate and Evolution — on a 3D globe or a flat map in any of ten projections
+- Two themes on every page, Paper (light) and Night (dark), following the device or a switch in the top bar
 - Climate layers in real units for the year, January or July: pressure and wind, ocean currents and upwelling, sea ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality
 - Export maps up to 16,384px wide, every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes, rocks, deposits, food), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
 - Shareable planet codes — copy a compact code to reproduce any planet exactly
@@ -35,7 +36,7 @@ https://orogen.studio/ — Studio: the three tools explained, plus curated world
 https://orogen.studio/generate — Generate (a planet's link: orogen.studio/generate#CODE; older orogen.studio/#CODE links still open it)
 https://orogen.studio/import — Import
 https://orogen.studio/evolution — Evolution
-https://orogen.studio/v/2.2/ — the previous version, kept online (and orogen.studio/v/2.1/ before it): from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
+https://orogen.studio/v/2.3/ — the previous version, kept online (and orogen.studio/v/2.2/ and /v/2.1/ before it): from 2.1 on, each minor release stays at orogen.studio/v/<major>.<minor>/, so links and planet files open in the version they were made with
 
 ## Follow and support
 
