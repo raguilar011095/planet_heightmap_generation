@@ -53,6 +53,8 @@ lakes, ice, rocks, food, the satellite view) and one export panel: every map as 
 projections, up to 16,384 px wide, as one PNG or a ZIP with a README. Links, planet codes and planet files keep opening, and each minor release from 2.1 on stays online at
 `orogen.studio/v/<major>.<minor>/`.
 
+For map making, the exports stack: the terrain in sixteen palettes, the satellite view with or without clouds, Köppen climate zones, hillshade and a land mask, and rivers and lakes, and clouds, on transparent grounds, ready to trace, paint over or bring into a map-making tool.
+
 Every page comes in Paper (light) or Night (dark), following the device or the switch in the top bar.
 
 The Studio, at [orogen.studio](https://orogen.studio/), introduces the tools and the worldbuilding resources behind them.

@@ -2,18 +2,20 @@
 
 > Believable worlds from the ground up: a free studio of planet tools that gets you from a blank page to a world that makes sense. In the browser, no signup required.
 
-World Orogen builds planets the way the scientific worldbuilding guides (Worldbuilding Pasta, Madeline James, Artifexian) teach you to by hand: plates and their history first, then the land, its climate, its water and ice, its rock, and what the land could feed. The science behind each layer is real, simplified and named, so someone who knows the guides can follow what it is doing. Its worlds are possible worlds, not predictions: much of a planet is chance, and what its people make of it is up to the worldbuilder. It runs entirely in the browser using Three.js and requires no installation, account, or payment.
+World Orogen builds planets the way the scientific worldbuilding guides (Worldbuilding Pasta, Madeline James, Artifexian) teach you to by hand: plates and their history first, then the land, its climate, its water and ice, its rock, and what the land could feed. The science behind each layer is real, simplified and named, so someone who knows the guides can follow what it is doing. Its worlds are possible worlds, not predictions: much of a planet is chance, and what its people make of it is up to the worldbuilder. Every world, from its plates to its climate, is procedurally generated, not AI-generated. It runs entirely in the browser using Three.js and requires no installation, account, or payment.
 
 ## The tools
 
 - Generate (orogen.studio/generate): a planet in seconds from sliders: its plates and their boundaries today (ridges, rifts, trenches with island arcs, collisions), a past written in closed form (old mountain belts, cratons, hotspot tracks, flood basalts, continents that fit across their oceans), then finished in the background by Evolution's own finish: the full seasonal climate, rivers carved by its runoff, lakes, an ice age, dunes and loess, a satellite view with clouds, rocks, ore and gem deposits, and food. Reshape plates interactively (select several, preview, then rebuild); a planet code reproduces it exactly
-- Import (orogen.studio/import): bring an equirectangular greyscale heightmap (Earth, Mars, hand-drawn, or from another tool) onto a 3D globe and run the full climate on it, with its rivers and lakes, its ice age, a satellite view and its food, with optional erosion and sculpting
+- Import (orogen.studio/import): your own map's climate. Bring an equirectangular greyscale heightmap (of a map you drew, of Earth or Mars, or from another tool) onto a 3D globe and see what its winds, rain, temperatures and Köppen climate zones would be, worked out by the full seasonal climate, with its rivers and lakes, its ice age, the satellite view with clouds and its food (beta), with optional erosion and sculpting
 - Evolution (orogen.studio/evolution): simulates a planet's tectonic history (a supercontinent breaking up, oceans opening and closing, continents colliding and gathering again over up to 1.5 billion years) as a timeline to scrub, with a chosen ending. Any moment can be sculpted in detail: rivers and lakes through the seasons, glaciers and fjords, sand seas, its own climate, a satellite view with clouds from its climate, and detail finer than its mesh when zoomed in. Geology: rock types, and about 35 kinds of ore, fuel, mineral and gem deposits placed by the history, the climate and the rivers, each district with how it formed, plus one map per technological age (Stone, Copper, Bronze, Iron, Industrial) of what a people could reach. Food (beta): what the land could grow by rain or with irrigation, its staple foods, whether its people could farm, herd or gather, and how many it could feed. A whole planet (its history and its detailed moment) saves as one file, to open again later in any browser
 
 ## Who it's for
 
 - Worldbuilders who want a scientifically grounded world, and anyone curious to watch a planet form
 - Fantasy and sci-fi authors and tabletop game masters (D&D, Pathfinder, etc.) who need a believable map fast
+- Worldbuilders who already have a map, drawn by hand or made in another tool, and want to know its climate: where its deserts, rainforests, monsoons and ice would be
+- Mapmakers who want a believable base for a fantasy or world map: terrain, rivers, climate zones and hillshade to trace, paint over or bring into a map-making tool
 - Artists and game developers who need heightmaps and data for Gaea, Unity, Unreal, Photoshop or other tools
 
 ## Key capabilities
@@ -25,6 +27,15 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 - Shareable planet codes — copy a compact code to reproduce any planet exactly
 - Works on desktop and mobile browsers
 - No build step, no dependencies to install — pure ES modules
+
+## Making maps
+
+- The Colour map in sixteen palettes: Relief, Topographic, Natural, Swiss, School atlas, ETOPO, DEM, Scientific, Blue Marble (by height), Grey and Antique, and the other-world looks Arid, Frozen, Lush, Alien and Volcanic
+- Layers that stack: rivers and lakes, and clouds, each on a transparent ground; a land mask; hillshade; the satellite view with or without clouds
+- Climate maps: Köppen climate zones in their standard colours, and every climate layer for the year, January or July
+- Any of ten projections, centred on any longitude, up to 16,384 px wide, with a transparent outside for the projected maps
+- 16-bit heightmaps, with the sea floor or land only, for terrain tools and game engines; an equirectangular land heightmap opens again in Import
+- Geology's deposit districts as GeoJSON and CSV (Generate and Evolution)
 
 ## Using the maps
 
