@@ -126,6 +126,18 @@ export function rasterAt(r, W, { lakes = false, landOnly = false } = {}) {
     return { h, sea, wat };
 }
 
+/** The pictures the screen's textures are painted from (rasterAt, its lakes too), kept per picture and width: they change
+ *  only with the moment, so each is made once rather than on every paint (~50 MB at 4096). Weakly, by the picture: they
+ *  go with the moment. */
+const shownRasters = new WeakMap();
+function rasterShown(r, W, lakes) {
+    let byWidth = shownRasters.get(r);
+    if (!byWidth) shownRasters.set(r, byWidth = new Map());
+    if (!byWidth.has(W)) byWidth.set(W, rasterAt(r, W, { lakes: true }));       // (the heights and the sea are the same either way)
+    const p = byWidth.get(W);
+    return lakes ? p : { h: p.h, sea: p.sea, wat: null };
+}
+
 /**
  * Paint a finished picture onto a texture ({width, image}: width × width/2): its heights averaged down (or enlarged,
  * rasterAt) to the texture's pixels, coloured by `lut` (looks.js heightLutOf — land by its height, the sea by its depth; a hollow
@@ -134,10 +146,11 @@ export function rasterAt(r, W, { lakes = false, landOnly = false } = {}) {
  * `colorAt(out, o, x, y, wet, kk, k3, v, lake)` (optional): another colouring per pixel — a climate layer's
  * (climate-view.js finishedClimateColor) — given the pixel's light kk (0.35…1, always shaded), its palette entry k3, its
  * height v (km) and its lake kind (with `lakes`). `shaded: false` leaves the hillshade out (flat colour, the light 1 —
- * for an export to shade elsewhere).
+ * for an export to shade elsewhere). `keep`: the picture at this width kept with the moment for the next paint (the
+ * screen's few widths; an export's are made once and let go).
  */
-export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, lakes = false, colorAt = null, shaded = true } = {}) {
-    const W = t.width, H = W >> 1, { h, sea, wat } = rasterAt(r, W, { lakes });
+export function paintFinished(r, t, lut, { seaImage = null, seaWidth = 0, exaggeration = 20, lakes = false, colorAt = null, shaded = true, keep = false } = {}) {
+    const W = t.width, H = W >> 1, { h, sea, wat } = keep ? rasterShown(r, W, lakes) : rasterAt(r, W, { lakes });
     const out = t.image.data, L = lut.rgb, { minM, stepM, zero } = lut, top = lut.n - 1;
     const pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
     for (let y = 0; y < H; y++) {

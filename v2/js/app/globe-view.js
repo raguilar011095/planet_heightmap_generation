@@ -12,6 +12,7 @@
 
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+import { stageColour, inSpace, onStage, makeAir } from '../../../js/stage.js';
 import { P as PROJ } from '../view/projections.js';
 import { PROJECTION_GLSL, projectionUniforms } from '../view/projection-glsl.js';
 import { CLOUDS, CLOUD_GLSL, MAX_STORMS, scaleOf, driftRadPerS, cloudNoiseTexture, cloudEdges, cloudQuantileList, cloudStormsAt } from '../view/clouds.js';
@@ -60,9 +61,20 @@ export class GlobeView {
         this.renderer = new THREE.WebGLRenderer({ canvas: glCanvas, antialias: true });
         this.renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
         this.scene = new THREE.Scene();
-        this.scene.background = new THREE.Color(space ? 0x030308 : 0x05060a);
+        // the stage behind the globe: the page theme's desk, or space with stars when Stars is on (js/stage.js;
+        // docs/style-guide/maps.md); the map always on the desk; the labs keep their own dark
+        this.scene.background = space ? new THREE.Color(stageColour()) : new THREE.Color(0x05060a);
+        if (space) onStage(() => {
+            this.scene.background = new THREE.Color(stageColour());
+            if (this.mapScene) this.mapScene.background = new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420');
+            if (this.stars) this.stars.material.visible = inSpace();
+            this.air?.update();
+            this._dirty = true;
+        });
+        this.space = space;
         this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, space ? 200 : 50);
         this.camera.position.set(0, 0.9, 3.2);
+        this.home = this.camera.position.length();         // (the home zoom: the globe's size there sets where it sits)
 
         // (how a canvas's texture is sampled: sim cells crisp by default — setSmooth; repeating east–west, for the map's turn;
         // zoomed out, from its mipmaps, filtered anisotropically toward the limb — each screen pixel the mean of the texels
@@ -145,19 +157,56 @@ export class GlobeView {
         this._raycaster = new THREE.Raycaster();
         this._ndc = new THREE.Vector2();
         this._sphere = new THREE.Sphere(new THREE.Vector3(), 1); this._hit = new THREE.Vector3();
+        // (the canvas's size read only when it may have changed — as the window resizes, and as the canvas does, read just
+        // after the layout that changed it — not every frame: while the page writes its progress, each read laid it out again)
+        this._size = null;
+        addEventListener('resize', () => { this._size = null; });
+        this._sized = typeof ResizeObserver !== 'undefined';
+        if (this._sized) new ResizeObserver(() => { this._size = [glCanvas.clientWidth, glCanvas.clientHeight]; }).observe(glCanvas);
     }
 
-    resize() {
-        const w = this.canvas.clientWidth, h = this.canvas.clientHeight;
-        if (!w || !h || (w === this._w && h === this._h)) return;
+    resize(force = false) {
+        if (force || !this._size || !this._sized) this._size = [this.canvas.clientWidth, this.canvas.clientHeight];
+        const [w, h] = this._size;
+        if (!w || !h || (!force && w === this._w && h === this._h)) return;
         this._w = w; this._h = h;
         this.renderer.setSize(w, h, false);
+        this.fitCamera();
+    }
+
+    /** The camera fitted to the canvas and the open area (the canvas's size as last resized). */
+    fitCamera() {
+        const w = this._w, h = this._h;
+        if (!w || !h) { this.resize(); return; }
         this._dirty = true;
         this.camera.aspect = w / h;
-        // Keep the whole globe in frame on portrait screens: hold the horizontal FOV at 40°.
-        const half = Math.tan(20 * Math.PI / 180);
-        this.camera.fov = 2 * Math.atan(half / Math.min(1, w / h)) * 180 / Math.PI;
+        // Keep the whole globe in frame on portrait screens: hold the horizontal FOV at 40° — of the open area beside the
+        // panel (js/open-area.js); the picture moves right of the canvas's centre by the open area's shift.
+        this.camera.fov = this.fovFor(w, h);
+        const shift = this.openShift || 0;
+        if (shift) this.camera.setViewOffset(w, h, -shift, 0, w, h);
+        else this.camera.clearViewOffset();
         this.camera.updateProjectionMatrix();
+    }
+
+    fovFor(w, h, left = this.openLeft || 0) {
+        return 2 * Math.atan(Math.tan(20 * Math.PI / 180) / Math.min(1, (w - left) / h)) * 180 / Math.PI;
+    }
+
+    /** The open area beside the panel (js/open-area.js): fitted to the canvas's part right of `left` pixels, the globe and
+     *  the map moved `shift` pixels right of its centre (each frame of its glide: the camera refitted, the canvas kept). */
+    setOpenArea(left, shift) {
+        if (left === (this.openLeft || 0) && shift === (this.openShift || 0)) return;
+        this.openLeft = left; this.openShift = shift;
+        this.fitCamera();
+    }
+
+    /** The planet's width on screen, for the open area — its edge `left` px in (the new one, while the open area is
+     *  working out where the planet goes): the map whole, or the globe at home zoom with its ring. */
+    planetWidth(left = this.openLeft || 0) {
+        const w = this.canvas.clientWidth || innerWidth, h = this.canvas.clientHeight || innerHeight;
+        if (this.map) return this.mapBox(left).width + 2 * (this.mapPad?.side ?? 0);
+        return 1.3 * Math.tan(Math.asin(1 / this.home)) / Math.tan(this.fovFor(w, h, left) * Math.PI / 360) * h;
     }
 
     /** Point the camera at a geographic position (degrees), keeping its current distance. */
@@ -301,20 +350,19 @@ void main() {
         }
         const stars = new THREE.BufferGeometry();
         stars.setAttribute('position', new THREE.Float32BufferAttribute(p, 3));
-        this.scene.add(new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08 })));
-        const atmosphere = new THREE.ShaderMaterial({
-            uniforms: { c: { value: new THREE.Color(0.35, 0.6, 1.0) } },
-            vertexShader: 'varying vec3 vN,vP;void main(){vN=normalize(normalMatrix*normal);vP=(modelViewMatrix*vec4(position,1)).xyz;gl_Position=projectionMatrix*vec4(vP,1);}',
-            fragmentShader: 'uniform vec3 c;varying vec3 vN,vP;void main(){float r=1.0-max(0.0,dot(normalize(-vP),vN));gl_FragColor=vec4(c,pow(r,3.5)*0.55);}',
-            transparent: true, side: THREE.FrontSide, depthWrite: false,
-        });
-        const halo = new THREE.Mesh(new THREE.SphereGeometry(1.12, 64, 64), atmosphere);
+        // (space with stars is an option, never the default)
+        this.stars = new THREE.Points(stars, new THREE.PointsMaterial({ color: 0xffffff, size: 0.08, visible: inSpace() }));
+        this.scene.add(this.stars);
+        // the air: a thin rim of map-air at the globe's edge, no heavy glow (js/stage.js)
+        this.air = makeAir(THREE, 1.03);
+        const halo = this.air.mesh;
         halo.renderOrder = 3;                                 // (over the clouds: it is nearer the eye)
         this.scene.add(halo);
         this.scene.add(new THREE.AmbientLight(0xaabbcc, 3.5));
-        // the sun, carried with the camera: where V1's (5, 3, 4) stands seen from V1's opening view
+        // atlas light: the sun carried with the camera, soft, from the upper left (the side the relief is shaded from),
+        // never dark — the ambient holds the far side up (docs/style-guide/maps.md; Generate's globe has the same)
         const sun = new THREE.DirectionalLight(0xfff8ee, 1.5);
-        sun.position.set(0.707, 0.34, 0.62);
+        sun.position.set(-0.6, 0.5, 0.62);
         this.camera.add(sun, sun.target);
         this.scene.add(this.camera);
         this.setSeaMask(null);
@@ -451,7 +499,7 @@ void main() {
         if (frame && this._mapFrame !== frame) this.wireMapFrame(frame);
         if (frame && !this.mapScene) {
             this.mapScene = new THREE.Scene();
-            this.mapScene.background = new THREE.Color(0x000000);
+            this.mapScene.background = this.space ? new THREE.Color(window.orogenTheme?.token('desk') || '#0B1420') : new THREE.Color(0x000000);
             const u = projectionUniforms();
             this.mapQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.ShaderMaterial({
                 uniforms: { map: { value: null }, turn: { value: 0 }, uView: { value: new THREE.Vector4(1, 1, 0, 0) }, uWrap: { value: new THREE.Vector2() }, uAniso: { value: 1 },
@@ -524,9 +572,49 @@ void main() {
     }
 
     /** The map's box in client pixels: the frame's, letterboxed to the projection's shape (2 : 1 equirectangular). */
-    mapBox() {
-        const f = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]), s = Math.min(f.width / aspect, f.height);
+    mapBox(left = this.openLeft || 0) {
+        // (fitted to the frame's part right of the open area's edge, inside the room kept round it — the tabs above, the
+        // timeline below, the frame's numerals all round: setMapPad — and moved right of the frame's centre by the open
+        // area's shift)
+        const r = this.map.frame.getBoundingClientRect(), b = this.map.bounds, aspect = (b[1] - b[0]) / (b[3] - b[2]);
+        const pad = this.mapPad ?? { top: 0, bottom: 0, side: 0 };
+        const f = { left: r.left + (this.openShift || 0), top: r.top + pad.top, width: r.width, height: Math.max(1, r.height - pad.top - pad.bottom) };
+        const s = Math.max(1, Math.min((f.width - left - 2 * pad.side) / aspect, f.height));
         return { left: f.left + (f.width - aspect * s) / 2, top: f.top + (f.height - s) / 2, width: aspect * s, height: s };
+    }
+
+    /** The room kept round the map (px): above it (from the frame's top), below it, and at each side. */
+    setMapPad(pad) {
+        const p = this.mapPad;
+        if (p && p.top === pad.top && p.bottom === pad.bottom && p.side === pad.side) return;
+        this.mapPad = pad; this._dirty = true;
+    }
+
+    /**
+     * What the graticule frame (js/graticule-frame.js) needs: the globe's centre and rim on screen, its camera and how a
+     * point of it lands on screen — or the map's projection and how its coordinates land on screen, zoomed and panned.
+     */
+    frameView() {
+        const c = this.canvas.getBoundingClientRect();
+        if (this.map) {
+            const box = this.mapBox(), v = this.mapView, pb = this.map.bounds, pw = pb[1] - pb[0], ph = pb[3] - pb[2];
+            const toClient = (X, Y) => [box.left + box.width / 2 + ((X - pb[0]) / pw - 0.5 - v.panX) * box.width * v.zoom,
+                box.top + box.height / 2 + ((pb[3] - Y) / ph - 0.5 - v.panY) * box.height * v.zoom];
+            const fromClient = (x, y) => [pb[0] + (0.5 + (x - box.left - box.width / 2) / (box.width * v.zoom) + v.panX) * pw,
+                pb[3] - (0.5 + (y - box.top - box.height / 2) / (box.height * v.zoom) + v.panY) * ph];   // (as mapFrac, from this box)
+            const eq = this.map.projection === 'equirect';
+            return { kind: 'map', id: this.map.projection, opts: this.map.projOpts || {}, centre: this.map.centerLon * Math.PI / 180, toClient, fromClient,
+                xRange: eq ? [pb[0] + v.panX * pw, pb[0] + (v.panX + 1) * pw] : null,
+                key: [this.map.projection, JSON.stringify(this.map.projOpts), this.map.centerLon, v.zoom, v.panX, v.panY, box.left, box.top, box.width, box.height].join('|') };
+        }
+        const cam = this.camera, d = cam.position.length(), q = new THREE.Vector3();
+        cam.updateMatrixWorld();                           // (this frame's camera, not the last render's: else a fast spin trails)
+        const toScreen = (p) => { q.set(p[0], p[1], p[2]).project(cam); return [c.left + (q.x + 1) / 2 * c.width, c.top + (1 - q.y) / 2 * c.height]; };
+        const [cx, cy] = toScreen([0, 0, 0]);
+        return { kind: 'globe', cx, cy, d, cam: [cam.position.x, cam.position.y, cam.position.z], toScreen,
+            r: Math.tan(Math.asin(Math.min(1 / d, 0.999))) / Math.tan(cam.fov * Math.PI / 360) * c.height / 2,
+            // (SphereGeometry and an equirectangular texture: longitude 0 faces +x, 90°E faces −z, north is +y)
+            local: (lon, lat) => [Math.cos(lat) * Math.cos(lon), Math.sin(lat), -Math.cos(lat) * Math.sin(lon)] };
     }
 
     /** The place in the map's box (fractions: x west → east, y north → south) under a client-space point, zoomed and panned. */

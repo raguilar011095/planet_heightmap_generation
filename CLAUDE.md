@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-World Orogen is a studio of free planet tools that run in the browser (Generate, Import Heightmap and Evolution), built with Three.js and native ES modules, with no build step and no server.
+World Orogen is a studio of free planet tools that run in the browser (Generate, Import and Evolution), built with Three.js and native ES modules, with no build step and no server.
 
 ## The vision
 
@@ -13,11 +13,21 @@ World Orogen is a studio of free planet tools that run in the browser (Generate,
 ## Where things live
 
 - `index.html`: the Studio home page
-- `generate.html`, `import.html`, `js/`: Generate and Import Heightmap
+- `generate.html`, `import.html`, `js/`: Generate and Import
 - `evolution.html`, `v2/`: Evolution, with its tectonic history engine, finish, geology, food and planet files (see `v2/README.md`)
 - `v2/js/climate/`: the one climate every tool runs (see the climate rule below)
 - `docs/`: each tool's guide and what they share; `README.md`: the front door
 - `tuning/`: the automated Earth checks; `plans/`: design docs and phase plans
+- `docs/style-guide/`, `tokens.css`, `assets/fonts/`, `assets/brand/`: the look (brand book, tokens, fonts, mark and icons, components); `plans/REDESIGN_PLAN.md` moves the app onto it
+
+## The look
+
+Everything a person sees follows the style guide, `docs/style-guide/` (the brand book, maps and the globe, page patterns, components), with its values in `tokens.css`. `plans/REDESIGN_PLAN.md` moves the app onto it, phase by phase.
+
+- **Before changing anything a person sees** (CSS or HTML, a control, a legend, a map mode's colours, an icon, the words in the interface), use the `orogen-look` skill (`.claude/skills/orogen-look/`): what to read for the change, the rules that are easy to miss, how to colour a map, and what to check.
+- **Tokens, never literals.** New CSS takes its colours, fonts and spacing from `tokens.css`. Pages not yet redesigned use the `--ui-*` roles at the top of `styles.css`; add no new ones.
+- **`node v2/tools/check-style.mjs`** checks the mechanical rules (no literal colours, no new `--ui-*` role, no undefined `var(--…)`). A hook in `.claude/settings.json` runs it after each edit to a stylesheet, a page or interface JS, and speaks only when something is wrong.
+- **Keep the guide in step.** A change that adds to the look or bends it updates `docs/style-guide/` (and `tokens.css`) in the same change.
 
 ## Key Rules
 

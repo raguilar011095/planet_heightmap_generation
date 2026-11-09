@@ -1,4 +1,4 @@
-// Import Heightmap, on the shared core (plans/SHARED_CORE_PLAN.md U4): the image's
+// Import, on the shared core (plans/SHARED_CORE_PLAN.md U4): the image's
 // heights on Generate's mesh (js/planet-worker.js importShared) shown at once, then finished in the background by
 // Evolution's finish — the climate, its rivers (carved as deep as the erosion sliders ask: none at their defaults, the
 // heightmap kept as drawn), lakes, the ice age, dunes and loess, the Satellite view and Food — on Evolution's planet view,
@@ -31,6 +31,7 @@ Object.assign($('canvas').style, { position: 'fixed', inset: '0', width: '100vw'
 mountLayerBar({ comes: 'Comes a few seconds after the heightmap', without: ['plates', 'geology'] });
 
 const pv = new PlanetView({ isTouch: IS_TOUCH, gpu: new URLSearchParams(location.search).get('gpu') !== '0', paletteKey: 'orogen.import.palette',
+    band: { below: document.getElementById('info'), gap: 24 },
     onChange: () => { dirty = true; updateChip(); }, alive: (fin) => fin === world?.fin,
     infoText: (mode) => (IS_TOUCH ? 'Drag to rotate · Pinch to zoom' : `Drag to ${mode === 'map' ? 'move the map' : 'rotate'} · Scroll to zoom`) });
 const view = pv.view;
@@ -66,6 +67,7 @@ function received(msg) {
     const sh = msg.shared;
     world = { version: ++version, seed: msg.seed, tMesh: meshFromArrays(sh.mesh), meshArrays: sh.mesh, heightKm: sh.heightKm, shade: sh.shade, finishJob: sh.finish, fin: null, finishing: null, problem: null, n: sh.mesh.numCells };
     building = null; dirty = true;
+    pv.forget();                                         // (the old world's finished moment let go)
     importBtn.disabled = false; importBtn.textContent = 'Import';
     reapplyBtn.classList.remove('spinning');
     overlay.hide();
@@ -118,7 +120,7 @@ function tick(now) {
         pv.syncLegendCard(!!fin);
     }
     pv.updatePatch(now, world ? pv.shows(world.fin) : null, world?.fin, world?.seed);
-    pv.render();
+    pv.render(now);
 }
 requestAnimationFrame(tick);
 pv.onPointer((e) => {
@@ -195,7 +197,7 @@ const exportPanel = initEvolutionExport({
     fine: (fin, _seed, W, onProgress) => pv.detail.window(fin, world.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress),
     page: 'import', titleNote: () => '',
     names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen', 'import'], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
-    about: () => ({ page: 'Import Heightmap', planet: 'an imported heightmap', link: null }) });
+    about: () => ({ page: 'Import', planet: 'an imported heightmap', link: null }) });
 $('exportBtn').addEventListener('click', () => {
     if (world?.fin) { exportPanel.open(); return; }
     pv.hover([world?.finishing ? `The maps are ready once the heightmap is finished — ${Math.round(100 * world.finishing.share)} %` : 'The maps are ready once the heightmap is finished']);

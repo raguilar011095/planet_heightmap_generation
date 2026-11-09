@@ -4,13 +4,29 @@
     "description": "Believable worlds from the ground up: free planet tools in your browser, from tectonic history to climate, rocks and food",
     "start_url": "/",
     "display": "browser",
-    "background_color": "#030308",
-    "theme_color": "#0a0e17",
+    "background_color": "#FBFAF6",
+    "theme_color": "#FBFAF6",
     "icons": [
         {
-            "src": "preview.png",
-            "sizes": "1200x630",
+            "src": "assets/brand/icon-192.png",
+            "sizes": "192x192",
             "type": "image/png"
+        },
+        {
+            "src": "assets/brand/icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png"
+        },
+        {
+            "src": "assets/brand/icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "assets/brand/favicon.svg",
+            "sizes": "any",
+            "type": "image/svg+xml"
         }
     ]
 }

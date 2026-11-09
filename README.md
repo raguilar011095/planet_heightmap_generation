@@ -27,7 +27,7 @@ hotspot tracks, continents that fit) and, a few seconds after it appears, Evolut
 lakes, an ice age, a satellite view with clouds, its rocks and ores, and its food. A planet code rebuilds it exactly. The
 fastest of the tools, and the most at home on a phone.
 
-### Import Heightmap: your own landmass, its climate
+### Import: your own landmass, its climate
 
 **[orogen.studio/import](https://orogen.studio/import)** · [guide](docs/import.md)
 
@@ -41,8 +41,8 @@ erosion and sculpting. It opens with Earth, so you can see how well the climate 
 
 Watch a supercontinent break up, oceans open and close, and continents collide and gather again over hundreds of
 millions of years. Stop on a moment and add detail: rivers and lakes, glaciers and fjords, its own climate, a satellite
-view with clouds, the rocks, ores and gems its history left (Geology, in beta) and what the land could feed (Food, in
-beta). Save the whole planet as one file. Works best on a desktop computer for now.
+view with clouds, the rocks, ores and gems its history left (Geology) and what the land could feed (Food, in beta).
+Save the whole planet as one file. Works best on a desktop computer for now.
 
 ### What they share
 
@@ -72,15 +72,21 @@ Then open **http://localhost:8000** for the Studio.
 ## Project structure
 
 ```
-index.html              Home page: the Studio — the tools explained + curated resources; sends Generate's old links (/#code) on to /generate
+index.html              Home page: the Studio — the tools with worlds made in each, and curated resources; sends Generate's old links (/#code) on to /generate
 generate.html           Generate page — HTML markup + import map + structured data
 import.html             Import page — heightmap upload + climate visualization
 evolution.html          Evolution page — a planet's tectonic history (v2/)
 studio.html             The Studio's old address (/studio): sends on to /
 studio.css              Studio page styles
-assets/studio/          Screenshots of each tool for the Studio cards
+assets/studio/          The Studio's pictures: the hero globe (its still, and globe/: the maps it turns through), the worlds
+                        (worlds/: two from each tool), the tools' screenshots
+                        (evolution.jpg is Evolution's social image)
 assets/social.svg       The GitHub, Bluesky, X and Threads marks for the follow links (one <symbol> each)
-styles.css              Shared CSS (all pages)
+tokens.css              The style guide's design tokens (all pages): colours for Paper and Night, type, spacing, corners,
+                        lines, sizes and shadows, and the fonts
+styles.css              Shared CSS (all pages); today's interface colours are the --ui-* variables at its top
+assets/fonts/           The three typefaces, self-hosted (woff2), and their licence (OFL.txt)
+assets/brand/           The World Orogen mark, the favicon and app icons (site.webmanifest), and the line icons
 robots.txt              Search engine crawler directives
 sitemap.xml             Sitemap for search engine indexing
 site.webmanifest        Web app manifest (metadata + theming)
@@ -93,13 +99,18 @@ CNAME                   Custom domain config (orogen.studio)
 preview.png             Social preview image (og:image / Twitter card)
 VISION.md               The project's vision: what Orogen is, its pillars, each tool's profile, its scope
 CLAUDE.md               Rules for Claude Code sessions (imports VISION.md)
+.claude/               Claude Code setup: the look's checklist (skills/orogen-look/) and a hook that runs the style
+                        check after edits to stylesheets, pages and interface JS (settings.json)
 docs/                   Each tool's guide (generate.md, import.md, evolution.md) and what they share (shared.md)
-js/                     Generate and Import Heightmap (file by file: docs/generate.md, "Code")
+docs/style-guide/       The look: the brand book, maps and the globe, page patterns, and the components (reference CSS and
+                        JS); plans/REDESIGN_PLAN.md moves the app onto it
+js/                     Generate and Import (file by file: docs/generate.md, "Code")
 v2/                     World Orogen V2 — the Evolution page (/evolution) and the climate every page runs;
                         tectonic *history* engine built in confirmed phases; see v2/README.md and
                         plans/V2_TECTONIC_HISTORY_DESIGN.md. Open /v2/ for the Tectonics Lab (locally: the deploy leaves
                         the labs out);
                         `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks;
+                        `node v2/tools/check-style.mjs` checks the pages' CSS against the style guide's tokens;
                         v2/js/view/ holds what every page shares — the planet on screen (planet-view.js) and the layer
                         bar over it (layer-bar.js), the export panel (export-panel.js), its rasters, scales and README
                         (export-raster.js), the map projections (projections.js) and their GLSL inverses for the map
@@ -121,6 +132,8 @@ Loaded via CDN import maps (no installation needed):
 - [Three.js](https://threejs.org/) v0.160.0 — 3D rendering
 - [Delaunator](https://github.com/mapbox/delaunator) v5.0.1 — 2D Delaunay triangulation
 
+Served with the site, so a page never waits on another server: the typefaces [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant), [EB Garamond](https://github.com/octaviopardo/EBGaramond12) and [Libre Franklin](https://github.com/googlefonts/Libre-Franklin), in `assets/fonts/`.
+
 ## Follow and support
 
 New releases, work in progress and sneak peeks of what's coming, plus the odd planet along the way: [Bluesky](https://bsky.app/profile/did:plc:quknpdz3qcoid5uh4qv27w2t) · [X](https://x.com/worldorogen) · [Threads](https://www.threads.com/@orogen.studio).
@@ -134,6 +147,8 @@ Maps, heightmaps and images you make with World Orogen are yours to use however 
 ## License
 
 World Orogen · Copyright (C) 2026 Robert Aguilar. Free software under the GNU General Public License v3.0 — see [LICENSE](LICENSE).
+
+The typefaces in `assets/fonts/` are their authors' work under the SIL Open Font License 1.1 — see [assets/fonts/OFL.txt](assets/fonts/OFL.txt).
 
 ## Acknowledgments
 

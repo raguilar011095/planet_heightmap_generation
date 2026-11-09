@@ -24,6 +24,10 @@ import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, 
 import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptionsKey } from '../evolution/farming-view.js';
 import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
 import { LayerBar } from './layer-bar.js';
+import { createGraticuleFrame } from '../../../js/graticule-frame.js';
+import { inSpace } from '../../../js/stage.js';
+import { openLeft, openShift, onOpenArea, planetWidthFrom, planetChanged } from '../../../js/open-area.js';
+import { createMapBand, navHeight } from '../../../js/map-band.js';
 
 const $ = id => document.getElementById(id);
 const SEASONS = ['year', 'jan', 'jul'];
@@ -49,7 +53,7 @@ export class PlanetView {
      *   moment still kept (its Satellite view drawn ahead only while it is); extraLines(ctx, width) and extraLinesKey(): the
      *   page's own lines over the picture
      */
-    constructor({ isTouch, gpu = true, paletteKey, onChange = () => {}, alive = () => true, extraLines = null, extraLinesKey = () => null, infoText = null }) {
+    constructor({ isTouch, gpu = true, paletteKey, onChange = () => {}, alive = () => true, extraLines = null, extraLinesKey = () => null, infoText = null, band = {}, frameHidden = () => false }) {
         this.isTouch = isTouch;
         this.MAP_WIDTH = isTouch ? 1024 : 2048;
         this.SHARP_WIDTH = isTouch ? 0 : 4096;         // (the sharper texture, when paused (desktop; developer: "Sharper when paused"))
@@ -66,6 +70,17 @@ export class PlanetView {
         this.globe = new GlobeView(this.ui.canvas, this.tex.lo.canvas, { space: true });
         this.globe.setSmooth(true);
         this.globe.controls.autoRotateSpeed = 0.6;
+        // (the globe and the map placed beside the panel: centred on the window with room to spare, on the open area when
+        // room is short, js/open-area.js)
+        this.globe.setOpenArea(openLeft(), openShift());
+        onOpenArea((left, shift) => this.globe.setOpenArea(left, shift));
+        planetWidthFrom(left => this.globe.planetWidth(left));
+        // (the band a flat map is fitted in, js/map-band.js: below the layer tabs and their rows, above what the page keeps
+        // under the planet — `band.below`: Evolution's timeline, Generate's hint — its frame's numerals at the sides; and
+        // the graticule frame round the globe or the map, js/graticule-frame.js, hidden while `frameHidden()`)
+        this.band = createMapBand(band);
+        this.graticule = createGraticuleFrame(this.ui.canvas);
+        this.frameHidden = frameHidden;
         this.gpu = gpu && GpuPainter.available(this.globe.renderer) ? new GpuPainter(this.globe.renderer, this.GPU_WIDTH, this.MAP_WIDTH) : null;
         this.seaMask = texture(this.MAP_WIDTH);         // where the sea is, for the glint (the lighter resolution is enough for a glint)
         this.glinting = false; this.glintFrom = null;
@@ -153,8 +168,17 @@ export class PlanetView {
         return this.sharp.table;
     }
 
-    /** A plain sea, while a new world starts. */
+    /** The finished moment painted last let go, its world gone: what the view kept of it — the legend's, the tiles'
+     *  colours, the Satellite view drawn ahead — held it, and every cache hung on it, in memory until another was painted. */
+    forget() {
+        this.legendFin = null; this.patchClimate = null;
+        this.tileColors = { look: -1, byWidth: new Map() };
+        this.satPrep = null;
+    }
+
+    /** A plain sea, while a new world starts (the old world's finished moment let go). */
     blank() {
+        this.forget();
         const px = new Uint8Array(3), t = this.tex.lo;
         this.tint(new Float32Array([-4]), new Float32Array([0.8]), px);
         this.glint(false);
@@ -175,10 +199,21 @@ export class PlanetView {
     show(t) {
         this.globe.setSource(t.isTexture ? t : t.canvas);
         this.globe.textureChanged();
+        this.pictured = true;                                   // (a planet on the globe: its graticule frame may show)
     }
 
     /** The map view (or the globe): the texture flat, turned so that the centre longitude is in the middle. */
-    showMap() { const v = this.view; this.globe.setMap(v.mode === 'map' ? this.ui.map : null, v.centerLon, v.projection, v.projOpts); }
+    showMap() {
+        const v = this.view;
+        this.layoutMap();
+        this.globe.setMap(v.mode === 'map' ? this.ui.map : null, v.centerLon, v.projection, v.projOpts);
+        planetChanged();
+    }
+    /** The room the map keeps round its frame (the band's), handed to the globe view. */
+    layoutMap() {
+        const { top, bottom, m } = this.band.now();
+        this.globe.setMapPad({ top: top - navHeight(), bottom, side: m });
+    }
 
     /**
      * A live surface painted: `T` its heights (km) and hillshade per cell of `tMesh`, `table` its CPU pixel table (CPU only);
@@ -291,7 +326,7 @@ export class PlanetView {
         // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
         // farming views their lakes too, as water)
         paintFinished(fin.raster, t, lut, { seaImage: this.glinting ? this.seaMask.image.data : null, seaWidth: this.MAP_WIDTH, exaggeration: this.SHADING.exaggeration * (view.layer === 'satellite' ? 1.25 : 1), lakes: water || view.layer === 'satellite' || geo || farm,
-            shaded: view.shaded, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
+            shaded: view.shaded, keep: true, colorAt: geo ? finishedGeologyColor(view.layer, t.width, fin, view.deposit, view.age, view.ageRes) : farm ? finishedFarmingColor(view.layer, fin, t.width) : C ? finishedClimateColor(view.layer, view.season, C, t.width, lut, fin) : null });
         if (this.glinting) { this.seaMask.ctx.putImageData(this.seaMask.image, 0, 0); this.globe.seaMaskChanged(); }
         t.ctx.putImageData(t.image, 0, 0);
         // (the rivers' lines on the Terrain view — and on Farmland, the water its canals and floods come from; from space they
@@ -430,7 +465,7 @@ export class PlanetView {
             const st = view.gridStep, w0 = x0 / W * 360 - 180, e0 = (x0 + SLOT) / W * 360 - 180, n0 = 90 - y0 / (W >> 1) * 180, s0 = 90 - (y0 + SLOT) / (W >> 1) * 180;
             const X = lon => (lon + 180) / 360 * W - x0, Y = lat => (90 - lat) / 180 * (W >> 1) - y0;
             ctx.save();
-            ctx.strokeStyle = 'rgba(255,255,255,0.13)'; ctx.lineWidth = 1.5; ctx.beginPath();
+            ctx.strokeStyle = (window.orogenTheme?.token('map-grid') || 'rgba(255,255,255,0.22)'); ctx.lineWidth = 1.5; ctx.beginPath();
             for (let lon = Math.ceil(w0 / st) * st; lon <= e0; lon += st) { ctx.moveTo(X(lon), 0); ctx.lineTo(X(lon), SLOT); }
             for (let lat = Math.ceil(s0 / st) * st; lat <= n0; lat += st) { if (Math.abs(lat) >= 90) continue; ctx.moveTo(0, Y(lat)); ctx.lineTo(SLOT, Y(lat)); }
             ctx.stroke();
@@ -449,10 +484,25 @@ export class PlanetView {
     }
 
     /** The globe drawn: turning if asked, sized to its canvas, only when something changed. */
-    render() {
+    render(now = performance.now()) {
         this.globe.controls.autoRotate = $('chkRotate').checked && this.view.mode === 'globe';
         this.globe.resize();
+        if (this.band.tick(now)) { this.layoutMap(); planetChanged(); }  // (the map's band gliding: the tabs' rows changed)
         this.globe.renderIfNeeded();                         // (the globe, or the map: the same renderer draws both)
+        this.showFrame();
+    }
+    /** The graticule frame: the gold ring round the globe, its ticks and degrees where the grid lines meet its edge, fading
+     *  as you zoom in; the gold frame round the map, its degrees where the lines leave it. None before a picture, or while
+     *  the page hides it (Evolution's loading screen). */
+    showFrame() {
+        if (!this.pictured || this.frameHidden()) { this.graticule.hide(); return; }
+        const fv = this.globe.frameView(), spacing = this.view.grid ? this.view.gridStep : 30;
+        if (fv.kind === 'map') {
+            const rect = this.band.frameRect();
+            this.graticule.map({ ...fv, rect, spacing, key: `${fv.key}|${spacing}|${innerWidth}|${innerHeight}|${rect.l},${rect.t},${rect.r},${rect.b}` });
+            return;
+        }
+        this.graticule.globe({ ...fv, spacing, space: inSpace() });
     }
 
     // ── the hover ──
@@ -481,7 +531,7 @@ export class PlanetView {
         const at = fin ? this.patchAt(fin, p[0], p[1]) ?? finishedAt(fin, p[0], p[1]) : null;
         lines.push(`<span class="hi-label">Elev</span> ${Math.round(at ? at.heightM : heightKm * 1000).toLocaleString()} m`);
         if (at && view.water && (view.layer === 'terrain' || view.layer === 'satellite')) {
-            if (at.water && !at.ocean) lines.push(`<span style="color:#5ae">●</span> <b>${['', 'Fresh lake', 'Salt lake', 'Salt pan'][at.water]}</b>`);
+            if (at.water && !at.ocean) lines.push(`<span style="color:var(--layer-climate)">●</span> <b>${['', 'Fresh lake', 'Salt lake', 'Salt pan'][at.water]}</b>`);
             const rv = fin.rivers && !at.ocean ? riverAt(fin, view.riverQ, p[0], p[1]) : null;
             if (rv) lines.push(`<span style="color:${view.byRegime ? REGIME_STYLE[rv.regime].rgb : '#37c'}">●</span> <b>River</b> · ${Math.round(rv.q).toLocaleString()} m³/s · ${riverYearWords(rv)}`);
         }

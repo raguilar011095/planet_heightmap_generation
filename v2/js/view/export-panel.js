@@ -57,13 +57,13 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
             <div class="cg"><label>Width <span class="v" id="exportDims"></span></label><select id="exportWidth"></select></div>
             <div class="cg"><label>Projection <span class="tip" data-tip="The map's shape. Equirectangular is the plain 2 : 1 map (the one that re-imports and that most tools expect); the others are drawn from it pixel by pixel. Each has its own options below it">?</span></label><select id="exportProjection"></select></div>
             <div class="cg xp-proj-opts" id="exportProjOpts" hidden></div>
-            <div class="cg"><label>Centre longitude <span class="v" id="exportCentreV">0°</span> <span class="tip" data-tip="The longitude in the middle of the map — the map view's Center Longitude when the dialog opens. The file name notes it (-c90E)">?</span></label><input type="range" id="exportCentreLon" min="-180" max="180" step="5" value="0"></div>
+            <div class="cg"><label>Centre longitude <span class="v" id="exportCentreV">0°</span> <span class="tip" data-tip="The longitude in the middle of the map — the map view's center longitude when the dialog opens. The file name notes it (-c90E)">?</span></label><input type="range" id="exportCentreLon" min="-180" max="180" step="5" value="0"></div>
             <div class="cg"><label>Season <span class="tip" data-tip="For the maps that change with the seasons (marked ☼): the year's mean, January, July, or all three as separate files">?</span></label><select id="exportSeason"><option value="year">Year</option><option value="jan">January</option><option value="jul">July</option><option value="all">All three</option></select></div>
         </div>
         <div class="xp-head"><span>Map</span><span title="As shown on screen, in its legend's colours">Colour</span><span title="The numbers themselves: a greyscale on a fixed scale (README.txt says which)">Data</span></div>
         <div class="xp-layers" id="exportLayers"></div>
         <div class="xp-options">
-            <label class="xp-opt" id="exportShadeRow"><input type="checkbox" id="chkExportShade" checked> Hillshade on the colour maps <span class="tip" data-tip="Shade the Colour Map and the Satellite view by the relief, as on screen. Off, they are flat colour — to lay your own shading over">?</span></label>
+            <label class="xp-opt" id="exportShadeRow"><input type="checkbox" id="chkExportShade" checked> Hillshade on the colour maps <span class="tip" data-tip="Shade the colour map and the Satellite view by the relief, as on screen. Off, they are flat colour — to lay your own shading over">?</span></label>
             <label class="xp-opt"><input type="checkbox" id="chkExportReadme" checked> README.txt in the ZIP <span class="tip" data-tip="A text file naming every map, its kind, units and scale, the projection and the centre — for whoever opens the files later">?</span></label>
         </div>
         <div class="xp-planet" id="exportPlanet" hidden>
@@ -100,6 +100,9 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
                 `<label class="xp-check">${row.data ? '<input type="checkbox" data-variant="data">' : '<i>–</i>'}</label>`;
             g.appendChild(el);
             const r = { row, el, colour: el.querySelector('[data-variant="colour"]'), data: el.querySelector('[data-variant="data"]') };
+            // (each box named by its map and its column, as a screen reader can't see the grid)
+            const name = el.querySelector('.xp-name').firstChild?.textContent.trim() || row.id;
+            r.colour?.setAttribute('aria-label', `${name}: Colour`); r.data?.setAttribute('aria-label', `${name}: Data`);
             rows.push(r); byId.set(row.id, r);
         }
         els.layers.appendChild(g);

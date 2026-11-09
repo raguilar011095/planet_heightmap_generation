@@ -1,4 +1,4 @@
-// The worker behind Generate and Import Heightmap (plans/SHARED_CORE_PLAN.md): Generate's present-day world — its pieces
+// The worker behind Generate and Import (plans/SHARED_CORE_PLAN.md): Generate's present-day world — its pieces
 // (the plates the sliders and Ctrl-click shape) grouped into plates that move, its past in closed form and its ground on
 // Generate's mesh (v2/js/present/) — or an imported heightmap's ground; each sent to the page as its first picture with the
 // job Evolution's finish then does in the background (v2/js/finish/finish-worker.js, from the page).

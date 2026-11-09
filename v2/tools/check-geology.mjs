@@ -34,7 +34,7 @@ import { TerrainPool, FRAME_FIELDS } from '../js/terrain/terrain-pool.js';
 import { terrainMesh } from '../js/terrain/terrain-mesh.js';
 import { finishPlanet, finishRaster } from '../js/finish/finish.js';
 import { Rock, ROCK_INFO, ROCK_COUNT, EARTH_FAMILIES } from '../js/geology/rocks.js';
-import { DEPOSITS, DEPOSIT_INDEX, METALS, districtSystems } from '../js/geology/deposits.js';
+import { DEPOSITS, DEPOSIT_INDEX, METALS, ORE_FAMILIES, districtSystems } from '../js/geology/deposits.js';
 import { calibrationKey } from '../js/geology/district-shapes.js';
 import { DISTRICT_THRESHOLDS } from '../js/geology/district-thresholds.js';
 import { AGES, resourceField, landShares, potentialField } from '../js/geology/ages.js';
@@ -437,8 +437,9 @@ section('G7 — gems');
 
 section('Contrast — the washes');
 {
-    // (every colour the Deposits and Ages views draw, and halfway between any two that can meet in an All view)
-    const groups = [METALS.filter(m => m.group === 'metal'), DEPOSITS, ...AGES.map(a => [...a.resources, ...(a.potential ? [a.potential] : [])])];
+    // (every colour the Deposits and Ages views draw — the Deposits map's ore families too — and halfway between any two
+    // that can meet in an All view)
+    const groups = [METALS.filter(m => m.group === 'metal'), ORE_FAMILIES, DEPOSITS, ...AGES.map(a => [...a.resources, ...(a.potential ? [a.potential] : [])])];
     const cols = [...new Map(groups.flat().map(x => [x.rgb.join(), x.rgb])).values()];
     for (const g of groups) for (let i = 0; i < g.length; i++) for (let j = i + 1; j < g.length; j++) cols.push(g[i].rgb.map((x, ch) => (x + g[j].rgb[ch]) / 2));
     const [p0, p1, p2] = GEOLOGY.deposits.grades, o = new Uint8ClampedArray(4), w = {};
