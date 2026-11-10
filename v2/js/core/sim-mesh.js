@@ -2,7 +2,7 @@
 // results are independent of the render Detail slider. Reuses V1's Fibonacci/Delaunay
 // sphere builder (call V1's setDelaunator() before building).
 
-import { buildSphere } from '../../../js/sphere-mesh.js';
+import { spherePoints, sphereFromPoints } from '../../../js/sphere-mesh.js';
 import { makeRng } from '../../../js/rng.js';
 import { SphereIndex } from './sphere-index.js';
 
@@ -21,9 +21,9 @@ export const PLANET_RADIUS_KM = 6371;
  */
 
 /** @returns {SimMesh} */
-export function buildSimMesh(numCells, seed) {
+export function buildSimMesh(numCells, seed, points = null) {
     // Light jitter breaks up Fibonacci lattice directions without hurting uniformity.
-    const { mesh, r_xyz } = buildSphere(numCells, 0.35, makeRng(seed + 4242));
+    const { mesh, r_xyz } = sphereFromPoints(points ?? spherePoints(numCells, 0.35, makeRng(seed + 4242)));
     const n = mesh.numRegions;
     // Cells are near-hexagonal: area = (√3 / 2) · spacing², and n of them tile 4π. (Measured mean
     // neighbour distance on the jittered Fibonacci mesh agrees to ~3 %.)
@@ -38,6 +38,16 @@ export function buildSimMesh(numCells, seed) {
         edgeKm: edgeRad * PLANET_RADIUS_KM,
         cellAreaKm2: (4 * Math.PI * PLANET_RADIUS_KM * PLANET_RADIUS_KM) / n,
     };
+}
+
+/**
+ * A mesh's cells before it is a mesh: where they are (`xyz`: buildSimMesh's own points, to hand back to it as `points`),
+ * how many, and how far apart — known in a moment, where the mesh takes its triangulation. For work that needs only the
+ * cells' positions, begun while the mesh is built (finish/finish.js: the surface).
+ */
+export function simMeshPoints(numCells, seed) {
+    const xyz = spherePoints(numCells, 0.35, makeRng(seed + 4242)), n = xyz.length / 3, edgeRad = Math.sqrt(8 * Math.PI / (Math.sqrt(3) * n));
+    return { numCells: n, xyz, edgeRad, edgeKm: edgeRad * PLANET_RADIUS_KM };
 }
 
 /**

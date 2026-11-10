@@ -2,13 +2,13 @@
 // what the pool shared with every worker — the same code the finish runs in place where it has no pool.
 
 import { TaskPool } from '../core/task-pool.js';
-import { picturePieceTask, lookBandTask, lookPieceTask } from './finish-raster.js';
+import { picturePieceTask, lookBandTask, lookStatsTask } from './finish-raster.js';
 import { climateCellsTask } from './finish-cells.js';
 
 export const FINISH_TASKS = {
     picturePiece: picturePieceTask,
     lookBand: lookBandTask,
-    lookPiece: lookPieceTask,
+    lookStats: lookStatsTask,
     climateCells: climateCellsTask,
 };
 

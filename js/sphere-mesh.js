@@ -172,14 +172,24 @@ export class SphereMesh {
 
 // Build sphere — Fibonacci points → Delaunay → close pole.
 export function buildSphere(N, jitter, rng) {
-    const r_xyz = generateFibonacciSphere(N, jitter, rng);
-    const flat = stereographicProjection(r_xyz, N);
-    const delaunay = new _Delaunator(flat);
+    return sphereFromPoints(spherePoints(N, jitter, rng));
+}
 
+// The sphere's points alone: the N Fibonacci points, then the pole (N + 1 in all) — what buildSphere triangulates.
+// Known before the mesh is: work that needs only where the cells are can start on them (v2/js/finish/finish.js).
+export function spherePoints(N, jitter, rng) {
+    const r_xyz = generateFibonacciSphere(N, jitter, rng);
     const poleXYZ = new Float32Array(3 * (N + 1));
     poleXYZ.set(r_xyz);
     poleXYZ[3*N] = 0;  poleXYZ[3*N+1] = 0;  poleXYZ[3*N+2] = 1;
+    return poleXYZ;
+}
 
+// buildSphere from spherePoints' points: Delaunay → close pole.
+export function sphereFromPoints(poleXYZ) {
+    const N = poleXYZ.length / 3 - 1;
+    const flat = stereographicProjection(poleXYZ, N);
+    const delaunay = new _Delaunator(flat);
     const closed = addPoleToMesh(N, delaunay.triangles, delaunay.halfedges);
     const mesh = new SphereMesh(closed.triangles, closed.halfedges, N + 1);
     return { mesh, r_xyz: poleXYZ };

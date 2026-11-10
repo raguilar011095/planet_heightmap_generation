@@ -63,6 +63,9 @@ async function timed(stage, fn, printOf = v => fingerprint(v)) {
 function done() {
     const total = rows.filter(r => !r.stage.startsWith(' ')).reduce((s, r) => s + r.ms, 0);
     console.log(`${'total'.padEnd(34)} ${(total / 1000).toFixed(2).padStart(8)} s`);
+    // (the most memory the process held at once, its worker threads' too: what a pooled stage costs beside one in place)
+    const peakMB = Math.round(process.resourceUsage().maxRSS / 1024);
+    console.log(`${'peak memory'.padEnd(34)} ${String(peakMB).padStart(8)} MB`);
     const json = arg('--json', null), cmp = arg('--compare', null);
     if (json) { fs.mkdirSync(path.dirname(path.resolve(json)), { recursive: true }); fs.writeFileSync(json, JSON.stringify({ mode: MODE, argv, rows }, null, 1)); }
     if (cmp) {
@@ -144,9 +147,13 @@ async function finishOf(job, width, stageNote = true) {
     const { finishTaskPool = null } = await import('../js/finish/finish-tasks.js').catch(() => ({}));
     // (the finish's task pool, as finish-worker.js starts it — `--serial`: none, everything in place; `--workers N`)
     const tasks = has('--serial') || !finishTaskPool ? null : () => finishTaskPool(has('--workers') ? Number(arg('--workers')) : null);
+    // (--mem: the process's memory sampled five times a second from a thread of its own — this one is busy — and the
+    // most it held during each stage)
+    const mem = has('--mem') ? await memorySampler() : null;
     const t0 = performance.now();
-    const out = await finishPlanet({ ...job, tasks });
+    const out = await finishPlanet({ ...job, tasks, onStage: s => { mem?.stage(s); job.onStage?.(s); } });
     const all = performance.now() - t0;
+    mem?.stage('picture');
     if (stageNote) for (const [k, v] of Object.entries(out.ms)) note(`   ${k}`, v, '');
     note('finish (all stages)', all, fingerprint({ z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, climate: out.climate }));
     // (each part's own print, so a difference says where)
@@ -155,6 +162,7 @@ async function finishOf(job, width, stageNote = true) {
     if (out.tasks) { const { pictureMs } = await import('../js/finish/finish-raster.js'); for (const [k, v] of Object.entries(pictureMs)) note(`   ${k}`, v, ''); }
     for (const [k, v] of Object.entries({ heightM: raster.heightM, water: raster.water, geology: raster.geology, farming: raster.farming, climate: raster.climate })) note(`   = picture.${k}`, 0, fingerprint(v));
     out.tasks?.terminate();
+    if (mem) for (const [k, v] of Object.entries(await mem.done())) note(`   peak MB during ${k}`, 0, String(v));
     // (--keep FILE: the finished planet kept, for timing the picture alone)
     if (has('--keep')) fs.writeFileSync(arg('--keep'), v8.serialize({ mesh: { numCells: out.mesh.numCells, xyz: out.mesh.xyz, adjOffset: out.mesh.adjOffset, adjList: out.mesh.adjList }, edgeKm: out.mesh.edgeKm,
         z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, cell: out.climate.cell, geology: out.geology, farming: out.farming }));
@@ -168,6 +176,17 @@ async function finish() {
     const cells = Number(arg('--cells', 640000)), width = Number(arg('--width', cells >= 5e6 ? 8192 : 4096));
     const pool = await timed('terrain pool', () => TerrainPool.create(simMesh, has('--pool') ? Number(arg('--pool')) : null), null);
     await finishOf({ frame, simMesh, seed: SEED, cells, pool, closePool: true, climateOptions: { greenhouseWm2: 0, precipScale: 1 }, driversWidth: driverWidth(width) }, width);
+}
+
+/** The process's resident memory, sampled from a worker thread: stage(name) marks what runs now, done() → {name: peak MB}. */
+async function memorySampler() {
+    const { Worker } = await import('node:worker_threads');
+    const w = new Worker(`const { parentPort } = require('node:worker_threads'); let name = 'start'; const peak = {};
+        const tick = () => { const mb = Math.round(process.memoryUsage().rss / 2 ** 20); if (!(peak[name] >= mb)) peak[name] = mb; };
+        const timer = setInterval(tick, 200);
+        parentPort.on('message', m => { tick(); if (m.done) { clearInterval(timer); parentPort.postMessage(peak); } else name = m.stage; });`, { eval: true });
+    // (with node --expose-gc: this thread's garbage collected at each stage's start, so a stage's figure is its own)
+    return { stage: s => { globalThis.gc?.(); w.postMessage({ stage: s }); }, done: () => new Promise(r => { w.once('message', p => { w.terminate(); r(p); }); w.postMessage({ done: true }); }) };
 }
 
 // ── Generate and Import: js/planet-worker.js itself, its messages caught ──

@@ -2,7 +2,7 @@
 // records onto it. Heights are built here, not on the sim mesh: a mountain range is only 3–10 sim cells across, so
 // its ridges and valleys all live below the sim's resolution.
 
-import { buildSimMesh, meshFromArrays } from '../core/sim-mesh.js';
+import { buildSimMesh, meshFromArrays, simMeshPoints } from '../core/sim-mesh.js';
 import { locate } from '../core/mesh-locate.js';
 import { FastNoise as SimplexNoise } from '../core/fast-noise.js';     // (bit-identical to V1's SimplexNoise, faster)
 
@@ -20,6 +20,16 @@ export function keepOnlyTerrainMesh(...numCells) {
 /** A terrain mesh of about `numCells` cells (same shape as a SimMesh), built once per size. */
 export function terrainMesh(numCells) {
     if (!meshes.has(numCells)) meshes.set(numCells, buildSimMesh(numCells, TERRAIN_MESH_SEED));
+    return meshes.get(numCells);
+}
+
+/** The terrain mesh of `numCells` if it is built already, else null. */
+export const terrainMeshBuilt = numCells => meshes.get(numCells) ?? null;
+/** A terrain mesh's cells before it is built — their positions, count and spacing (core/sim-mesh.js simMeshPoints) — and
+ *  the mesh built from them (terrainMeshFrom): the same mesh as terrainMesh's. */
+export const terrainMeshPoints = numCells => simMeshPoints(numCells, TERRAIN_MESH_SEED);
+export function terrainMeshFrom(numCells, points) {
+    if (!meshes.has(numCells)) meshes.set(numCells, buildSimMesh(numCells, TERRAIN_MESH_SEED, points.xyz));
     return meshes.get(numCells);
 }
 

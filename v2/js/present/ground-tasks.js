@@ -5,7 +5,7 @@
 // warpField: a noise tabulated over a cube map, ~1 s to fill) are filled a face at a time on the workers too, once per
 // seed and warp, and handed to every worker — else each would fill its own.
 
-import { TaskPool } from '../core/task-pool.js';
+import { TaskPool, release } from '../core/task-pool.js';
 import { drawSurface } from './world.js';
 import { planToData, planFromData, carveInputs } from '../terrain/synthesize.js';
 import { warpField, warpFieldPlan, installWarpField, cubeFace } from '../terrain/terrain-mesh.js';
@@ -54,6 +54,7 @@ export async function drawSurfacePooled(pool, job) {
             out.cells.set(r.cells, 3 * c0); out.weights.set(r.weights, 3 * c0); out.heightKm.set(r.heightKm, c0);
             if (out.carveIn) for (const k of Object.keys(out.carveIn)) out.carveIn[k].set(r.carveIn[k], c0);
             if (out.recCell) { out.recCell.set(r.recCell, c0); out.cues.set(r.cues, 3 * c0); }
+            release(r);
         });
         await pool.forget('ground');
         return out;

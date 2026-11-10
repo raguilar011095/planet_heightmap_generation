@@ -35,12 +35,14 @@ let sim = null, simCells = 0, delaunatorSet = false;
 
 self.onmessage = async ({ data }) => {
     if (data.type === 'prepare') {
-        // (the fine mesh and the coarser ones its carving climbs — ~3 s at 2.5M — built before the first Add detail)
+        // (the coarser meshes a finish's carving climbs, built before the first Add detail. Not the fine one: a finish
+        // builds it while its workers draw the surface — finish.js — at no cost in time, and a finish asked for while it
+        // was being built here had to wait for it: ~17 s at 10M cells)
         try {
             if (!delaunatorSet) { setDelaunator((await import(data.delaunatorUrl)).default); delaunatorSet = true; }
             const sizes = ladderCells(data.simCells, data.cells);
             keepOnlyTerrainMesh(data.cells, ...sizes);
-            for (const c of [...sizes, data.cells]) terrainMesh(c);
+            for (const c of sizes) terrainMesh(c);
         } catch { /* (built when a finish asks for them, then) */ }
         return;
     }

@@ -19,6 +19,23 @@ async function spawn(url) {
         onCrash: fn => w.addEventListener('error', e => { e.preventDefault?.(); fn(e.message || 'a worker stopped'); }), terminate: () => w.terminate(), hold: () => {} };
 }
 
+/**
+ * Let typed arrays' memory go now, not when the garbage collector next looks: every array in `things` (arrays of them,
+ * and objects holding them, a few levels down) is emptied — its buffer detached (ArrayBuffer.prototype.transfer, where
+ * the browser has it; elsewhere this does nothing and the collector frees them in its own time). For a piece's inputs
+ * once its task is done, and its results once they are taken in: at 10M cells a picture's pieces left ~1 GB waiting to
+ * be collected. Only for arrays nothing reads again.
+ */
+export function release(...things) {
+    const walk = (v, depth) => {
+        if (!v || typeof v !== 'object') return;
+        if (ArrayBuffer.isView(v)) { const b = v.buffer; if (b.byteLength && typeof b.transfer === 'function' && b instanceof ArrayBuffer) { try { b.transfer(0); } catch { /* (not ours to empty) */ } } return; }
+        if (depth > 3 || v instanceof ArrayBuffer) return;
+        for (const x of Array.isArray(v) ? v : Object.values(v)) walk(x, depth + 1);
+    };
+    for (const t of things) walk(t, 0);
+}
+
 /** How many cores the machine reports. */
 export async function coreCount() { return IS_NODE ? (await import('node:os')).availableParallelism() : (globalThis.navigator?.hardwareConcurrency || 4); }
 
@@ -115,7 +132,8 @@ export class TaskPool {
 
 /**
  * A pool worker's side: `tasks` — name → (part, common) → result, or { result, transfer } — served over the worker's
- * messages. Call it once, from the worker's module.
+ * messages. Call it once, from the worker's module. A task's `part` is let go (release) once its result is sent: a task
+ * must not keep its part's arrays for later (what it hands back in its result is the caller's by then).
  */
 export async function serveTasks(tasks) {
     const common = {};
@@ -126,6 +144,7 @@ export async function serveTasks(tasks) {
             if (msg.type === 'forget') { if (msg.key === null) for (const k of Object.keys(common)) delete common[k]; else delete common[msg.key]; post({ id: msg.id, result: true }); return; }
             const out = await tasks[msg.task](msg.part, common);
             if (out && out.transfer) post({ id: msg.id, result: out.result }, out.transfer); else post({ id: msg.id, result: out });
+            release(msg.part);
         } catch (err) { post({ id: msg.id, error: err?.stack ?? String(err) }); }
     };
     if (typeof self === 'undefined' || typeof self.postMessage !== 'function') {            // a Node worker thread

@@ -10,6 +10,7 @@ import { landCover, coverRgb, newCover, coverRainScale, newVariety, placeVariety
 import { CORE_DEFAULTS, cellClimate } from '../climate/core.js';
 import { cellStatsCollector, STAT_KEYS } from '../climate/cell-stats.js';
 import { FastNoise } from '../core/fast-noise.js';
+import { release } from '../core/task-pool.js';
 import { softFamilies } from '../climate/koppen-soft.js';
 import { climateTests, climateTestArrays } from '../geology/deposits.js';
 import { newFarmClimate, addFarmClimate } from '../farming/farming.js';
@@ -87,6 +88,9 @@ export function climateCells(g, a, onFamily) {
 
 /** The farming's per-cell parts of the climate (farming.js newFarmClimate's arrays, without its working values). */
 const FARM_PARTS = ['rain', 'warm', 'black', 'leach', 'podzol', 'wet', 'pasture'];
+/** The most cells to a run: the runs in flight — each a copy of its cells' inputs, and its results on their way back — stay
+ *  a small part of the planet at any detail (at 10M cells, runs of a pool's sixth held ~0.6 GB between them). */
+const RUN_CELLS_MAX = 120000;
 /** Below this many cells the pool is not worth it: each worker meets the code cold, and a few hundred thousand cells are
  *  done here before the workers are up to speed (measured at 204K: no faster; at 640K: a quarter off). */
 const POOL_FROM_CELLS = 400000;
@@ -112,7 +116,7 @@ export async function finalClimate(pool, g, a, famGrid) {
             if (taken[q] < famGrid.perCell) { taken[q]++; want[c] = 1; }
         }
         await pool.share('climateCells', { grid: { step: g.grid.step, w: g.grid.w, h: g.grid.h, size: g.grid.size }, surface: { meanLandKm: g.surface.meanLandKm }, months: { T: g.months.T, P: g.months.P }, F: g.F, seed: g.seed, tests: g.tests });
-        const runs = Math.min(n, pool.size * 6), from = i => Math.floor(i * n / runs);
+        const runs = Math.max(pool.size * 6, Math.ceil(n / RUN_CELLS_MAX)), from = i => Math.floor(i * n / runs);
         const out = { koppen: new Uint8Array(n), tAnnual: new Float32Array(n), pAnnual: new Float32Array(n), sat: [0, 1, 2].map(() => new Uint8Array(3 * n)), ripSat: [0, 1, 2].map(() => new Uint8Array(3 * n)), cover: new Uint8Array(n),
             stats: Object.fromEntries(STAT_KEYS.map(k => [k, new Uint8Array(n)])), clim: g.tests ? climateTestArrays(n) : null, farmC: newFarmClimate(n), called: 0 };
         const fam = new Array(runs);
@@ -129,6 +133,7 @@ export async function finalClimate(pool, g, a, famGrid) {
             for (const k of FARM_PARTS) out.farmC[k].set(r.farm[k], c0);
             for (const k of Object.keys(out.farmC.crops)) out.farmC.crops[k].set(r.farm.crops[k], 2 * c0);
             fam[i] = r.fam; out.called += r.called;
+            release(r.koppen, r.tAnnual, r.pAnnual, r.sat, r.ripSat, r.cover, r.stats, r.clim, r.farm);      // (not r.fam: read below)
         });
         // (every land cell must have had a climate for the wanted places to be the ones famGrid.wants would have chosen)
         if (out.called !== landCells) throw new Error('a land cell without a climate');

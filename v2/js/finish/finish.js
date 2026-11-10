@@ -16,7 +16,7 @@ import { hydrology, openStraits, fillSeaBasins, Water } from './finish-hydro.js'
 import { biasTowardClimate, coverRain } from './finish-cover.js';
 import { finalClimate, corners } from './finish-cells.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
-import { terrainMesh } from '../terrain/terrain-mesh.js';
+import { terrainMesh, terrainMeshBuilt, terrainMeshPoints, terrainMeshFrom } from '../terrain/terrain-mesh.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { carveLadder, carveSettings } from '../terrain/synthesize.js';
 import { carveTerrain, forgetMesh, meanOnCoarser, prepareCarve } from '../terrain/carve.js';
@@ -72,23 +72,29 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
     onStage('mesh');
-    const mesh = givenMesh ?? terrainMesh(cells), n = mesh.numCells, cellKm2 = 4 * Math.PI * R * R / n;
-    lap('mesh');
+    // (a mesh not built yet, and a pool to draw the surface: the surface needs only where the cells are, known in a
+    // moment — so the workers start on it now and this thread builds the mesh meanwhile, its triangulation — 17 s at 10M
+    // cells on the development desktop — under the surface's time rather than before it. The same mesh, the same surface)
+    const points = !givenMesh && !surface && pool && !terrainMeshBuilt(cells) ? terrainMeshPoints(cells) : null;
+    let mesh = points ? null : givenMesh ?? terrainMesh(cells);
+    const { numCells: n, edgeKm } = mesh ?? points, cellKm2 = 4 * Math.PI * R * R / n;
+    if (mesh) { lap('mesh'); onStage('surface'); }
 
     // ── F1: the surface, domain-warped (its positions displaced before anything is read there), roughened where high —
     // or the page's own (Generate's present-day ground: its own warp and fine relief) ──
-    onStage('surface');
     // (memory: at 10M cells every array is 40 MB or more — each let go as soon as it is done with, the warped positions
     // and the sampler with the surface, the carving's inputs and caches with the carve)
-    let warped = surface ? null : { numCells: n, xyz: warpPositions(mesh, seed, F), edgeKm: mesh.edgeKm };
+    let warped = surface ? null : { numCells: n, xyz: warpPositions(mesh ?? points, seed, F), edgeKm };
     // (the carving's inputs at the finish's erosion strength: its stream power's k, its crests' hardness)
-    const E = erosionAt(F, cfg), fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / mesh.edgeKm);
+    const E = erosionAt(F, cfg), fade = lam => smooth(cfg.minWavesPerCell, cfg.fullWavesPerCell, lam / edgeKm);
     const surfJob = surface ? Promise.resolve(surface(mesh, surfaceConfig(F, cfg)))
         : pool.synthesize(frame, warped, { cfg: surfaceConfig(F, cfg), seed, records: false, carveInputs: true, recCells: !!frame.coverKm });
-    // (while the workers draw the surface, this thread builds ahead what needs only the mesh — the carving's ladder of
-    // meshes, their distances and the maps between them and to the lake sites' coarser mesh, the rivers' meander: the same
-    // values, ~2 s sooner at 2.5M. Up to PREP_CELLS: at 10M their memory waits for the carve, as before)
+    // (while the workers draw the surface, this thread builds ahead what needs only the mesh — the mesh itself, if it is
+    // not built; the carving's ladder of meshes, their distances and the maps between them and to the lake sites' coarser
+    // mesh, the rivers' meander: the same values, ~2 s sooner at 2.5M. Up to PREP_CELLS: at 10M their memory waits for
+    // the carve, as before)
     await new Promise(r => setTimeout(r, 0));                         // (the pool hands its jobs out first)
+    if (!mesh) { surfJob.catch(() => {}); mesh = terrainMeshFrom(cells, points); lap('mesh'); onStage('surface'); }
     const ladder = carveLadder(simMesh, mesh, terrainMesh), broad = broadMesh(ladder, mesh, F);
     let meanderV = null;
     if (n <= PREP_CELLS) { prepareCarve(ladder, broad ? [[broad, mesh]] : []); meanderV = meanderValues(mesh, seed, F, fade); }

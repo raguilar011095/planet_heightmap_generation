@@ -8,6 +8,7 @@
 // 10M cells no worker ever holds the planet.
 
 import { FastNoise } from '../core/fast-noise.js';
+import { release } from '../core/task-pool.js';
 import { STAT_KEYS } from '../climate/cell-stats.js';
 import { fineMottle, lookPrepare, lookRows, lookGround, lookDryAt, boxStats, riparian } from './finish-cover.js';
 import { COVER } from './finish-config.js';
@@ -18,9 +19,11 @@ const R = 6371;
 const CLIMATE_WIDTH_MAX = 4096;
 /** The farming's parts the picture carries per pixel (farming/farming.js farmCells, and the seasons). */
 export const FARM_KEYS = ['soil', 'rain', 'warm', 'flood', 'canal', 'slope', 'wetland', 'pasture'];
-/** The runs of cells the pixels are dealt into for the pool (more than its workers: sea and land even out, and the copies
- *  of the finish's arrays in flight stay small), and the rows to a band of the terrain's look. */
-const RUNS = 64, LOOK_ROWS = 32;
+/** The runs of cells the pixels are dealt into for the pool: 64 or more (more than its workers: sea and land even out) —
+ *  as many as keep a run to about RUN_CELLS cells and RUN_PIXELS pixels, so the copies of the finish's arrays in flight
+ *  stay small at any detail (at 10M cells and 8192 px, 64 runs held ~0.5 GB between them); at most 255 (a pixel's run is
+ *  kept in a byte). And the rows to a band of the terrain's look. */
+const RUNS_MIN = 64, RUNS_MAX = 255, RUN_CELLS = 60000, RUN_PIXELS = 200000, LOOK_ROWS = 32;
 /** How far from the index's first guess a run's slice of the mesh reaches, in cells: the walk to the nearest cell is 0–2
  *  cells long (core/sphere-index.js), and the triangle is read one further. A walk that leaves the slice stops the piece
  *  (walkIn), and the picture is then drawn here instead. */
@@ -307,27 +310,34 @@ export async function finishRasterPooled(pool, mesh, z, ocean, w, onRow = null, 
         for (const k of Object.keys(ms)) delete ms[k];
         ms.t = performance.now();
         await pool.share('picture', P);
-        // (each pixel's first guess of its cell — core/sphere-index.js start — and the pixels in the order of their runs)
-        let guess = new Int32Array(total);
+        // (each pixel's run — that of the first guess of its cell: core/sphere-index.js start — and the pixels in the order
+        // of their runs)
+        const RUNS = Math.min(RUNS_MAX, Math.max(RUNS_MIN, Math.ceil(n / RUN_CELLS), Math.ceil(total / RUN_PIXELS)));
+        let runOfPixel = new Uint8Array(total);
         const count = new Int32Array(RUNS + 1), runOf = g => Math.min(RUNS - 1, Math.floor(g * RUNS / n));
         for (let py = 0, i = 0; py < h; py++) {
             const cl = cosLat[py], sl = sinLat[py];
-            for (let px = 0; px < w; px++, i++) count[runOf(guess[i] = index.start(cl * cosLon[px], cl * sinLon[px], sl)) + 1]++;
+            for (let px = 0; px < w; px++, i++) count[(runOfPixel[i] = runOf(index.start(cl * cosLon[px], cl * sinLon[px], sl))) + 1]++;
         }
         for (let r = 0; r < RUNS; r++) count[r + 1] += count[r];
         const order = new Int32Array(total), at = count.slice(0, RUNS);
-        for (let i = 0; i < total; i++) order[at[runOf(guess[i])]++] = i;
+        for (let i = 0; i < total; i++) order[at[runOfPixel[i]]++] = i;
+        release(runOfPixel);
+        runOfPixel = null;
         const runs = [];
         for (let r = 0; r < RUNS; r++) if (count[r + 1] > count[r]) runs.push(r);
         lap('deal');
         let done = 0;
-        const G = guess;
-        guess = null;
         await pool.run('picturePiece', runs.length, j => {
-            // (the run's pixels and their guesses, and the cells within SLICE_HOPS of them)
+            // (the run's pixels and their guesses — worked out again: a guess a pixel was too much to keep for all of
+            // them — and the cells within SLICE_HOPS of them)
             const from = count[runs[j]], to = count[runs[j] + 1], pix = order.slice(from, to), g = new Int32Array(to - from);
             let lo = n, hi = -1;
-            for (let q = 0; q < g.length; q++) { const c = g[q] = G[pix[q]]; if (c < lo) lo = c; if (c > hi) hi = c; }
+            for (let q = 0; q < g.length; q++) {
+                const i = pix[q], py = (i / w) | 0, cl = cosLat[py], c = g[q] = index.start(cl * cosLon[i - py * w], cl * sinLon[i - py * w], sinLat[py]);
+                if (c < lo) lo = c;
+                if (c > hi) hi = c;
+            }
             let fromLo = lo, toLo = hi + 1, fromHi = 0, toHi = 0;                  // (the cells whose neighbours are still to be read: two runs)
             for (let hop = 0; hop < SLICE_HOPS; hop++) {
                 let nlo = lo, nhi = hi;
@@ -338,7 +348,7 @@ export async function finishRasterPooled(pool, mesh, z, ocean, w, onRow = null, 
             }
             const { src, transfer } = sliceSource(S, lo, hi + 1);
             return { part: { pix, guess: g, src }, transfer: [pix.buffer, g.buffer, ...transfer] };
-        }, (piece, j) => { placePiece(O, piece, order.subarray(count[runs[j]], count[runs[j] + 1])); onRow?.(0.8 * ++done / runs.length); });
+        }, (piece, j) => { placePiece(O, piece, order.subarray(count[runs[j]], count[runs[j] + 1])); release(piece); onRow?.(0.8 * ++done / runs.length); });
         lap('pieces');
         if (P.sat) {
             const noise = noiseOf(P), C = lookFields(P, O, climate, noise), L = await lookPreparePooled(pool, P, C, O.heightM);
@@ -350,7 +360,7 @@ export async function finishRasterPooled(pool, mesh, z, ocean, w, onRow = null, 
                 const part = { y0, y1, L: { cw, ch, pxKm: L.pxKm, hC: rows(L.hC, h0, h1), land: rows(L.land, y0, y1), mean: rows(L.mean, y0, y1), std: rows(L.std, y0, y1), rip: rows(L.rip, y0, y1), yOff: y0, hOff: h0 },
                     sat: O.sat.map(a => rows(a, y0, y1, 3)), rip: O.rip ? O.rip.map(a => rows(a, y0, y1, 3)) : null, cover: rows(O.cov, y0, y1), tAnnual: rows(O.tA, y0, y1), pAnnual: rows(O.pA, y0, y1), flow: rows(O.flow, y0, y1), young: rows(O.young, y0, y1) };
                 return { part, transfer: [...buffersOf(part.L), ...buffersOf(part)] };
-            }, (res, b) => { res.forEach((a, v) => O.sat[v].set(a, 3 * b * LOOK_ROWS * cw)); onRow?.(0.8 + 0.2 * ++done / bands); });
+            }, (res, b) => { res.forEach((a, v) => O.sat[v].set(a, 3 * b * LOOK_ROWS * cw)); release(res); onRow?.(0.8 + 0.2 * ++done / bands); });
         }
         lap('look: rows');
         delete ms.t;
@@ -364,51 +374,24 @@ export async function finishRasterPooled(pool, mesh, z, ocean, w, onRow = null, 
 }
 
 /**
- * finish-cover.js lookPrepare with its two long parts side by side on the pool: the land's surroundings (boxStats) on one
- * worker, the rivers' ribbons dealt out by reach to the others — a pixel's riverside is the most of what covers it, so
- * the reaches may be stamped in any order and joined by each pixel's most — and the lakes' fringes here meanwhile.
+ * finish-cover.js lookPrepare with its two long parts side by side: the land's surroundings (boxStats) on a worker, the
+ * rivers' ribbons and the lakes' fringes here meanwhile, as in place. (The ribbons dealt out over the pool were tried —
+ * a pixel's riverside is the most of what covers it, so its reaches can be stamped in any order — and were no faster on
+ * a few workers than this thread alone beside the statistics, at ~40 MB of the picture copied to each: left out.)
  */
 async function lookPreparePooled(pool, P, C, heightM) {
-    const G = lookGround(C, heightM, P.w), { cw, ch, pxKm, hC, land } = G, R = C.rivers, parts = [{ kind: 'stats' }];
-    const rip = R || C.water ? new Float32Array(cw * ch) : null;
-    let wet = null, mean = null, std = null;
-    if (R && R.lat.length) {
-        // (where it is too wet for a riverside to show: lookDryAt's test, once per land pixel)
-        const dryAt = lookDryAt(C);
-        wet = new Uint8Array(cw * ch);
-        for (let i = 0; i < wet.length; i++) if (land[i] && dryAt(i) < 0.02) wet[i] = 1;
-        // (the reaches in runs of about as many points each)
-        const reaches = R.start.length, points = R.lat.length, pieces = Math.max(1, Math.min(pool.size, reaches)), endOf = r => (r + 1 < reaches ? R.start[r + 1] : points);
-        for (let k = 0, r = 0; k < pieces && r < reaches; k++) {
-            const r0 = r, target = (k + 1) * points / pieces;
-            while (r < reaches && (k === pieces - 1 || endOf(r) <= target || r === r0)) r++;
-            parts.push({ kind: 'rivers', r0, r1: r });
-        }
-    }
-    const run = pool.run('lookPiece', parts.length, j => {
-        const part = parts[j], own = { kind: part.kind, cw, ch, pxKm, hC: hC.slice(), land: land.slice() };
-        if (part.kind === 'rivers') {
-            const p0 = R.start[part.r0], p1 = part.r1 < R.start.length ? R.start[part.r1] : R.lat.length, start = R.start.slice(part.r0, part.r1);
-            for (let i = 0; i < start.length; i++) start[i] -= p0;
-            Object.assign(own, { wet: wet.slice(), mottleSeed: P.mottleSeed, R: { start, lat: R.lat.slice(p0, p1), lon: R.lon.slice(p0, p1), q: R.q.slice(p0, p1) } });
-        }
-        return { part: own, transfer: [...buffersOf(own), ...(own.R ? buffersOf(own.R) : [])] };
-    }, (res, j) => {
-        if (parts[j].kind === 'stats') { mean = res.mean; std = res.std; return; }
-        for (let i = 0; i < rip.length; i++) if (res[i] > rip[i]) rip[i] = res[i];
-    });
-    run.catch(() => {});                                              // (awaited below: a failure is not left unhandled meanwhile)
-    // (the lakes' fringes here, while the workers stamp the rivers)
-    if (C.water) riparian(null, C.water, P.w, hC, land, cw, ch, pxKm, COVER, null, null, rip);
-    await run;
+    const G = lookGround(C, heightM, P.w), { cw, ch, pxKm, hC, land } = G;
+    let mean = null, std = null;
+    const stats = pool.run('lookStats', 1, () => { const part = { cw, ch, pxKm, hC: hC.slice(), land: land.slice() }; return { part, transfer: [part.hC.buffer, part.land.buffer] }; }, r => { mean = r.mean; std = r.std; });
+    stats.catch(() => {});                                            // (awaited below: a failure is not left unhandled meanwhile)
+    const rip = C.rivers || C.water ? riparian(C.rivers, C.water, P.w, hC, land, cw, ch, pxKm, COVER, C.noise, lookDryAt(C)) : null;
+    await stats;
     return { ...G, mean, std, rip, yOff: 0, hOff: 0 };
 }
 /** A worker's part of lookPreparePooled. */
-export function lookPieceTask(part) {
-    const { cw, ch, pxKm, hC, land } = part;
-    if (part.kind === 'stats') { const { mean, std } = boxStats(hC, land, cw, ch, pxKm, COVER.valleyKm); return { result: { mean, std }, transfer: [mean.buffer, std.buffer] }; }
-    const wet = part.wet, out = riparian(part.R, null, 0, hC, land, cw, ch, pxKm, COVER, new FastNoise(part.mottleSeed), i => (wet[i] ? 0 : 1));
-    return { result: out, transfer: [out.buffer] };
+export function lookStatsTask({ cw, ch, pxKm, hC, land }) {
+    const { mean, std } = boxStats(hC, land, cw, ch, pxKm, COVER.valleyKm);
+    return { result: { mean, std }, transfer: [mean.buffer, std.buffer] };
 }
 
 /** How long the last pooled picture's parts took (ms) — dealing the pixels out, drawing them, the look's whole-picture
