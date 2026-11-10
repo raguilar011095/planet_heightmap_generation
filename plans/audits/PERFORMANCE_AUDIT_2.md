@@ -171,6 +171,16 @@ that moved to the pool here were 44 s of that on one thread (final climate 32.7,
 workers, and the 17 s of mesh goes under the surface's 26 s. A fair expectation there is ~125–135 s for a first 10M;
 it is the next thing to measure.
 
+**In the page** (`check-pages-exact.mjs evolution --detail 10000000`: a 20K, 300 Myr history, then Add detail at 10M
+on its last moment, v3.0.1 and this branch in headless Chromium): every message the same — the 31 history frames and
+the finished moment, 416 MB of it. From the click to the moment done: ~356 s on v3.0.1, ~329 s here (final climate
+42.0 → 20.2 s, picture 18.8 → 14.9 s). The mesh under the surface gained nothing *there*: this sandbox draws the page
+with a software GPU, which with the three surface workers already fills its four cores, so the mesh built beside them
+took from them what it saved (v3.0.1: ~40 s of mesh while the page waited, then 86 s of surface; here: 41 s of mesh
+and 85 s more of surface). In Node, with no page to draw, the same overlap is the 21 s of the table above; a machine
+with cores to spare and a real GPU should see it too. The same check at the page's default, 2.5M: every message the
+same; final climate 12.6 → 6.9 s, picture 10.0 → 7.5 s.
+
 **Memory at 10M** (the process's resident memory, sampled five times a second from a thread of its own, this thread's
 garbage collected at each stage's start: `--mem` with `node --expose-gc`):
 
@@ -255,7 +265,7 @@ exports, memory, page load): not touched here — this audit kept to the simulat
   identical. The larger the planet, the more the pools give: Import at 1M 52 → 39 s, Generate at 1M 77 → 63 s (timed
   while other checks ran: indicative).
 - `check-pages-exact.mjs` v3.0.1 against this branch: generate, generate `--reapply`, generate `--phone`, import,
-  evolution (20K, 300 Myr, Add detail at 640K) — every message the same.
+  evolution (20K, 300 Myr, Add detail at 640K, at 2.5M and at 10M) — every message the same.
 - The repo's checks, on this branch: `check-seeds` pass; `check-style` pass; `check-save` pass (both kept planet files
   open, their terrain and every export map drawn); `check-farming` 39 of 39; `check-geology` 57 of 57;
   `check-invariants` 21 of 21; `check-scale` 7 of 7.
