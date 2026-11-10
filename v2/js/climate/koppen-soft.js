@@ -83,10 +83,15 @@ export function softFamilies(T, P, out = new Float64Array(SOFT_FAMILIES.length),
  */
 export function softFamilyGrid(w = 1024, perCell = 4) {
     const h = w >> 1, G = w * h, NF = SOFT_FAMILIES.length, sum = new Float32Array(NF * G), cnt = new Float32Array(G);
+    const index = (lat, lon) => Math.min(h - 1, Math.max(0, Math.floor((90 - lat) / 180 * h))) * w + Math.min(w - 1, Math.max(0, Math.floor((lon + 180) / 360 * w)));
     return {
+        /** How many grid cells, and how many places each takes. */
+        size: G, perCell,
+        /** The grid cell a place falls in. */
+        index,
         /** The grid cell a place falls in, or −1 if that cell already has `perCell` places (the work bounded at any detail). */
         wants(lat, lon) {
-            const x = Math.min(w - 1, Math.max(0, Math.floor((lon + 180) / 360 * w))), y = Math.min(h - 1, Math.max(0, Math.floor((90 - lat) / 180 * h))), g = y * w + x;
+            const g = index(lat, lon);
             return cnt[g] < perCell ? g : -1;
         },
         /** A place's shares into grid cell g (from wants). */

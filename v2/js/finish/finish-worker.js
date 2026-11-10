@@ -1,7 +1,9 @@
 // The Finish step's worker (plans/V2_FINISH_PLAN.md): finishes one moment (finish.js) and sends back its picture of
 // heights. It keeps the mesh it built (a 10M-cell mesh takes ~15 s to build — only this worker ever holds it) until a
 // finish at another detail (one fine mesh at a time: they are big); its
-// terrain pool (the surface, in slices) lives only for the surface and is let go before the heavy stages.
+// terrain pool (the surface, in slices) lives only for the surface and is let go before the heavy stages; its task pool
+// (finish-tasks.js: the final climate's cells and the picture's pixels, in pieces — the same result as in place) is
+// started when the terrain pool goes and lives to the end of the finish.
 //
 // Message in:  {type: 'finish', id, frame (the terrain fields of a frame, terrain-pool.js FRAME_FIELDS, and the plates'
 //              rotations), simMesh {numCells, xyz, adjOffset, adjList}, seed, cells, width, delaunatorUrl, poolSize?}
@@ -17,7 +19,8 @@
 //              grid's fields, climate-fields.js, and raster {w, h, koppen, tAnnual (°C × 100), pAnnual (mm), stats} — the land's
 //              climate, at most 4096 px wide), stats, ms} · {type: 'error', id, message}
 
-import { finishPlanet, finishRaster, FARM_KEYS } from './finish.js';
+import { finishPlanet, finishRasterPooled, FARM_KEYS } from './finish.js';
+import { finishTaskPool } from './finish-tasks.js';
 import { FINISH } from './finish-config.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
 import { driverWidth, DRIVER_FIELDS } from './finish-drivers.js';
@@ -43,6 +46,7 @@ self.onmessage = async ({ data }) => {
     }
     if (data.type !== 'finish') return;
     const { id, frame, seed, width, poolSize = null, climateOptions = {}, surface = null } = data;
+    let tasks = null;
     try {
         if (!delaunatorSet) { setDelaunator((await import(data.delaunatorUrl)).default); delaunatorSet = true; }
         if (!sim || simCells !== data.simMesh.numCells) { sim = meshFromArrays(data.simMesh); simCells = data.simMesh.numCells; }
@@ -52,10 +56,12 @@ self.onmessage = async ({ data }) => {
         const pool = surface ? null : await TerrainPool.create(sim, poolSize);
         const own = mesh && surface ? { mesh, surface: () => surface } : {};
         const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: !!pool, climateOptions, driversWidth: driverWidth(width), onStage: stage => self.postMessage({ type: 'stage', id, stage }),
+            tasks: () => finishTaskPool(poolSize).then(p => (tasks = p)),
             ...own, ...(data.terrain ? { cfg: terrainConfig(data.terrain) } : {}), ...(data.finish ? { F: { ...FINISH, ...data.finish } } : {}) });
         self.postMessage({ type: 'stage', id, stage: 'picture' });
         const t0 = performance.now();
-        const raster = finishRaster(out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
+        const raster = await finishRasterPooled(out.tasks, out.mesh, out.z, out.ocean, width, share => self.postMessage({ type: 'progress', id, share }), out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming);
+        tasks?.terminate(); tasks = null;
         const farm = raster.farming ? [...[...FARM_KEYS, 'kind'].map(k => raster.farming[k].buffer), ...Object.values(raster.farming.crops ?? {}).map(a => a.buffer)] : [];
         out.ms.picture = performance.now() - t0;
         // (the finished moment's climate: the grid's fields, and its own picture of the land's climate)
@@ -69,6 +75,7 @@ self.onmessage = async ({ data }) => {
                 ...(rv.regime ? [rv.regime.buffer, rv.floodFrom.buffer, rv.floodTo.buffer, rv.farFed.buffer] : []), ...climateTransfers(climate),
                 ...DRIVER_FIELDS.map(k => raster.drivers[k].buffer)]);
     } catch (err) {
+        tasks?.terminate();
         self.postMessage({ type: 'error', id, message: err?.stack ?? String(err) });
     }
 };

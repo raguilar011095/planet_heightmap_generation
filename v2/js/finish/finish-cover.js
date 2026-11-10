@@ -466,16 +466,42 @@ export function placeGround(vy, sand, loess, basalt, K = COVER, rock = 0) {
  * valleys greener and the ridges barer; and over everything the flow texture, by the area drained. In place.
  */
 export function terrainLook(C, heightM, w, K = COVER) {
-    const { w: cw, h: ch, sat, cover, tAnnual, pAnnual, koppen, flow, young, noise, rivers, water, ripSat } = C, f = w / cw, pxKm = 2 * Math.PI * 6371 / cw;
-    const lnTone = K.mtnToneTint.map(Math.log);
-    // (heights at the picture's pixels, km; the land's surroundings' mean and spread over K.valleyKm)
-    const hC = new Float32Array(cw * ch), land = new Uint8Array(cw * ch);
-    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { const i = y * cw + x; hC[i] = heightM[y * f * w + x * f] / 1000; land[i] = koppen[i] ? 1 : 0; }
+    lookRows(lookPrepare(C, heightM, w, K), C, 0, C.h, K);
+}
+/**
+ * terrainLook's part that reads the whole picture at once: the heights at its pixels, the land's surroundings (their mean
+ * and spread) and the riversides — what lookRows then reads, row by row.
+ */
+export function lookPrepare(C, heightM, w, K = COVER) {
+    const G = lookGround(C, heightM, w), { cw, ch, pxKm, hC, land } = G;
+    // (the land's surroundings' mean and spread over K.valleyKm)
     const { mean, std } = boxStats(hC, land, cw, ch, pxKm, K.valleyKm);
     // (the rivers' green ribbons and the lakes' fringes: how much of each pixel is riverside, 0…1)
-    // (only where it is dry enough for the green to show — most rivers run through green country)
-    const dryAt = i => { const T = tAnnual[i] / 100; return 1 - smooth(0.25, 1, pAnnual[i] / Math.max(60, 300 + 55 * T)); };
-    const rip = rivers || water ? riparian(rivers, water, w, hC, land, cw, ch, pxKm, K, noise, dryAt) : null;
+    const rip = C.rivers || C.water ? riparian(C.rivers, C.water, w, hC, land, cw, ch, pxKm, K, C.noise, lookDryAt(C)) : null;
+    return { ...G, mean, std, rip, yOff: 0, hOff: 0 };
+}
+/** The heights at the climate picture's pixels (km) and its land. */
+export function lookGround(C, heightM, w) {
+    const { w: cw, h: ch, koppen } = C, f = w / cw, pxKm = 2 * Math.PI * 6371 / cw;
+    const hC = new Float32Array(cw * ch), land = new Uint8Array(cw * ch);
+    for (let y = 0; y < ch; y++) for (let x = 0; x < cw; x++) { const i = y * cw + x; hC[i] = heightM[y * f * w + x * f] / 1000; land[i] = koppen[i] ? 1 : 0; }
+    return { cw, ch, pxKm, hC, land };
+}
+/** How dry a pixel of the climate's picture is (the riversides show only where it is dry enough for their green to: most
+ *  rivers run through green country). */
+export function lookDryAt(C) {
+    const { tAnnual, pAnnual } = C;
+    return i => { const T = tAnnual[i] / 100; return 1 - smooth(0.25, 1, pAnnual[i] / Math.max(60, 300 + 55 * T)); };
+}
+/**
+ * terrainLook's rows y0 … y1 − 1: each land pixel from its own values and the heights beside it, so any split into rows
+ * gives the same picture (finish-raster.js: its bands, on workers). `L`: lookPrepare's — or its rows from L.yOff on (the
+ * heights' from L.hOff: a row more each side); `C`: the picture's own fields (sat, cover, tAnnual, pAnnual, flow, young,
+ * ripSat, noise), whole or the same rows.
+ */
+export function lookRows(L, C, y0, y1, K = COVER) {
+    const { cw, ch, pxKm, hC, land, mean, std, rip, yOff = 0, hOff = 0 } = L, { sat, cover, tAnnual, pAnnual, flow, young, noise, ripSat } = C;
+    const lnTone = K.mtnToneTint.map(Math.log);
     const rg = 6371 / K.ripGrainKm, ripViews = ripSat ? [ripSat.year, ripSat.jan, ripSat.jul] : null;
     const LUT = Float64Array.from({ length: 256 }, (_, v) => toLin(v)), rW = K.rockWarm.map(toLin), rC = K.rockCold.map(toLin);
     const lnG = K.greenerTint.map(Math.log), lnB = K.barerTint.map(Math.log), lnF = K.flowTint.map(Math.log), views = [sat.year, sat.jan, sat.jul];
@@ -490,11 +516,11 @@ export function terrainLook(C, heightM, w, K = COVER) {
     // worked out once for the three views, as they need them)
     const cosL = new Float64Array(cw), sinL = new Float64Array(cw), toneE = [0, 0, 0], toneS = [0, 0, 0], flowS = [0, 0, 0];
     for (let x = 0; x < cw; x++) { const lon = ((x + 0.5) / cw - 0.5) * 2 * Math.PI; cosL[x] = Math.cos(lon); sinL[x] = Math.sin(lon); }
-    for (let y = 0; y < ch; y++) {
+    for (let y = y0; y < y1; y++) {
         const lat = (0.5 - (y + 0.5) / ch) * Math.PI, cl = Math.max(0.05, Math.cos(lat)), sl = Math.sin(lat), pole = lat >= 0 ? 1 : -1;
-        const up = Math.max(0, y - 1) * cw, dn = Math.min(ch - 1, y + 1) * cw, row = y * cw;
+        const up = (Math.max(0, y - 1) - hOff) * cw, dn = (Math.min(ch - 1, y + 1) - hOff) * cw, row = (y - hOff) * cw, own = (y - yOff) * cw;
         for (let x = 0; x < cw; x++) {
-            const i = row + x;
+            const i = own + x, hHere = hC[row + x];
             if (!land[i]) continue;
             // the slope (m per km) and the way it faces
             const ge = (hC[row + (x + 1 === cw ? 0 : x + 1)] - hC[row + (x === 0 ? cw - 1 : x - 1)]) / (2 * pxKm * cl), gn = (hC[up + x] - hC[dn + x]) / (2 * pxKm);
@@ -506,7 +532,7 @@ export function terrainLook(C, heightM, w, K = COVER) {
             const rock = K.rockMax * rugged * (K.rockExposure + (1 - K.rockExposure) * Math.max(dry, cold));
             // facing the pole (+1) or the equator (−1), on a slope; below (+) or above (−) the surroundings
             const facing = slope > 1e-3 ? (-gn * pole * 1000 / slope) * smooth(K.aspectSlope[0], K.aspectSlope[1], slope) : 0;
-            const valley = Math.max(-1, Math.min(1, (mean[i] - hC[i]) / K.valleyKmPerFull));
+            const valley = Math.max(-1, Math.min(1, (mean[i] - hHere) / K.valleyKmPerFull));
             const lean = dry * (K.aspectShare * facing + K.valleyShare * valley), tint = lean >= 0 ? lnG : lnB, a = Math.abs(lean);
             // the flow texture: its opacity by the area drained, grained
             let fo = 0;
@@ -516,7 +542,7 @@ export function terrainLook(C, heightM, w, K = COVER) {
             }
             // the mountains' texture: how mountainous (rugged, or high), a ridged micro-relief there lit as the page's relief,
             // its crests barer
-            const M = Math.max(smooth(K.mtnRelief[0], K.mtnRelief[1], std[i]), K.mtnHigh * smooth(K.mtnHeightKm[0], K.mtnHeightKm[1], hC[i]));
+            const M = Math.max(smooth(K.mtnRelief[0], K.mtnRelief[1], std[i]), K.mtnHigh * smooth(K.mtnHeightKm[0], K.mtnHeightKm[1], hHere));
             let dShade = 1, crest = 0;
             if (M > 0.01 && noise) {
                 const px = cl * cosL[x], py = cl * sinL[x], pz = sl;
@@ -530,7 +556,7 @@ export function terrainLook(C, heightM, w, K = COVER) {
             }
             // the mountains' tone: young and high ranges dark brown, old worn ones a little
             const yg = young ? young[i] / 255 : 1;
-            const tone = K.mtnTone * M * (K.mtnToneOld + (1 - K.mtnToneOld) * yg) * (0.5 + 0.5 * smooth(K.mtnToneHeightKm[0], K.mtnToneHeightKm[1], hC[i]));
+            const tone = K.mtnTone * M * (K.mtnToneOld + (1 - K.mtnToneOld) * yg) * (0.5 + 0.5 * smooth(K.mtnToneHeightKm[0], K.mtnToneHeightKm[1], hHere));
             // (the ground's own tints first — slopes, valleys, the flow texture; then the river green over them; then the
             // mountains' light, tone and rock over all: "mountain texture should probably layer on top of rivers")
             for (let c = 0; c < 3; c++) { mul[c] = Math.exp(a * tint[c] + fo * lnF[c]); mulR[c] = Math.exp(a * tint[c]); rk[c] = rC[c] + (rW[c] - rC[c]) * smooth(-2, 12, T); }
@@ -561,7 +587,7 @@ export function terrainLook(C, heightM, w, K = COVER) {
 }
 /** The mean and standard deviation of `v` over the land around each pixel (two box passes, each radius `km`; rows by
  *  their own width), in one go. */
-function boxStats(v, land, w, h, pxKm, km) {
+export function boxStats(v, land, w, h, pxKm, km) {
     const s1 = new Float64Array(w * h), s2 = new Float64Array(w * h), n = new Float64Array(w * h);
     for (let i = 0; i < w * h; i++) if (land[i]) { const x = Math.max(0, v[i]); s1[i] = x; s2[i] = x * x; n[i] = 1; }
     const ry = Math.max(1, Math.round(km / pxKm)), L = Math.max(w, h), t1 = new Float64Array(L), t2 = new Float64Array(L), tn = new Float64Array(L);
@@ -604,10 +630,11 @@ function boxStats(v, land, w, h, pxKm, km) {
  * hydro.js rivers: reaches of points with discharge q) carrying K.ripMinM3s or more, smoothed (Chaikin, twice), stamped
  * as a ribbon K.ripWidthKm × √(q / 1000) wide (within K.ripWidthMaxKm), wider on low ground (K.ripLowKm: floodplains,
  * deltas), its edge soft over a pixel — a ribbon narrower than a pixel stamped fainter; and a fringe K.ripLakeKm wide
- * around the lakes (`water`: the finished picture's, w wide). The most of what covers a pixel.
+ * around the lakes (`water`: the finished picture's, w wide). The most of what covers a pixel — so the rivers and the lakes
+ * may be stamped apart, in any order, and joined by taking each pixel's most (`out`: stamped onto what it holds already;
+ * finish-raster.js: the rivers on workers).
  */
-function riparian(R, water, w, hC, land, cw, ch, pxKm, K, noise = null, dryAt = null) {
-    const out = new Float32Array(cw * ch);
+export function riparian(R, water, w, hC, land, cw, ch, pxKm, K, noise = null, dryAt = null, out = new Float32Array(cw * ch)) {
     const stamp = (ax, ay, bx, by, widthKm, weight) => {
         // (pixels: x east, y south; distances in km — east-west shrunk by the latitude; a bell: all at the middle, none
         // K.ripSpread half-widths out)

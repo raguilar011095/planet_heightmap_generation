@@ -4,7 +4,7 @@
 // last ice age (F3), and the wind's work (F4). Runs in finish-worker.js (or Node): the terrain pool builds the surface in
 // slices, everything else runs here, on a mesh of any size — 10M cells included, which only this worker holds.
 
-import { FINISH, COVER } from './finish-config.js';
+import { FINISH } from './finish-config.js';
 import { LatLonGrid } from './finish-grid.js';
 import { closedBasins } from './finish-basins.js';
 import { depositSediment, creepByClimate, dissect } from './finish-sediment.js';
@@ -13,7 +13,8 @@ import { lastIceAge } from './finish-ice.js';
 import { windWork } from './finish-wind.js';
 import { detailDrivers } from './finish-drivers.js';
 import { hydrology, openStraits, fillSeaBasins, Water } from './finish-hydro.js';
-import { landCover, coverRgb, newCover, biasTowardClimate, coverRain, coverRainScale, newVariety, placeVariety, placeGround, fineMottle, terrainLook } from './finish-cover.js';
+import { biasTowardClimate, coverRain } from './finish-cover.js';
+import { finalClimate, corners } from './finish-cells.js';
 import { KOPPEN_ID } from '../climate/koppen.js';
 import { terrainMesh } from '../terrain/terrain-mesh.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
@@ -21,15 +22,13 @@ import { carveLadder, carveSettings } from '../terrain/synthesize.js';
 import { carveTerrain, forgetMesh, meanOnCoarser, prepareCarve } from '../terrain/carve.js';
 import { forgetEdgeKm } from '../core/min-heap.js';
 import { planetClimate } from '../climate/climate.js';
-import { CORE_DEFAULTS, cellClimate } from '../climate/core.js';
+import { CORE_DEFAULTS } from '../climate/core.js';
 import { pageClimate } from '../evolution/climate-fields.js';
-import { cellStatsCollector, STAT_KEYS } from '../climate/cell-stats.js';
 import { FastNoise } from '../core/fast-noise.js';
-import { locate } from '../core/mesh-locate.js';
 import { classifyRocks } from '../geology/rocks.js';
-import { softFamilies, softFamilyGrid } from '../climate/koppen-soft.js';
-import { depositFields, climateTests, climateTestArrays, DEPOSITS, METALS } from '../geology/deposits.js';
-import { newFarmClimate, addFarmClimate, farmCells, encHarvests, decHarvests, hasHarvests } from '../farming/farming.js';
+import { softFamilyGrid } from '../climate/koppen-soft.js';
+import { depositFields, DEPOSITS, METALS } from '../geology/deposits.js';
+import { farmCells } from '../farming/farming.js';
 
 const DEPOSIT_IDS = DEPOSITS.map(d => d.id);
 
@@ -63,9 +62,12 @@ export function surfaceConfig(F, cfg) {
  *   mesh: the mesh to finish on (else the terrain mesh of `cells`); surface: the page's own surface on it, instead of
  *   the history's drawn here — (mesh, cfg) → {heightKm, carveIn, recCell, cues} (or a promise of it), drawn with
  *   surfaceConfig's cfg (Generate: v2/js/present/world.js presentSynthesize's `surface`); no pool is needed then
+ *   tasks: a pool for the stages that split into pieces (finish-tasks.js finishTaskPool) — or a function that starts one
+ *   (called once the surface is drawn and its own workers are let go: the two pools' memory never at once), or none: the
+ *   stages run in place, to the same result. The pool the finish used is returned as `tasks`, for the picture
  * @returns {Promise<{mesh: Object, z: Float32Array, ocean: Uint8Array, ms: Object, stats: Object}>}
  */
-export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null, mesh: givenMesh = null, surface = null }) {
+export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, closePool = false, onStage = () => {}, F = FINISH, cfg = terrainConfig(), debug = false, climateOptions = {}, driversWidth = cells >= 1.5e6 ? 2048 : 1024, inspect = null, mesh: givenMesh = null, surface = null, tasks = null }) {
     const ms = {}, stats = {};
     let t0 = performance.now();
     const lap = name => { const t = performance.now(); ms[name] = t - t0; t0 = t; };
@@ -92,6 +94,8 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     if (n <= PREP_CELLS) { prepareCarve(ladder, broad ? [[broad, mesh]] : []); meanderV = meanderValues(mesh, seed, F, fade); }
     let surf = await surfJob;
     if (closePool) pool?.terminate();                                 // (its workers' memory back before the heavy stages)
+    // (the pool for the stages that split into pieces: started now, ready by the time the first of them comes)
+    const tasksReady = Promise.resolve(typeof tasks === 'function' ? tasks() : tasks).catch(() => null);
     if (warped) pool?.forget?.(warped);
     let carveIn = surf.carveIn;
     // (for the geology: the world cell whose record each cell shows, as the surface read it, and the structure the
@@ -302,53 +306,18 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     onStage('final climate');
     const land = new Uint8Array(n);
     for (let c = 0; c < n; c++) land[c] = ocean[c] ? 0 : 1;
-    const sat = [new Uint8Array(3 * n), new Uint8Array(3 * n), new Uint8Array(3 * n)], cover = new Uint8Array(n), cv = newCover();
-    // (and the riverside's colour: the cover again, well watered — where it is dry enough to differ; else the cover's own)
-    const ripSat = [new Uint8Array(3 * n), new Uint8Array(3 * n), new Uint8Array(3 * n)], cvWet = newCover(), PW = new Float64Array(12);
     // (the rain the cover reads: a little smoother, warped and roughened — from the climate stage's rain, its regional
     // pattern being all that is read)
-    const rainTarget = coverRain(pAnn, lat, lon, c => land[c] === 1, new LatLonGrid(0.5), seed), P12c = new Float64Array(12);
-    // (and its variety: tints between a few natural colours, by noise — its own stream)
-    const varyNoise = new FastNoise(((seed | 0) * 0x51f3 + 0x3a9) >>> 0), vy = newVariety(), xyz = mesh.xyz;
-    // (and its temperatures at its own full height — the climate takes only part of a place's height above its
-    // surroundings: tree and snow lines follow all of it — its surroundings' height as the climate has it, the 1° grid's
-    // mean land height)
-    const relief = COVER.fullLapse ? (1 - CORE_DEFAULTS.terrainRelief) * gamma : 0, hLand = gridClimate.surface.meanLandKm, T12c = new Float64Array(12);
-    // (and its measures beyond Köppen — cell-stats.js, one byte each — from the climate's own twelve months)
-    const cellStats = cellStatsCollector(n, c => lat[c] * Math.PI / 180, { bytes: true });
-    // (and the deposits' climate tests: bauxite, laterites, salt, peat, enriched copper — geology/deposits.js)
-    const clim = geo ? climateTestArrays(n) : null;
-    // (and the farming's parts the months decide — its growing season, what the climate makes of the soil — from the
-    // months and the cover as the land's cover reads them: farming/farming.js)
-    const farmC = newFarmClimate(n);
+    const rainTarget = coverRain(pAnn, lat, lon, c => land[c] === 1, new LatLonGrid(0.5), seed);
     // (and the climate as shares, for the Satellite view's transitions — climate/koppen-soft.js: a few places a 0.35° cell)
-    const famGrid = softFamilyGrid(1024), famBuf = new Float64Array(10);
-    const cellsClimate = cellClimate(gridClimate, mesh.xyz, C.z, land, {}, (c, T12, P12) => {
-        cellStats.add(c, T12, P12);
-        { const g = famGrid.wants(lat[c], lon[c]); if (g >= 0) famGrid.add(g, softFamilies(T12, P12, famBuf)); }
-        let T = T12;
-        if (relief) {
-            corners(climGrid, lat[c], lon[c], bi, bw);
-            let s = 0, k = 0;
-            for (let j = 0; j < 4; j++) { const v = hLand[bi[j]]; if (v === v) { s += bw[j] * Math.max(0, v); k += bw[j]; } }
-            const dT = k > 0 ? relief * (Math.max(0, C.z[c]) - s / k) : 0;
-            for (let m = 0; m < 12; m++) T12c[m] = T12[m] - dT;
-            T = T12c;
-        }
-        if (clim) climateTests(T, P12, c, clim);
-        landCover(T, coverRainScale(P12, rainTarget[c], P12c), cv, F, COVER, lat[c]);
-        addFarmClimate(farmC, c, T, P12c, cv);
-        placeVariety(xyz[3 * c], xyz[3 * c + 1], xyz[3 * c + 2], varyNoise, vy);
-        placeGround(vy, W.erg[c], W.loess[c] / F.loessKm, basalt[c] / 255, COVER, Rk ? Rk.rock[c] : 0);
-        for (let v = 0; v < 3; v++) coverRgb(cv, v, sat[v], 3 * c, undefined, vy);
-        if (cv.wetness < COVER.ripWetness) {
-            const k = COVER.ripWetness / Math.max(0.02, cv.wetness);
-            for (let m = 0; m < 12; m++) PW[m] = P12c[m] * k;
-            landCover(T, PW, cvWet, F, COVER, lat[c]);
-            for (let v = 0; v < 3; v++) coverRgb(cvWet, v, ripSat[v], 3 * c, undefined, vy);
-        } else for (let v = 0; v < 3; v++) { const S = sat[v], D = ripSat[v], o = 3 * c; D[o] = S[o]; D[o + 1] = S[o + 1]; D[o + 2] = S[o + 2]; }
-        cover[c] = cv.biome | (cv.snow[1] >= 0.5 ? 32 : 0) | (cv.snow[2] >= 0.5 ? 64 : 0);
-    });
+    const famGrid = softFamilyGrid(1024);
+    // (each land cell from its own twelve months — finish-cells.js: the cover and the riverside's, its variety, its
+    // temperatures at its own full height, its measures beyond Köppen, the deposits' climate tests, the farming's seasons —
+    // in place, or in runs of cells on the task pool)
+    const taskPool = await tasksReady;
+    const cellsClimate = await finalClimate(taskPool, { grid: gridClimate.grid, surface: gridClimate.surface, months: gridClimate.months, F, seed, tests: !!geo },
+        { xyz: mesh.xyz, z: C.z, land, lat, lon, rainTarget, erg: W.erg, loess: W.loess, basalt, rock: Rk ? Rk.rock : null }, famGrid);
+    const { sat, ripSat, cover, clim, farmC } = cellsClimate, cellStats = { stats: cellsClimate.stats };
     // (and toward each climate's own colours, regionally — on a coarser grid: the correction is smooth, ~100 km)
     biasTowardClimate(sat, cellsClimate.koppen, lat, lon, c => land[c] === 1 && cellsClimate.koppen[c] > 0, new LatLonGrid(0.5), seed);
     lap('final climate');
@@ -377,7 +346,7 @@ export async function finishPlanet({ frame, simMesh, seed, cells, pool = null, c
     lap('farming');
     const flow = new Float32Array(n);
     for (let c = 0; c < n; c++) flow[c] = Math.log10(Math.max(1, Hy.area[c]));
-    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, drivers, ms, stats, geology, farming,
+    return { mesh, z: C.z, ocean, lake: Hy.lake, lakeLevel: Hy.lakeLevel, rivers: Hy.rivers, drivers, ms, stats, geology, farming, tasks: taskPool,
         climate: { page: pageC, cell: { koppen: cellsClimate.koppen, tAnnual: cellsClimate.tAnnual, pAnnual: cellsClimate.pAnnual, sat, cover, stats: cellStats.stats, mottleSeed: ((seed | 0) * 0x2f71 + 0x6d) >>> 0,
             flow, young, rivers: Hy.rivers, ripSat, families: famGrid.done() } },
         layers: debug ? { ice: I.ice, sink: B.sink, erg: W.erg, loess: W.loess, basalt, koppen, before, rain: pAnn, lat, lon, q: Hy.q, terminal: Hy.terminal } : null };
@@ -481,16 +450,6 @@ function runoffMonths(months, G, F) {
     return { share: out, arid };
 }
 
-/** The four grid points around (lat, lon) and their bilinear weights (as bilinear). */
-function corners(g, lat, lon, bi, bw) {
-    const { w, h } = g, step = 180 / h;
-    const x = (lon + 180) / step - 0.5, y = Math.max(0, Math.min(h - 1, (90 - lat) / step - 0.5));
-    const x0 = Math.floor(x), y0 = Math.floor(y), fx = x - x0, fy = y - y0;
-    const i0 = ((x0 % w) + w) % w, i1 = i0 + 1 === w ? 0 : i0 + 1, j1 = y0 + 1 < h ? y0 + 1 : y0;
-    bi[0] = y0 * w + i0; bi[1] = y0 * w + i1; bi[2] = j1 * w + i0; bi[3] = j1 * w + i1;
-    bw[0] = (1 - fx) * (1 - fy); bw[1] = fx * (1 - fy); bw[2] = (1 - fx) * fy; bw[3] = fx * fy;
-}
-
 function bilinear(g, field, lat, lon) {
     const { w, h } = g, step = 180 / h;
     const x = (lon + 180) / step - 0.5, y = Math.max(0, Math.min(h - 1, (90 - lat) / step - 0.5));
@@ -519,132 +478,5 @@ export function oceanMask(mesh, z, seaSeedKm2 = FINISH.seaSeedKm2, deepKm = FINI
     return ocean;
 }
 
-/**
- * The finished planet as an equirectangular picture of heights: w × w/2 pixels (rows north → south, columns from −180°
- * east), 16-bit metres, and the ocean (1) — for the page to paint and shade, and to export. Heights blended over the
- * mesh triangle under each pixel; `onRow` reports progress.
- */
-export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeLevel = null, climate = null, geology = null, farming = null) {
-    const h = w >> 1, heightM = new Int16Array(w * h), sea = new Uint8Array(w * h), water = new Uint8Array(w * h), c3 = [0, 0, 0], w3 = [0, 0, 0];
-    // (the climate's picture: at most as wide as the page's sharpest texture — every f-th pixel of the heights' — the
-    // land's Köppen class (its weightiest land cell's), °C × 100 and mm a year (its land cells' weighted mean); the sea
-    // −32768 °C, 0 mm. With the land's cover: its colours from space (the year, January, July: its land cells' weighted
-    // mean) and its biome and snow (the weightiest's))
-    const cw = climate ? Math.min(w, CLIMATE_WIDTH_MAX) : 0, ch = cw >> 1, f = cw ? w / cw : 0;
-    const kop = cw ? new Uint8Array(cw * ch) : null, tA = cw ? new Int16Array(cw * ch).fill(-32768) : null, pA = cw ? new Uint16Array(cw * ch) : null;
-    const sat = cw && climate.sat ? climate.sat.map(() => new Uint8Array(3 * cw * ch)) : null, cov = sat ? new Uint8Array(cw * ch) : null, s3 = [0, 0, 0];
-    const mottle = sat ? new FastNoise(climate.mottleSeed ?? 0) : null, flowPx = sat && climate.flow ? new Float32Array(cw * ch) : null;
-    const youngPx = sat && climate.young ? new Uint8Array(cw * ch) : null;
-    const ripPx = sat && climate.ripSat ? climate.ripSat.map(() => new Uint8Array(3 * cw * ch)) : null;
-    // (and the land's measures beyond Köppen, cell-stats.js bytes — the weightiest land cell's)
-    const statPx = cw && climate.stats ? Object.fromEntries(STAT_KEYS.map(k => [k, new Uint8Array(cw * ch)])) : null;
-    // (and the geology's rocks, on the climate's picture — its weightiest land cell's, as the Köppen class — and the
-    // history's record cell each shows, for the Geology tab's other views)
-    const rockPx = cw && geology?.rock ? new Uint8Array(cw * ch) : null, recPx = rockPx && geology.rec ? new (geology.simCells < 65536 ? Uint16Array : Int32Array)(cw * ch) : null, dither = rockPx ? new FastNoise(0x6e0c) : null, ditherF = R / (1.5 * (mesh.edgeKm ?? 30));
-    // (and the farming's parts, on the climate's picture: its land cells' weighted mean — the soil's kind the weightiest's)
-    const farmPx = cw && farming ? Object.fromEntries(FARM_KEYS.map(k => [k, new Uint8Array(cw * ch)])) : null, farmKind = farmPx ? new Uint8Array(cw * ch) : null;
-    // (each crop group's harvests a year, by rain and watered — two bytes a pixel under its name: each averaged in
-    // harvests, not in its byte)
-    const cropPx = farmPx && hasHarvests(farming) ? Object.fromEntries(Object.keys(farming.crops).map(key => [key, new Uint8Array(2 * cw * ch)])) : null;
-    // (each column's longitude's cosine and sine, once)
-    const cosLon = new Float64Array(w), sinLon = new Float64Array(w);
-    for (let px = 0; px < w; px++) { const lon = ((px + 0.5) / w - 0.5) * 2 * Math.PI; cosLon[px] = Math.cos(lon); sinLon[px] = Math.sin(lon); }
-    for (let py = 0; py < h; py++) {
-        const lat = (0.5 - (py + 0.5) / h) * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
-        for (let px = 0; px < w; px++) {
-            locate(mesh, cl * cosLon[px], cl * sinLon[px], sl, c3, w3);
-            const i = py * w + px, v = w3[0] * z[c3[0]] + w3[1] * z[c3[1]] + w3[2] * z[c3[2]];
-            heightM[i] = Math.max(-32000, Math.min(32000, Math.round(v * 1000)));
-            const near = w3[0] >= w3[1] && w3[0] >= w3[2] ? c3[0] : w3[1] >= w3[2] ? c3[1] : c3[2];
-            sea[i] = ocean[near];
-            // (a lake: under its level, where one of the pixel's cells is lake — its shore as crisp as the heights)
-            if (lake) for (let j = 0; j < 3; j++) { const c = c3[j]; if (lake[c] && w3[j] > 0.2 && v < lakeLevel[c]) { water[i] = lake[c]; break; } }
-            if (cw && !sea[i] && px % f === 0 && py % f === 0) {
-                let ws = 0, t = 0, p = 0, best = -1, bw = 0;
-                for (let j = 0; j < 3; j++) {
-                    const c = c3[j];
-                    if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c])) continue;
-                    ws += w3[j]; t += w3[j] * climate.tAnnual[c]; p += w3[j] * climate.pAnnual[c];
-                    if (w3[j] > bw) { bw = w3[j]; best = c; }
-                }
-                if (best >= 0) {
-                    const k = (py / f) * cw + px / f;
-                    kop[k] = climate.koppen[best]; tA[k] = Math.round(100 * t / ws); pA[k] = Math.min(65535, Math.round(p / ws));
-                    if (statPx) for (const key of STAT_KEYS) statPx[key][k] = climate.stats[key][best];
-                    if (farmPx) {
-                        for (const key of FARM_KEYS) {
-                            const f = farming[key];
-                            let s = 0;
-                            for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && climate.tAnnual[c] === climate.tAnnual[c]) s += w3[j] * f[c]; }
-                            farmPx[key][k] = Math.round(s / ws);
-                        }
-                        farmKind[k] = farming.kind[best];
-                        if (cropPx) for (const key in cropPx) for (let q = 0; q < 2; q++) {
-                            const b = farming.crops[key];
-                            let s = 0;
-                            for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && climate.tAnnual[c] === climate.tAnnual[c]) s += w3[j] * decHarvests(b[2 * c + q]); }
-                            cropPx[key][2 * k + q] = encHarvests(s / ws);
-                        }
-                    }
-                    if (rockPx) {
-                        // (the rock: where the pixel's cells differ, the one with the largest share scaled by a noise of
-                        // its own about a cell across — contacts ragged within a cell, never the mesh's straight edges)
-                        let pick = best, pv = -1;
-                        const r0 = geology.rock[best];
-                        for (let j = 0; j < 3; j++) {
-                            const c = c3[j];
-                            if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c]) || geology.rock[c] === r0) continue;
-                            pick = -1;
-                            break;
-                        }
-                        if (pick < 0) for (let j = 0; j < 3; j++) {
-                            const c = c3[j];
-                            if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c])) continue;
-                            const x = cl * cosLon[px] * ditherF + (c % 101) * 1.37, y = cl * sinLon[px] * ditherF + (c % 89) * 2.11, zz = sl * ditherF + (c % 83) * 0.73;
-                            const v = w3[j] * Math.exp(1.6 * dither.noise3D(x, y, zz));
-                            if (v > pv) { pv = v; pick = c; }
-                        }
-                        rockPx[k] = geology.rock[pick];
-                        if (recPx) recPx[k] = geology.rec[pick];
-                    }
-                    if (sat) {
-                        // (a fine mottling of the brightness, per pixel — the same in every view)
-                        const mf = fineMottle(cl * cosLon[px], cl * sinLon[px], sl, mottle);
-                        for (let v = 0; v < 3; v++) {
-                            const S = climate.sat[v];
-                            s3[0] = s3[1] = s3[2] = 0;
-                            for (let j = 0; j < 3; j++) {
-                                const c = c3[j];
-                                if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c])) continue;
-                                s3[0] += w3[j] * S[3 * c]; s3[1] += w3[j] * S[3 * c + 1]; s3[2] += w3[j] * S[3 * c + 2];
-                            }
-                            const o = 3 * k, D = sat[v];
-                            D[o] = Math.min(255, Math.round(mf * s3[0] / ws)); D[o + 1] = Math.min(255, Math.round(mf * s3[1] / ws)); D[o + 2] = Math.min(255, Math.round(mf * s3[2] / ws));
-                        }
-                        cov[k] = climate.cover[best];
-                        if (ripPx) for (let v = 0; v < 3; v++) {
-                            const S = climate.ripSat[v];
-                            s3[0] = s3[1] = s3[2] = 0;
-                            for (let j = 0; j < 3; j++) { const c = c3[j]; if (ocean[c] || !(climate.tAnnual[c] === climate.tAnnual[c])) continue; s3[0] += w3[j] * S[3 * c]; s3[1] += w3[j] * S[3 * c + 1]; s3[2] += w3[j] * S[3 * c + 2]; }
-                            const o = 3 * k, D = ripPx[v];
-                            D[o] = Math.round(mf * s3[0] / ws); D[o + 1] = Math.round(mf * s3[1] / ws); D[o + 2] = Math.min(255, Math.round(mf * s3[2] / ws));
-                        }
-                        // (the flow: the land cells' log-area, the most of the three — so a valley's line stays a line)
-                        if (flowPx) { let fl = 0; for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c] && w3[j] > 0.15) fl = Math.max(fl, climate.flow[c]); } flowPx[k] = fl; }
-                        if (youngPx) { let yg = 0; for (let j = 0; j < 3; j++) { const c = c3[j]; if (!ocean[c]) yg += w3[j] * climate.young[c]; } youngPx[k] = Math.round(yg / ws); }
-                    }
-                }
-            }
-        }
-        if (onRow && (py & 63) === 0) onRow(py / h);
-    }
-    // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
-    if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
-    return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null,
-        farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(climate.families ? { families: climate.families } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
-}
-
-/** The widest climate picture a finish makes: the page's sharpest texture (finer would not be seen). */
-const CLIMATE_WIDTH_MAX = 4096;
-/** The farming's parts the picture carries per pixel (farming/farming.js farmCells, and the seasons). */
-export const FARM_KEYS = ['soil', 'rain', 'warm', 'flood', 'canal', 'slope', 'wetland', 'pasture'];
+// (the picture of a finished planet: finish-raster.js)
+export { finishRaster, finishRasterPooled, FARM_KEYS } from './finish-raster.js';

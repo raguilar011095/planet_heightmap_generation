@@ -139,16 +139,23 @@ async function terrain() {
 
 /** finishPlanet's result and its picture, as finish-worker.js makes them. */
 async function finishOf(job, width, stageNote = true) {
-    const { finishPlanet, finishRaster } = await import('../js/finish/finish.js');
+    const { finishPlanet, finishRasterPooled } = await import('../js/finish/finish.js');
+    const { finishTaskPool } = await import('../js/finish/finish-tasks.js');
+    // (the finish's task pool, as finish-worker.js starts it — `--serial`: none, everything in place; `--workers N`)
+    const tasks = has('--serial') ? null : () => finishTaskPool(has('--workers') ? Number(arg('--workers')) : null);
     const t0 = performance.now();
-    const out = await finishPlanet(job);
+    const out = await finishPlanet({ ...job, tasks });
     const all = performance.now() - t0;
     if (stageNote) for (const [k, v] of Object.entries(out.ms)) note(`   ${k}`, v, '');
     note('finish (all stages)', all, fingerprint({ z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, climate: out.climate }));
     // (each part's own print, so a difference says where)
     for (const [k, v] of Object.entries({ z: out.z, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, 'climate.page': out.climate.page, 'climate.cell': out.climate.cell })) note(`   = ${k}`, 0, fingerprint(v));
-    const raster = await timed(`picture ${width}`, () => finishRaster(out.mesh, out.z, out.ocean, width, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming));
+    const raster = await timed(`picture ${width}`, () => finishRasterPooled(out.tasks, out.mesh, out.z, out.ocean, width, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming));
     for (const [k, v] of Object.entries({ heightM: raster.heightM, water: raster.water, geology: raster.geology, farming: raster.farming, climate: raster.climate })) note(`   = picture.${k}`, 0, fingerprint(v));
+    out.tasks?.terminate();
+    // (--keep FILE: the finished planet kept, for timing the picture alone)
+    if (has('--keep')) fs.writeFileSync(arg('--keep'), v8.serialize({ mesh: { numCells: out.mesh.numCells, xyz: out.mesh.xyz, adjOffset: out.mesh.adjOffset, adjList: out.mesh.adjList }, edgeKm: out.mesh.edgeKm,
+        z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, cell: out.climate.cell, geology: out.geology, farming: out.farming }));
     return { out, raster };
 }
 
