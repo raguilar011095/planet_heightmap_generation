@@ -43,6 +43,8 @@ const TAP = () => {
         constructor(url, opts) {
             super(url, opts);
             const name = String(url).split('/').pop().split('?')[0];
+            // (Import draws its mesh's seed at random in its worker: the same one for both copies, to compare them)
+            if (name === 'planet-worker.js') { const post = this.postMessage.bind(this); this.postMessage = (m, t) => post(m?.cmd === 'importHeightmap' && m.seed === undefined ? { ...m, seed: 12345 } : m, t); }
             this.addEventListener('message', e => {
                 const d = e.data, type = d?.type ?? '';
                 if (type === 'progress' || type === 'stage' || type === 'tile' || !d) return;
@@ -92,14 +94,23 @@ async function run(base) {
     } else {
         await page.goto(`${base}/evolution?${arg('--query', 'seed=7&cont=30&len=300&end=none&sim=20000&terrain=160000')}`);
         await until(t => t.worker === 'history-worker.js' && t.type === 'done', 'the history');
-        // (Add detail at the detail asked for, at the history's end)
+        // (Add detail at the detail asked for, to the moment asked for — the history's last, unless --moment MYR)
+        await page.waitForTimeout(1500);
+        const moment = await page.evaluate(want => {
+            const s = document.getElementById('timeSlider'), t = want ?? s.max;
+            s.value = String(t); s.dispatchEvent(new Event('input', { bubbles: true })); s.dispatchEvent(new Event('change', { bubbles: true }));
+            return Number(s.value);
+        }, arg('--moment', null));
+        await page.waitForFunction(t => parseFloat(document.getElementById('timeLabel').textContent) === t, moment, { timeout: 120000 });
         await page.waitForTimeout(1500);
         await page.evaluate(detail => { const s = document.getElementById('finishCells'); s.value = String(detail); s.dispatchEvent(new Event('change', { bubbles: true })); }, Number(arg('--detail', 640000)));
         await page.waitForFunction(() => !document.getElementById('cardAction').disabled, null, { timeout: 120000 });
         await page.evaluate(() => document.getElementById('cardAction').click());
         await until(t => t.worker === 'finish-worker.js' && t.type === 'done', 'the finish');
     }
-    const all = await taps();
+    // (what is compared: the worlds' own messages. The live preview's workers — terrain, carving, shading, the preview
+    // climate — build ahead what the moment's timing lets them: not the same set from one run to the next)
+    const all = (await taps()).filter(t => ['planet-worker.js', 'history-worker.js', 'finish-worker.js'].includes(t.worker));
     await browser.close();
     return { taps: all, errors };
 }
@@ -121,9 +132,8 @@ for (const t of ra.taps) {
 const frames = ra.taps.filter(t => t.type === 'frame').length;
 if (frames) console.log(`(${frames} history frames in a; ${rb.taps.filter(t => t.type === 'frame').length} in b)`);
 for (const [name, r] of [['a', ra], ['b', rb]]) {
-    const fin = r.taps.find(t => t.worker === 'finish-worker.js' && t.type === 'done');
     for (const t of r.taps) if (t.total !== null) console.log(`${name}: ${t.worker} ${t.type} took ${t.total} ms in its worker`);
-    if (fin?.ms) console.log(`${name}: finish stages (ms) ${Object.entries(fin.ms).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
+    for (const t of r.taps) if (t.worker === 'finish-worker.js' && t.type === 'done' && t.ms) console.log(`${name}: ${t.key}: ${Object.values(t.ms).reduce((x, y) => x + y, 0)} ms — ${Object.entries(t.ms).map(([k, v]) => `${k} ${v}`).join(' · ')}`);
     for (const e of r.errors) console.log(`${name}: ${e}`);
 }
 console.log(differ ? `${differ} message(s) DIFFER` : 'every message the same');

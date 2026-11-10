@@ -17,7 +17,7 @@ import { elevToHeightKm } from './color-map.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow, motionsOf } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
 import { presentWorldSteps, presentTerrainMesh, presentGroundOfSteps, presentTerrainOverrides, uneditedLayout } from '../v2/js/present/world.js';
-import { groundTaskPool, drawSurfacePooled } from '../v2/js/present/ground-tasks.js';
+import { groundTaskPool, drawSurfacePooled, GROUND_POOL_FROM_CELLS } from '../v2/js/present/ground-tasks.js';
 import { SMALL_DEVICE } from '../v2/js/core/device.js';
 import { storyFrame, finishFrame } from '../v2/js/present/layers.js';
 import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
@@ -34,12 +34,13 @@ setDelaunator(Delaunator);
 let W = null;
 
 // The ground's surface is drawn on a pool of workers (v2/js/present/ground-tasks.js: the same surface as in place, to the
-// bit), started with the first world and kept for the next ones — Rebuild and Reapply draw it again. A world's steps
-// (present/world.js presentWorldSteps) ask for it; without a pool it is drawn here.
+// bit), started with the first world fine enough to gain from it (at its start: the workers are up by the time the
+// surface is asked for) and kept for the next ones — Rebuild and Reapply draw it again; two workers on a small device.
+// A world's steps (present/world.js presentWorldSteps) ask for it; without a pool it is drawn here.
 let groundPool = null;
-async function withGround(steps) {
-    groundPool ??= groundTaskPool(SMALL_DEVICE ? 3 : null).catch(() => null);
-    const pool = await groundPool;
+const groundPoolFor = (cells) => (cells < GROUND_POOL_FROM_CELLS ? null : (groundPool ??= groundTaskPool(SMALL_DEVICE ? 2 : null).catch(() => null)));
+async function withGround(steps, cells) {
+    const pool = await groundPoolFor(cells);
     let r = steps.next();
     while (!r.done) r = steps.next(await drawSurfacePooled(pool, r.value));
     return r.value;
@@ -87,13 +88,13 @@ async function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     // (G2c: each region's own piece as edited — the ground is held to the pieces' outlines at this Detail)
     const regionLand = new Uint8Array(mesh.numRegions);
     for (let r = 0; r < regionLand.length; r++) regionLand[r] = plateIsOcean.has(present.r_plate[r]) ? 0 : 1;
-    present.world = await withGround(presentWorldSteps(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs), unedited: present.base }));
+    present.world = await withGround(presentWorldSteps(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs), unedited: present.base }), mesh.numRegions);
     present.knobs = knobs;
     present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), present.world.heightKm);
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
 async function presentReground(present, mesh, r_xyz, seed, knobs) {
-    const g = await withGround(presentGroundOfSteps(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm, finish: finishConfigOf(knobs) }));
+    const g = await withGround(presentGroundOfSteps(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm, finish: finishConfigOf(knobs) }), mesh.numRegions);
     Object.assign(present.world, { heightKm: g.heightKm, surface: g.surface, shade: hillshade(presentTerrainMesh(mesh, r_xyz), g.heightKm) });
     present.knobs = knobs;
 }
@@ -158,6 +159,7 @@ async function handleGenerate(data) {
     const { N, P, jitter, nMag, numContinents, continentSizeVariety = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices } = data;
     const t0 = performance.now();
     progress(0, 'Shaping the world…');
+    groundPoolFor(N);                                         // (its workers start now, for the ground a few steps on)
     const seed = overrideSeed ?? Math.floor(Math.random() * SEED_MAX);
     const { mesh, r_xyz } = buildSphere(N, jitter, makeRng(seed));
     progress(10, 'Generating coarse plates…');

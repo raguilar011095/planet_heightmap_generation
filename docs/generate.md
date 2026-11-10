@@ -185,7 +185,9 @@ js/
   generate-plates.js    Generate's own layers on the planet view: the Plates view (colours, boundaries, arrows; its export
                         map), the Inspect list's layers of the world's past, the edits pending drawn over the picture
   present-crust.js      The present-day world's crust in words (the hover's Crust line)
-  planet-worker.js      The worker: the present-day world (v2/js/present/) or an imported heightmap, sent with the finish's job
+  planet-worker.js      The worker: the present-day world (v2/js/present/) or an imported heightmap, sent with the finish's job;
+                        the ground's surface is drawn on its own pool of workers (v2/js/present/ground-tasks.js), kept for the
+                        next Rebuild and Reapply — the same ground as drawn in place
   state.js              The touch device and edit mode
   planet-code.js        Planet code encode/decode (seed + sliders + edits → base36)
   detail-scale.js       Non-linear (power-curve) Detail slider mapping

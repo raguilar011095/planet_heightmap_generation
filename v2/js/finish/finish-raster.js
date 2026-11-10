@@ -353,10 +353,12 @@ export async function finishRasterPooled(pool, mesh, z, ocean, w, onRow = null, 
             }, (res, b) => { res.forEach((a, v) => O.sat[v].set(a, 3 * b * LOOK_ROWS * cw)); onRow?.(0.8 + 0.2 * ++done / bands); });
         }
         lap('look: rows');
+        delete ms.t;
         await pool.forget('picture');
         return pictureOf(P, O, climate, geology);
     } catch (err) {
         if (err?.name === 'AbortError') throw err;
+        console.warn('[finish] the picture was drawn in place:', String(err?.message ?? err).split('\n')[0]);
         return finishRaster(mesh, z, ocean, w, onRow, lake, lakeLevel, climate, geology, farming);
     }
 }
@@ -409,7 +411,8 @@ export function lookPieceTask(part) {
     return { result: out, transfer: [out.buffer] };
 }
 
-/** How long the last pooled picture's parts took (ms): for the bench. */
+/** How long the last pooled picture's parts took (ms) — dealing the pixels out, drawing them, the look's whole-picture
+ *  part and its rows: for the bench (v2/tools/perf-bench.mjs). */
 export const pictureMs = {};
 
 const pieceNoise = { of: null, noise: null };

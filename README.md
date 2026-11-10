@@ -115,6 +115,8 @@ v2/                     World Orogen V2 — the Evolution page (/evolution) and 
                         the labs out);
                         `node v2/tools/check-phase<N>.mjs` runs each phase's headless checks;
                         `node v2/tools/check-style.mjs` checks the pages' CSS against the style guide's tokens;
+                        `node v2/tools/perf-bench.mjs` times each tool's pipeline and fingerprints what it makes, so a
+                        speed-up can be shown to change nothing (plans/audits/PERFORMANCE_AUDIT_2.md);
                         v2/js/view/ holds what every page shares — the planet on screen (planet-view.js) and the layer
                         bar over it (layer-bar.js), the export panel (export-panel.js), its rasters, scales and README
                         (export-raster.js), the map projections (projections.js) and their GLSL inverses for the map

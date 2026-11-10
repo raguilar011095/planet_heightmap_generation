@@ -26,6 +26,11 @@ On this PR (#148), 2026-11-06, each verified byte-identical by hashing before an
 Tried and not kept: P-03's `willReadFrequently` on the export's river canvas. It changes 2.3–3.5 % of a colour map's
 pixels (all within 2 px of a river or lake, up to 128 levels) and the Rivers & lakes layer's edges, so it is not exact.
 It would take a 16384 colour map's GPU process from ~6 GB to 0.8 GB (the browser 9.8 → 5.6 GB): the owner's call.
+
+2026-11-10 (`PERFORMANCE_AUDIT_2.md`, each byte-identical by fingerprints in Node and in Chromium):
+- P-01, in part: Add detail's picture and its final climate run in pieces on a pool of workers (`core/task-pool.js`,
+  `finish/finish-raster.js`, `finish/finish-cells.js`); the deposits and the rocks still on one thread.
+- P-11: Generate's ground is drawn on a pool (`present/ground-tasks.js`), kept for the next Rebuild and Reapply.
 The rest are open.
 
 ## Summary

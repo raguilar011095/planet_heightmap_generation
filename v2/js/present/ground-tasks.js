@@ -11,8 +11,8 @@ import { planToData, planFromData, carveInputs } from '../terrain/synthesize.js'
 import { warpField, warpFieldPlan, installWarpField, cubeFace } from '../terrain/terrain-mesh.js';
 import { meshFromArrays } from '../core/sim-mesh.js';
 
-/** Below this many cells the pool is not worth handing the plan out. */
-const POOL_FROM_CELLS = 80000;
+/** Below this many cells the pool is not worth handing the plan out (nor starting: js/planet-worker.js). */
+export const GROUND_POOL_FROM_CELLS = 80000;
 
 /** A pool for the ground's tasks (null where workers cannot be started: the ground is then drawn in place). */
 export function groundTaskPool(size = null) {
@@ -40,7 +40,7 @@ async function shareWarp(pool, seed, cfg, simEdgeKm) {
 /** world.js drawSurface on `pool`: the same surface. Without a pool, for a small mesh, or if a run fails: drawn here. */
 export async function drawSurfacePooled(pool, job) {
     const { plan, cfg, seed, sim, edgeKm, xyz, carve, alt, rec } = job, n = xyz.length / 3;
-    if (!pool || pool.closed || n < POOL_FROM_CELLS) return drawSurface(job);
+    if (!pool || pool.closed || n < GROUND_POOL_FROM_CELLS) return drawSurface(job);
     try {
         // (the sim mesh once per mesh, the warp's tables once per seed and warp; the plan for this surface)
         if (pool.groundSim !== sim) { await pool.share('groundSim', { numCells: sim.numCells, xyz: sim.xyz, adjOffset: sim.adjOffset, adjList: sim.adjList }); pool.groundSim = sim; }

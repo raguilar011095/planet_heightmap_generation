@@ -139,10 +139,11 @@ async function terrain() {
 
 /** finishPlanet's result and its picture, as finish-worker.js makes them. */
 async function finishOf(job, width, stageNote = true) {
-    const { finishPlanet, finishRasterPooled } = await import('../js/finish/finish.js');
-    const { finishTaskPool } = await import('../js/finish/finish-tasks.js');
+    // (on a checkout from before the task pool — this file copied into it, to make a baseline — everything runs in place)
+    const { finishPlanet, finishRaster, finishRasterPooled = (_pool, ...a) => finishRaster(...a) } = await import('../js/finish/finish.js');
+    const { finishTaskPool = null } = await import('../js/finish/finish-tasks.js').catch(() => ({}));
     // (the finish's task pool, as finish-worker.js starts it — `--serial`: none, everything in place; `--workers N`)
-    const tasks = has('--serial') ? null : () => finishTaskPool(has('--workers') ? Number(arg('--workers')) : null);
+    const tasks = has('--serial') || !finishTaskPool ? null : () => finishTaskPool(has('--workers') ? Number(arg('--workers')) : null);
     const t0 = performance.now();
     const out = await finishPlanet({ ...job, tasks });
     const all = performance.now() - t0;
@@ -151,6 +152,7 @@ async function finishOf(job, width, stageNote = true) {
     // (each part's own print, so a difference says where)
     for (const [k, v] of Object.entries({ z: out.z, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, 'climate.page': out.climate.page, 'climate.cell': out.climate.cell })) note(`   = ${k}`, 0, fingerprint(v));
     const raster = await timed(`picture ${width}`, () => finishRasterPooled(out.tasks, out.mesh, out.z, out.ocean, width, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming));
+    if (out.tasks) { const { pictureMs } = await import('../js/finish/finish-raster.js'); for (const [k, v] of Object.entries(pictureMs)) note(`   ${k}`, v, ''); }
     for (const [k, v] of Object.entries({ heightM: raster.heightM, water: raster.water, geology: raster.geology, farming: raster.farming, climate: raster.climate })) note(`   = picture.${k}`, 0, fingerprint(v));
     out.tasks?.terminate();
     // (--keep FILE: the finished planet kept, for timing the picture alone)

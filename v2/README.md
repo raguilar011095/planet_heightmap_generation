@@ -322,6 +322,17 @@ node --max-old-space-size=16000 v2/tools/render-district-options.mjs [--moments 
 node v2/tools/shoot-lab.mjs 4 56 http://localhost:8123 scene=india   # screenshots + page smoke test (needs the server)
 node v2/tools/probe-play.mjs 8b history 40     # presses Play headlessly: frames painted, the page's long tasks (EXTRA=cells=2500000)
 node v2/tools/bench-lab.mjs 2500000           # the lab's terrain pipeline piece by piece: timings + output hashes (is a speed-up exact?)
+node v2/tools/perf-bench.mjs history|terrain|finish|generate|edit|import|climate [--json FILE] [--compare FILE]
+                                              # each tool's real pipeline in Node (the history; a terrain frame; Add detail and its picture;
+                                              # Generate's and Import's worker and finish; a Rebuild and a Reapply; the climate alone), stage by
+                                              # stage, with a fingerprint of everything it makes — --compare proves a change exact, and says
+                                              # how much faster; copied into an older checkout it makes that one's baseline (--serial: no pools)
+node --cpu-prof --cpu-prof-dir=v2/out/perf/prof v2/tools/perf-bench.mjs finish; node v2/tools/lib/cpu-profile.mjs v2/out/perf/prof/<file>.cpuprofile [top] [filter]
+                                              # where a pipeline's time goes: each function's own time, and with what it calls
+node v2/tools/check-pages-exact.mjs generate|import|evolution [--a URL] [--b URL] [--reapply] [--phone] [--libs DIR]
+                                              # two copies of the site in headless Chromium (Playwright): every message their workers send
+                                              # back — the first picture, the history's frames, the finished moment — fingerprinted and timed,
+                                              # side by side: is a change exact in the page itself, workers inside workers and all?
 node v2/tools/check-save.mjs                  # the planet file: (a) a small history and detailed moment saved and read back bit for bit, and older
                                               # files made by hand → v2/out/; (b) every planet kept in tools/fixtures/saves/ opens, its terrain and every export map drawn
 node v2/tools/check-save.mjs --fixture        # (a) on a small planet kept as the fixture of today's versions — once per version
@@ -353,6 +364,9 @@ js/core/           geometry with no tectonics in it: rotations, sphere index, si
                    in km over a mesh), mesh-rings (every cell's rings 0–3, precomputed), fast-noise (bit-identical to V1's
                    SimplexNoise, faster); sim-mesh also rebuilds a mesh from its arrays (meshFromArrays: how workers get it);
                    device (SMALL_DEVICE: a phone or a device reporting ≤ 4 GB — the memory budgets that follow it);
+                   task-pool (a pool of workers running named tasks — pieces of work that do not depend on one another —
+                   in the browser or Node; none where workers cannot be started, or under three cores: the work then runs
+                   in place, to the same result);
                    seed (a typed seed read — a number as ever, a word hashed — and the range new seeds are drawn from)
 js/tectonics/
   config.js        every tunable, in physical units (km, Myr, cm/yr); MECHANISMS = each mechanism's off-switch
@@ -464,7 +478,10 @@ js/view/           DOM-free painting: clouds (the clouds' noise in GLSL for the 
                    lines — a page hands it a live surface or a finished moment) and layer-bar (the view strip, the tabs and
                    their rows, the pickers — the deposits' and ages' menus from their lists — the phone's list, the legend card)
 js/evolution/      the Evolution page: its shell (evolution-main), terrain-player (per-frame terrain as a history streams in), looks (palettes, heightmap, readout words), climate-view + climate-worker + climate-fields (the climate of a moment, on request or a finished moment's own — the sea's drawn fields come carried across the coast from their own side and smoothly refined — grid.js refineForDrawing — so the sea shows no coastal rims, coarse-cell edges or polar wedges; the Satellite view), finish-view (the Finish step's worker and painting), detail-view + detail-worker (the detail finer than the mesh, in tiles where the view is zoomed in, and for exports wider than the picture), export (a finished moment's maps as PNG files, or all in a ZIP), geology-view (the Geology tab: rocks, deposits, ages; the record and the districts in the readout — drawn in the detail's tiles too), geology-export (its rows of the export panel: maps, rock types and masks, districts and atlas), farming-export (the Food rows of the export panel, their scales and README lists — shared with Generate's present-day world), farming-view (the Food tab: Farmland, Staple food, Lifestyle, People, Soil, Growing season; its technique, food and lifestyle chips)
-js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages, and the picture of heights), finish-worker,
+js/finish/         the Finish step (plans/V2_FINISH_PLAN.md): finish.js (the stages), finish-raster (the picture of heights and
+                   of the land's climate, cover, rocks and farming: one function a pixel, run row after row or in pieces on
+                   the task pool), finish-cells (the final climate cell by cell, in place or in runs on the pool),
+                   finish-tasks + finish-pool-worker (the pool's tasks and its worker), finish-worker,
                    finish-config (its tunables, in km / Myr / °C / mm), finish-grid (a lat-lon grid for smooth regional fields),
                    finish-basins (closed basins), finish-lithology (the rocks shape the land: plans/V2_LITHOLOGY_RELIEF_PLAN.md),
                    finish-sediment (fans, floodplains, deltas; creep by climate),
@@ -499,7 +516,9 @@ js/present/        Generate's present-day world (plans/GENERATE_REDESIGN_PLAN.md
                    inland, their time; ophiolites; old flood basalts worn to their feeders — what Evolution's rocks and
                    deposits read), knobs (the sculpting sliders), seafloor (each ocean cell's
                    age from its ridge and spreading rate, its spreading pole), frame (it all as an Evolution Frame,
-                   identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh),
+                   identity rotations), world (put together, and Evolution's terrain + carving on Generate's own mesh —
+                   as steps that ask for the ground's surface, drawn in place or on a pool), ground-tasks +
+                   ground-pool-worker (that surface in runs of cells on the task pool, the warp's tables with it),
                    layers (the Frame on the history's clock — its time the history's length, so a deposit's age reads
                    as Evolution's — for the finish, and the slim copy of it the page's hover stories read)
 js/save/           the planet file (plans/V2_SAVE_LOAD_PLAN.md): planet-file (save / read a history and its detailed moment),
@@ -1028,6 +1047,34 @@ sphere mesh's UVs) at the level the place's own size calls for — toward a pole
 hardware, going by its stretched width, had chosen ever coarser levels: a radial smear and blocks
 (`app/globe-view.js`). Still left: the close-up patch's tiles are cut on the latitude–longitude grid, and stay off where
 the view reaches past 85°.
+
+Every tool, exactly (2026-11-10; plans/audits/PERFORMANCE_AUDIT_2.md — every output's fingerprint unchanged, in Node by
+`perf-bench.mjs` and in Chromium by `check-pages-exact.mjs`; times on a 4-core cloud machine, about half the development
+desktop's speed a core). The work that splits into pieces that do not depend on one another now runs on a pool of workers
+(`core/task-pool.js`), the same code on the same values as in place — where there is no pool (no workers inside workers,
+fewer than three cores) it runs in place:
+- **the picture** (`finish/finish-raster.js`): one function draws a pixel from the mesh triangle under it. Its pixels are
+  dealt out by the run of mesh cells they fall on — a mesh's cells are numbered along the sphere, so a run is a band of
+  it, whichever way the mesh lies (Evolution's down the globe, Generate's across it) — and each run is drawn by a worker
+  from its own slice of the finish's arrays: no worker holds the planet. Then the Satellite look: the land's surroundings
+  on one worker, the rivers' ribbons dealt out by reach (a pixel's riverside is the most of what covers it, so the order
+  does not matter), the lakes' fringes meanwhile, its rows in bands. In place it is faster too (its per-pixel lookups by
+  name gone). Add detail's picture at 640K, 4096 px: 12.1 → 5.8 s; Generate's and Import's at 2048: 3.7 → 2.1 s.
+- **the final climate** (`finish/finish-cells.js`): each land cell's cover, riverside, measures, climate tests and farming
+  seasons from its own twelve months, in runs of cells from 400K cells up (below, each worker meets the code cold and
+  gains nothing); the climate's shares are gathered in the cells' order either way. 4.1 → 3.0 s at 640K.
+- **Generate's ground** (`present/ground-tasks.js`): the surface — every cell sampled on the sim mesh and read from the
+  plan, as Evolution's terrain pool draws a frame's — in runs of cells; the sampling warp's tables filled a face at a time
+  on the workers, once per seed and warp, and handed to each. `present/world.js` asks for its surface as the history asks
+  for a rift's search (a generator's yield): answered in place by `presentWorld`, by the pool from `js/planet-worker.js`,
+  which keeps its pool for the next Rebuild and Reapply. The first picture 8.9 → 7.7 s; a Reapply 3.5 → 2.9 s in Node,
+  7.0 → 3.7 s in Chromium.
+- **the history**: the growth step (`step/resolve.js`) settles most candidates without searching their rings — of ~5,000
+  a step, two in five stand where another plate has crust and three in ten have none of their own plate's within reach,
+  which the gather's own near-edge marks say (kept right through its subductions) — and it and the gap owners read the
+  gather's world-cell → raster-cell map instead of looking the same cells up again. 600 Myr at 40K: 79.1 → 72.5 s.
+What stays as it was, and why — the climate on its grid, the history's steps, the carving's floods, the deposits and the
+rocks — is in the audit, with what an order of magnitude would take.
 
 ## The realism pass (2026-10-18; plans/V2_REALISM_PASS_PLAN.md)
 
