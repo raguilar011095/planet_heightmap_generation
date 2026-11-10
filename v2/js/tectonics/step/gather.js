@@ -12,8 +12,10 @@ import { ringsOf, RING_COUNT } from '../../core/mesh-rings.js';
 /**
  * Calls `onClaim(worldCell, plate, rasterCell)` for every (world cell, plate) pair where the plate has
  * crust under that world cell. Plates whose bounding cap cannot reach a cell are skipped cheaply.
+ * `pass`: a number for this gather (resolve.js: the world's occupancy stamp) — a plate whose near-edge marks were built
+ * during it carries it as `_nearEdge.pass`, so the growth step can tell the marks are of this gather's crust.
  */
-export function forEachClaim(world, onClaim) {
+export function forEachClaim(world, onClaim, pass = 0) {
     const { mesh, plates } = world, { xyz, numCells, index } = mesh;
     for (const plate of plates) {
         if (!plate.alive || plate.crust.count === 0) continue;
@@ -47,7 +49,7 @@ export function forEachClaim(world, onClaim) {
                 if (cell < 0) {
                     const px = m[0] * x + m[3] * y + m[6] * z, py = m[1] * x + m[4] * y + m[7] * z, pz = m[2] * x + m[5] * y + m[8] * z;
                     const guess = cell === -1 ? index.start(px, py, pz) : -2 - cell;
-                    near ??= nearEdge(plate, mesh);
+                    if (!near) { near = nearEdge(plate, mesh); near.pass = pass; }
                     if (!mask[guess] && near.marks[guess] !== near.stamp) { map[w] = -2 - guess; continue; }
                     cell = map[w] = index.walk(guess, px, py, pz);
                 }
@@ -73,6 +75,18 @@ function capBand(cx, cy, cz, capCos) {
     if (capCos <= -1) return { zLo: -Infinity, zHi: Infinity };
     const theta = Math.acos(Math.max(-1, Math.min(1, cz))), r = Math.acos(capCos);
     return { zLo: Math.cos(Math.min(Math.PI, theta + r)) - 1e-4, zHi: Math.cos(Math.max(0, theta - r)) + 1e-4 };
+}
+
+/**
+ * The plate's world cell → raster cell map if it is of the plate's rotation now (else null): map[w] ≥ 0 is plate.cellAt at
+ * world cell w's centre — the same lookup, kept — and ≤ −2 holds the index's first guess for it, as −2 − guess (see
+ * forEachClaim). For the growth step, which asks for the same cells the gather looked up moments before.
+ */
+export function claimMapNow(plate, numCells) {
+    const c = plate._claimMap, m = plate.mat;
+    if (!c || c.map.length !== numCells) return null;
+    for (let i = 0; i < 9; i++) if (c.mat[i] !== m[i]) return null;
+    return c.map;
 }
 
 /** The plate's world cell → raster cell map for its current rotation (see forEachClaim), reset when it has turned. */
