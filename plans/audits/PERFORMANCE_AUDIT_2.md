@@ -22,15 +22,21 @@ speed a core, with a software GPU in the browser):
 
 | | before | after | |
 |---|---|---|---|
-| Add detail's **picture** (640K cells, 4096 px) | 12.1 s | 5.8 s | 2.1× |
-| Generate's and Import's **picture** (204K, 2048 px) | 3.7 s | 2.1 s | 1.8× |
-| Add detail's **final climate** (640K) | 4.1 s | 3.0 s | 1.35× |
-| **Add detail**, 640K, all of it | 48.4 s | 40.2 s | 1.20× |
-| Generate: **Reapply**'s ground (in Chromium) | 7.0 s | 3.7 s | 1.9× |
-| Generate: the **first picture** (Node) | 8.9 s | 7.7 s | 1.15× |
-| Import: finish + picture | 17.7 s | 15.9 s | 1.11× |
+| Add detail's **picture** (640K cells, 4096 px) | 12.1 s | 5.9 s | 2.1× |
+| Generate's and Import's **picture** (204K, 2048 px) | 3.7 s | 1.9–2.2 s | 1.8× |
+| Add detail's **final climate** (640K) | 4.1 s | 3.0 s | 1.4× |
+| **Add detail**, 640K, all of it | 48.4 s | 39.7 s | 1.22× |
+| Generate: **Reapply**'s ground | 3.5 s (Node) · 7.0 s (Chromium) | 2.8 s · 3.7 s | 1.25× · 1.9× |
+| Generate: the **first picture** (Node) | 8.9 s | 8.0 s | 1.1× |
+| Import: finish + picture | 17.7 s | 15.6 s | 1.13× |
 | the **history**, 600 Myr at 40K | 79.1 s | 72.5 s | 1.09× |
 | the **climate** on its grid | 6.7 s | 6.7 s | — (see below) |
+
+(Each "after" is of the last clean run of `perf-bench.mjs`, the machine idle; runs differ by a few percent — the
+history ran 72.1, 72.5, 72.5 and once 76.1 s. One number in the Node bench is not the page's: there Generate's finish
+runs in the same process as the ground's pool, and its stages come out ~10 % slower after a pooled ground than after
+one drawn in place — the same code, on the same thread. In the page the two are separate workers, and Chromium shows no
+such thing: the finish's climate took 7.6 s on v3.0.1 and 7.5 s here.)
 
 The pooled stages scale with cores: the pool here had 3 workers; the development desktop's has 7, and the stages that
 moved to it are the ones the first audit measured as Add detail's single-threaded tail. They were not measured on that
@@ -149,7 +155,7 @@ world-cell → raster-cell map rather than looking the same cells up again. −9
   climate's solves.
 - **Carving, hydrology, the sea** — priority floods over the whole mesh: serial by nature. Unchanged.
 - **Small planets and the pool.** A worker meets its code cold. At 204K cells the final climate gained nothing from the
-  pool, and Generate's *first* ground gains less (8.9 → 7.7 s) than a Reapply's (the pool warm: its surface 2.4 → 1.1 s).
+  pool, and Generate’s *first* ground gains less (8.9 → 8.0 s) than a Reapply’s (the pool warm: its surface 2.4 → 1.1 s).
 
 ## What an order of magnitude would take
 
@@ -177,8 +183,14 @@ exports, memory, page load): not touched here — this audit kept to the simulat
   while other checks ran: indicative).
 - `check-pages-exact.mjs` v3.0.1 against this branch: generate, generate `--reapply`, generate `--phone`, import,
   evolution (20K, 300 Myr, Add detail at 640K) — every message the same.
-- `check-seeds`, `check-style`, `check-save` (both kept planet files open and draw), `check-present`, `check-farming`,
-  `check-geology`, `check-phase8a`, `check-phase8b`, `check-invariants`, `check-scale`: see the commit's notes.
+- The repo's checks, on this branch: `check-seeds` pass; `check-style` pass; `check-save` pass (both kept planet files
+  open, their terrain and every export map drawn); `check-farming` 39 of 39; `check-geology` 57 of 57;
+  `check-invariants` 21 of 21; `check-scale` 7 of 7.
+- `check-phase8a` (3 of 47 fail) and `check-phase8b` (4 of 24 fail) were run on a v3.0.1 checkout too: the same checks
+  fail there, and the two outputs are the same line for line — the terrain's own open misses (a range behind its coast,
+  rivers downhill, flood basalt benched) and two time budgets this machine is too slow for. `check-present`: every
+  verdict the same as v3.0.1's but for its time budgets ("ground at 60K in … ms"), of which one to four fail on either
+  checkout here, by the machine's load.
 - Not run: `tuning/climate/evaluate.mjs` and `coupled-check.mjs` (their reference data cannot be downloaded in this
   sandbox). The climate's code is unchanged but for two read-only additions to `koppen-soft.js`'s grid (`index`, `size`,
   `perCell`); its every output is in the fingerprints above.

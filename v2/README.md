@@ -1059,7 +1059,7 @@ fewer than three cores) it runs in place:
   from its own slice of the finish's arrays: no worker holds the planet. Then the Satellite look: the land's surroundings
   on one worker, the rivers' ribbons dealt out by reach (a pixel's riverside is the most of what covers it, so the order
   does not matter), the lakes' fringes meanwhile, its rows in bands. In place it is faster too (its per-pixel lookups by
-  name gone). Add detail's picture at 640K, 4096 px: 12.1 → 5.8 s; Generate's and Import's at 2048: 3.7 → 2.1 s.
+  name gone). Add detail's picture at 640K, 4096 px: 12.1 → 5.9 s; Generate's and Import's at 2048: 3.7 → 2.0 s.
 - **the final climate** (`finish/finish-cells.js`): each land cell's cover, riverside, measures, climate tests and farming
   seasons from its own twelve months, in runs of cells from 400K cells up (below, each worker meets the code cold and
   gains nothing); the climate's shares are gathered in the cells' order either way. 4.1 → 3.0 s at 640K.
@@ -1067,7 +1067,7 @@ fewer than three cores) it runs in place:
   plan, as Evolution's terrain pool draws a frame's — in runs of cells; the sampling warp's tables filled a face at a time
   on the workers, once per seed and warp, and handed to each. `present/world.js` asks for its surface as the history asks
   for a rift's search (a generator's yield): answered in place by `presentWorld`, by the pool from `js/planet-worker.js`,
-  which keeps its pool for the next Rebuild and Reapply. The first picture 8.9 → 7.7 s; a Reapply 3.5 → 2.9 s in Node,
+  which keeps its pool for the next Rebuild and Reapply. The first picture 8.9 → 8.0 s; a Reapply 3.5 → 2.8 s in Node,
   7.0 → 3.7 s in Chromium.
 - **the history**: the growth step (`step/resolve.js`) settles most candidates without searching their rings — of ~5,000
   a step, two in five stand where another plate has crust and three in ten have none of their own plate's within reach,
