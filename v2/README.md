@@ -1057,8 +1057,8 @@ fewer than three cores) it runs in place:
   dealt out by the run of mesh cells they fall on — a mesh's cells are numbered along the sphere, so a run is a band of
   it, whichever way the mesh lies (Evolution's down the globe, Generate's across it) — and each run is drawn by a worker
   from its own slice of the finish's arrays: no worker holds the planet. Then the Satellite look: the land's surroundings
-  on one worker, the rivers' ribbons dealt out by reach (a pixel's riverside is the most of what covers it, so the order
-  does not matter), the lakes' fringes meanwhile, its rows in bands. In place it is faster too (its per-pixel lookups by
+  on one worker while the rivers' ribbons and the lakes' fringes are stamped here, then its rows in bands. In place it
+  is faster too (its per-pixel lookups by
   name gone). Add detail's picture at 640K, 4096 px: 12.1 → 5.9 s; Generate's and Import's at 2048: 3.7 → 2.0 s.
 - **the final climate** (`finish/finish-cells.js`): each land cell's cover, riverside, measures, climate tests and farming
   seasons from its own twelve months, in runs of cells from 400K cells up (below, each worker meets the code cold and
@@ -1069,6 +1069,13 @@ fewer than three cores) it runs in place:
   for a rift's search (a generator's yield): answered in place by `presentWorld`, by the pool from `js/planet-worker.js`,
   which keeps its pool for the next Rebuild and Reapply. The first picture 8.9 → 8.0 s; a Reapply 3.5 → 2.8 s in Node,
   7.0 → 3.7 s in Chromium.
+- **the fine mesh under the surface** (`finish/finish.js`): a mesh not built yet is triangulated on the finish's own thread
+  while the workers draw the surface, which needs only where the cells are (`sphere-mesh.js` `spherePoints` /
+  `sphereFromPoints`) — so the mesh costs no time of its own; the worker's `prepare` builds the coarser meshes at once
+  and the fine one after a five-second pause if no finish has come (a finish that came while it was being built there
+  had to wait for it). Add detail at 10M cells and 8192 px here: 324 → 264 s (mesh + surface 78 → 57 s, final climate
+  52 → 22 s, picture 21 → 13 s). Its memory: a piece's arrays are emptied the moment they are done with
+  (`task-pool.js` `release`), the pieces sized by cells and pixels — the peak 4.9 → 5.2 GB, at the picture.
 - **the history**: the growth step (`step/resolve.js`) settles most candidates without searching their rings — of ~5,000
   a step, two in five stand where another plate has crust and three in ten have none of their own plate's within reach,
   which the gather's own near-edge marks say (kept right through its subductions) — and it and the gap owners read the

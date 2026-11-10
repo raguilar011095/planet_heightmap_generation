@@ -1,5 +1,6 @@
 // The Finish step's worker (plans/V2_FINISH_PLAN.md): finishes one moment (finish.js) and sends back its picture of
-// heights. It keeps the mesh it built (a 10M-cell mesh takes ~15 s to build — only this worker ever holds it) until a
+// heights. It keeps the mesh it built (a 10M-cell mesh takes ~15 s to build — only this worker ever holds it; a finish
+// builds it while its workers draw the surface) until a
 // finish at another detail (one fine mesh at a time: they are big); its
 // terrain pool (the surface, in slices) lives only for the surface and is let go before the heavy stages; its task pool
 // (finish-tasks.js: the final climate's cells and the picture's pixels, in pieces — the same result as in place) is
@@ -32,21 +33,27 @@ import { meshFromArrays } from '../core/sim-mesh.js';
 import { setDelaunator } from '../../../js/sphere-mesh.js';
 
 let sim = null, simCells = 0, delaunatorSet = false;
+// (a prepare's fine mesh waits this long for a finish: one that comes first builds it under its surface's time instead —
+// finish.js — where a finish that came while it was being built here had to wait for it: ~17 s at 10M cells)
+const FINE_MESH_AFTER_MS = 5000;
+let fineLater = null;
 
 self.onmessage = async ({ data }) => {
     if (data.type === 'prepare') {
-        // (the coarser meshes a finish's carving climbs, built before the first Add detail. Not the fine one: a finish
-        // builds it while its workers draw the surface — finish.js — at no cost in time, and a finish asked for while it
-        // was being built here had to wait for it: ~17 s at 10M cells)
+        // (the coarser meshes a finish's carving climbs, built before the first Add detail — and, if no finish has come
+        // a few seconds on, the fine one: ~3 s at 2.5M)
         try {
             if (!delaunatorSet) { setDelaunator((await import(data.delaunatorUrl)).default); delaunatorSet = true; }
             const sizes = ladderCells(data.simCells, data.cells);
             keepOnlyTerrainMesh(data.cells, ...sizes);
             for (const c of sizes) terrainMesh(c);
+            clearTimeout(fineLater);
+            fineLater = setTimeout(() => { fineLater = null; try { terrainMesh(data.cells); } catch { /* (built by the finish, then) */ } }, FINE_MESH_AFTER_MS);
         } catch { /* (built when a finish asks for them, then) */ }
         return;
     }
     if (data.type !== 'finish') return;
+    clearTimeout(fineLater); fineLater = null;
     const { id, frame, seed, width, poolSize = null, climateOptions = {}, surface = null } = data;
     let tasks = null;
     try {

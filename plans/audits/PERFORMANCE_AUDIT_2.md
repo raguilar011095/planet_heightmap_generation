@@ -25,7 +25,8 @@ speed a core, with a software GPU in the browser):
 | Add detail's **picture** (640K cells, 4096 px) | 12.1 s | 5.9 s | 2.1× |
 | Generate's and Import's **picture** (204K, 2048 px) | 3.7 s | 1.9–2.2 s | 1.8× |
 | Add detail's **final climate** (640K) | 4.1 s | 3.0 s | 1.4× |
-| **Add detail**, 640K, all of it | 48.4 s | 39.7 s | 1.22× |
+| **Add detail**, 640K, all of it | 48.4 s | 38.3 s | 1.26× |
+| **Add detail at 10M**, 8192 px, all of it (its own section below) | 324 s | 264 s | 1.23× |
 | Generate: **Reapply**'s ground | 3.5 s (Node) · 7.0 s (Chromium) | 2.8 s · 3.7 s | 1.25× · 1.9× |
 | Generate: the **first picture** (Node) | 8.9 s | 8.0 s | 1.1× |
 | Import: finish + picture | 17.7 s | 15.6 s | 1.13× |
@@ -95,10 +96,13 @@ it — all on one thread (the first audit's P-01: 6.2 s of a 2.5M Add detail, 11
   thread that deals computes each pixel's first guess of its cell (the sphere index's table: cheap), the worker walks from
   it — the same walk, the same cell. A walk that would leave its slice stops the piece, and the picture is drawn in
   place: never a wrong pixel.
-- **The Satellite look**, which was one pass over the picture: its neighbourhood statistics on one worker; the rivers'
-  ribbons dealt out by reach to the others (a pixel's riverside is the *most* of what covers it, so reaches can be
-  stamped in any order and joined by each pixel's most; rounding to the Float32 it is kept in is monotone, so the most
-  of the rounded values is the rounded most); the lakes' fringes meanwhile; then its rows in bands.
+- **The Satellite look**, which was one pass over the picture: its neighbourhood statistics on one worker while the
+  rivers' ribbons and the lakes' fringes are stamped on the finish's own thread, as before; then its rows in bands.
+  (The ribbons dealt out by reach over the pool were built too, and exact — a pixel's riverside is the *most* of what
+  covers it, so reaches can be stamped in any order and joined by each pixel's most; rounding to the Float32 it is kept
+  in is monotone, so the most of the rounded values is the rounded most — but on three workers they were no faster
+  than one thread beside the statistics, and each worker took a 40 MB copy of the picture: taken out again. With more
+  workers they would gain; the look's whole-picture part is 1.7 s of a 640K picture and 3.7 s of a 10M one.)
 
 ### 3. The final climate — `v2/js/finish/finish-cells.js`
 
@@ -117,7 +121,18 @@ the worker answers from a pool it keeps for the next Rebuild and Reapply. The sa
 over a cube map, ~0.8 s here) would have been filled by every worker for itself: they are filled a face at a time on
 the pool, once per seed and warp, and handed to each.
 
-### 5. The history's growth step — `v2/js/tectonics/step/resolve.js`, `gather.js`
+### 5. The fine mesh, built under the surface's time — `finish.js`, `terrain-mesh.js`, `finish-worker.js`
+
+Add detail built its mesh (a Delaunay triangulation: 17 s at 10M on the development desktop, 36 s here), then drew
+the surface on the pool while its own thread waited. But the surface needs only *where the cells are* — the Fibonacci
+points, known in a moment — not how they are joined. So when the mesh is not built yet, the workers start on the surface
+at once and the finish's thread triangulates meanwhile: the mesh costs no time of its own. The same points, the same
+mesh (`sphere-mesh.js` `spherePoints` / `sphereFromPoints`: `buildSphere` in its two halves). The worker's `prepare`
+(the page's "build the meshes ahead") still builds the coarser meshes at once, and the fine one after five seconds'
+pause if no finish has come: a finish that arrived while the fine mesh was being built there had to wait for it — the
+first audit's "~17 s of mesh before the stages" on a first 10M.
+
+### 6. The history's growth step — `v2/js/tectonics/step/resolve.js`, `gather.js`
 
 Counted over a history: each step looks at ~5,000 candidate cells for new crust and ~110 are born. 43 % are turned down
 because another plate has crust there, 29 % because none of their own plate's crust is within reach — each after a
@@ -126,6 +141,64 @@ own marks of what lies near the crust's edge has none within reach (the marks ar
 cells it then subducted are marked too, so the test never says "none" wrongly); a candidate under another plate's crust
 is turned down before the grower's own search. The growth step and the gap owners also read the gather's
 world-cell → raster-cell map rather than looking the same cells up again. −9 %.
+
+## Add detail at 10M
+
+Measured in Node on the same 4-core machine (3 pool workers; `perf-bench.mjs finish --cells 10000000 --width 8192`),
+v3.0.1 against this branch, every output's fingerprint the same — heights, rivers, drivers, stats, geology, farming,
+climate, and the 8192-px picture's every layer:
+
+| stage | v3.0.1 | now | |
+|---|---|---|---|
+| mesh | 36.5 s | (46.6 s, under the surface) | |
+| surface | 41.9 s | 9.9 s after the mesh | mesh + surface 78.4 → 56.5 s |
+| climate | 12.1 s | 12.4 s | |
+| bedrock | 9.8 s | 9.8 s | |
+| rivers | 42.1 s | 42.9 s | serial: the carving's floods |
+| sediment · hillslopes · ice age · wind | 14.8 s | 15.0 s | |
+| sea | 12.3 s | 11.7 s | serial: floods |
+| water | 33.0 s | 32.3 s | serial: floods, river years |
+| detail | 2.5 s | 2.7 s | |
+| geology | 13.6 s | 13.7 s | per cell: not pooled yet |
+| **final climate** | 52.3 s | 21.8 s | pooled |
+| deposits | 26.1 s | 26.6 s | per cell: not pooled yet |
+| farming | 5.6 s | 5.8 s | |
+| **picture** (8192 px) | 20.8 s | 12.6 s | pooled |
+| **all of it** | **323.6 s** | **264.2 s** | **1.23×** |
+
+On the development desktop the first audit measured the same Add detail at 183 s (149 s with the mesh built): the stages
+that moved to the pool here were 44 s of that on one thread (final climate 32.7, picture 11.7) and would run on 7
+workers, and the 17 s of mesh goes under the surface's 26 s. A fair expectation there is ~125–135 s for a first 10M;
+it is the next thing to measure.
+
+**Memory at 10M** (the process's resident memory, sampled five times a second from a thread of its own, this thread's
+garbage collected at each stage's start: `--mem` with `node --expose-gc`):
+
+| during | v3.0.1 | now |
+|---|---|---|
+| mesh / surface | 2.2 / 2.8 GB | 4.0 / 3.4 GB (the mesh is built while the workers hold their slices) |
+| rivers | 4.7 GB | 4.5 GB |
+| geology · final climate · deposits | 4.5 · 4.2 · 4.5 GB | 4.4 · 4.3 · 4.5 GB |
+| farming | **4.9 GB** (the peak) | 4.9 GB |
+| picture | 4.3 GB | **5.2 GB** (the peak) |
+
+The pooled picture's stage holds ~0.9 GB more than drawing it in place did, and the peak moves from 4.9 to 5.2 GB. It
+first held 1.3 GB more (5.6 GB); what brought it down:
+- a piece's arrays are emptied the moment they are done with (`task-pool.js` `release`: `ArrayBuffer.prototype.transfer`
+  — a worker's inputs when its task ends, the results once taken in) instead of waiting for the collector;
+- the pixels are dealt into as many runs as keep a run to ~60K cells and ~200K pixels (168 at 10M and 8192 px, not 64),
+  and no guess is kept per pixel (134 MB at 8192 px): it is worked out again for each piece;
+- the final climate's runs are at most 120K cells (at a pool's sixth each they held ~0.6 GB between them);
+- the rivers' ribbons went back to the finish's own thread, beside the statistics' worker: dealt out over three workers
+  they were no faster, and each took a 40 MB copy of the picture.
+What is left of the difference is the pool itself — an isolate a worker, each with the finish's code — the pixels' order
+(134 MB at 8192 px) and the pieces in flight. With 7 workers it will be a little more (an isolate each; the pieces in
+flight are two a worker, ~15 MB each). The first audit put a first 10M at 5.5 GB in the renderer: expect ~6 GB.
+
+**What limits 10M now**, in order: the floods (rivers, water, sea: 87 s here, one thread by nature); the mesh and the
+surface (57 s, both already side by side); the deposits and the rocks (26.6 + 23.5 s with bedrock: per cell, the next
+to move to the pool — a third of what is left to gain exactly); the final climate (21.8 s on 3 workers: it scales with
+the pool); the picture (12.6 s, of which 3.7 s is the look's whole-picture part: the rivers' ribbons, one thread).
 
 ## What was looked at and left, and why
 
@@ -175,7 +248,7 @@ exports, memory, page load): not touched here — this audit kept to the simulat
 ## Verification run
 
 - `perf-bench.mjs` `--compare` against the v3.0.1 baselines: history, terrain, finish (640K, pooled and `--serial`),
-  generate (pooled and `--serial`), edit, import — identical.
+  generate (pooled and `--serial`), edit, import — identical. Add detail at 10M cells and 8192 px — identical.
 - The same against a v3.0.1 checkout on other seeds and sizes: histories at 20K (seed 777, 400 Myr) and 80K (seed 4242,
   150 Myr); Add detail of the 80K history's end at 640K and at 160K (the record cells as 32-bit: over 65,535 sim cells);
   Generate at 50K (below the pools' sizes: all in place) and at 1M; a Rebuild and a Reapply at 500K; Import at 1M —
