@@ -25,12 +25,14 @@ export async function coreCount() { return IS_NODE ? (await import('node:os')).a
 export class TaskPool {
     /**
      * @param {URL|string} workerUrl  a module that calls serveTasks (below) with its tasks
-     * @param {number|null} size  workers (null: the cores but one, at most 8)
-     * @returns {Promise<TaskPool|null>}  null where workers cannot be started
+     * @param {number|null} most  the most workers (null: 8) — the pool has the cores but one, up to that
+     * @returns {Promise<TaskPool|null>}  null where workers cannot be started, or the machine has fewer than three
+     *          cores: a pool of one worker only adds its messages to the work
      */
-    static async create(workerUrl, size = null) {
+    static async create(workerUrl, most = null) {
         try {
-            const n = size ?? Math.max(1, Math.min(8, (await coreCount()) - 1));
+            const n = Math.min(most ?? 8, (await coreCount()) - 1);
+            if (n < 2) return null;
             return new TaskPool(await Promise.all(Array.from({ length: n }, () => spawn(workerUrl))));
         } catch { return null; }
     }

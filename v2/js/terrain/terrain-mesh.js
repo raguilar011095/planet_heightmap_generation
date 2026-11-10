@@ -78,32 +78,45 @@ export function warpField(seed, cfg, simEdgeKm = 0) {
     const key = `${seed}|${cfg.warpScale}|${amp2 > 0 ? `${amp2.toFixed(4)}|${lam.toFixed(4)}` : '-'}`;
     let W = warpTables.get(key);
     if (W) return W;
-    W = { ...cubeTable(warpNoise(seed), cfg.warpScale, 4, WARP_N) };
-    if (amp2 > 0) {
-        // (the cell warp's finest waves, half its wavelength, sampled six times over at the least; at most 512 a face edge)
-        const N2 = Math.min(512, Math.max(WARP_N, Math.ceil(6 * (Math.PI / 2) * 6371 / (lam / 2))));
-        W.cell = cubeTable(new SimplexNoise(seed * 7 + 211), 6371 / lam, 2, N2);
-        W.cellAmp = amp2 / 6371;
-    }
-    warpTables.set(key, W);
+    const P = warpFieldPlan(seed, cfg, simEdgeKm);
+    return installWarpField(P, P.tables.map(t => { const T = new Float32Array(6 * (t.N + 1) * (t.N + 1) * 3); for (let face = 0; face < 6; face++) cubeFace(t, face, T, face * (t.N + 1) * (t.N + 1) * 3); return T; }));
+}
+/**
+ * What a warp field is made of — its key, and its tables as {noiseSeed, f, octaves, N} (the warp's own; with a cell-scale
+ * warp, that one's too) — so its tables may be worked out elsewhere, a face at a time (cubeFace: any face anywhere gives
+ * the same values), and the field installed from them (installWarpField): present/ground-tasks.js, on its workers.
+ */
+export function warpFieldPlan(seed, cfg, simEdgeKm = 0) {
+    const amp2 = (cfg.cellWarp ?? 0) * simEdgeKm, lam = (cfg.cellWarpCells ?? 3) * simEdgeKm;
+    const key = `${seed}|${cfg.warpScale}|${amp2 > 0 ? `${amp2.toFixed(4)}|${lam.toFixed(4)}` : '-'}`;
+    const tables = [{ noiseSeed: seed * 7 + 101, f: cfg.warpScale, octaves: 4, N: WARP_N }];
+    // (the cell warp's finest waves, half its wavelength, sampled six times over at the least; at most 512 a face edge)
+    if (amp2 > 0) tables.push({ noiseSeed: seed * 7 + 211, f: 6371 / lam, octaves: 2, N: Math.min(512, Math.max(WARP_N, Math.ceil(6 * (Math.PI / 2) * 6371 / (lam / 2)))) });
+    return { key, tables, cellAmp: amp2 > 0 ? amp2 / 6371 : 0, have: warpTables.has(key) };
+}
+/** The warp field of a plan, from its tables' values (one Float32Array a table, the six faces in order): kept as warpField keeps its own. */
+export function installWarpField(P, values) {
+    const table = (t, T) => ({ N: t.N, S: t.N + 1, T }), W = { ...table(P.tables[0], values[0]) };
+    if (P.tables.length > 1) { W.cell = table(P.tables[1], values[1]); W.cellAmp = P.cellAmp; }
+    warpTables.set(P.key, W);
     if (warpTables.size > 4) warpTables.delete(warpTables.keys().next().value);
     return W;
 }
-/** A 3-component noise (fbm, `octaves`, frequency f on the unit sphere) tabulated over a cube map, N cells a face edge. */
-function cubeTable(noise, f, octaves, N) {
-    const S = N + 1, T = new Float32Array(6 * S * S * 3), p = [0, 0, 0];
-    for (let face = 0; face < 6; face++) {
-        const [a, b, c] = WARP_AXES[face >> 1];
-        for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
-            p[a] = face & 1 ? -1 : 1; p[b] = -1 + 2 * i / N; p[c] = -1 + 2 * j / N;
-            const l = Math.hypot(p[0], p[1], p[2]), x = p[0] / l, y = p[1] / l, z = p[2] / l, o = 3 * ((face * S + j) * S + i);
-            T[o] = noise.fbm(x * f + 11.3, y * f + 3.1, z * f + 7.7, octaves, 0.5);
-            T[o + 1] = noise.fbm(x * f + 2.9, y * f + 17.2, z * f + 5.5, octaves, 0.5);
-            T[o + 2] = noise.fbm(x * f + 23.4, y * f + 8.8, z * f + 13.6, octaves, 0.5);
-        }
+/** One face of a table — a 3-component noise (fbm, `octaves`, frequency f on the unit sphere) over a cube map, N cells a
+ *  face edge — into T from `at` on ((N + 1)² × 3 values). */
+export function cubeFace({ noiseSeed, f, octaves, N }, face, T = new Float32Array((N + 1) * (N + 1) * 3), at = 0) {
+    const S = N + 1, p = [0, 0, 0], [a, b, c] = WARP_AXES[face >> 1], noise = noiseOfSeed(noiseSeed);
+    for (let j = 0; j < S; j++) for (let i = 0; i < S; i++) {
+        p[a] = face & 1 ? -1 : 1; p[b] = -1 + 2 * i / N; p[c] = -1 + 2 * j / N;
+        const l = Math.hypot(p[0], p[1], p[2]), x = p[0] / l, y = p[1] / l, z = p[2] / l, o = at + 3 * (j * S + i);
+        T[o] = noise.fbm(x * f + 11.3, y * f + 3.1, z * f + 7.7, octaves, 0.5);
+        T[o + 1] = noise.fbm(x * f + 2.9, y * f + 17.2, z * f + 5.5, octaves, 0.5);
+        T[o + 2] = noise.fbm(x * f + 23.4, y * f + 8.8, z * f + 13.6, octaves, 0.5);
     }
-    return { N, S, T };
+    return T;
 }
+let lastNoise = null;
+function noiseOfSeed(s) { if (lastNoise?.seed !== s) lastNoise = { seed: s, noise: new SimplexNoise(s) }; return lastNoise.noise; }
 
 /**
  * A point (unit vector) displaced by the sampling warp (warpField's table), into `out` (unit): read at the point itself,

@@ -30,7 +30,7 @@ const arg = (k, d) => { const i = argv.indexOf(k); return i > 0 ? argv[i + 1] : 
 const has = k => argv.includes(k);
 
 // ── fingerprints: every typed array's bytes, every number and string, keys in order; timings left out ──
-const SKIP = new Set(['ms', 'packMs', '_workerTotal', 'secs']);
+const SKIP = new Set(['ms', 'packMs', '_workerTotal', 'secs', 'profile', 'timing']);
 function feed(h, v, seen) {
     if (v === null || v === undefined) { h.update('~'); return; }
     if (ArrayBuffer.isView(v)) { h.update(`<${v.constructor.name}:${v.length}>`); h.update(new Uint8Array(v.buffer, v.byteOffset, v.byteLength)); return; }
@@ -178,7 +178,7 @@ async function planetWorker() {
     return async (stage, data) => {
         inbox.length = 0;
         const t = performance.now();
-        globalThis.self.onmessage({ data });
+        await globalThis.self.onmessage({ data });
         const ms = performance.now() - t, msg = inbox.find(m => m.type !== 'progress');
         if (!msg || msg.type === 'error') throw new Error(`planet worker: ${msg?.message ?? 'no reply'}\n${msg?.stack ?? ''}`);
         note(stage, ms, fingerprint(msg));
@@ -239,7 +239,9 @@ async function climate() {
     rows.length = 0;
     const { planetClimate } = await import('../js/climate/climate.js');
     const sh = msg.shared;
+    const cpu0 = process.cpuUsage();
     const res = await timed('climate (planetClimate)', () => planetClimate({ xyz: sh.mesh.xyz, elevKm: sh.heightKm, axes: 'z-up' }, { greenhouseWm2: 0, precipScale: 1 }), r => fingerprint({ cell: r.cell, months: r.months, surface: r.surface, stages: r.stages }));
+    { const c = process.cpuUsage(cpu0); note('   (cpu: this process, all threads)', (c.user + c.system) / 1000, ''); }
     for (const t of res.timing ?? []) note(`   ${t.stage}`, t.ms, '');
     for (const [k, v] of Object.entries(res.stages)) note(`   = ${k}`, 0, fingerprint(v));
 }

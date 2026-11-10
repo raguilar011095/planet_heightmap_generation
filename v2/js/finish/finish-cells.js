@@ -87,8 +87,9 @@ export function climateCells(g, a, onFamily) {
 
 /** The farming's per-cell parts of the climate (farming.js newFarmClimate's arrays, without its working values). */
 const FARM_PARTS = ['rain', 'warm', 'black', 'leach', 'podzol', 'wet', 'pasture'];
-/** Below this many cells the pool is not worth its messages. */
-const POOL_FROM_CELLS = 60000;
+/** Below this many cells the pool is not worth it: each worker meets the code cold, and a few hundred thousand cells are
+ *  done here before the workers are up to speed (measured at 204K: no faster; at 640K: a quarter off). */
+const POOL_FROM_CELLS = 400000;
 
 /**
  * climateCells for all of a planet's cells — on `pool` (finish-tasks.js) in runs of cells where there is one, the same

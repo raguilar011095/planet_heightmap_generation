@@ -16,7 +16,9 @@ import { DETAIL_NOISE_DAMPEN_STRENGTH } from './terrain-config.js';
 import { elevToHeightKm } from './color-map.js';
 import { buildPresentPlates, classifyBoundaries, arrowAnchors, cellLandNow, motionsOf } from '../v2/js/present/plates.js';
 import { presentLayout } from '../v2/js/present/layout.js';
-import { presentWorld, presentTerrainMesh, presentGroundOf, presentTerrainOverrides, uneditedLayout } from '../v2/js/present/world.js';
+import { presentWorldSteps, presentTerrainMesh, presentGroundOfSteps, presentTerrainOverrides, uneditedLayout } from '../v2/js/present/world.js';
+import { groundTaskPool, drawSurfacePooled } from '../v2/js/present/ground-tasks.js';
+import { SMALL_DEVICE } from '../v2/js/core/device.js';
 import { storyFrame, finishFrame } from '../v2/js/present/layers.js';
 import { finishConfigOf, finishOverrides } from '../v2/js/present/knobs.js';
 import { hillshade } from '../v2/js/view/terrain-shade.js';
@@ -30,6 +32,18 @@ setDelaunator(Delaunator);
 
 // What the commands after the first keep: the mesh, the layout and its present-day world, or the imported heights
 let W = null;
+
+// The ground's surface is drawn on a pool of workers (v2/js/present/ground-tasks.js: the same surface as in place, to the
+// bit), started with the first world and kept for the next ones — Rebuild and Reapply draw it again. A world's steps
+// (present/world.js presentWorldSteps) ask for it; without a pool it is drawn here.
+let groundPool = null;
+async function withGround(steps) {
+    groundPool ??= groundTaskPool(SMALL_DEVICE ? 3 : null).catch(() => null);
+    const pool = await groundPool;
+    let r = steps.next();
+    while (!r.done) r = steps.next(await drawSurfacePooled(pool, r.value));
+    return r.value;
+}
 
 const progress = (pct, label) => self.postMessage({ type: 'progress', pct, label });
 const knobsOf = (d, nMag) => ({ nMag, terrainWarp: d.terrainWarp, smoothing: d.smoothing, hydraulicErosion: d.hydraulicErosion,
@@ -68,18 +82,18 @@ function presentPlatesFor({ coarse, P, pieceOcean, pieceVec, seed, mesh, r_xyz, 
 }
 /** The present-day world's ground for the pieces as edited (v2/js/present/world.js), with the uncarved surface the finish
  *  starts from. Kept on `present.world`. */
-function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
+async function presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobs) {
     const pieceLand = Uint8Array.from(present.L.pieceIds, id => (plateIsOcean.has(id) ? 0 : 1));
     // (G2c: each region's own piece as edited — the ground is held to the pieces' outlines at this Detail)
     const regionLand = new Uint8Array(mesh.numRegions);
     for (let r = 0; r < regionLand.length; r++) regionLand[r] = plateIsOcean.has(present.r_plate[r]) ? 0 : 1;
-    present.world = presentWorld(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs), unedited: present.base });
+    present.world = await withGround(presentWorldSteps(present, pieceLand, mesh, r_xyz, { seed, knobs, regionLand, regionCell: present.regionCell, regionPlate: present.regionPlate, finish: finishConfigOf(knobs), unedited: present.base }));
     present.knobs = knobs;
     present.world.shade = hillshade(presentTerrainMesh(mesh, r_xyz), present.world.heightKm);
 }
 /** Reapply (G6): the same Frame, only the ground drawn again with the sculpting knobs. */
-function presentReground(present, mesh, r_xyz, seed, knobs) {
-    const g = presentGroundOf(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm, finish: finishConfigOf(knobs) });
+async function presentReground(present, mesh, r_xyz, seed, knobs) {
+    const g = await withGround(presentGroundOfSteps(present.world.frame, present.L.sim, mesh, r_xyz, { seed, knobs, mask: present.world.mask, frontKm: present.world.frontKm, finish: finishConfigOf(knobs) }));
     Object.assign(present.world, { heightKm: g.heightKm, surface: g.surface, shade: hillshade(presentTerrainMesh(mesh, r_xyz), g.heightKm) });
     present.knobs = knobs;
 }
@@ -140,7 +154,7 @@ function sendWorld(type, extra = {}) {
         [...shared.transfer, ...Object.values(layers).map(a => a.buffer), ...(extra.r_plate ? [extra.r_plate.buffer] : [])]);
 }
 
-function handleGenerate(data) {
+async function handleGenerate(data) {
     const { N, P, jitter, nMag, numContinents, continentSizeVariety = 0, landCoverage = 0.3, seed: overrideSeed, toggledIndices } = data;
     const t0 = performance.now();
     progress(0, 'Shaping the world…');
@@ -165,23 +179,23 @@ function handleGenerate(data) {
     const present = presentPlatesFor({ coarse, P, pieceOcean: plateIsOcean, pieceVec, seed, mesh, r_xyz, r_plate, original: originalPlateIsOcean });
     present.edit = { pieceVec, coarse, P, original: originalPlateIsOcean };   // (kept for an edit: the coarse layout, the pieces' motion — G1d — and their first land)
     progress(35, 'Raising the ground…');
-    presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
+    await presentGround(present, plateIsOcean, mesh, r_xyz, seed, knobsOf(data, nMag));
     W = { mesh, r_xyz, seed, nMag, plateIsOcean: new Set(plateIsOcean), present, r_plate: new Int32Array(r_plate) };
     present.r_plate = W.r_plate;
     progress(95, 'Done');
     sendWorld('done', { r_plate, plateSeeds: Array.from(plateSeeds), plateIsOcean: Array.from(plateIsOcean), originalPlateIsOcean: Array.from(originalPlateIsOcean), _workerTotal: performance.now() - t0 });
 }
 
-function handleReapply(data) {
+async function handleReapply(data) {
     if (!W) { self.postMessage({ type: 'error', message: 'No retained state for reapply' }); return; }
     if (W.imported) { importGround(data, true); return; }
     const t0 = performance.now();
     if (data.nMag !== undefined) W.nMag = data.nMag;
-    presentReground(W.present, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag));
+    await presentReground(W.present, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag));
     sendWorld('reapplyDone', { _workerTotal: performance.now() - t0 });
 }
 
-function handleEditRecompute(data) {
+async function handleEditRecompute(data) {
     if (!W?.present) { self.postMessage({ type: 'error', message: 'No retained state for editRecompute' }); return; }
     const t0 = performance.now();
     progress(0, 'Rebuilding…');
@@ -190,7 +204,7 @@ function handleEditRecompute(data) {
     // the plates regrouped and moved on the layout as edited (as loading the code would), then the ground again
     const E = W.present.edit;
     W.present = { ...presentPlatesFor({ coarse: E.coarse, P: E.P, pieceOcean: W.plateIsOcean, pieceVec: E.pieceVec, seed: W.seed, mesh: W.mesh, r_xyz: W.r_xyz, r_plate: W.r_plate, original: E.original, reuse: W.present }), edit: E };
-    presentGround(W.present, W.plateIsOcean, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag));
+    await presentGround(W.present, W.plateIsOcean, W.mesh, W.r_xyz, W.seed, knobsOf(data, W.nMag));
     sendWorld('editDone', { _workerTotal: performance.now() - t0 });
 }
 
@@ -259,9 +273,12 @@ function importGround(data, again = false) {
     self.postMessage({ type: again ? 'reapplyDone' : 'done', seed, shared, _workerTotal: performance.now() - t0 }, transfer);
 }
 
+// (the commands one at a time, in the order they came: one waits on the pool, and the next reads what it leaves)
+let busy = Promise.resolve();
 self.onmessage = (e) => {
     const handlers = { generate: handleGenerate, reapply: handleReapply, editRecompute: handleEditRecompute, importHeightmap: (d) => importGround(d) };
     const run = handlers[e.data.cmd];
     if (!run) { self.postMessage({ type: 'error', message: `Unknown command: ${e.data.cmd}` }); return; }
-    try { run(e.data); } catch (err) { self.postMessage({ type: 'error', message: err.message, stack: err.stack }); }
+    busy = busy.then(() => run(e.data)).catch((err) => { self.postMessage({ type: 'error', message: err.message, stack: err.stack }); });
+    return busy;
 };

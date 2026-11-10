@@ -4,7 +4,7 @@
 
 import { meshFromArrays } from '../core/sim-mesh.js';
 import { preparePlan, surfaceRange, carveInputs, settleFields, carveLadder, carveSettings } from '../terrain/synthesize.js';
-import { sampleOnto, terrainMesh } from '../terrain/terrain-mesh.js';
+import { sampleRange, terrainMesh } from '../terrain/terrain-mesh.js';
 import { carveTerrain } from '../terrain/carve.js';
 import { surfaceConfig } from '../finish/finish.js';
 import { terrainConfig } from '../terrain/terrain-config.js';
@@ -47,7 +47,13 @@ export function presentTerrainMesh(genMesh, r_xyz) {
  *   — given, the ground is held to the pieces (present/hold.js)
  * @returns {{land, B, sea, frame, mask, heightKm: Float32Array, ms: Object}}  mask: what the hold read (for Reapply)
  */
-export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
+export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) { return inPlace(presentWorldSteps(present, pieceLandNow, genMesh, r_xyz, o)); }
+/**
+ * presentWorld as steps: a generator that yields the one piece of its work that splits over worker threads — the ground's
+ * surface, a job for drawSurface (below) — and is sent back what that gave, here (presentWorld) or from a pool
+ * (present/ground-tasks.js: js/planet-worker.js). The same world either way.
+ */
+export function* presentWorldSteps(present, pieceLandNow, genMesh, r_xyz, o) {
     const { L, P } = present, ms = {}, clock = () => performance.now();
     let t0 = clock();
     const crustLand = cellLandNow(L, P, pieceLandNow);
@@ -100,7 +106,7 @@ export function presentWorld(present, pieceLandNow, genMesh, r_xyz, o) {
     belts.fits = fits;
     // (G3b: the grain — how far each place lies from a closing front, today's or the past's)
     const frontKm = frontDistance(L, B, land, past.events);
-    const G = presentGroundOf(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
+    const G = yield* presentGroundOfSteps(frame, L.sim, genMesh, r_xyz, { ...o, mask, frontKm });
     Object.assign(ms, G.ms);
     return { land, B, sea, belts, frame, mask, frontKm, heightKm: G.heightKm, drainage: G.drainage, receivers: G.receivers, order: G.order, lava: G.lava, young: G.young, cut: G.cut, surface: G.surface, ms };
 }
@@ -125,13 +131,15 @@ export function uneditedLayout(L, originalOcean) {
  * @param {{seed: number, knobs?: Object, terrain?: Object, relief?: number, mask?: Object}} o  mask: hold the ground
  *   to the pieces (presentWorld's `mask`)
  */
-export function presentGroundOf(frame, sim, genMesh, r_xyz, o) {
+export function presentGroundOf(frame, sim, genMesh, r_xyz, o) { return inPlace(presentGroundOfSteps(frame, sim, genMesh, r_xyz, o)); }
+/** presentGroundOf as steps (see presentWorldSteps). */
+export function* presentGroundOfSteps(frame, sim, genMesh, r_xyz, o) {
     const ms = {}, clock = () => performance.now();
     let t0 = clock();
     const tMesh = presentTerrainMesh(genMesh, r_xyz);
     ms.terrainMesh = clock() - t0; t0 = clock();
     const cfg = terrainConfig(presentTerrainOverrides(o));
-    const T = presentSynthesize(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null, o.finish ?? null);
+    const T = yield* presentSynthesizeSteps(frame, sim, tMesh, cfg, o.seed, o.relief ?? reliefShareOf(o.knobs ?? {}), o.mask ?? null, o.frontKm ?? null, o.finish ?? null);
     ms.terrain = clock() - t0;
     Object.assign(ms, Object.fromEntries(Object.entries(T.ms).map(([k, v]) => [`  ${k}`, v])));
     return { heightKm: T.heightKm, drainage: T.drainage ?? null, receivers: T.receivers ?? null, order: T.order ?? null, lava: T.lava ?? null, young: T.young ?? null, cut: T.cut ?? null, surface: T.surface ?? null, ms };
@@ -153,20 +161,42 @@ export const CUT_STEP_KM = 0.02;
  * again, by the climate's runoff.
  */
 export function presentSynthesize(frame, sim, tMesh, cfg, seed, relief, mask = null, frontKm = null, finish = null) {
+    return inPlace(presentSynthesizeSteps(frame, sim, tMesh, cfg, seed, relief, mask, frontKm, finish));
+}
+/** A world's steps run here, each surface drawn in place. */
+function inPlace(steps) {
+    let r = steps.next();
+    while (!r.done) r = steps.next(drawSurface(r.value));
+    return r.value;
+}
+/**
+ * The ground's surface, drawn: each of the mesh's cells sampled on the sim mesh (terrain-mesh.js sampleRange) and its
+ * height, the carving's inputs and — for the finish — its record cell and structure read there (synthesize.js
+ * surfaceRange). Every cell depends on its position and the plan alone, so any run of cells may be drawn anywhere:
+ * `job` is {plan, cfg, seed, sim, edgeKm, xyz, carve, alt, rec} (carve: the carving's inputs are wanted; alt: with the
+ * erodibility at the finish's strength, `kAlt`; rec: with the record cells and cues), for the cells of `xyz`.
+ * @returns {{cells, weights, heightKm, carveIn, recCell, cues}}
+ */
+export function drawSurface({ plan, cfg, seed, sim, edgeKm, xyz, carve, alt, rec }) {
+    const n = xyz.length / 3, cells = new Int32Array(3 * n), weights = new Float32Array(3 * n), heightKm = new Float32Array(n);
+    sampleRange(sim, xyz, cfg, seed, 0, n, cells, weights);
+    const carveIn = carve ? carveInputs(n) : null, recCell = rec ? new Int32Array(n) : null, cues = rec ? new Int8Array(3 * n) : null;
+    if (alt) carveIn.kAlt = new Float32Array(n);
+    surfaceRange(plan, cfg, seed, edgeKm, xyz, cells, weights, 0, n, heightKm, null, carveIn, recCell, cues);
+    return { cells, weights, heightKm, carveIn, recCell, cues };
+}
+/** presentSynthesize as steps (see presentWorldSteps): it yields its surface's job and is sent drawSurface's result. */
+export function* presentSynthesizeSteps(frame, sim, tMesh, cfg, seed, relief, mask = null, frontKm = null, finish = null) {
     const ms = {}, clock = () => performance.now();
     let t0 = clock();
     const plan = preparePlan(frame, sim, cfg, seed, tMesh.edgeKm);
     ms.records = clock() - t0; t0 = clock();
-    const S = sampleOnto(sim, tMesh, cfg, seed);
-    ms.sample = clock() - t0; t0 = clock();
-    const n = tMesh.numCells, heightKm = new Float32Array(n);
-    const carveIn = cfg.carveTimeMyr > 0 || finish ? carveInputs(n) : null;
     // (for the finish: the erodibility at its strength beside this one's — the rest of the carving's inputs are the same —
     // and the record each cell shows)
-    const alt = finish ? surfaceConfig(finish, cfg) : null, recCell = finish ? new Int32Array(n) : null, cues = finish ? new Int8Array(3 * n) : null;
-    if (alt) carveIn.kAlt = new Float32Array(n);
-    surfaceRange(plan, alt ? { ...cfg, carveAlt: alt } : cfg, seed, tMesh.edgeKm, tMesh.xyz, S.cells, S.weights, 0, n, heightKm, null, carveIn, recCell, cues);
-    ms.surface = clock() - t0; t0 = clock();
+    const n = tMesh.numCells, alt = finish ? surfaceConfig(finish, cfg) : null;
+    const drawn = yield { plan, cfg: alt ? { ...cfg, carveAlt: alt } : cfg, seed, sim, edgeKm: tMesh.edgeKm, xyz: tMesh.xyz, carve: cfg.carveTimeMyr > 0 || !!finish, alt: !!alt, rec: !!finish };
+    const S = { cells: drawn.cells, weights: drawn.weights }, { heightKm, carveIn, recCell, cues } = drawn;
+    ms.sample = 0; ms.surface = clock() - t0; t0 = clock();
     addFineRelief(heightKm, tMesh.xyz, tMesh.edgeKm, seed, cfg, relief, frontKm ? { frontKm, cells: S.cells, weights: S.weights } : null);
     // (G3f: the rift valleys cut, then the ground held to the pieces)
     if (mask?.rift) cutRifts(heightKm, mask.rift, S);
