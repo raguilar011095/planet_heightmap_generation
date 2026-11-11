@@ -10,7 +10,10 @@
 //   node v2/tools/perf-bench.mjs climate  [--n 204000]                                           the climate alone, on Generate's default world
 //
 // Every run prints `stage  seconds  fingerprint` lines and, with --json FILE, writes them. --compare FILE checks the
-// fingerprints against an earlier run's and exits 1 on any difference. The history's frames are kept in v2/out/perf/ for the
+// fingerprints against an earlier run's and exits 1 on any difference. For a change that is meant to be nearly the same,
+// not the same: --dump FILE keeps a run's arrays, and --near FILE measures a later run against them — per array, the
+// share of its values that differ, the largest and the mean difference (and for the climate's classes, rocks and such,
+// simply how many differ). The history's frames are kept in v2/out/perf/ for the
 // terrain and finish runs (their fingerprint is checked when read back).
 
 import fs from 'node:fs';
@@ -54,6 +57,42 @@ function feed(h, v, seen) {
 export const fingerprint = v => { const h = createHash('sha256'); feed(h, v, new Set()); return h.digest('hex').slice(0, 16); };
 
 const rows = [];
+// ── nearly the same: a run's typed arrays by name (--dump), and their differences from a kept run's (--near) ──
+const KEPT = {};
+function keep(name, v, seen = new Set()) {
+    if (!has('--dump') && !has('--near')) return;
+    if (v === null || v === undefined || typeof v !== 'object' || seen.has(v)) return;
+    seen.add(v);
+    if (ArrayBuffer.isView(v)) { KEPT[name] = v; return; }
+    if (Array.isArray(v)) { if (v.length <= 64) v.forEach((x, i) => keep(`${name}[${i}]`, x, seen)); return; }
+    for (const k of Object.keys(v)) { if (SKIP.has(k)) continue; let x; try { x = v[k]; } catch { continue; } keep(`${name}.${k}`, x, seen); }
+}
+function near(file) {
+    const old = v8.deserialize(fs.readFileSync(file));
+    console.log(`\n${'against ' + file}`.padEnd(46) + 'differ'.padStart(9) + 'largest'.padStart(12) + 'mean'.padStart(12) + '  (of its range)');
+    let all = 0, signs = 0;
+    for (const [name, b] of Object.entries(KEPT)) {
+        const a = old[name];
+        if (!a) { console.log(`${name.padEnd(46)} (new)`); continue; }
+        if (a.length !== b.length) { console.log(`${name.padEnd(46)} length ${a.length} → ${b.length}`); all++; continue; }
+        let n = 0, max = 0, sum = 0, lo = Infinity, hi = -Infinity, zeros = 0;
+        for (let i = 0; i < a.length; i++) {
+            const x = a[i], y = b[i];
+            if (x === x) { if (x < lo) lo = x; if (x > hi) hi = x; }
+            if (x === y && !Object.is(x, y)) zeros++;
+            if (x === y || (x !== x && y !== y)) continue;
+            n++;
+            const d = Math.abs(x - y);
+            if (d === d) { sum += d; if (d > max) max = d; } else max = Infinity;
+        }
+        if (zeros) { signs++; console.log(`${name.padEnd(46)} ${zeros} zero(s) of the other sign (0 and −0: equal)`); }
+        if (!n) continue;
+        all++;
+        const range = hi > lo ? hi - lo : 1;
+        console.log(`${name.padEnd(46)} ${(100 * n / a.length).toFixed(3).padStart(7)} % ${max.toPrecision(4).padStart(11)} ${(sum / a.length).toPrecision(3).padStart(11)}  (${(100 * max / range).toFixed(2)} % · ${(100 * sum / a.length / range).toFixed(4)} %)`);
+    }
+    console.log(all ? `${all} of ${Object.keys(KEPT).length} arrays differ` : `all ${Object.keys(KEPT).length} arrays the same`);
+}
 const note = (stage, ms, print) => { rows.push({ stage, ms: Math.round(ms), print }); console.log(`${stage.padEnd(34)} ${(ms / 1000).toFixed(2).padStart(8)} s  ${print ?? ''}`); };
 async function timed(stage, fn, printOf = v => fingerprint(v)) {
     const t = performance.now(), r = await fn(), ms = performance.now() - t;
@@ -66,6 +105,8 @@ function done() {
     // (the most memory the process held at once, its worker threads' too: what a pooled stage costs beside one in place)
     const peakMB = Math.round(process.resourceUsage().maxRSS / 1024);
     console.log(`${'peak memory'.padEnd(34)} ${String(peakMB).padStart(8)} MB`);
+    if (has('--dump')) fs.writeFileSync(arg('--dump'), v8.serialize(KEPT));
+    if (has('--near')) near(arg('--near'));
     const json = arg('--json', null), cmp = arg('--compare', null);
     if (json) { fs.mkdirSync(path.dirname(path.resolve(json)), { recursive: true }); fs.writeFileSync(json, JSON.stringify({ mode: MODE, argv, rows }, null, 1)); }
     if (cmp) {
@@ -156,9 +197,11 @@ async function finishOf(job, width, stageNote = true) {
     mem?.stage('picture');
     if (stageNote) for (const [k, v] of Object.entries(out.ms)) note(`   ${k}`, v, '');
     note('finish (all stages)', all, fingerprint({ z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, climate: out.climate }));
+    keep('finish', { z: out.z, ocean: out.ocean, lake: out.lake, lakeLevel: out.lakeLevel, rivers: out.rivers, drivers: out.drivers, geology: out.geology, farming: out.farming, climate: out.climate });
     // (each part's own print, so a difference says where)
     for (const [k, v] of Object.entries({ z: out.z, rivers: out.rivers, drivers: out.drivers, stats: out.stats, geology: out.geology, farming: out.farming, 'climate.page': out.climate.page, 'climate.cell': out.climate.cell })) note(`   = ${k}`, 0, fingerprint(v));
     const raster = await timed(`picture ${width}`, () => finishRasterPooled(out.tasks, out.mesh, out.z, out.ocean, width, null, out.lake, out.lakeLevel, out.climate.cell, out.geology, out.farming));
+    keep('picture', raster);
     if (out.tasks) { const { pictureMs } = await import('../js/finish/finish-raster.js'); for (const [k, v] of Object.entries(pictureMs)) note(`   ${k}`, v, ''); }
     for (const [k, v] of Object.entries({ heightM: raster.heightM, water: raster.water, geology: raster.geology, farming: raster.farming, climate: raster.climate })) note(`   = picture.${k}`, 0, fingerprint(v));
     out.tasks?.terminate();
@@ -203,6 +246,7 @@ async function planetWorker() {
         const ms = performance.now() - t, msg = inbox.find(m => m.type !== 'progress');
         if (!msg || msg.type === 'error') throw new Error(`planet worker: ${msg?.message ?? 'no reply'}\n${msg?.stack ?? ''}`);
         note(stage, ms, fingerprint(msg));
+        keep(stage.split(' ')[0], msg);
         return msg;
     };
 }
@@ -265,6 +309,7 @@ async function climate() {
     { const c = process.cpuUsage(cpu0); note('   (cpu: this process, all threads)', (c.user + c.system) / 1000, ''); }
     for (const t of res.timing ?? []) note(`   ${t.stage}`, t.ms, '');
     for (const [k, v] of Object.entries(res.stages)) note(`   = ${k}`, 0, fingerprint(v));
+    keep('climate', { cell: res.cell, months: res.months, stages: res.stages });
 }
 
 const modes = { history: () => history(), terrain, finish, generate, edit: generate, import: importMap, climate };

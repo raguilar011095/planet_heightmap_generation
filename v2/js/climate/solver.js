@@ -9,6 +9,11 @@
 // the winds converge or diverge. Relaxation is zonal-line Gauss–Seidel — each latitude row solved exactly as a
 // periodic tridiagonal system — which removes the stiffness of the rows that crowd together near the poles; the
 // multigrid V-cycle removes the slow large-scale error. DOM-free.
+//
+// Most of the climate's problems are real — the yearly mean, the air masses, the ocean's gyres, the water budget: σ, f and
+// the first guess with no imaginary part. Those are solved on real numbers alone (relaxReal, residualReal): the same
+// arithmetic as the complex path's real parts — its imaginary parts there are all zero, and adding or taking away a zero
+// changes nothing but, here and there, the sign of an exact zero — at about half the work.
 
 const R_PLANET = 6.371e6;       // m — converts winds to angular speeds
 const MIN_COARSE_ROWS = 12;     // coarsen while the next level keeps at least this many rows (a 3° grid: 60 → 30 → 15)
@@ -104,6 +109,7 @@ export class HelmholtzSolver {
     setOperator(sr, si, u, v, gamma, faces = null) {
         const L0 = this.levels[0];
         L0.sr.set(sr); L0.si.set(si);
+        this.realOperator = allZero(si);
         if (u && gamma) for (let c = 0; c < L0.n; c++) { L0.gu[c] = gamma * u[c]; L0.gv[c] = gamma * v[c]; }
         else { L0.gu.fill(0); L0.gv.fill(0); }
         for (let l = 1; l < this.levels.length; l++) {
@@ -146,17 +152,22 @@ export class HelmholtzSolver {
      */
     solve(fr, fi, Tr, Ti, { maxCycles = 12, tol = 1e-5 } = {}) {
         const L0 = this.levels[0];
-        L0.fr.set(fr); L0.fi.set(fi); L0.Tr.set(Tr); L0.Ti.set(Ti);
+        // (a real problem — nothing imaginary in the operator, the right-hand side or the first guess — on real numbers)
+        const real = REAL_PATH && this.realOperator && allZero(fi) && allZero(Ti);
+        L0.fr.set(fr); L0.Tr.set(Tr);
+        if (!real) { L0.fi.set(fi); L0.Ti.set(Ti); }
         let fnorm = 0;
         for (let c = 0; c < L0.n; c++) fnorm += fr[c] * fr[c] + fi[c] * fi[c];
         fnorm = Math.sqrt(fnorm) || 1;
-        let cycles = 0, rel = Math.sqrt(residual(L0)) / fnorm;
+        const res = real ? residualReal : residual;
+        let cycles = 0, rel = Math.sqrt(res(L0)) / fnorm;
         while (cycles < maxCycles && rel >= tol) {
-            this.vcycle(0);
+            this.vcycle(0, real);
             cycles++;
-            rel = Math.sqrt(residual(L0)) / fnorm;
+            rel = Math.sqrt(res(L0)) / fnorm;
         }
-        Tr.set(L0.Tr); Ti.set(L0.Ti);
+        Tr.set(L0.Tr);
+        if (!real) Ti.set(L0.Ti);
         return { cycles, rel };
     }
 
@@ -168,8 +179,23 @@ export class HelmholtzSolver {
         for (let c = 0; c < L0.n; c++) { outR[c] = -L0.rr[c]; outI[c] = -L0.ri[c]; }
     }
 
-    vcycle(l) {
+    vcycle(l, real = false) {
         const L = this.levels[l];
+        if (real) {
+            if (l === this.levels.length - 1) {
+                for (let s = 0; s < 48; s++) relaxReal(L, s & 1);
+                return;
+            }
+            relaxReal(L, 0); relaxReal(L, 1);
+            residualReal(L);
+            const C = this.levels[l + 1];
+            restrict(L, C, L.rr, C.fr);
+            C.Tr.fill(0);
+            this.vcycle(l + 1, true);
+            prolongAddReal(C, L);
+            relaxReal(L, 1); relaxReal(L, 0);
+            return;
+        }
         if (l === this.levels.length - 1) {
             for (let s = 0; s < 48; s++) relax(L, s & 1);
             return;
@@ -184,6 +210,11 @@ export class HelmholtzSolver {
         relax(L, 1); relax(L, 0);
     }
 }
+
+/** Real problems on real numbers (see the top of the file). A switch, to compare the two paths. */
+let REAL_PATH = true;
+export function setRealPath(on) { REAL_PATH = on; }
+function allZero(a) { for (let c = 0; c < a.length; c++) if (a[c] !== 0) return false; return true; }
 
 // Row system at cell (j, i):
 //   bd·T_i + sub·T_{i−1} + sup·T_{i+1} = f + (kn + an)·T_north + (ks + as)·T_south
@@ -361,6 +392,60 @@ function relax(L, dir) {
     }
 }
 
+/** relax for a real problem: the real parts' arithmetic alone (the row's substitution in line). */
+function relaxReal(L, dir) {
+    const { w, h, Tr, fr } = L;
+    const As = L.as, An = L.an, br = L.br, xr = L.xr, zr = L.zr, rowK = L.rowK, dpr = L.dpr, sub = L.sub, mir = L.mir, cpr = L.cpr;
+    for (let jj = 0; jj < h; jj++) {
+        const j = dir ? h - 1 - jj : jj, o = j * w;
+        const kn = L.foldNS ? 0 : L.knRow[j], ks = L.foldNS ? 0 : L.ksRow[j];
+        for (let i = 0; i < w; i++) {
+            const c = o + i;
+            let rr = fr[c];
+            if (j > 0) rr += kn * Tr[c - w];
+            if (j < h - 1) rr += ks * Tr[c + w];
+            const as = As[c], an = An[c];
+            if (as > 0) rr += as * Tr[c + w];
+            if (an > 0) rr += an * Tr[c - w];
+            br[i] = rr;
+        }
+        let pr = 0;
+        for (let i = 0; i < w; i++) {
+            const c = o + i, a = i === 0 ? 0 : sub[c];
+            pr = (br[i] - a * pr) * mir[c];
+            dpr[i] = pr;
+        }
+        let x = dpr[w - 1];
+        xr[w - 1] = x;
+        for (let i = w - 2; i >= 0; i--) { x = dpr[i] - cpr[o + i] * x; xr[i] = x; }
+        const k = j * 4, f2 = (xr[0] + rowK[k] * xr[w - 1]) * rowK[k + 2];
+        for (let i = 0; i < w; i++) { const c = o + i; Tr[c] = xr[i] - f2 * zr[c]; }
+    }
+}
+
+/** residual for a real problem. */
+function residualReal(L) {
+    const { w, h, Tr, fr } = L;
+    const bdr = L.bdr, sub = L.sub, sup = L.sup, As = L.as, An = L.an, Rr = L.rr;
+    let s = 0;
+    for (let j = 0; j < h; j++) {
+        const kn = L.foldNS ? 0 : L.knRow[j], ks = L.foldNS ? 0 : L.ksRow[j], rw = L.rowWeight[j];
+        for (let i = 0; i < w; i++) {
+            const c = j * w + i, cw = j * w + (i === 0 ? w - 1 : i - 1), ce = j * w + (i === w - 1 ? 0 : i + 1);
+            let ar = bdr[c] * Tr[c] + sub[c] * Tr[cw] + sup[c] * Tr[ce];
+            if (j > 0) ar -= kn * Tr[c - w];
+            if (j < h - 1) ar -= ks * Tr[c + w];
+            const as = As[c], an = An[c];
+            if (as > 0) ar -= as * Tr[c + w];
+            if (an > 0) ar -= an * Tr[c - w];
+            const r1 = fr[c] - ar;
+            Rr[c] = r1;
+            s += rw * (r1 * r1);
+        }
+    }
+    return s;
+}
+
 /** r = f − A·T into L.rr/L.ri; returns |r|² (area-weighted). */
 function residual(L) {
     const { w, h, Tr, Ti, fr, fi } = L;
@@ -427,4 +512,33 @@ function prolongAdd(C, F) {
         }
     }
 }
+/** prolongAdd for a real problem. */
+function prolongAddReal(C, F) {
+    const wc = C.w, hc = C.h, wf = F.w, FTr = F.Tr, CTr = C.Tr;
+    prolongAdd.cols(wc, wf);
+    const cols = prolongCols.get(`${wc}|${wf}`), CI0 = cols.I0, CI1 = cols.I1, CFX = cols.fx;
+    for (let j = 0; j < F.h; j++) {
+        let Y = j / 2 - 0.25, J0 = Math.floor(Y), fy = Y - J0;
+        if (J0 < 0) { J0 = 0; fy = 0; }
+        if (J0 >= hc - 1) { J0 = hc - 1; fy = 0; }
+        const J1 = Math.min(hc - 1, J0 + 1);
+        for (let i = 0; i < wf; i++) {
+            const I0 = CI0[i], I1 = CI1[i], fx = CFX[i];
+            const w00 = (1 - fx) * (1 - fy), w10 = fx * (1 - fy), w01 = (1 - fx) * fy, w11 = fx * fy;
+            FTr[j * wf + i] += w00 * CTr[J0 * wc + I0] + w10 * CTr[J0 * wc + I1] + w01 * CTr[J1 * wc + I0] + w11 * CTr[J1 * wc + I1];
+        }
+    }
+}
 const prolongCols = new Map();
+/** Each fine column's two coarse columns and its weight (the same for every row: once per level pair). */
+prolongAdd.cols = (wc, wf) => {
+    const key = `${wc}|${wf}`;
+    if (prolongCols.has(key)) return;
+    const cols = { I0: new Int32Array(wf), I1: new Int32Array(wf), fx: new Float64Array(wf) };
+    for (let i = 0; i < wf; i++) {
+        const X = i / 2 - 0.25, I0f = Math.floor(X), fx = X - I0f;
+        const I0 = ((I0f % wc) + wc) % wc, I1 = I0 + 1 === wc ? 0 : I0 + 1;
+        cols.I0[i] = I0; cols.I1[i] = I1; cols.fx[i] = fx;
+    }
+    prolongCols.set(key, cols);
+};
