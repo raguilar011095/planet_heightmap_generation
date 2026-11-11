@@ -18,7 +18,7 @@ import { paintPalette, heightLutOf, PALETTES } from '../evolution/looks.js';
 import { CLIMATE_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paintUnavailable, drawArrows, drawItcz, drawLegend, finishedClimateColor, finishedClimateLines } from '../evolution/climate-view.js';
 import { prepareSatellite, satelliteReady } from '../evolution/sat-style.js';
 import { cloudFields, cloudStorms } from './clouds.js';
-import { paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from '../evolution/finish-view.js';
+import { paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords, finishedShown, lakeColors } from '../evolution/finish-view.js';
 import { DetailService, DetailTiles, TileLayers, SLOT } from '../evolution/detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from '../evolution/geology-view.js';
 import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptionsKey } from '../evolution/farming-view.js';
@@ -82,6 +82,10 @@ export class PlanetView {
         this.graticule = createGraticuleFrame(this.ui.canvas);
         this.frameHidden = frameHidden;
         this.gpu = gpu && GpuPainter.available(this.globe.renderer) ? new GpuPainter(this.globe.renderer, this.GPU_WIDTH, this.MAP_WIDTH) : null;
+        // (a finished moment's Terrain and Heightmap views on the GPU too — unless WebGL is drawn by the processor here, or
+        // a paint there proves slow: null while still being tried, twice — the first sends the picture)
+        this.finishedOnGpu = this.gpu ? (GpuPainter.software(this.globe.renderer) ? false : null) : false;
+        this.finishedTries = 0;
         this.seaMask = texture(this.MAP_WIDTH);         // where the sea is, for the glint (the lighter resolution is enough for a glint)
         this.glinting = false; this.glintFrom = null;
         this.lines = null; this.linesKey = null;        // the GPU's overlay: the lines, drawn again only when they change
@@ -174,6 +178,7 @@ export class PlanetView {
         this.legendFin = null; this.patchClimate = null;
         this.tileColors = { look: -1, byWidth: new Map() };
         this.satPrep = null;
+        this.gpu?.forgetFinished(); this.linesKey = null;      // (its picture on the GPU, and its rivers' lines)
     }
 
     /** A plain sea, while a new world starts (the old world's finished moment let go). */
@@ -277,18 +282,19 @@ export class PlanetView {
     }
 
     /** The GPU's overlay for the picture painted next: the lines drawn on a transparent canvas — again only when they change
-     *  (a 4096-pixel canvas is 32 MB to send) — or none. */
-    layLines(C) {
+     *  (a 4096-pixel canvas is 32 MB to send) — or none. `rivers`: a finished moment whose rivers are drawn under them. */
+    layLines(C, rivers = null) {
         const view = this.view, gpu = this.gpu, extra = this.extraLines ? this.extraLinesKey(view) : null;
         const arrows = C && (ARROW_LAYERS[view.layer] || view.layer === 'pressure') ? C : null;
-        if (!view.grid && !arrows && extra === null) { gpu.setOverlay(null); return; }
-        const key = [view.grid && view.gridStep, arrows, arrows && view.layer, arrows && view.season, extra];
+        if (!view.grid && !arrows && extra === null && !rivers) { gpu.setOverlay(null); return; }
+        const byRegime = !!rivers && view.byRegime && view.layer === 'terrain';
+        const key = [view.grid && view.gridStep, arrows, arrows && view.layer, arrows && view.season, extra, rivers, rivers && view.riverQ, byRegime];
         const changed = !this.linesKey || key.some((v, i) => v !== this.linesKey[i]);
         if (changed) {
-            const W = this.GPU_WIDTH;
-            if (!this.lines) { const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = W >> 1; this.lines = { canvas, ctx: canvas.getContext('2d'), width: W }; }
-            this.lines.ctx.clearRect(0, 0, W, W >> 1);
-            this.drawLines(this.lines, arrows);
+            const W = this.GPU_WIDTH, L = this.lines ??= (() => { const canvas = document.createElement('canvas'); canvas.width = W; canvas.height = W >> 1; return { canvas, ctx: canvas.getContext('2d'), width: W }; })();
+            L.ctx.clearRect(0, 0, W, W >> 1);
+            if (rivers) { const k = W / 2048; L.ctx.save(); L.ctx.scale(k, k); drawRivers(L.ctx, riverPaths(rivers, view.riverQ), byRegime); L.ctx.restore(); }
+            this.drawLines(L, arrows);
             this.linesKey = key;
         }
         gpu.setOverlay(this.lines.canvas, changed);
@@ -319,9 +325,26 @@ export class PlanetView {
     /** A finished moment: its picture, coloured and shaded as the live terrain is — or its climate, per pixel. `id`: the
      *  moment's (its legend kept while it is shown). */
     paintFinished(fin, sharp, id = '') {
-        const view = this.view, t = sharp ? (this.tex.sharp ??= texture(this.SHARP_WIDTH)) : this.tex.lo;
+        const view = this.view;
         const lut = heightLutOf(view.layer === 'heightmap' ? 'heightmap' : view.palette), water = view.water && (view.layer === 'terrain' || view.layer === 'satellite');
         const C = CLIMATE_LAYERS.has(view.layer) ? fin.climate : null, geo = GEOLOGY_LAYERS.has(view.layer), farm = FARMING_LAYERS.has(view.layer);
+        if (this.gpu && this.finishedOnGpu !== false && !C && !geo && !farm) {
+            // (the Terrain and Heightmap views on the GPU — view/gpu-paint.js drawFinished: the picture sent once per moment,
+            // then a palette, the hillshade or the rivers switched in a few milliseconds; always at its sharper width)
+            const gpu = this.gpu, trying = this.finishedOnGpu === null, t0 = trying ? performance.now() : 0;
+            this.glint(view.layer === 'terrain', gpu.seaTexture);
+            this.layLines(null, view.water && view.layer === 'terrain' && fin.rivers ? fin : null);
+            gpu.drawFinished(finishedShown(fin.raster, gpu.width), lut, { exaggeration: this.SHADING.exaggeration, lakes: water, lakeRgb: lakeColors(lut), shaded: view.shaded, sea: this.glinting });
+            this.show(gpu.texture);
+            if (trying) {
+                // (slower than the CPU's own paint — a graphics card that is no help: the CPU's from now on, this one too)
+                gpu.settle();
+                const ms = performance.now() - t0, first = this.finishedTries++ === 0;
+                if (ms > (first ? 1500 : 150)) { this.finishedOnGpu = false; gpu.forgetFinished(); this.linesKey = null; console.info(`[view] finished moments painted on the CPU (the GPU took ${Math.round(ms)} ms)`); return this.paintFinished(fin, sharp, id); }
+                if (!first) this.finishedOnGpu = true;
+            }
+        } else {
+        const t = sharp ? (this.tex.sharp ??= texture(this.SHARP_WIDTH)) : this.tex.lo;
         this.glint(view.layer === 'terrain' || view.layer === 'satellite');
         // (the satellite view shows the lakes always — they are its ground — the rivers with Rivers & Lakes; the geology and
         // farming views their lakes too, as water)
@@ -334,6 +357,7 @@ export class PlanetView {
         if (view.water && (view.layer === 'terrain' || view.layer === 'farmLand') && fin.rivers) { const k = t.width / this.MAP_WIDTH * (this.MAP_WIDTH / 2048); t.ctx.save(); t.ctx.scale(k, k); drawRivers(t.ctx, riverPaths(fin, view.riverQ), view.byRegime && view.layer === 'terrain'); t.ctx.restore(); }
         this.drawLines(t, C);
         this.show(t);
+        }
         // (and made again for another finished moment — the same moment finished again, with another climate, has the same key)
         const legend = $('climateLegend'), legendKey = C || geo || farm ? this.finishedLegendKey(fin, farm, id) : '';
         if (legend.dataset.key !== legendKey || this.legendFin !== fin) {

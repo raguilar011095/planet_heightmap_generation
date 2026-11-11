@@ -333,6 +333,9 @@ node v2/tools/check-pages-exact.mjs generate|import|evolution [--a URL] [--b URL
                                               # two copies of the site in headless Chromium (Playwright): every message their workers send
                                               # back — the first picture, the history's frames, the finished moment — fingerprinted and timed,
                                               # side by side: is a change exact in the page itself, workers inside workers and all?
+node v2/tools/check-gpu-finished.mjs [--url URL] [--code CODE] [--libs DIR] [--shots DIR]
+                                              # a finished planet painted on the GPU and on the CPU in headless Chromium, look by look
+                                              # (palettes, the hillshade, the lakes, the rivers and the grid): how many pixels differ, by how much
 node v2/tools/check-save.mjs                  # the planet file: (a) a small history and detailed moment saved and read back bit for bit, and older
                                               # files made by hand → v2/out/; (b) every planet kept in tools/fixtures/saves/ opens, its terrain and every export map drawn
 node v2/tools/check-save.mjs --fixture        # (a) on a small planet kept as the fixture of today's versions — once per version
@@ -469,7 +472,7 @@ js/terrain/        heights from a Frame (Phase 8), in km, on a terrain mesh of a
 js/view/           DOM-free painting: clouds (the clouds' noise in GLSL for the globe and the map and its JavaScript twin for
                    the export, and their cover from the climate), equirect raster (MapRaster for sim cells, SmoothMapRaster blending a fine mesh),
                    gpu-paint (Evolution's moments painted on the GPU: the terrain mesh drawn on the sphere onto a cube, read out
-                   into the texture),
+                   into the texture; a finished moment's Terrain and Heightmap views from its picture of heights),
                    palettes (colours AND the name tables, e.g. OROGENY_NAME), terrain-shade (hypsometric tint, hillshade),
                    png (PNG files in the browser: 8/16-bit greyscale and RGB by hand, colour with transparency through a canvas; the download), zip (a store-only ZIP for Export All);
                    and the planet on screen, one for every page that shows a planet built from a Frame
@@ -1047,6 +1050,21 @@ sphere mesh's UVs) at the level the place's own size calls for — toward a pole
 hardware, going by its stretched width, had chosen ever coarser levels: a radial smear and blocks
 (`app/globe-view.js`). Still left: the close-up patch's tiles are cut on the latitude–longitude grid, and stay off where
 the view reaches past 85°.
+
+Nearly the same, where the owner allowed it (2026-11-11; plans/audits/PERFORMANCE_AUDIT_2.md, "Nearly the same"):
+- **a finished moment's Terrain and Heightmap views on the GPU** (`view/gpu-paint.js` `drawFinished`): its picture of
+  heights, its sea and its lakes sent once per moment as textures the screen's width (`finish-view.js` `finishedShown`),
+  then the palette, the hillshade from the neighbours' heights and the lakes' flat water per pixel in a shader — as
+  `paintFinished` does on the page's thread, which the exports and the layers with colours of their own (the climate's,
+  Geology, Food, Satellite) still use. The rivers go on the lines' overlay canvas with the grid, drawn again only when
+  they change. A palette, the hillshade, the rivers or (Generate) a plate hovered is then a draw call, not a quarter of
+  a second of the page's thread; a phone's finished picture is twice as sharp (2048, as its live frames). The colours are
+  within 2 of 255 of the CPU's (`check-gpu-finished.mjs`; where a palette steps sharply a few pixels in ten thousand fall
+  on the step's other side). Where WebGL is drawn by the processor (`GpuPainter.software`: SwiftShader, llvmpipe) or the
+  first two paints prove slow, the CPU's paint stays.
+- **the climate's real problems on real numbers** (`climate/solver.js`): the yearly mean, the air masses, the gyres and
+  the water budget have no imaginary part; solved on the real parts alone they come out the same, value for value, the
+  solves a quarter shorter.
 
 Every tool, exactly (2026-11-10; plans/audits/PERFORMANCE_AUDIT_2.md — every output's fingerprint unchanged, in Node by
 `perf-bench.mjs` and in Chromium by `check-pages-exact.mjs`; times on a 4-core cloud machine, about half the development

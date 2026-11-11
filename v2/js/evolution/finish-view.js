@@ -138,6 +138,12 @@ function rasterShown(r, W, lakes) {
     return lakes ? p : { h: p.h, sea: p.sea, wat: null };
 }
 
+/** A finished picture at a screen texture's width, its lakes with it — kept with the moment (the GPU's paint sends it
+ *  once: view/gpu-paint.js drawFinished). */
+export const finishedShown = (r, W) => rasterShown(r, W, true);
+/** The lakes' colours in a palette (0–255): fresh, salt, a pan — as paintFinished draws them. */
+export const lakeColors = lut => [lakeRgb(lut, 1), lakeRgb(lut, 2), PAN_RGB];
+
 /**
  * Paint a finished picture onto a texture ({width, image}: width × width/2): its heights averaged down (or enlarged,
  * rasterAt) to the texture's pixels, coloured by `lut` (looks.js heightLutOf — land by its height, the sea by its depth; a hollow

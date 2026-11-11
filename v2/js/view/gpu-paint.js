@@ -14,6 +14,12 @@
 // the picture (the grid, a climate layer's arrows) come from a transparent overlay canvas, blended as the cube is read
 // out (over the colours, in sRGB, as a canvas blends them). Colours are written in linear light to an sRGB target, so the
 // globe samples them as it samples a canvas texture. Needs WebGL 2 (GpuPainter.available).
+//
+// A finished moment's Terrain and Heightmap views are painted here too (drawFinished): its picture of heights, its sea and
+// its lakes as textures the picture's size — sent once per moment — and the palette, the hillshade and the lakes' colours
+// per pixel in a shader, as finish-view.js paintFinished paints them on the CPU (which the exports, and the layers with
+// colours of their own, still use). A palette, the hillshade or the rivers switched is then a few milliseconds rather
+// than a quarter of a second of the page's thread; the colours within 1 of 255 per channel of the CPU's.
 
 import * as THREE from 'three';
 
@@ -89,9 +95,71 @@ void main() {
     outColor = vec4(toLinear(lined(c)), 1.0);
 }`;
 
+// a finished moment's picture (finish-view.js rasterAt: heights in km, the sea, the lakes' kinds — row 0 the north), as
+// paintFinished colours it: the palette by height (the sea by its depth), hillshaded from its neighbours' heights; a lake
+// flat water. `what` 1: the sea and the lakes (fresh, salt) for the glint, on a target of another size.
+const FRAG_FINISHED = `
+precision highp float; precision highp int;
+uniform highp sampler2D heights; uniform highp sampler2D seas; uniform highp sampler2D kinds;
+uniform ivec2 dim; uniform int what, lit, lakes;
+uniform float exaggeration, pxKm;
+uniform vec3 lake1, lake2, lake3;
+uniform sampler2D overlay; uniform int laid; uniform vec2 size;
+uniform highp sampler2D lut; uniform float minM, stepM; uniform int zero, top;
+out vec4 outColor;
+vec3 toLinear(vec3 c) { return mix(c / 12.92, pow((c + 0.055) / 1.055, vec3(2.4)), step(0.04045, c)); }
+vec3 lined(vec3 c) { if (laid == 0) return c; vec4 o = texture(overlay, gl_FragCoord.xy / size); return mix(c, o.rgb, o.a); }
+float heightAt(int x, int y) { return texelFetch(heights, ivec2(x, y), 0).r; }
+void main() {
+    ivec2 p = ivec2(gl_FragCoord.xy);
+    if (what == 1) {
+        float f = float(dim.x) / size.x;
+        int sy = int(size.y) - 1 - p.y;
+        ivec2 q = ivec2(min(dim.x - 1, int(floor((float(p.x) + 0.5) * f))), min(dim.y - 1, int(floor((float(sy) + 0.5) * f))));
+        int kind = lakes == 1 ? int(texelFetch(kinds, q, 0).r * 255.0 + 0.5) : 0;
+        float s = texelFetch(seas, q, 0).r > 0.0 || kind == 1 || kind == 2 ? 1.0 : 0.0;
+        outColor = vec4(s, s, s, 1.0);
+        return;
+    }
+    int x = p.x, y = dim.y - 1 - p.y;
+    float v = heightAt(x, y);
+    bool wet = texelFetch(seas, ivec2(x, y), 0).r > 0.0;
+    int kind = lakes == 1 ? int(texelFetch(kinds, ivec2(x, y), 0).r * 255.0 + 0.5) : 0;
+    vec3 c;
+    if (kind > 0 && !wet) c = kind == 3 ? lake3 : (kind == 2 ? lake2 : lake1);
+    else {
+        float kk = 1.0;
+        if (lit == 1) {
+            float cl = max(0.05, cos(((float(y) + 0.5) / float(dim.y) - 0.5) * 3.141592653589793));
+            float ex = wet ? exaggeration * 0.35 : exaggeration;
+            float ge = (heightAt(x + 1 == dim.x ? 0 : x + 1, y) - heightAt(x == 0 ? dim.x - 1 : x - 1, y)) / (2.0 * pxKm * cl);
+            float gn = (heightAt(x, max(0, y - 1)) - heightAt(x, min(dim.y - 1, y + 1))) / (2.0 * pxKm);
+            float qx = -ex * ge, qy = -ex * gn, len = sqrt(qx * qx + qy * qy + 1.0);
+            kk = 0.35 + 0.65 * max(0.0, (qx * -0.5 + qy * 0.5 + 0.7071067811865476) / len) / 0.7071067811865476;
+        }
+        int j = int(floor((v * 1000.0 - minM) / stepM + 0.5));
+        int k = wet ? clamp(j, 0, zero - 1) : clamp(j, zero, top);
+        c = min(texelFetch(lut, ivec2(k, 0), 0).rgb * kk, vec3(1.0));
+    }
+    outColor = vec4(toLinear(lined(c)), 1.0);
+}`;
+
 export class GpuPainter {
     /** Can this renderer paint on the GPU (WebGL 2: integer texel fetches, float data textures)? */
     static available(renderer) { return !!renderer?.capabilities?.isWebGL2; }
+
+    /** Is WebGL drawn by the processor here (no graphics card the browser will use: SwiftShader, llvmpipe, WARP)? A
+     *  shader over every pixel is then slower than the page's own loop — a finished moment keeps the CPU's paint. */
+    static software(renderer) {
+        try {
+            const gl = renderer.getContext(), ext = gl.getExtension('WEBGL_debug_renderer_info');
+            const name = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER));
+            return /swiftshader|llvmpipe|softpipe|software|basic render|warp/i.test(name);
+        } catch { return false; }
+    }
+
+    /** Wait until what has been drawn is drawn (one pixel read back) — to time a paint. */
+    settle() { const px = new Uint8Array(4); this.renderer.readRenderTargetPixels(this.target, 0, 0, 1, 1, px); }
 
     /**
      * @param {THREE.WebGLRenderer} renderer  the globe's  @param {number} width  the texture's width (× width/2)
@@ -137,6 +205,18 @@ export class GpuPainter {
         const quad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: VERT_QUAD, fragmentShader: FRAG_OUT, uniforms: this.outUniforms, depthTest: false, depthWrite: false }));
         quad.frustumCulled = false;
         this.outScene.add(quad);
+        // (a finished moment's picture: another quad over the target, its own textures)
+        this.finUniforms = {
+            heights: { value: null }, seas: { value: null }, kinds: { value: null }, dim: { value: new THREE.Vector2(1, 1) }, what: { value: 0 }, lit: { value: 0 }, lakes: { value: 0 },
+            exaggeration: { value: 20 }, pxKm: { value: 1 }, lake1: { value: new THREE.Vector3() }, lake2: { value: new THREE.Vector3() }, lake3: { value: new THREE.Vector3() },
+            overlay: this.outUniforms.overlay, laid: this.outUniforms.laid, size: this.outUniforms.size,
+            lut: this.uniforms.lut, minM: this.uniforms.minM, stepM: this.uniforms.stepM, zero: this.uniforms.zero, top: this.uniforms.top,
+        };
+        this.finScene = new THREE.Scene();
+        const finQuad = new THREE.Mesh(new THREE.PlaneGeometry(2, 2), new THREE.RawShaderMaterial({ glslVersion: THREE.GLSL3, vertexShader: VERT_QUAD, fragmentShader: FRAG_FINISHED, uniforms: this.finUniforms, depthTest: false, depthWrite: false }));
+        finQuad.frustumCulled = false;
+        this.finScene.add(finQuad);
+        this.finished = null;                 // the finished picture on the GPU: { shown, textures }
         this.mesh = null;                     // the terrain mesh drawn, and its triangles on the sphere (THREE.Mesh)
         this.drawn = null;
         this.overlayTexture = null;
@@ -229,6 +309,57 @@ export class GpuPainter {
         }
     }
 
+    /**
+     * A finished moment's picture painted (as finish-view.js paintFinished paints it on the CPU): `shown` its picture at
+     * this painter's width (rasterAt: h km, sea, wat — sent to the GPU once, kept while it is the one shown), coloured by
+     * `lut` and hillshaded where the palette is (`shaded`), its lakes flat water in `lakeRgb` (three colours 0–255: fresh,
+     * salt, a pan) with `lakes`; the sea and the lakes for the glint too, if `sea`.
+     */
+    drawFinished(shown, lut, { exaggeration = 20, lakes = false, lakeRgb = null, shaded = true, sea = false } = {}) {
+        const W = this.width, H = W >> 1, u = this.finUniforms;
+        if (shown.h.length !== W * H) throw new Error('GpuPainter.drawFinished: the picture is not the texture\'s size');
+        if (this.finished?.shown !== shown) {
+            this.forgetFinished();
+            const data = (array, type) => {
+                const t = new THREE.DataTexture(array, W, H, THREE.RedFormat, type);
+                t.minFilter = t.magFilter = THREE.NearestFilter; t.generateMipmaps = false; t.unpackAlignment = 1; t.needsUpdate = true;
+                // (on the GPU now: the picture's own arrays are the page's to keep — the texture need not hold them)
+                return t;
+            };
+            const heights = data(shown.h, THREE.FloatType), seas = data(shown.sea, THREE.UnsignedByteType), kinds = shown.wat ? data(shown.wat, THREE.UnsignedByteType) : null;
+            this.finished = { shown, textures: [heights, seas, kinds] };
+        }
+        const [heights, seas, kinds] = this.finished.textures;
+        this.setLut(lut);
+        u.heights.value = heights; u.seas.value = seas; u.kinds.value = kinds ?? seas;
+        u.dim.value.set(W, H);
+        u.lit.value = shaded && lut.shaded ? 1 : 0;
+        u.lakes.value = lakes && kinds ? 1 : 0;
+        u.exaggeration.value = exaggeration; u.pxKm.value = 2 * Math.PI * 6371 / W;
+        if (lakeRgb) [u.lake1, u.lake2, u.lake3].forEach((l, i) => l.value.set(lakeRgb[i][0] / 255, lakeRgb[i][1] / 255, lakeRgb[i][2] / 255));
+        this.finishedOut(0, this.target);
+        if (sea) this.finishedOut(1, this.seaTarget);
+    }
+
+    /** The finished picture's quad drawn into a target (`what`: FRAG_FINISHED's). */
+    finishedOut(what, target) {
+        const r = this.renderer, was = r.getRenderTarget(), autoClear = r.autoClear;
+        this.finUniforms.what.value = what;
+        this.finUniforms.size.value.set(target.width, target.height);
+        r.setRenderTarget(target);
+        r.autoClear = true;
+        r.render(this.finScene, this.outCamera);
+        r.setRenderTarget(was);
+        r.autoClear = autoClear;
+    }
+
+    /** The finished picture's textures let go (another moment's, or none, shown next: ~50 MB of the GPU's at 4096). */
+    forgetFinished() {
+        if (!this.finished) return;
+        for (const t of this.finished.textures) t?.dispose();
+        this.finished = null;
+    }
+
     /** The mesh drawn onto the cube's six faces, seen from the planet's centre. */
     onCube(material) {
         this.drawn.material = material;
@@ -262,6 +393,7 @@ export class GpuPainter {
         this.drawn?.geometry.dispose();
         for (const m of Object.values(this.materials)) m.dispose();
         this.heightData?.dispose(); this.colorData?.dispose(); this.lutTexture?.dispose(); this.overlayTexture?.dispose();
+        this.forgetFinished();
     }
 }
 
