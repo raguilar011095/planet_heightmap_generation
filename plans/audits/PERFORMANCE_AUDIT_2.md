@@ -8,6 +8,8 @@ bit** — proven by fingerprints of every array each pipeline makes, in Node and
 2026-11-06 (`PERFORMANCE_AUDIT.md`), whose measurements stand; this one adds a bench that makes "exact" checkable in one
 command, profiles every pipeline, and builds what it found.
 
+A second pass on 2026-11-11, where the owner allowed "nearly the same", is in its own section below: "Nearly the same".
+
 ## The short answer
 
 **An order of magnitude is not there to be had exactly.** Every pipeline was profiled; none has a hot spot: the
@@ -245,9 +247,114 @@ the pool); the picture (12.6 s, of which 3.7 s is the look's whole-picture part:
 Not exactness-preserving, so not done — the owner's call, as before:
 - the history: the approximations of `plans/V2_PERFORMANCE_PLAN.md` (longer steps, slow rules less often, the world view
   by bands: together ~2–2.5×);
-- the heights on the GPU (WebGPU compute; float32, so not bit-identical with today's): ~10–30× on the surface stage;
+- the heights on the GPU (WebGPU compute; float32, so not bit-identical with today's): ~10–30× on the surface stage
+  (which is 8 % of a 2.5M finish: see "Nearly the same" below);
 - the climate's energy balance on a coarser grid: `climate/config.js` records that at 3° it scored the same on Earth
   for about half the cost, and was turned down for its look — ice sheets in 3° blocks. Not offered again.
+
+## Nearly the same (2026-11-11)
+
+The owner, on the six changes that give up "exact" for speed: "do all of them". What each came to, measured on the same
+4-core machine. Two were built, one turned out to need no giving up at all, and three are not built — their gain,
+measured rather than estimated, is a few per cent, or cannot be checked here. The estimates given before the work were
+too high for the climate, the picture and the floods; the figures below replace them.
+
+| Change | Built? | What it gives | What it costs |
+|---|---|---|---|
+| A first pass before the detail asked for | Yes — Evolution's Add detail, from 2.5M cells, on a desktop | The first detailed look at 22 s where a 2.5M finish is 76 s and a 10M one 264 s | The whole wait longer by the first pass (about 28 % at 2.5M, 8 % at 10M); the detail asked for is byte for byte the same |
+| Detailed moments painted on the GPU | Yes — the Terrain and Heightmap views | A palette, the hillshade, the rivers, the grid or (Generate) a hovered plate is a draw call, not a repaint of 8 million pixels on the page's thread | Colours within 2 of 255 on screen; the exports keep the CPU's paint. The climate's, Geology's, Food's and Satellite's colours are still painted on the CPU |
+| The climate's solver | Partly — real problems on real numbers | The solves 1.9 → 1.4 s of a warm 4.8 s climate (about 10 %) | Nothing: the same climate, value for value |
+| The picture on the GPU | No | At most the 2.4 s its pixels take of a 76 s finish at 2.5M (3 %) | Heights that differ from one graphics card to the next, in what is saved and exported |
+| The heights on WebGPU | No — this machine has no WebGPU to build or check it on | The surface is 6.4 s of a 76 s finish at 2.5M (8 %), on the pool already | Per-device heights; rivers that reroute |
+| The floods across cores | No | The floods themselves are 3.6 s of 84 s profiled at 2.5M (4 %) | A domain-split flood with other tie-breaks: a large job for under 4 % |
+
+### A first pass — `evolution-main.js` `firstPassOf`, `finish-worker.js` `thenCells`
+
+From 2.5M cells up, on a desktop, Add detail finishes the moment at 160K cells first, its picture 2048 px wide, and
+shows it as the detailed moment as soon as it is done: the loading screen goes, every view is there, and the card's
+button and bar carry on while the detail asked for is added behind it. That finish then replaces the first pass.
+Cancelled meanwhile, the first pass stays. `?first=0` turns it off.
+
+The final finish is the one made alone, to the byte: in Node (`perf-bench.mjs finish --cells 2500000 --first 160000
+--compare`, identical) and in Chromium at 2.5M (`check-pages-exact.mjs evolution --detail 2500000`: every message the
+same as v3.0.1's). So seeds, links, exports and planet files are untouched.
+
+Why 160K, and why not below 2.5M: much of a finish does not shrink with its cells — the climate on its fixed grid (7 s
+cold), the wind, the surface's sampling, the picture. A 160K finish with a 2048 px picture is 21.6 s here; a 640K one
+36 s; a 2.5M one 76 s; a 10M one 264 s. A 160K pass before a 640K finish would add 60 % to the wait to show something
+at 60 % of it: not worth it. Before 2.5M it shows the planet at 28 % of the wait and adds 28 %; before 10M, at 8 % for
+8 %. (A 640K first pass before 10M was considered: sharper, but 36 s in.) A small device gets none: two finishes'
+memory in one worker.
+
+Generate and Import have no first pass: they already show their first picture early and finish behind it, and their
+profile in `VISION.md` is "never slow generation down" — a first pass would lengthen the finish. The owner's call.
+
+### Detailed moments on the GPU — `view/gpu-paint.js` `drawFinished`
+
+The first audit's P-02, its last step. A finished moment's picture at the screen's width (heights, sea, lakes) goes to
+the GPU once per moment as three textures; a shader colours each pixel by the palette, hillshades it from its
+neighbours' heights and draws the lakes, as `finish-view.js` `paintFinished` does on the CPU. The rivers are drawn on
+the lines' overlay canvas with the grid, again only when they change. Used for the Terrain and Heightmap views in all
+three tools; a phone's detailed picture becomes 2048 px wide, as its live frames are.
+
+- `check-gpu-finished.mjs` paints a finished Generate planet both ways in headless Chromium and compares eleven looks
+  (five palettes, the hillshade off, the lakes off, the Heightmap, rivers with the grid, rivers by regime): no pixel
+  more than 2 of 255 apart, but for 0.006 % of them under the Topographic palette (a height on a sharp palette step's
+  edge falls on its other side in float32). With `--phone`, the two pictures' mean colours agree within 1.2 of 255.
+- Not measured here: its speed on a graphics card. This machine draws WebGL on the processor, where the shader is far
+  slower than the CPU's loop (10 s a paint with the overlay). So the page keeps the CPU's paint where WebGL is software
+  (`GpuPainter.software`), or where the first two GPU paints prove slow (over 150 ms once warm). The first audit put
+  the CPU's Terrain repaint at 244 ms (2.5M) to 469 ms (10M) on the owner's desktop, and Generate's hover repaint at
+  71 ms; a full-screen quad of this size is a few milliseconds on any graphics card of the last decade.
+- Left on the CPU: the climate layers, Geology, Food and Satellite (0.35–1.5 s for a first paint, per the first audit).
+  Each has its own per-pixel colouring in JavaScript (`climate-view.js`, `geology-view.js`, `farming-view.js`,
+  `sat-style.js`: about 2,800 lines); each would be ported to a shader and checked the same way. The climate layers —
+  where a season is switched — are the next to do: a field or two sampled, a ramp looked up.
+
+### The climate — `climate/solver.js`
+
+Counted by caller (a warm run, 100K cells): 110 solves, 1.9 s of 4.8 s. All but the seasons' harmonics have no imaginary
+part (the yearly mean, the air masses, the gyres, the water budget), yet ran the complex arithmetic. They now run on the real
+parts alone: the same operations in the same order, so the same values — every array of the climate compared equal,
+signs of zero included — and those solves take about half as long. Solves in all: 1.9 → 1.4 s.
+
+Not done, and why:
+- *A looser tolerance.* The solves already stop at 10⁻³ to 10⁻⁴ of the right-hand side, after one to five cycles each.
+  One cycle fewer would save about 0.2 s and move the result; the Earth checks that would say whether that is safe
+  (`tuning/climate/evaluate.mjs`, `coupled-check.mjs`) need reference data this machine cannot download.
+- *Solves side by side.* The sixteen harmonic solves and twenty-four air-mass solves could run on workers, for perhaps
+  0.4 s; the climate would have to become asynchronous everywhere it is called.
+- The other 60 % of the climate is spread thin: no line of it is more than 0.2 s.
+
+So "1.5–2× on the climate" was wrong: within "the same climate" it is 1.1×.
+
+### Not built: the picture on the GPU, the heights on WebGPU, the floods across cores
+
+- **The picture.** The exact pass already took it from 12.1 to 5.9 s at 640K. Of what is left at 2.5M (6.3 s), 2.4 s is
+  drawing pixels from the mesh — what a GPU would do — and 3.6 s is the Satellite look's image work. A GPU version
+  saves at most 2.4 s of 76 s, and its heights would differ from one graphics card to the next in what is saved and
+  exported, unless the CPU's picture were made as well. With the first pass giving the early look, there is no case for
+  it.
+- **WebGPU heights.** No WebGPU adapter in this machine's Chromium (`navigator.gpu.requestAdapter()` gives none), so
+  it can be neither built nor checked here. What it would speed: the surface, 6.4 s of 76 s at 2.5M, already drawn by
+  the pool.
+- **The floods.** The three stages named for them (rivers, sea, water) are 16 s of 76 s at 2.5M, but a profile shows the
+  floods proper — `spillFlood`, `closedBasins`, `oceanMask` — are 3.6 s. The rest is the carving (5.9 s) and
+  the hydrology's own passes (4 s), sweeps in drainage order with no line over a second, where each cell waits on the
+  ones upstream. They split only by drainage basin. The larger single-thread work left in a finish is elsewhere and
+  splits exactly: the deposits (7.7 s) and the rocks (5.7 s over two calls), as "What was looked at and left" says.
+
+### Verification
+
+- `perf-bench.mjs --compare`: climate (and every array of it equal with the real path switched on and off:
+  `solver.js` `setRealPath`),
+  finish at 640K, generate, import — identical to the v3.0.1 baselines; finish at 2.5M after a first pass — identical to
+  the same finish alone.
+- `check-pages-exact.mjs` against v3.0.1 in Chromium: Generate (desktop and phone) and Evolution at 2.5M with the first
+  pass — every message the same, no page errors.
+- `check-gpu-finished.mjs`: desktop and `--phone` pass. `check-seeds.mjs`, `check-save.mjs`, `check-style.mjs` pass.
+- Not run: the Earth-match checks (reference hosts unreachable from this machine). The climate's values are unchanged,
+  so its scores are.
 
 ## The first audit's findings, now
 

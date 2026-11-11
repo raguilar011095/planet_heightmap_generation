@@ -10,7 +10,10 @@
 // the GPU's on. Its timings there say nothing of a graphics card's.)
 //
 //   node tuning/dev-server.mjs 8123 &
-//   node v2/tools/check-gpu-finished.mjs [--url http://localhost:8123] [--code PLANETCODE] [--libs DIR] [--shots DIR]
+//   node v2/tools/check-gpu-finished.mjs [--url http://localhost:8123] [--code PLANETCODE] [--libs DIR] [--shots DIR] [--phone]
+//
+// --phone: as a phone (a Pixel 7), whose GPU picture is 2048 px wide and its CPU's 1024 — not the same pixels: each look's
+// two pictures are compared by their mean colour (within 2 of 255 a channel) instead.
 //
 // Needs Playwright with its Chromium (a software GPU will do: the timings then say little). --libs as check-pages-exact.
 
@@ -18,12 +21,13 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 
-const { chromium } = createRequire(import.meta.url)('playwright');
+const { chromium, devices } = createRequire(import.meta.url)('playwright');
 const argv = process.argv.slice(2), arg = (k, d) => { const i = argv.indexOf(k); return i >= 0 ? argv[i + 1] : d; };
 const URL_ = arg('--url', 'http://localhost:8123'), LIBS = arg('--libs', null), SHOTS = arg('--shots', null);
 
 const browser = await chromium.launch({ args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const context = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+const PHONE = argv.includes('--phone');
+const context = await browser.newContext(PHONE ? { ...devices['Pixel 7'] } : { viewport: { width: 1400, height: 900 } });
 const errors = [];
 await context.route(/^https?:\/\/(?!localhost|127\.0\.0\.1)/, route => {
     const url = route.request().url();
@@ -70,16 +74,23 @@ const results = await page.evaluate(async looks => {
         if (look.set.palette && !palettes.includes(look.set.palette)) continue;
         Object.assign(pv.view, was, look.set);
         // the GPU's (painted twice: the first sends the picture and the lines; the second is a switch's cost)
-        pv.paintFinished(fin, true, 'check');
+        pv.paintFinished(fin, pv.SHARP_WIDTH > 0, 'check');
         let t0 = performance.now();
-        pv.paintFinished(fin, true, 'check');
+        pv.paintFinished(fin, pv.SHARP_WIDTH > 0, 'check');
         const g = gpu.read(), gpuMs = performance.now() - t0;
         // the CPU's, on the sharper canvas
         pv.gpu = null;
         t0 = performance.now();
-        pv.paintFinished(fin, true, 'check');
-        const cpuMs = performance.now() - t0, c = pv.tex.sharp.ctx.getImageData(0, 0, W, H).data;
+        pv.paintFinished(fin, pv.SHARP_WIDTH > 0, 'check');
+        const cpuMs = performance.now() - t0, cpuTex = pv.SHARP_WIDTH ? pv.tex.sharp : pv.tex.lo, c = cpuTex.ctx.getImageData(0, 0, cpuTex.width, cpuTex.width >> 1).data;
         pv.gpu = gpu;
+        if (cpuTex.width !== W) {
+            // (a phone: the two pictures' mean colours)
+            const mean = px => { const s = [0, 0, 0]; for (let i = 0; i < px.length; i += 4) { s[0] += px[i]; s[1] += px[i + 1]; s[2] += px[i + 2]; } return s.map(v => v / (px.length / 4)); };
+            const mg = mean(g), mc = mean(c), d = Math.max(...mg.map((v, i) => Math.abs(v - mc[i])));
+            out.push({ name: look.name, means: true, over1: 0, over2: d > 2 ? 1 : 0, max: +d.toFixed(2), gpuMs, cpuMs, W });
+            continue;
+        }
         let over1 = 0, over2 = 0, max = 0;
         for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
             const a = 4 * ((H - 1 - y) * W + x), b = 4 * (y * W + x);
@@ -92,12 +103,12 @@ const results = await page.evaluate(async looks => {
             const cx = cv.getContext('2d'), im = cx.createImageData(W, H);
             for (let y = 0; y < H; y++) im.data.set(g.subarray(4 * (H - 1 - y) * W, 4 * (H - y) * W), 4 * y * W);
             cx.putImageData(im, 0, 0);
-            shots = [cv.toDataURL('image/png'), pv.tex.sharp.canvas.toDataURL('image/png')];
+            shots = [cv.toDataURL('image/png'), cpuTex.canvas.toDataURL('image/png')];
         }
         out.push({ name: look.name, lines: !!look.lines, over1: over1 / (W * H), over2: over2 / (W * H), max, gpuMs, cpuMs, W, shots });
     }
     Object.assign(pv.view, was);
-    pv.paintFinished(fin, true, 'check');
+    pv.paintFinished(fin, pv.SHARP_WIDTH > 0, 'check');
     return { out };
 }, LOOKS.map(l => ({ ...l, dump: !!SHOTS })));
 if (SHOTS) {
