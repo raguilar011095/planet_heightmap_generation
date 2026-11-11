@@ -622,6 +622,17 @@ function terrainDrawn() {
 
 // ── the Finish step: on request, for the moment shown — kept per moment while the history is open ──
 const CANCEL_GRACE_MS = 600;
+/**
+ * A first pass before the detail asked for (owner, 2026-11-11: "do all of them" — plans/audits/PERFORMANCE_AUDIT_2.md,
+ * "Nearly the same"): the same moment finished at the coarsest detail, 160K cells, its picture 2048 px wide, and shown as
+ * soon as it is done; the detail asked for then replaces it, unchanged from what it would have been alone. Much of a
+ * finish does not shrink with its cells (the climate, the wind, the surface's sampling), so a first pass is never under
+ * about a fifth of a 2.5M finish: worth its time on top from 2.5M up (a fifth more there; under a tenth at 10M), not at
+ * 640K, where it would be half the wait again. Not on a small device (two finishes' memory in one worker), nor on the
+ * second try after running short of memory.
+ */
+const FIRST_PASS = url.get('first') !== '0';          // (?first=0: the detail asked for alone, as before — to compare)
+const firstPassOf = (cells, width) => (!FIRST_PASS || SMALL_DEVICE || cells < 2.5e6 ? null : { cells: 160000, width: 2048 });
 async function finishMoment(again = null) {
     const b = B, frame = again ?? painted;
     if (!b?.simMesh || !frame) return;
@@ -632,7 +643,9 @@ async function finishMoment(again = null) {
     const cells = Number($('finishCells').value), width = IS_TOUCH ? 2048 : cells >= 5e6 ? 8192 : 4096;
     const started = performance.now(), done = new Map(FINISH_STAGES);
     b.finishNote = null; b.finishOk = false;
-    b.finishJob = { frame, cells, stage: 'starting', share: 0, startedAt: performance.now() };
+    const first = again ? null : firstPassOf(cells, width);
+    // (`first`: the first pass's cells, once it is on screen and the detail asked for is being added behind it)
+    b.finishJob = { frame, cells, stage: 'starting', share: 0, startedAt: performance.now(), first: 0 };
     loading.show('detail', { title: `Adding detail to ${frame.time.toFixed(0)} Myr`, label: 'Starting…', share: 0 });
     updateClimateUi();
     // (the terrain's fields, and the geological record for the rocks: geology/rocks.js — none from a history saved before
@@ -640,9 +653,10 @@ async function finishMoment(again = null) {
     const slim = Object.fromEntries([...FRAME_FIELDS, ...(b.noGeology ? [] : GEO_FRAME_FIELDS), ...GEOLOGY_READS].map(k => [k, frame[k]]));
     slim.plates = frame.plates.map(p => p && { quat: p.quat });
     // (progress: the stages' shares so far, and the picture's own)
-    let before = 0;
-    const onStage = s => { if (!b.finishJob) return; before = 0; for (const [k, v] of FINISH_STAGES) { if (k === s) break; before += v; } b.finishJob.stage = s; b.finishJob.share = before; loading.update('detail', { label: `${stageWords(s)}…`, share: before }); updateClimateUi(); };
-    const onProgress = p => { if (b.finishJob) { b.finishJob.share = before + p * (done.get('picture') ?? 0.1); loading.update('detail', { share: b.finishJob.share }); updateClimateUi(); } };
+    // (with a first pass, its share of the bar is its share of the cells: the two passes' stages run along one bar)
+    let before = 0, from = 0, span = first ? first.cells / (first.cells + cells) : 1;
+    const onStage = s => { if (!b.finishJob) return; before = 0; for (const [k, v] of FINISH_STAGES) { if (k === s) break; before += v; } b.finishJob.stage = s; b.finishJob.share = from + span * before; loading.update('detail', { label: `${stageWords(s)}…`, share: b.finishJob.share }); updateClimateUi(); };
+    const onProgress = p => { if (b.finishJob) { b.finishJob.share = from + span * (before + p * (done.get('picture') ?? 0.1)); loading.update('detail', { share: b.finishJob.share }); updateClimateUi(); } };
     try {
         const { simMesh } = b;
         const key = climateKey();
@@ -650,8 +664,25 @@ async function finishMoment(again = null) {
         // holds its copies of the meshes, and a phone closes a tab at well under 2 GB — and the finishing worker let go after
         // unless its mesh takes long to build again)
         if (SMALL_DEVICE) b.player?.rest();
-        const res = await finisher.finish({ frame: slim, simMesh: { numCells: simMesh.numCells, xyz: simMesh.xyz, adjOffset: simMesh.adjOffset, adjList: simMesh.adjList }, seed: b.seed, cells, width, climateOptions: climateOptions(), poolSize: SMALL_DEVICE ? 3 : null },
-            { onStage, onProgress, keep: !SMALL_DEVICE && cells >= 2.5e6 });
+        const pass = (c, w, more, keep) => finisher.finish({ frame: slim, simMesh: { numCells: simMesh.numCells, xyz: simMesh.xyz, adjOffset: simMesh.adjOffset, adjList: simMesh.adjList }, seed: b.seed, cells: c, width: w, climateOptions: climateOptions(), poolSize: SMALL_DEVICE ? 3 : null, ...more },
+            { onStage, onProgress, keep });
+        if (first) {
+            // (the first pass: shown as the detailed moment as soon as it is done — the one kept before goes now — the
+            // loading screen off, the card's bar running on; the worker kept for the pass that follows, its meshes too)
+            const res = await pass(first.cells, first.width, { thenCells: cells }, true);
+            if (B !== b) return;
+            const secs = (performance.now() - started) / 1000;
+            b.finishes.clear();
+            b.finishes.set(frame, { cells: first.cells, raster: res.raster, rivers: res.rivers, climate: res.climate, stats: res.stats, secs, climateKey: key });
+            console.info(`[evolution] first pass of ${frame.time.toFixed(0)} Myr at ${first.cells} cells: ${secs.toFixed(1)} s`);
+            b.finishJob.first = first.cells; b.finishJob.stage = 'starting';
+            from = span; span = 1 - span; before = 0;
+            view.finished = true;
+            if (view.layer === 'plates') setLayer('terrain');
+            loading.hide('detail');
+            dirty = true; updateClimateUi();
+        }
+        const res = await pass(cells, width, {}, !SMALL_DEVICE && cells >= 2.5e6);
         if (B !== b) return;
         const secs = (performance.now() - started) / 1000;
         // (one detailed moment: this one replaces the one before, now that it is done)
@@ -675,7 +706,11 @@ async function finishMoment(again = null) {
             setTimeout(() => finishMoment(frame), 300);
             return;
         }
-        if (B === b) b.finishNote = err.name === 'AbortError' ? 'Adding detail cancelled'
+        // (cancelled behind a first pass: that one stays, a detailed moment in its own right)
+        const kept = B === b && err.name === 'AbortError' && b.finishJob?.first && b.finishes.get(frame)?.cells === b.finishJob.first ? b.finishJob.first : 0;
+        if (kept) b.finishOk = true;
+        if (B === b) b.finishNote = kept ? `Adding detail cancelled — the first pass at ${cellsWords(kept)} cells is kept`
+            : err.name === 'AbortError' ? 'Adding detail cancelled'
             : oom ? 'Not enough memory for this detail — try a coarser one, or close other tabs (other World Orogen tabs can share this one’s memory)' : `Could not add detail: ${String(err.message).split('\n')[0]}`;
         if (err.name !== 'AbortError') console.error(err);
     } finally {
@@ -729,12 +764,13 @@ function updateCard() {
     $('cardTitle').textContent = frame ? `${t} Myr` : failed ? (b.opened ? 'Could not open' : 'Could not start') : opening ? 'Opening…' : 'Starting…';
     const computing = !!b?.live && !b.going;
     $('cardText').textContent = !frame ? (b?.problem ? '' : opening ? 'Opening a planet file…' : 'A new world is starting…')
+        : job?.first && isDet ? `A first pass at ${cellsWords(job.first)} cells — look around while the ${cellsWords(job.cells)} detail is added: ${stageWords(job.stage).toLowerCase()}…`
         : job ? `Adding detail to ${job.frame.time.toFixed(0)} Myr: ${stageWords(job.stage).toLowerCase()}…`
         : isDet ? 'This moment, sculpted in detail. Look around — Satellite, Climate and Geology show it at its detail — then export it as map files.'
         : playing ? (computing ? 'Computing the history — scrub through any of it as it fills in. Pause on a moment you like, then add detail.' : 'Pause on a moment you like, then add detail.')
         : 'This is a preview. Add detail sculpts it again, finely: rivers and lakes, glaciers, its own climate, the Satellite view and its geology — ready to export.';
     showIf($('detailGroup'), !!frame && !job);
-    showIf($('waterGroup'), isDet && !job);
+    showIf($('waterGroup'), isDet && (!job || !!job.first));
     const again = $('cardAgain'), stale = isDet && fin.climateKey !== climateKey();
     if (showIf(again, isDet && !job && (fin.cells !== cells || stale))) again.textContent = stale ? 'Add detail again with the new climate' : `Add detail again at ${cellsWords(cells)}`;
     if (showIf($('cardDetailed'), !!detFrame && !isDet)) {

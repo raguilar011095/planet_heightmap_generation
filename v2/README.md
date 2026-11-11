@@ -1062,6 +1062,15 @@ Nearly the same, where the owner allowed it (2026-11-11; plans/audits/PERFORMANC
   within 2 of 255 of the CPU's (`check-gpu-finished.mjs`; where a palette steps sharply a few pixels in ten thousand fall
   on the step's other side). Where WebGL is drawn by the processor (`GpuPainter.software`: SwiftShader, llvmpipe) or the
   first two paints prove slow, the CPU's paint stays.
+- **a first pass before the detail asked for** (Evolution's Add detail, `evolution-main.js` `firstPassOf`; `?first=0`
+  turns it off): from 2.5M cells up, on a desktop, the moment is finished at 160K cells with a 2048 px picture first and
+  shown as the detailed moment as soon as it is done — the loading screen off, the card's bar running on — then the detail
+  asked for replaces it, the same bytes as alone (`perf-bench.mjs finish --first 160000`; `check-pages-exact.mjs`
+  compares each copy's last finish). The worker keeps the fine mesh it prepared through the first pass (`thenCells`).
+  Much of a finish does not shrink with its cells (the climate, the wind, the surface's sampling: a 160K finish is 22 s
+  where a 2.5M one is 76 s and a 10M one 264 s), so the first look comes at about 30 % of a 2.5M wait and 8 % of a 10M
+  one, and the whole wait grows by that much; at 640K it would be half again, so there is none. Cancelled behind a first
+  pass, the first pass stays.
 - **the climate's real problems on real numbers** (`climate/solver.js`): the yearly mean, the air masses, the gyres and
   the water budget have no imaginary part; solved on the real parts alone they come out the same, value for value, the
   solves a quarter shorter.

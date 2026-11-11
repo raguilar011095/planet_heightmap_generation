@@ -35,7 +35,7 @@ const TAP = () => {
         if (typeof v !== 'object' || seen.has(v)) return;
         seen.add(v);
         if (Array.isArray(v)) { for (const x of v) feed(st, x, seen); return; }
-        for (const k of Object.keys(v).sort()) { if (k === 'ms' || k === 'packMs' || k === '_workerTotal' || k === 'secs') continue; for (let i = 0; i < k.length; i++) st.a = mix(st.a, k.charCodeAt(i)); feed(st, v[k], seen); }
+        for (const k of Object.keys(v).sort()) { if (k === 'ms' || k === 'packMs' || k === '_workerTotal' || k === 'secs' || k === 'id') continue; for (let i = 0; i < k.length; i++) st.a = mix(st.a, k.charCodeAt(i)); feed(st, v[k], seen); }
     };
     const print = v => { const st = { a: 2166136261, b: 7, n: 0 }; feed(st, v, new Set()); return `${st.a.toString(16).padStart(8, '0')}${st.b.toString(16).padStart(8, '0')}:${st.n}`; };
     const taps = window.__taps = [], Orig = window.Worker;
@@ -48,7 +48,9 @@ const TAP = () => {
             this.addEventListener('message', e => {
                 const d = e.data, type = d?.type ?? '';
                 if (type === 'progress' || type === 'stage' || type === 'tile' || !d) return;
-                taps.push({ worker: name, type, at: Math.round(performance.now()), print: print(d), ms: d.ms && typeof d.ms === 'object' ? Object.fromEntries(Object.entries(d.ms).map(([k, x]) => [k, Math.round(x)])) : null, time: d.frame?.time ?? null, total: typeof d._workerTotal === 'number' ? Math.round(d._workerTotal) : null });
+                // (a finished moment's parts, each with its own print: a difference then says where)
+                const parts = name === 'finish-worker.js' && type === 'done' ? Object.fromEntries(Object.keys(d).filter(k => d[k] && typeof d[k] === 'object' && k !== 'ms').flatMap(k => (ArrayBuffer.isView(d[k]) ? [[k, print(d[k])]] : Object.keys(d[k]).map(j => [`${k}.${j}`, print(d[k][j])])))) : null;
+                taps.push({ worker: name, type, parts, at: Math.round(performance.now()), print: print(d), ms: d.ms && typeof d.ms === 'object' ? Object.fromEntries(Object.entries(d.ms).map(([k, x]) => [k, Math.round(x)])) : null, time: d.frame?.time ?? null, total: typeof d._workerTotal === 'number' ? Math.round(d._workerTotal) : null });
             });
         }
     };
@@ -107,6 +109,9 @@ async function run(base) {
         await page.waitForFunction(() => !document.getElementById('cardAction').disabled, null, { timeout: 120000 });
         await page.evaluate(() => document.getElementById('cardAction').click());
         await until(t => t.worker === 'finish-worker.js' && t.type === 'done', 'the finish');
+        // (with a first pass, the detail asked for comes second: until the card's button offers the export)
+        await page.waitForFunction(() => document.getElementById('cardAction').textContent === 'Export', null, { timeout: 1800000 });
+        await page.waitForTimeout(500);
     }
     // (what is compared: the worlds' own messages. The live preview's workers — terrain, carving, shading, the preview
     // climate — build ahead what the moment's timing lets them: not the same set from one run to the next)
@@ -118,6 +123,12 @@ async function run(base) {
 const [ra, rb] = [await run(A), await run(B)];
 // (a message's name: its worker, its kind, a frame's time — and which of its kind it is, for a page that builds twice)
 for (const r of [ra, rb]) { const seen = new Map(); for (const t of r.taps) { const k = `${t.worker} ${t.type}${t.time !== null ? ` ${t.time}` : ''}`, n = (seen.get(k) ?? 0) + 1; seen.set(k, n); t.key = n > 1 ? `${k} (${n})` : k; } }
+// (Evolution's Add detail may show a first pass before the detail asked for: a copy's last finish is the one compared
+// with the other's — the pass before it named apart)
+if (PAGE === 'evolution') for (const r of [ra, rb]) {
+    const done = r.taps.filter(t => t.worker === 'finish-worker.js' && t.type === 'done');
+    done.forEach((t, i) => { t.key = i === done.length - 1 ? 'finish-worker.js done' : `finish-worker.js done (first pass${done.length > 2 ? ` ${i + 1}` : ''})`; });
+}
 const key = t => t.key;
 const mb = new Map(rb.taps.map(t => [key(t), t]));
 let differ = 0;
@@ -128,6 +139,7 @@ for (const t of ra.taps) {
     const same = u ? u.print === t.print : false;
     if (!same) differ++;
     console.log(`${key(t).padEnd(44)} ${String(t.at).padStart(9)} ${String(u?.at ?? '—').padStart(9)}  ${same ? 'the same' : `DIFFERENT (${t.print} / ${u?.print ?? 'missing'})`}`);
+    if (!same && t.parts && u?.parts) for (const k of Object.keys(t.parts)) if (t.parts[k] !== u.parts[k]) console.log(`    ${k}: ${t.parts[k]} / ${u.parts[k] ?? 'missing'}`);
 }
 const frames = ra.taps.filter(t => t.type === 'frame').length;
 if (frames) console.log(`(${frames} history frames in a; ${rb.taps.filter(t => t.type === 'frame').length} in b)`);

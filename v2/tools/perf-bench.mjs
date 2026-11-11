@@ -217,6 +217,15 @@ async function finish() {
     const { TerrainPool } = await import('../js/terrain/terrain-pool.js');
     const { driverWidth } = await import('../js/finish/finish-drivers.js');
     const cells = Number(arg('--cells', 640000)), width = Number(arg('--width', cells >= 5e6 ? 8192 : 4096));
+    // (--first CELLS: a finish at CELLS before it, in the same process — as the page's first pass in the same worker: the
+    // finish after it must come out as it does alone)
+    if (has('--first')) {
+        const c = Number(arg('--first')), n = rows.length, kept = { ...KEPT };
+        await finishOf({ frame, simMesh, seed: SEED, cells: c, pool: await TerrainPool.create(simMesh, null), closePool: true, climateOptions: { greenhouseWm2: 0, precipScale: 1 }, driversWidth: driverWidth(2048) }, 2048, false);
+        const ms = rows.slice(n).filter(r => !r.stage.startsWith('   ')).reduce((t, r) => t + r.ms, 0);
+        rows.length = n; for (const k of Object.keys(KEPT)) delete KEPT[k]; Object.assign(KEPT, kept);
+        note(`first pass at ${c} (finish + picture)`, ms, '');
+    }
     const pool = await timed('terrain pool', () => TerrainPool.create(simMesh, has('--pool') ? Number(arg('--pool')) : null), null);
     await finishOf({ frame, simMesh, seed: SEED, cells, pool, closePool: true, climateOptions: { greenhouseWm2: 0, precipScale: 1 }, driversWidth: driverWidth(width) }, width);
 }

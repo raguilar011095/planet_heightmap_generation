@@ -56,6 +56,12 @@ the planet names each step as it comes (shaping the surface, working out the cli
 the last ice age, mapping the rocks, finding the ore deposits, painting the picture…) with how far along it is; Cancel
 stays on the timeline.
 
+At 2.5M and 10M cells (on a desktop) a **first pass** comes first: the same moment at 160K cells, on screen in about a
+quarter of the wait at 2.5M and a tenth at 10M. Every view is there to look around while the detail you asked for is
+added behind it — the loading screen is gone, the card's button and bar carry on — and the planet sharpens when it is
+done. Cancel then keeps the first pass as the detailed moment. The detail you asked for comes out the same as it would
+alone; the first pass adds about a quarter to the whole wait at 2.5M, under a tenth at 10M.
+
 One moment is kept in detail at a time. Adding detail to another replaces it once the new one is done, and the card
 tells you when it will.
 

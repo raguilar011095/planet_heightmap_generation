@@ -7,7 +7,8 @@
 // started when the terrain pool goes and lives to the end of the finish.
 //
 // Message in:  {type: 'finish', id, frame (the terrain fields of a frame, terrain-pool.js FRAME_FIELDS, and the plates'
-//              rotations), simMesh {numCells, xyz, adjOffset, adjList}, seed, cells, width, delaunatorUrl, poolSize?}
+//              rotations), simMesh {numCells, xyz, adjOffset, adjList}, seed, cells, width, delaunatorUrl, poolSize?,
+//              thenCells? (a first pass: the detail the next finish will ask for — its meshes, built ahead, are kept)}
 //              · {type: 'prepare', cells, simCells, delaunatorUrl} — the meshes a finish at `cells` needs, built ahead
 //              while nothing waits on them (no reply; a finish asked for meanwhile waits for them, then finds them built)
 //              A page that draws its own surface (Generate: plans/SHARED_CORE_PLAN.md U1) adds mesh {numCells, xyz, adjOffset,
@@ -61,7 +62,9 @@ self.onmessage = async ({ data }) => {
         if (!sim || simCells !== data.simMesh.numCells) { sim = meshFromArrays(data.simMesh); simCells = data.simMesh.numCells; }
         // (the page's own mesh and surface, or a terrain mesh of `cells` and the history's surface drawn by the pool)
         const mesh = data.mesh ? meshFromArrays(data.mesh) : null, cells = mesh ? mesh.numCells : data.cells;
-        keepOnlyTerrainMesh(...(mesh ? [] : [cells]), ...ladderCells(sim.numCells, cells));   // (another detail's mesh goes: one fine mesh at a time; the coarser ones its carving climbs stay)
+        // (another detail's mesh goes: one fine mesh at a time; the coarser ones its carving climbs stay — and, on a first
+        // pass, those of the detail that follows it)
+        keepOnlyTerrainMesh(...(mesh ? [] : [cells]), ...ladderCells(sim.numCells, cells), ...(data.thenCells ? [data.thenCells, ...ladderCells(sim.numCells, data.thenCells)] : []));
         const pool = surface ? null : await TerrainPool.create(sim, poolSize);
         const own = mesh && surface ? { mesh, surface: () => surface } : {};
         const out = await finishPlanet({ frame, simMesh: sim, seed, cells, pool, closePool: !!pool, climateOptions, driversWidth: driverWidth(width), onStage: stage => self.postMessage({ type: 'stage', id, stage }),
