@@ -76,8 +76,14 @@ export function rollRows(arr, W, H, ch, shift) {
     }
     return out;
 }
-/** The rivers drawn onto a rolled map: once shifted left, and once more at the right edge for the lines that wrap. */
+// (the export's canvases rasterized in software, whatever their size: on the GPU, Chrome drew the rivers' lines on a
+// whole planet's canvas thinner than on a band's — the maps of an export at 16,384 px and at 32,768 disagreed — and
+// every one of them is read back)
+const CTX_2D = { willReadFrequently: true };
+/** The rivers drawn onto a rolled map: once shifted left, and once more at the right edge for the lines that wrap. With
+ *  the detail finer than the mesh drawn (fin.fine), as the detail bends them — the ground is calmed along those lines. */
 function drawRiversRolled(ctx, W, k, shift, fin, look) {
+    if (fin.fine?.W === W) { drawRiversWindow(ctx, fin, look.riverQ, look.byRegime, W, shift, 0, W, W >> 1, 1, false); return; }
     const paths = riverPaths(fin, look.riverQ);
     for (const dx of shift ? [-shift, W - shift] : [0]) {
         ctx.save(); ctx.translate(dx, 0); ctx.scale(k, k); drawRivers(ctx, paths, look.byRegime); ctx.restore();
@@ -167,7 +173,7 @@ export function colorMap(fin, W, look) {
     paintAt(fin, W, image, look.lut, { exaggeration: look.exaggeration, lakes: look.water, shaded: look.shaded !== false });
     const rgba = rollRows(image.data, W, H, 4, shift);
     if (!(look.water && fin.rivers)) return { kind: 'rgba', W, H, data: rgba };
-    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
+    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d', CTX_2D);
     ctx.putImageData(shift ? new ImageData(rgba, W, H) : image, 0, 0);
     // (the rivers' lines are drawn for a 2048-wide picture: as thick, relative to the map, at any width)
     drawRiversRolled(ctx, W, W / 2048, shift, fin, look);
@@ -220,7 +226,7 @@ export function koppenMap(fin, W, centerLon = 0) {
  */
 export function riversMap(fin, W, look) {
     const H = W >> 1, { wat, sea } = pictureAt(fin, W, { lakes: true }), image = new ImageData(W, H), d = lakesRgba(image.data, wat, sea, look.lut), shift = rollShift(W, look.centerLon);
-    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d');
+    const canvas = canvasOf(W, H), ctx = canvas.getContext('2d', CTX_2D);
     ctx.putImageData(shift ? new ImageData(rollRows(d, W, H, 4, shift), W, H) : image, 0, 0);
     if (fin.rivers) drawRiversRolled(ctx, W, W / 2048, shift, fin, look);
     return { kind: 'rgba', W, H, data: ctx.getImageData(0, 0, W, H).data, alpha: true };
@@ -330,10 +336,10 @@ function bandPaint(B, image, lut, opts) {
 function riversOverBand(rgba, B, fin, look) {
     const { W, y0, n } = B, CW = 8192;
     for (let x0 = 0; x0 < W; x0 += CW) {
-        const w = Math.min(CW, W - x0), canvas = canvasOf(w, n), ctx = canvas.getContext('2d'), img = new ImageData(w, n);
+        const w = Math.min(CW, W - x0), canvas = canvasOf(w, n), ctx = canvas.getContext('2d', CTX_2D), img = new ImageData(w, n);
         for (let j = 0; j < n; j++) img.data.set(rgba.subarray(4 * (j * W + x0), 4 * (j * W + x0 + w)), 4 * j * w);
         ctx.putImageData(img, 0, 0);
-        drawRiversWindow(ctx, fin, look.riverQ, look.byRegime, W, x0, y0, w, n);
+        drawRiversWindow(ctx, fin, look.riverQ, look.byRegime, W, x0, y0, w, n, 1, false);
         const back = ctx.getImageData(0, 0, w, n).data;
         for (let j = 0; j < n; j++) rgba.set(back.subarray(4 * j * w, 4 * (j + 1) * w), 4 * (j * W + x0));
     }
@@ -417,7 +423,9 @@ export function initEvolutionExport({ moment, look, centerLon, projection = null
         planetFile,
         koppenClasses: KOPPEN_CLASSES,
         readmeLists: files => [...rockTypesList(files), ...staplesList(files)],
-        widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : fine && ctx.fin.raster.drivers ? EXPORT_MAX_BANDS : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
+        // (wider than EXPORT_MAX only where the browser can save straight to a folder — the File System Access API: Chrome
+        // and Edge on a computer — and the moment has the detail finer than the mesh)
+        widths: (ctx) => exportWidths(ctx.fin.raster, isTouch ? EXPORT_MAX_TOUCH : fine && ctx.fin.raster.drivers && globalThis.showDirectoryPicker && globalThis.showSaveFilePicker ? EXPORT_MAX_BANDS : EXPORT_MAX).map(({ w, enlarged }) => ({ w, selected: w === ctx.fin.raster.w, label: `${w}${enlarged ? ` · enlarged ×${w / ctx.fin.raster.w}` : w === ctx.fin.raster.w ? ' · as detailed' : ''}` })),
         available: (row, ctx) => rowAvailable(row, ctx.fin),
         titleNote: titleNote ?? ((ctx) => `· ${ctx.frame.time.toFixed(0)} Myr`),
         begin: async (W, opts, ctx, progress) => {

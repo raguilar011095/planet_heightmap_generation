@@ -111,11 +111,15 @@ export class PngStream {
             }
             await flush();
         })();
+        // (the sink failing — the disk full, the folder gone — ends the stream: the writer aborted, so rows() waiting on
+        // it fails at once rather than waiting on a compressor whose output no one takes)
+        this.pump = this.pump.catch(e => { this.failed = e; this.writer.abort(e).catch(() => {}); throw e; });
         this.pump.catch(() => {});
     }
     async put(bytes) { await this.sink(bytes); this.bytes += bytes.length; }
     /** `n` rows of the picture (its kind's data, `width` pixels a row), the next ones down. */
     async rows(data, n) {
+        if (this.failed) throw this.failed;
         if (this.rowsIn + n > this.height) throw new Error('more rows than the picture has');
         this.rowsIn += n;
         await this.writer.ready;
@@ -123,6 +127,7 @@ export class PngStream {
     }
     /** The last rows given: the compressor emptied, the end written. @returns {Promise<number>} the file's bytes */
     async end() {
+        if (this.failed) throw this.failed;
         if (this.rowsIn !== this.height) throw new Error(`${this.rowsIn} of ${this.height} rows given`);
         await this.writer.close(); await this.pump;
         await this.put(chunk('IEND', new Uint8Array(0)));

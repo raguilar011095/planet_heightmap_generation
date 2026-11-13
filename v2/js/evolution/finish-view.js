@@ -3,7 +3,7 @@
 // painting of a finished moment, its picture of heights, onto the page's textures: coloured by the palette and shaded as
 // the live terrain is.
 
-import { FINE, bendRiver, bendScale, bendSteps, riverCurve, riverSeed } from '../finish/fine-detail.js';
+import { FINE, bendRiver, bendScale, bendSteps, riverCurve, riverParts, riverSeed } from '../finish/fine-detail.js';
 
 export class FinishService {
     constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; this.prepared = 0; }
@@ -292,7 +292,7 @@ export function riverPaths(fin, q0) {
 function riverSegments(fin, q0) {
     fin.segments ??= new Map();
     if (fin.segments.has(q0)) return fin.segments.get(q0);
-    const R = fin.rivers, W = 2048, H = 1024, keys = new Map(), buckets = [], xy = [], nb = [], bucket = [], prev = [], joined = [], along = [], starts = [...R.start, R.lat.length];
+    const R = fin.rivers, keys = new Map(), buckets = [], xy = [], nb = [], bucket = [], prev = [], joined = [], along = [];
     let maxLen = 0;
     const add = (str, reg, x0, y0, x1, y1) => {
         const key = `${str}|${reg}`;
@@ -303,32 +303,13 @@ function riverSegments(fin, q0) {
         xy.push(x0, y0, x1, y1); bucket.push(b); prev.push(B.at); joined.push(on ? 1 : 0); along.push(B.run);
         B.run += len; B.last = [x1, y1]; B.at = bucket.length - 1; maxLen = Math.max(maxLen, len);
     };
-    for (let r = 0; r < starts.length - 1; r++) {
-        // (a reach below the threshold ends its line — a river that dries out is not bridged to where it flows again —
-        // and a reach is split where it crosses the map's edge)
-        const parts = [[]];
-        for (let i = starts[r]; i < starts[r + 1]; i++) {
-            if (!(R.q[i] >= q0)) { if (parts[parts.length - 1].length) parts.push([]); continue; }
-            const p = [(R.lon[i] + 180) / 360 * W, (90 - R.lat[i]) / 180 * H, R.q[i], regimeAt(R, i)], cur = parts[parts.length - 1];
-            if (cur.length && Math.abs(p[0] - cur[cur.length - 1][0]) > W / 2) parts.push([]);
-            parts[parts.length - 1].push(p);
-        }
-        for (let pts of parts) {
-            if (pts.length < 2) continue;
-            for (let it = 0; it < 2; it++) {
-                const nx = [pts[0]];
-                // (the regime is not blended: each new point keeps its nearer point's)
-                for (let i = 0; i < pts.length - 1; i++) {
-                    const a = pts[i], b = pts[i + 1];
-                    nx.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2], a[3]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2], b[3]]);
-                }
-                nx.push(pts[pts.length - 1]); pts = nx;
-            }
-            for (let i = 0; i < pts.length - 1; i++) {
-                const a = pts[i], b = pts[i + 1], pa = pts[Math.max(0, i - 1)], pb = pts[Math.min(pts.length - 1, i + 2)];
-                nb.push(pa[0], pa[1], pb[0], pb[1]);
-                add(riverStrength(a[2], q0), a[3], a[0], a[1], b[0], b[1]);
-            }
+    // (the runs of points: fine-detail.js riverParts — the detail calms the ground along the same ones; each point's
+    // regime its own, not blended)
+    for (const pts of riverParts(R, q0, i => regimeAt(R, i))) {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1], pa = pts[Math.max(0, i - 1)], pb = pts[Math.min(pts.length - 1, i + 2)];
+            nb.push(pa[0], pa[1], pb[0], pb[1]);
+            add(riverStrength(a[2], q0), a[3], a[0], a[1], b[0], b[1]);
         }
     }
     const S = { count: bucket.length, xy: Float32Array.from(xy), nb: Float32Array.from(nb), bucket: Uint16Array.from(bucket), prev: Int32Array.from(prev), joined: Uint8Array.from(joined), along: Float32Array.from(along), maxLen,
@@ -361,9 +342,10 @@ export function drawRivers(ctx, paths, byRegime = false, widthScale = 1) {
  * moment and q0) — so a tile of the zoomed-in view costs its own rivers, not the planet's — each line begun where its
  * dashes begin, a little before the window (so they stand where the whole line's do): windows side by side meet as one
  * picture would. Each line bent as the detail finer than the mesh bends it at this width (fine-detail.js bendRiver: the
- * ground beside it calmed along the same bends).
+ * ground beside it calmed along the same bends). `keep`: the bent points kept per width for the windows after (the
+ * zoom's tiles); an export's windows, each drawn once, pass false.
  */
-export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthScale = 1) {
+export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthScale = 1, keep = true) {
     const S = riverSegments(fin, q0), k = W / 2048, G = S.grid ??= segmentGrid(S);
     const bend = FINE.riverBends && fin.rivers?.lat?.length ? { pxKm: 2 * Math.PI * 6371 / W, seed: riverSeed(fin.rivers), cellKm: 24200 / Math.sqrt(fin.cells ?? 2.5e6) } : null;
     const B = [0, 0], C = [0, 0];
@@ -375,9 +357,11 @@ export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthS
         const a0 = bendScale(fin.raster, X[o], X[o + 1], bend.seed), a1 = bendScale(fin.raster, X[o + 2], X[o + 3], bend.seed);
         return bendRiver(C[0], C[1], bend.pxKm, bend.seed, bend.cellKm, B, a0 + t * (a1 - a0));
     };
-    // (each segment's points at this width, once: a tile and the next share them, and panning back costs nothing)
+    // (each segment's points at this width, once: a tile and the next share them, and panning back costs nothing — the
+    // last three widths' kept)
     let cache = null;
-    if (bend) {
+    if (bend && !keep) cache = new Map();
+    else if (bend) {
         const all = S.bent ??= new Map();
         cache = all.get(W);
         if (!cache) { if (all.size >= 3) all.delete(all.keys().next().value); all.set(W, cache = new Map()); }

@@ -149,6 +149,9 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     }
     // ── wider than 16,384 px: drawn in bands, equirectangular, saved straight to the disk, whole or in tiles ──
     const bigNow = () => !!adapter.bands && Number(els.width.value) > WHOLE_MAX;
+    // (…and drawn in bands when a map is among the files; the files that are not maps — the districts, the atlas — do not
+    // depend on the width, and go as a download whatever it is)
+    const bandsNow = list => bigNow() && list.some(j => !j.file?.ext);
     function updateBig() {
         const big = bigNow();
         els.tilesRow.hidden = !big;
@@ -178,7 +181,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     }
     function updateGo() {
         const list = jobs(), n = list.length, files = fileCount(list);
-        els.go.textContent = n === 0 ? 'Export' : bigNow() ? (files === 1 ? 'Export 1 file' : `Export ${files} files to a folder`) : n === 1 ? 'Export 1 file' : `Export ${n} files as ZIP`;
+        els.go.textContent = n === 0 ? 'Export' : bandsNow(list) ? (files === 1 ? 'Export 1 file' : `Export ${files} files to a folder`) : n === 1 ? 'Export 1 file' : `Export ${n} files as ZIP`;
         els.go.disabled = n === 0 || busy;
         els.planetGo.disabled = busy || !planetOk;
     }
@@ -246,10 +249,11 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     els.go.addEventListener('click', async () => {
         if (busy) return;
         const list = jobs(); if (!list.length) return;
-        if (bigNow() && list.some(j => !j.file?.ext)) { runBands(list); return; }
+        if (bandsNow(list)) { runBands(list); return; }
         busy = true; els.go.disabled = true; els.cancel.disabled = true;
         const W = Number(els.width.value), centerLon = Number(els.centre.value), projection = els.proj.value, projOpts = projOptValues();
-        const opts = { width: W, centerLon, season: els.season.value, hillshade: !adapter.options?.hillshade || els.shade.checked, projection, projOpts };
+        // (`bands`: wider than 16,384 px with no map among the files — begin() draws no detail: nothing here depends on the width)
+        const opts = { width: W, centerLon, season: els.season.value, hillshade: !adapter.options?.hillshade || els.shade.checked, projection, projOpts, bands: bigNow() };
         const t0 = performance.now();
         try {
             progress(0, 'Starting…'); await tick();

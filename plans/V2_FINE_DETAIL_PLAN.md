@@ -178,7 +178,12 @@ pass: each relief noise read off a grid as fine as its wavelength asks (at least
 so tiles still meet to the bit; the finest octaves at every pixel), the rivers looked for no farther than their calm
 reaches (the ridges' pull, which reached twice as far, only when the ridges are on; the calm now the calmest of the
 rivers near — a stream near a big river no longer cancels the big river's), the tiles 6 % past the view's edges (not
-12 %), a zoom's next level only once the view has been still for 200 ms, and at most 8 workers.
+12 %), a zoom's next level only once the view has been still for 200 ms (no input, the eased zoom all but arrived), and
+at most 8 workers. A review of the PR then fixed: a whole export wider than the picture drew its rivers unbent beside
+the bent ground (now drawRiversWindow, as the bands and the tiles); an export of only the text files at 65,536 px drew
+the whole planet's detail for nothing; a failed disk write hung a big export; the big widths offered where the browser
+cannot save to a folder; the crop's river reach from the settings (the ridges' pull reached past it); the noise copy
+for the benches made with them off.
 
 **Then (2026-11-13): "wavy fingerprints" at 20.6° S, 101.8° E.** Not the cost pass: a sand sea's dunes (± 50 m, every
 3.2 km, crests forking every wavelength), shown a level sooner since `minPx` 3. Tried and shown: crests 3–5 times longer

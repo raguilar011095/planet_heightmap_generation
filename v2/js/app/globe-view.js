@@ -251,6 +251,14 @@ export class GlobeView {
         return this.deepPx ? Math.max(MAP_ZOOM_MAX, this.deepPx / (this.mapBox().width * this.deepDpr)) : MAP_ZOOM_MAX;
     }
 
+    /** Whether the view's zoom is still on its way: the globe's distance, or the map's zoom, more than a hundredth from
+     *  where it is going (its last hundredths ease in slowly and do not count as moving). */
+    zoomEasing() {
+        const v = this.mapView;
+        if (this.map && v) return Math.abs(v.zoomTo - v.zoom) > 0.01 * v.zoom;
+        const d = this.camera.position.length();
+        return Math.abs(this.zoomTo - d) > 0.01 * d;
+    }
     /** The camera a step nearer the distance aimed at; whether it moved. */
     easeZoom() {
         const now = performance.now(), dt = this._zoomAt ? Math.min(0.1, (now - this._zoomAt) / 1000) : 1 / 60;

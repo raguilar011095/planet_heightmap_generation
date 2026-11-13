@@ -100,8 +100,9 @@ read the relief without what the rock added, so a hard ridge it raised keeps its
 at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed in past its picture's own pixels, it is
 drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
 the planet 256 · 2^L pixels wide; the tiles in view and 6 % past its edges asked for as it moves, nearest its middle
-first — another level's only once the view has been still for 200 ms, so a zoom draws none of the levels it passes
-through (`held`: its tiles not yet begun dropped) — by up to 8 workers (all but two of the computer's threads; 12 kept a
+first — another level's only once the view has been still for 200 ms (no wheel, drag or pinch, and its eased zoom within
+a hundredth of where it is going), so a zoom draws none of the levels it passes through (`held`: its tiles not yet begun
+dropped) — by up to 8 workers (all but two of the computer's threads; 12 kept a
 16-thread computer's fans going; an export's bands still 4 at a time) — `detail-worker.js`, each sent only the
 picture's and the drivers' pixels its tile needs — and kept, so panning back costs nothing). They come as soon as the screen would show the picture's pixels enlarged (~1.2 ×): on the map over the
 whole view, on the globe over the part within 60° of its middle, the screen measured there (the planet's edge in view,
@@ -144,7 +145,10 @@ line drawn through its points on a curve (no corners) and led, octave by octave 
 noise's own slope into its valleys (`bendRiver`: a field — where rivers meet they still meet — weighted as the noise is
 there), the same for the line drawn (`finish-view.js` drawRiversWindow, each segment's points kept per width) and the
 ground beside it — calmed along it in proportion to its flow (a floor, no trench; where rivers are near, the calmest
-of theirs: each looked for no farther than its valley reaches) and its side valleys turned toward it (when the ridges are on). Plains get none of the ridges, and the rivers are not cut into it. A tile depends only on its own pixels and a
+of theirs: each looked for no farther than its valley reaches) and its side valleys turned toward it (when the ridges are
+on). Both are made from the same runs of points (`riverParts`: the threshold, the split at the map's edge, Chaikin twice),
+so the line drawn and the ground calmed cannot drift apart; an export wider than the picture draws its rivers the same
+bent way (whole or in bands). Plains get none of the ridges, and the rivers are not cut into it. A tile depends only on its own pixels and a
 few km around them (and the rivers within reach), so tiles meet exactly (`v2/out/deep-zoom/seam.mjs`-style check: a
 512² window and its four quarters agree to the bit). An export wider than the picture is drawn the same way, band by band — its
 heightmaps included. A moment saved before has no drivers and is shown as before. A finished moment brings **its own

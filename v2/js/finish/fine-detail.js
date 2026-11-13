@@ -183,17 +183,25 @@ export function riverCurve(x0, y0, x1, y1, px, py, qx, qy, t, out) {
 }
 /** A river's floor's width (km) by its flow (m³/s). */
 const riverFloorKm = q => Math.max(0.15, Math.min(2.5, FINE.riverFloorKm * (q / 40) ** 0.35));
+/** How far (km) from a river's line the ground is touched by it: the widest floor's valley — or, with the ridges on,
+ *  their pull's reach beyond it (fineWindow's `reach`) — and how far the line itself is led aside by its bends (BEND_ASIDE_KM). */
+const BEND_ASIDE_KM = 4.5;
+const riverReachKm = () => { const f = riverFloorKm(Infinity); return (FINE.ridgesOn ? f * (2 + 2 * FINE.riverValley) + 1 : f * (1 + FINE.riverValley)) + BEND_ASIDE_KM; };
 
-/** The rivers the detail lies along: every reach carrying riverMinQ m³/s, smoothed as finish-view.js riverSegments
- *  smooths those it draws (Chaikin, twice, on the 2048-wide texture), as segments (xy: x0 y0 x1 y1, q: the flow), and a
- *  grid of them by their middles (cells C px square). Once per moment. */
-function riverIndex(R0, raster) {
-    const W2 = 2048, H2 = 1024, xy = [], nb = [], qs = [], starts = [...R0.start, R0.lat.length];
+/**
+ * A moment's rivers (R: {lat, lon, q, start, …}) as runs of points on the 2048-wide texture, each [x, y, q, tag]: every
+ * reach carrying q0 m³/s — a reach below it ends its run (a river that dries out is not bridged to where it flows again),
+ * and a run is split where it crosses the map's edge — smoothed (Chaikin, twice; `tag(i)` a point's own mark, not
+ * blended: each new point keeps its nearer point's). The lines the page draws (finish-view.js riverSegments) and the
+ * ground calmed along them (riverIndex) are both made from these, so the one cannot drift from the other.
+ */
+export function riverParts(R, q0, tag = null) {
+    const W2 = 2048, H2 = 1024, out = [], starts = [...R.start, R.lat.length];
     for (let r = 0; r < starts.length - 1; r++) {
         const parts = [[]];
         for (let i = starts[r]; i < starts[r + 1]; i++) {
-            if (!(R0.q[i] >= FINE.riverMinQ)) { if (parts[parts.length - 1].length) parts.push([]); continue; }
-            const p = [(R0.lon[i] + 180) / 360 * W2, (90 - R0.lat[i]) / 180 * H2, R0.q[i]], cur = parts[parts.length - 1];
+            if (!(R.q[i] >= q0)) { if (parts[parts.length - 1].length) parts.push([]); continue; }
+            const p = [(R.lon[i] + 180) / 360 * W2, (90 - R.lat[i]) / 180 * H2, R.q[i], tag ? tag(i) : 0], cur = parts[parts.length - 1];
             if (cur.length && Math.abs(p[0] - cur[cur.length - 1][0]) > W2 / 2) parts.push([]);
             parts[parts.length - 1].push(p);
         }
@@ -203,14 +211,25 @@ function riverIndex(R0, raster) {
                 const nx = [pts[0]];
                 for (let i = 0; i < pts.length - 1; i++) {
                     const a = pts[i], b = pts[i + 1];
-                    nx.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2]]);
+                    nx.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2], a[3]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2], b[3]]);
                 }
                 nx.push(pts[pts.length - 1]); pts = nx;
             }
-            for (let i = 0; i < pts.length - 1; i++) {
-                const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 2)];
-                xy.push(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]); nb.push(a[0], a[1], b[0], b[1]); qs.push(pts[i][2]);
-            }
+            out.push(pts);
+        }
+    }
+    return out;
+}
+
+/** The rivers the detail lies along: every reach carrying riverMinQ m³/s (riverParts: as finish-view.js draws them), as
+ *  segments (xy: x0 y0 x1 y1, nb: their neighbours' far ends, q: the flow), and a grid of them by their middles (cells C
+ *  px square). Once per moment. */
+function riverIndex(R0, raster) {
+    const W2 = 2048, H2 = 1024, xy = [], nb = [], qs = [];
+    for (const pts of riverParts(R0, FINE.riverMinQ)) {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 2)];
+            xy.push(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]); nb.push(a[0], a[1], b[0], b[1]); qs.push(pts[i][2]);
         }
     }
     const S = { xy: Float32Array.from(xy), nb: Float32Array.from(nb), q: Float32Array.from(qs) }, n = S.q.length, C = 8;
@@ -272,11 +291,11 @@ export function cropSource(src, win) {
             }
         }
     }
-    // (the rivers within reach of the window and its margin — a river's floor and valley, its bends — shifted by a turn
-    // where the window runs past the planet's edge)
+    // (the rivers within reach of the window and its margin — the widest river's valley, or its pull when the ridges are
+    // on, and how far a line is led aside by its bends — shifted by a turn where the window runs past the planet's edge)
     let rv = null;
     if (src.rv) {
-        const G = src.rv, k = W / 2048, HE = W >> 1, reach = 22 / KM2048 + 2;
+        const G = src.rv, k = W / 2048, HE = W >> 1, reach = riverReachKm() / KM2048 + 2;
         const latMax = Math.max(Math.abs(90 - (y0 - M) / HE * 180), Math.abs(90 - (y0 + h + M) / HE * 180));
         const rx = reach / Math.max(0.05, Math.cos(Math.min(89, latMax) * D2R)), ya = (y0 - M) / k - reach, yb = (y0 + h + M) / k + reach;
         const xy = [], nb = [], q = [], amp = [];
@@ -357,15 +376,15 @@ const mixHash = h => { h = Math.imul(h ^ (h >>> 16), 0x7feb352d); h = Math.imul(
 /**
  * The phase (−π … π) at point p (km) of stripes of wavelength lam (km) running across the unit direction a — crests where
  * the phase is 0, troughs at ±π — each lattice point's stripe its own phase, summed as phasors (so the stripes stay whole
- * where kernels disagree); with J, each its own wavelength too (lam × 1 ± J: the spacing irregular).
+ * where kernels disagree); with J, each its own wavelength too (lam × 1 ± J: the spacing irregular). With `coh`, its
+ * coherence into coh[0]: the phasors' sum over their weights, 0 … 1 — low where the stripes fork.
  */
 const TRIG = 4096, TRIG_K = TRIG / TAU, COS_T = new Float32Array(TRIG), SIN_T = new Float32Array(TRIG);
-let PH_COH = 0;              // (the last phacelle's coherence: its phasors' sum over their weights, 0 … 1 — low where the stripes fork)
 for (let i = 0; i < TRIG; i++) { COS_T[i] = Math.cos(i / TRIG_K); SIN_T[i] = Math.sin(i / TRIG_K); }
 const KR = 1.25, KR2 = KR * KR;
 /** The nearest a lattice point of the cell offset o (−1, 0, 1) from p's can lie from p along one axis (f p's coordinate, c that cell's). */
 const near = (o, f, c) => (o < 0 ? f - c - 0.75 : o > 0 ? c + 0.25 - f : 0);
-function phacelle(px, py, pz, ax, ay, az, lam, s, J = 0) {
+function phacelle(px, py, pz, ax, ay, az, lam, s, J = 0, coh = null) {
     const inv = 1 / lam, fx = px * inv, fy = py * inv, fz = pz * inv;
     const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
     let re = 0, im = 0, ws = 0;
@@ -386,7 +405,7 @@ function phacelle(px, py, pz, ax, ay, az, lam, s, J = 0) {
             }
         }
     }
-    PH_COH = ws > 0 ? Math.hypot(re, im) / ws : 0;
+    if (coh) coh[0] = ws > 0 ? Math.hypot(re, im) / ws : 0;
     return Math.atan2(im, re);
 }
 /**
@@ -686,7 +705,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // ── relief noise: hills and knolls, octave by octave from the mesh's scale down — rounded ridges and swells — most on
     // high, gentle ground, each octave less where the ground (with the coarser octaves) is steep, less along the rivers,
     // none on low land, coming and going from place to place; what the ridges and valleys then run over ──
-    let ND = null;                    // (the noise alone: the benches step the ground without it)
+    let ND = null;                    // (the noise alone, kept only for the benches: they step the ground without it)
     if (FINE.reliefNoise) {
         const nA = new Float32Array(N), ns = src.rseed | 0, land = new Uint8Array(N), nv = new Float64Array(N), nw = new Float64Array(N), pf = 1 / FINE.noisePatchKm;
         let any = false;
@@ -713,7 +732,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
             gradient(D, dE, dN);
             if (signal?.aborted) return null;
         }
-        if (any) { for (let p = 0; p < N; p++) D[p] = shareCap(D[p], p); gradient(D, dE, dN); ND = D.slice(); }
+        if (any) { for (let p = 0; p < N; p++) D[p] = shareCap(D[p], p); gradient(D, dE, dN); if (bedOn) ND = D.slice(); }
     }
     lap('noise');
     const side = new Float32Array(N).fill(1);
@@ -816,7 +835,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     lap('rock');
     // ── dunes ──
     {
-        const lam = FINE.duneKm, f = fade(lam), lee = FINE.duneLee, J = FINE.duneJitter, fP = 1 / FINE.dunePatchKm, fS = 1 / (1.5 * lam), fH = 1 / lam;
+        const lam = FINE.duneKm, f = fade(lam), lee = FINE.duneLee, J = FINE.duneJitter, fP = 1 / FINE.dunePatchKm, fS = 1 / (1.5 * lam), fH = 1 / lam, coh = [0];
         if (f > 0) for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
             const p = j * ew + i;
             if (seaB[p]) continue;
@@ -835,13 +854,13 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
             // each faded where its stripes fork)
             if (m < 0.7) {
                 toSpace(j, i, ue, un);
-                const t = (phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], lam, seed * 13 + 51, J) / TAU + 1) % 1, q = t < 1 - lee ? t / (1 - lee) : (1 - t) / lee;
-                v += (1 - smooth(0.3, 0.7, m)) * smooth(0.1, 0.5, PH_COH) * (2 * q * q * (3 - 2 * q) - 1);
+                const t = (phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], lam, seed * 13 + 51, J, coh) / TAU + 1) % 1, q = t < 1 - lee ? t / (1 - lee) : (1 - t) / lee;
+                v += (1 - smooth(0.3, 0.7, m)) * smooth(0.1, 0.5, coh[0]) * (2 * q * q * (3 - 2 * q) - 1);
             }
             if (m > 0.3) {
                 toSpace(j, i, -un, ue);
-                const ph = phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], 0.8 * lam, seed * 13 + 52, J);
-                v += smooth(0.3, 0.7, m) * smooth(0.1, 0.5, PH_COH) * Math.cos(ph);
+                const ph = phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], 0.8 * lam, seed * 13 + 52, J, coh);
+                v += smooth(0.3, 0.7, m) * smooth(0.1, 0.5, coh[0]) * Math.cos(ph);
             }
             D[p] += f * FINE.duneAmpKm * e * patch * hv * v;
         }

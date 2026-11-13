@@ -35,7 +35,8 @@ const SEASONS = ['year', 'jan', 'jul'];
 // seldom idle — a steady slice, short enough that its frames keep coming)
 const PREP_MS = 7, PREP_EVERY_MS = 16;
 const PATCH_EVERY_MS = 50;      // (a moving view asks for its tiles this often)
-const PATCH_SETTLE_MS = 200;   // (a zoom on its way to another level of tiles waits until the view has been still this long)
+const PATCH_SETTLE_MS = 200;   // (a zoom on its way to another level of tiles waits until the view has been still this long:
+                               // no wheel, drag or pinch, and its zoom within a hundredth of where it is going)
 const DEEP_ZOOM_OVER = 1.25;   // (zoomed in all the way, each pixel of the finest tiles spread over this many of the screen's)
 
 /** A canvas texture `width` wide (×width/2), its 2D context and an image to paint into it. */
@@ -106,7 +107,13 @@ export class PlanetView {
         this.PATCH_BUDGET_MS = isTouch ? 4 : 6;         // (a frame paints and lays tiles for about this long: the rest come in the frames after)
         this.tiles = new DetailTiles(this.detail, { ...(isTouch ? { keep: 64, most: 48, maxLevel: 8 } : { keep: 200, most: 150, maxLevel: 9 }), maxSpan: this.PATCH_SPAN });   // (~0.9 MB a tile)
         this.layers = new TileLayers(this.globe, this.PATCH_SPAN);
-        this.patchLook = 0; this.patchLookKey = ''; this.patchClimate = null; this.viewSig = ''; this.wantedAt = 0; this.movedSig = ''; this.movedAt = 0;
+        this.patchLook = 0; this.patchLookKey = ''; this.patchClimate = null; this.viewSig = ''; this.wantedAt = 0; this.inputAt = 0;
+        // (when the view was last moved by hand: the globe's canvas and the map's frame take the pointer)
+        for (const el of [this.ui.canvas, this.ui.map]) {
+            if (!el) continue;
+            for (const ev of ['wheel', 'pointerdown', 'touchstart', 'touchmove']) el.addEventListener(ev, () => { this.inputAt = performance.now(); }, { passive: true });
+            el.addEventListener('pointermove', e => { if (e.buttons) this.inputAt = performance.now(); }, { passive: true });
+        }
         this.tileImage = null; this.tileColors = { look: -1, byWidth: new Map() };
         this.cloudsShown = { on: null, C: undefined, season: null };
         this.satPrep = null; this.satPrepFailed = new WeakSet();
@@ -441,8 +448,7 @@ export class PlanetView {
         if (!drawn) { layers.hide(); return; }
         const mv = globe.mapView, sig = view.mode === 'map' ? `m|${mv?.zoom}|${mv?.panX}|${mv?.panY}|${view.centerLon}|${view.projection}|${ui.map.clientWidth}|${ui.map.clientHeight}`
             : `${globe.camera.position.toArray().map(v => v.toFixed(4)).join()}|${ui.canvas.clientWidth}|${ui.canvas.clientHeight}`;
-        if (sig !== this.movedSig) { this.movedSig = sig; this.movedAt = now; }
-        const settled = now - this.movedAt >= PATCH_SETTLE_MS;
+        const settled = now - this.inputAt >= PATCH_SETTLE_MS && !globe.zoomEasing();
         if ((sig !== this.viewSig || fin !== tiles.fin || (tiles.held && settled)) && now - this.wantedAt >= PATCH_EVERY_MS) {
             this.viewSig = sig; this.wantedAt = now;
             if (fin !== tiles.fin) layers.clear();
