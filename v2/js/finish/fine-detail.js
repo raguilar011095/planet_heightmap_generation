@@ -2,16 +2,24 @@
 // at any resolution — its picture of heights enlarged, plus a little of what a mesh of 7–15 km cells cannot hold, drawn
 // from what the finish recorded (finish-drivers.js) and only below the mesh's own scale, octave by octave as the window's
 // pixels allow (a coarser view and a finer one of the same place agree):
-//   · ridges and valleys on steep ground — stripes aligned with the slope, each octave turned by the slope the coarser
+//   · (off: FINE.ridgesOn, benchesOn — a texture that led nowhere) ridges and valleys on
+//     steep ground — stripes aligned with the slope, each octave turned by the slope the coarser
 //     ones left, so the finer run down into the coarser (the idea of Rune Skovbo Johansen's erosion filter, its "phacelle"
 //     noise: kernels' stripes summed as phasors, the sum's phase taken, so they never wash out) — faint: strongest on wet,
 //     rugged, young ranges, and coming and going from place to place, so no two ranges look alike; and by the rock
 //     (plans/V2_LITHOLOGY_RELIEF_PLAN.md: the finish's rock picture, geology/rocks.js) — shale, slate and tuff cut densely
 //     and finely, sandstone, limestone and granite sparsely;
-//   · dunes in the sand seas, across the year's wind (or along it where the seasons' winds cross);
-//   · the coast's headlands and coves — hard rock jutting out as headlands, soft rock worn back into bays.
-// Plains and plateau tops get none. The rivers are the moment's own lines (drawn by the page and the exports). A window
-// reads only its own pixels and a margin of a few km around them, so windows drawn apart (tiles, bands) meet.
+//   · dunes in the sand seas, across the year's wind (or along it where the seasons' winds cross) — an accent: low,
+//     irregularly spaced, each crest its own height, the relief noise quieter there;
+//   · the coast's headlands and coves — hard rock jutting out as headlands, soft rock worn back into bays;
+//   · beneath the ridges, relief noise: hills and knolls on high, gentle ground (less on steep slopes, along rivers, none
+//     on low land), which the ridges then run over;
+//   · the lakes' shores where the finer ground lies under their level (the picture keeps it), wandering as the coast's;
+//   · the rivers' lines led into the noise's valleys, more the closer the view (bendRiver: the page draws them so), the
+//     ground calm along them.
+// Plains get none of the ridges. The rivers are the moment's own lines (drawn by the page and the exports), never cut in.
+// A window reads only its own pixels, a margin of a few km around them and the rivers within reach, so windows drawn
+// apart (tiles, bands) meet.
 
 import { DRIVER_FIELDS } from './finish-drivers.js';
 import { GEOLOGY } from '../geology/geology-config.js';
@@ -24,7 +32,8 @@ const smooth = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a
 export const FINE = {
     baseSmooth: 1,              // the picture enlarged as its smoother (B-spline) self away from the sea (its Catmull–Rom at the coast, which keeps
                                 // the coastline): the mesh's one-cell pits and spikes drew square blobs in the hillshade
-    minPx: 6,                   // a feature is drawn once its wavelength spans this many pixels (faded in over twice that: no scratches)
+    minPx: 3,                   // a feature is drawn once its wavelength spans this many pixels, faded in over twice that (6 until
+                                // 2026-11-12, §5 of the plan: the owner then wanted the detail sooner in the zoom)
     // ridges and valleys
     gullyCells: 1.7,            // the coarsest: this many of the mesh's cells (what the mesh holds is its own)…
     gullyMaxKm: 24,             // …at most this
@@ -64,23 +73,171 @@ export const FINE = {
     // (tried and dropped, 2026-10-28: inselbergs and domes on granite and shields, the tropics' tower karst, salt domes,
     // scarps at hard rock's contacts — smooth bumps standing alone on flat ground read as bubbles, and scarps sharpened from
     // the rock picture's ~10 km pixels traced its squares as staircases)
-    // dunes
-    duneKm: 3.2, duneAmpKm: 0.05,
+    // dunes: about duneKm apart, ± duneAmpKm (an accent: 0.05 until 2026-11-13, the owner: "wavy fingerprints") — the
+    // spacing irregular (each kernel of the stripes its own, ± duneJitter, and nudged closer and wider apart by duneSpace
+    // of it), each crest its own height (down to 1 − duneHeights of it), a gentle lee face (duneLee of the wavelength),
+    // coming and going over about dunePatchKm (the calmest stretches duneCalm of the strongest), fading in from the sand
+    // sea's edge (its share duneErg[0] … duneErg[1]); there the relief noise ergNoise of itself (a sand sea's floor smooth)
+    duneKm: 3.2, duneAmpKm: 0.012, duneJitter: 0.4, duneSpace: 0.12, duneHeights: 0.7, duneLee: 0.35, dunePatchKm: 60, duneCalm: 0.3,
+    duneErg: [0.15, 0.95], ergNoise: 0.3,
     // coasts: the coastline wandering by up to this (more on rocky coasts), on a slope of at least this
     coastWiggleKm: 2.2, coastMinSlope: 0.004,
     coastRock: 0.6,             // …and by the rock: hard rock out as headlands, soft back into bays (Dorset's coast) — its
                                 // hardness from ½ counting this much beside the wander's noise
+    // lakes: the shore where the finer ground lies under the lake's level (the picture keeps each lake pixel's level:
+    // finish.js finishRaster) — so it follows the detail — and wandering, octave by octave, by up to this share of the
+    // picture's pixel (its coarsest)
+    lakeShores: true, lakeWiggle: 0.3,
+    // rivers: each line led into the relief noise's valleys, octave by octave as the pixels allow — moved down the noise's
+    // own slope, by up to bendAmp × each octave's wavelength (half of that where there is no noise, all where it is full:
+    // a lowland river still winds) — the same
+    // for the line drawn and the ground beside it (a field, not a river's own: where rivers meet they still meet); along it
+    // the detail calmed — a floor riverFloorKm wide at 40 m³/s (× (q / 40)^0.35), easing out over riverValley floors more,
+    // the more the more it carries (none at riverMinQ, all from riverFullQ) — and the side valleys turned down toward it
+    // (riverPull, as a slope). A line on the land, never a trench.
+    riverBends: true, bendAmp: 0.25, riverFloorKm: 0.4, riverValley: 6, riverPull: 0.03, riverMinQ: 8, riverFullQ: 400,
+    // relief noise, before the rivers and the ridges: hills and knolls below the mesh's scale, from its coarsest octave
+    // down — rounded ridges (this share) and swells — on high, gentle ground most: each octave less where the ground is steep
+    // (the slope the coarser left too: it reads as eroded), less along rivers (where the water gathers); on low land
+    // noiseLow of it (from none at the shore to that by noiseLand[0] km up, all by noiseLand[1]); ± noiseGamma × its
+    // wavelength, coming and going over about noisePatchKm (its calmest stretches noiseCalm of its strongest); the finer
+    // octaves weaker still: × (λ / the coarsest) to noiseSpectrum
+    reliefNoise: true, noiseGamma: 0.008, noiseSpectrum: 0.35, noiseSlope: 0.06, noiseLand: [0.15, 1.5], noiseLow: 0.3, noiseRidge: 0.45, noiseCalm: 0.35, noisePatchKm: 160,
+    // the ridges and valleys above (gully…): drawn after the noise, over it — or not at all; and the layered rock's benches
+    // (bed…) — stepped by the ground without the noise (by it, each knoll ringed with steps like a fingerprint) — or not.
+    // Both off (2026-11-12, the owner: a texture "slapped on", "hard to understand where it goes")
+    ridgesOn: false, benchesOn: false,
 };
+
+/** km a pixel of the 2048-wide texture the rivers are kept on (finish-view.js riverSegments), along the equator. */
+export const KM2048 = TAU * R / 2048;
+/** A world's rivers' bends' seed, from its rivers (the page and the detail's workers both have them). */
+export function riverSeed(rv) {
+    let h = rv.lat.length | 0;
+    for (let i = 0; i < Math.min(8, rv.lat.length); i++) h = Math.imul(h ^ Math.round(rv.lat[i] * 1e4), 0x9e3779b1) ^ Math.round(rv.lon[i] * 1e4);
+    return (h >>> 0) & 0xffffff;
+}
+/** How many pieces a river's segment (x0, y0 → x1, y1 on the 2048-wide texture) is bent in at pxKm km a pixel: a piece
+ *  for every ¾ pixel or so (the finest bend drawn spans minPx of them). */
+export function bendSteps(x0, y0, x1, y1, pxKm) {
+    const cl = Math.max(0.05, Math.cos((0.5 - (y0 + y1) / 2048) * Math.PI)), km = KM2048 * Math.hypot((x1 - x0) * cl, y1 - y0);
+    return Math.max(1, Math.min(96, Math.ceil(km / (0.75 * pxKm))));
+}
+/** The relief noise's weight by the ground's height (km): noiseLow of it on low land (none at the shore), all on high. */
+const noiseLand = hKm => FINE.noiseLow * smooth(0, FINE.noiseLand[0], hKm) + (1 - FINE.noiseLow) * smooth(FINE.noiseLand[0], FINE.noiseLand[1], hKm);
+/** The relief noise's coming and going at a place P (km): its calmest stretches noiseCalm of its strongest (patchOf of
+ *  the noise patchNoise draws there; its finest wavelength noisePatchKm / 2.3). */
+const patchNoise = (px, py, pz, seed) => { const pf = 1 / FINE.noisePatchKm; return smoothNoise(px * pf, py * pf, pz * pf, seed * 5 + 61) + 0.5 * smoothNoise(px * pf * 2.3, py * pf * 2.3, pz * pf * 2.3, seed * 5 + 62); };
+const patchOf = v => FINE.noiseCalm + (1 - FINE.noiseCalm) * smooth(-0.35, 0.35, v);
+const noisePatch = (px, py, pz, seed) => patchOf(patchNoise(px, py, pz, seed));
+/** The relief noise's weight at a point of the 2048-wide texture (its land and its coming and going, as the ground has it
+ *  but for the rivers' calm and its slope): from the picture's heights (r: the finished moment's raster, whole — read on the
+ *  page, never in a worker: the workers are sent each segment's ends'). How far a river there follows the noise. */
+export function bendScale(r, x, y, seed) {
+    const u = x / 2048 * r.w - 0.5, v = y / 1024 * r.h - 0.5, x0 = Math.floor(u), y0 = Math.max(0, Math.min(r.h - 2, Math.floor(v))), fx = u - x0, fy = Math.max(0, Math.min(1, v - y0));
+    const a = ((x0 % r.w) + r.w) % r.w, b = (a + 1) % r.w, H = r.heightM;
+    const hm = (1 - fy) * ((1 - fx) * H[y0 * r.w + a] + fx * H[y0 * r.w + b]) + fy * ((1 - fx) * H[(y0 + 1) * r.w + a] + fx * H[(y0 + 1) * r.w + b]);
+    const lon = x / 2048 * TAU - Math.PI, lat = (0.5 - y / 1024) * Math.PI, cl = Math.cos(lat);
+    // (in a sand sea the noise quieter: the drivers' sand sea there, bilinear)
+    const d = r.drivers, E = d?.erg;
+    let sand = 1;
+    if (E) {
+        const du = x / 2048 * d.w - 0.5, dv = y / 1024 * d.h - 0.5, dx0 = Math.floor(du), dy0 = Math.max(0, Math.min(d.h - 2, Math.floor(dv))), gx = du - dx0, gy = Math.max(0, Math.min(1, dv - dy0));
+        const da = ((dx0 % d.w) + d.w) % d.w, db = (da + 1) % d.w;
+        sand = sandNoise(((1 - gy) * ((1 - gx) * E[dy0 * d.w + da] + gx * E[dy0 * d.w + db]) + gy * ((1 - gx) * E[(dy0 + 1) * d.w + da] + gx * E[(dy0 + 1) * d.w + db])) / 255);
+    }
+    return 0.5 + 0.5 * noiseLand(hm / 1000) * noisePatch(R * cl * Math.cos(lon), R * cl * Math.sin(lon), R * Math.sin(lat), seed) * sand;
+}
+/** The relief noise's share in a sand sea (erg: its share there, 0 … 1): ergNoise of itself where the sand sea is full. */
+const sandNoise = erg => 1 - (1 - FINE.ergNoise) * smooth(FINE.duneErg[0], FINE.duneErg[1], erg);
+/** A river's point (x, y on the 2048-wide texture) as drawn at pxKm km a pixel: moved down the relief noise's slope — each
+ *  octave the ground is drawn with at this width, its own way down, by up to bendAmp × its wavelength × its weight in the
+ *  ground — times `amp` (bendScale): into out. */
+export function bendRiver(x, y, pxKm, seed, cellKm, out, amp = 1) {
+    const lon = x / 2048 * TAU - Math.PI, lat = (0.5 - y / 1024) * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat), co = Math.cos(lon), so = Math.sin(lon);
+    const px = R * cl * co, py = R * cl * so, pz = R * sl;
+    // (east and north, in space)
+    const ex = -so, ey = co, nx = -sl * co, ny = -sl * so, nz = cl, h = 0.05, rg = FINE.noiseRidge;
+    const lam0 = Math.min(FINE.gullyMaxKm, FINE.gullyCells * cellKm);
+    let de = 0, dn = 0;
+    for (let lam = lam0, o = 0; o < 7; lam /= 2, o++) {
+        const f = smooth(FINE.minPx, 2 * FINE.minPx, lam / pxKm);
+        if (!(f > 0)) break;
+        if (!(f > 0.02)) continue;
+        const k = 1 / lam, fx = px * k, fy = py * k, fz = pz * k, s1 = seed * 37 + o * 101 + 1, n = smoothNoise(fx, fy, fz, s1);
+        const ge = (smoothNoise(fx + h * ex, fy + h * ey, fz, s1) - smoothNoise(fx - h * ex, fy - h * ey, fz, s1)) / (2 * h);
+        const gn = (smoothNoise(fx + h * nx, fy + h * ny, fz + h * nz, s1) - smoothNoise(fx - h * nx, fy - h * ny, fz - h * nz, s1)) / (2 * h);
+        // (the ground's octave: (1 − rg) n / 0.42 + rg (0.36 − √(n² + 0.012)) / 0.25 — its slope along n)
+        const dv = (1 - rg) / 0.42 - rg * n / (0.25 * Math.sqrt(n * n + 0.012)), a = amp * f * FINE.bendAmp * lam * (lam / lam0) ** FINE.noiseSpectrum * dv / 4;
+        de -= a * ge; dn -= a * gn;
+    }
+    out[0] = x + de / (KM2048 * Math.max(0.05, cl)); out[1] = y - dn / KM2048;
+    return out;
+}
+/** A point t (0 … 1) along a river's segment (x0, y0 → x1, y1) on the curve through it and its neighbours' far ends
+ *  (px, py before it; qx, qy after it: a Catmull–Rom — so the line has no corners where its points are): into out. */
+export function riverCurve(x0, y0, x1, y1, px, py, qx, qy, t, out) {
+    const t2 = t * t, t3 = t2 * t, a = -t3 + 2 * t2 - t, b = 3 * t3 - 5 * t2 + 2, c = -3 * t3 + 4 * t2 + t, d = t3 - t2;
+    out[0] = 0.5 * (a * px + b * x0 + c * x1 + d * qx); out[1] = 0.5 * (a * py + b * y0 + c * y1 + d * qy);
+    return out;
+}
+/** A river's floor's width (km) by its flow (m³/s). */
+const riverFloorKm = q => Math.max(0.15, Math.min(2.5, FINE.riverFloorKm * (q / 40) ** 0.35));
+
+/** The rivers the detail lies along: every reach carrying riverMinQ m³/s, smoothed as finish-view.js riverSegments
+ *  smooths those it draws (Chaikin, twice, on the 2048-wide texture), as segments (xy: x0 y0 x1 y1, q: the flow), and a
+ *  grid of them by their middles (cells C px square). Once per moment. */
+function riverIndex(R0, raster) {
+    const W2 = 2048, H2 = 1024, xy = [], nb = [], qs = [], starts = [...R0.start, R0.lat.length];
+    for (let r = 0; r < starts.length - 1; r++) {
+        const parts = [[]];
+        for (let i = starts[r]; i < starts[r + 1]; i++) {
+            if (!(R0.q[i] >= FINE.riverMinQ)) { if (parts[parts.length - 1].length) parts.push([]); continue; }
+            const p = [(R0.lon[i] + 180) / 360 * W2, (90 - R0.lat[i]) / 180 * H2, R0.q[i]], cur = parts[parts.length - 1];
+            if (cur.length && Math.abs(p[0] - cur[cur.length - 1][0]) > W2 / 2) parts.push([]);
+            parts[parts.length - 1].push(p);
+        }
+        for (let pts of parts) {
+            if (pts.length < 2) continue;
+            for (let it = 0; it < 2; it++) {
+                const nx = [pts[0]];
+                for (let i = 0; i < pts.length - 1; i++) {
+                    const a = pts[i], b = pts[i + 1];
+                    nx.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2]]);
+                }
+                nx.push(pts[pts.length - 1]); pts = nx;
+            }
+            for (let i = 0; i < pts.length - 1; i++) {
+                const a = pts[Math.max(0, i - 1)], b = pts[Math.min(pts.length - 1, i + 2)];
+                xy.push(pts[i][0], pts[i][1], pts[i + 1][0], pts[i + 1][1]); nb.push(a[0], a[1], b[0], b[1]); qs.push(pts[i][2]);
+            }
+        }
+    }
+    const S = { xy: Float32Array.from(xy), nb: Float32Array.from(nb), q: Float32Array.from(qs) }, n = S.q.length, C = 8;
+    S.amp = new Float32Array(2 * n);
+    const sd = riverSeed(R0);
+    for (let i = 0; i < n; i++) { S.amp[2 * i] = bendScale(raster, S.xy[4 * i], S.xy[4 * i + 1], sd); S.amp[2 * i + 1] = bendScale(raster, S.xy[4 * i + 2], S.xy[4 * i + 3], sd); }
+    const GW = W2 / C, GH = H2 / C, count = new Int32Array(GW * GH + 1), cell = new Int32Array(n);
+    for (let i = 0; i < n; i++) {
+        const o = 4 * i, gx = Math.min(GW - 1, Math.max(0, Math.floor((S.xy[o] + S.xy[o + 2]) / (2 * C)))), gy = Math.min(GH - 1, Math.max(0, Math.floor((S.xy[o + 1] + S.xy[o + 3]) / (2 * C))));
+        count[(cell[i] = gy * GW + gx) + 1]++;
+    }
+    for (let c = 0; c < GW * GH; c++) count[c + 1] += count[c];
+    const items = new Int32Array(n), at = count.slice(0, GW * GH);
+    for (let i = 0; i < n; i++) items[at[cell[i]]++] = i;
+    return { ...S, C, GW, GH, count, items };
+}
 
 /** What a finished moment's detail is drawn from: { r (the picture), d (its drivers, or null), g (its rock picture, or
  *  null: a moment without geology), c (its climate's picture: tAnnual, pAnnual — or null), seed, cellKm (the mesh's spacing) }. */
 export function detailSource(fin, seed) {
     const r = fin.raster, cells = fin.cells ?? 2.5e6;
-    return { r, d: r.drivers ?? null, g: r.geology?.rock ? r.geology : null, c: fin.climate?.raster?.tAnnual ? fin.climate.raster : null, seed, cellKm: 24200 / Math.sqrt(cells) };
+    return { r, d: r.drivers ?? null, g: r.geology?.rock ? r.geology : null, c: fin.climate?.raster?.tAnnual ? fin.climate.raster : null, seed, cellKm: 24200 / Math.sqrt(cells),
+        rv: fin.rivers?.lat?.length ? riverIndex(fin.rivers, r) : null, rseed: fin.rivers?.lat?.length ? riverSeed(fin.rivers) : 0 };
 }
 
 /** How many pixels a window reads past its edges: its coasts' reach, and the octaves' slopes a pixel each. */
-const marginPx = pxKm => Math.min(64, Math.ceil(3 * FINE.coastWiggleKm / pxKm) + 8);
+const marginPx = pxKm => Math.min(64, Math.ceil(3 * Math.max(FINE.coastWiggleKm, 3) / pxKm) + 8);
 
 /**
  * What one window needs of a source — the picture's and the drivers' pixels under it and its margin — small enough to
@@ -100,8 +257,44 @@ export function cropSource(src, win) {
         }
         return out;
     };
-    return { r: sub(src.r, ['heightM', 'ocean', 'water'], src.r.w / W), d: src.d ? sub(src.d, DRIVER_FIELDS, src.d.w / W) : null,
-        g: src.g ? sub(src.g, ['rock'], src.g.w / W) : null, c: src.c ? sub(src.c, ['tAnnual', 'pAnnual'], src.c.w / W) : null, seed: src.seed, cellKm: src.cellKm };
+    const r = sub(src.r, ['heightM', 'ocean', 'water'], src.r.w / W);
+    // (each lake pixel's level, m, over the crop: −32768 where none)
+    const L = src.r.lakes;
+    if (L && L.at.length) {
+        const lm = r.lakeM = new Int16Array(r.w * r.h).fill(-32768), RW = src.r.w;
+        for (let y = 0; y < r.h; y++) {
+            const row = (r.y0 + y) * RW;
+            let lo = 0, hi = L.at.length;
+            while (lo < hi) { const m = (lo + hi) >> 1; if (L.at[m] < row) lo = m + 1; else hi = m; }
+            for (let k = lo; k < L.at.length && L.at[k] < row + RW; k++) {
+                const x = ((L.at[k] - row - r.x0) % RW + RW) % RW;
+                if (x < r.w) lm[y * r.w + x] = L.levelM[k];
+            }
+        }
+    }
+    // (the rivers within reach of the window and its margin — a river's floor and valley, its bends — shifted by a turn
+    // where the window runs past the planet's edge)
+    let rv = null;
+    if (src.rv) {
+        const G = src.rv, k = W / 2048, HE = W >> 1, reach = 22 / KM2048 + 2;
+        const latMax = Math.max(Math.abs(90 - (y0 - M) / HE * 180), Math.abs(90 - (y0 + h + M) / HE * 180));
+        const rx = reach / Math.max(0.05, Math.cos(Math.min(89, latMax) * D2R)), ya = (y0 - M) / k - reach, yb = (y0 + h + M) / k + reach;
+        const xy = [], nb = [], q = [], amp = [];
+        for (const turn of [-1, 0, 1]) {
+            const xa = (x0 - M) / k - turn * 2048 - rx, xb = (x0 + w + M) / k - turn * 2048 + rx;
+            const ga = Math.max(0, Math.floor(xa / G.C)), gb = Math.min(G.GW - 1, Math.floor(xb / G.C)), gya = Math.max(0, Math.floor(ya / G.C)), gyb = Math.min(G.GH - 1, Math.floor(yb / G.C));
+            if (ga > gb || gya > gyb) continue;
+            for (let gy = gya; gy <= gyb; gy++) for (let j = G.count[gy * G.GW + ga]; j < G.count[gy * G.GW + gb + 1]; j++) {
+                const i = G.items[j], o = 4 * i, mx = (G.xy[o] + G.xy[o + 2]) / 2, my = (G.xy[o + 1] + G.xy[o + 3]) / 2;
+                if (mx < xa || mx > xb || my < ya || my > yb) continue;
+                xy.push(G.xy[o] + turn * 2048, G.xy[o + 1], G.xy[o + 2] + turn * 2048, G.xy[o + 3]); nb.push(G.nb[o] + turn * 2048, G.nb[o + 1], G.nb[o + 2] + turn * 2048, G.nb[o + 3]);
+                q.push(G.q[i]); amp.push(G.amp[2 * i], G.amp[2 * i + 1]);
+            }
+        }
+        rv = { xy: Float32Array.from(xy), nb: Float32Array.from(nb), q: Float32Array.from(q), amp: Float32Array.from(amp) };
+    }
+    return { r, d: src.d ? sub(src.d, DRIVER_FIELDS, src.d.w / W) : null,
+        g: src.g ? sub(src.g, ['rock'], src.g.w / W) : null, c: src.c ? sub(src.c, ['tAnnual', 'pAnnual'], src.c.w / W) : null, seed: src.seed, cellKm: src.cellKm, rv, rseed: src.rseed };
 }
 
 /**
@@ -164,17 +357,18 @@ const mixHash = h => { h = Math.imul(h ^ (h >>> 16), 0x7feb352d); h = Math.imul(
 /**
  * The phase (−π … π) at point p (km) of stripes of wavelength lam (km) running across the unit direction a — crests where
  * the phase is 0, troughs at ±π — each lattice point's stripe its own phase, summed as phasors (so the stripes stay whole
- * where kernels disagree).
+ * where kernels disagree); with J, each its own wavelength too (lam × 1 ± J: the spacing irregular).
  */
 const TRIG = 4096, TRIG_K = TRIG / TAU, COS_T = new Float32Array(TRIG), SIN_T = new Float32Array(TRIG);
+let PH_COH = 0;              // (the last phacelle's coherence: its phasors' sum over their weights, 0 … 1 — low where the stripes fork)
 for (let i = 0; i < TRIG; i++) { COS_T[i] = Math.cos(i / TRIG_K); SIN_T[i] = Math.sin(i / TRIG_K); }
 const KR = 1.25, KR2 = KR * KR;
 /** The nearest a lattice point of the cell offset o (−1, 0, 1) from p's can lie from p along one axis (f p's coordinate, c that cell's). */
 const near = (o, f, c) => (o < 0 ? f - c - 0.75 : o > 0 ? c + 0.25 - f : 0);
-function phacelle(px, py, pz, ax, ay, az, lam, s) {
+function phacelle(px, py, pz, ax, ay, az, lam, s, J = 0) {
     const inv = 1 / lam, fx = px * inv, fy = py * inv, fz = pz * inv;
     const ix = Math.floor(fx), iy = Math.floor(fy), iz = Math.floor(fz);
-    let re = 0, im = 0;
+    let re = 0, im = 0, ws = 0;
     for (let oz = -1; oz <= 1; oz++) {
         const cz = iz + oz, ez = near(oz, fz, cz), ez2 = ez * ez;
         for (let oy = -1; oy <= 1; oy++) {
@@ -187,11 +381,12 @@ function phacelle(px, py, pz, ax, ay, az, lam, s) {
                 const dx = fx - cx - 0.25 - 0.5 * (h & 1023) / 1023, dy = fy - cy - 0.25 - 0.5 * ((h >>> 10) & 1023) / 1023, dz = fz - cz - 0.25 - 0.5 * ((h >>> 20) & 1023) / 1023;
                 const r2 = dx * dx + dy * dy + dz * dz;
                 if (r2 >= KR2) continue;
-                const w = (1 - r2 / KR2) ** 2, t = ((TRIG * (dx * ax + dy * ay + dz * az)) | 0) + (h2 >>> 20);
-                re += w * COS_T[t & (TRIG - 1)]; im += w * SIN_T[t & (TRIG - 1)];
+                const w = (1 - r2 / KR2) ** 2, t = ((TRIG * (J ? 1 + J * (2 * ((h2 >>> 8) & 255) / 255 - 1) : 1) * (dx * ax + dy * ay + dz * az)) | 0) + (h2 >>> 20);
+                re += w * COS_T[t & (TRIG - 1)]; im += w * SIN_T[t & (TRIG - 1)]; ws += w;
             }
         }
     }
+    PH_COH = ws > 0 ? Math.hypot(re, im) / ws : 0;
     return Math.atan2(im, re);
 }
 /**
@@ -244,6 +439,7 @@ function smoothNoise(fx, fy, fz, s) {
     return v * NOISE_K;
 }
 const NOISE_K = 1 / 100;     // (scales smoothNoise to about the simplex noise's spread: σ ≈ 0.42)
+const NOISE_SAMPLES = 8;     // (fineWindow's gridNoise: at least this many samples to a noise's wavelength)
 
 /**
  * The detailed window: W the full width it is a window of (px; the planet W × W/2), its columns x0 … x0 + w − 1 (wrapping)
@@ -268,6 +464,9 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // detail is steered by — the Catmull–Rom's slope turns at each of the picture's pixels, and stripes steered by it creased
     // there ──
     const hb = new Float32Array(N), hs = new Float32Array(N), seaB = new Uint8Array(N), watB = new Uint8Array(N), k = RW / W;
+    // (each pixel's nearest lake's level, km, and its kind — from the picture's lake pixels among the sixteen it is drawn
+    // from, the nearest within 1.6 of its pixels; NaN where none)
+    const LM = FINE.lakeShores && k < 1 ? r.lakeM : null, lvl = LM ? new Float32Array(N).fill(NaN) : null, lkind = LM ? new Uint8Array(N) : null;
     {
         const cx = new Int32Array(4 * ew), fxs = new Float32Array(ew), cy = new Int32Array(4 * eh), fys = new Float32Array(eh), H4 = r.heightM;
         for (let i = 0; i < ew; i++) { const u = (X0 + i + 0.5) * k - 0.5, xi = Math.floor(u); fxs[i] = u - xi; for (let q = 0; q < 4; q++) cx[4 * i + q] = colR(((xi - 1 + q) % RW + RW) % RW); }
@@ -292,6 +491,19 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
                 kinds[r.water[a]] += wa; kinds[r.water[b]] += wb; kinds[r.water[c]] += wc; kinds[r.water[e]] += wd;
                 let best = 0; for (let q = 1; q < 4; q++) if (kinds[q] > kinds[best]) best = q;
                 watB[p] = best;
+            }
+            if (LM) {
+                let near = 2.56, at = -1;
+                for (let qy = 0; qy < 4; qy++) {
+                    const rr = cy[4 * j + qy], dy = qy - 1 - fy;
+                    for (let qx = 0; qx < 4; qx++) {
+                        const ii = rr + cx[4 * i + qx];
+                        if (LM[ii] === -32768) continue;
+                        const dx = qx - 1 - fx, d2 = dx * dx + dy * dy;
+                        if (d2 < near) { near = d2; at = ii; }
+                    }
+                }
+                if (at >= 0) { lvl[p] = LM[at] / 1000; lkind[p] = r.water[at]; }
             }
         }
     }
@@ -328,6 +540,48 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     const P = [0, 0, 0], A3 = [0, 0, 0];
     const place = (j, i) => { P[0] = R * cosLa[j] * cosLo[i]; P[1] = R * cosLa[j] * sinLo[i]; P[2] = R * sinLa[j]; };
     const toSpace = (j, i, ue, un) => { A3[0] = -ue * sinLo[i] - un * sinLa[j] * cosLo[i]; A3[1] = ue * cosLo[i] - un * sinLa[j] * sinLo[i]; A3[2] = un * cosLa[j]; };
+    // (smoothNoise at the place × k1 × k2 (seed s: its wavelength 1 / (k1 k2) km) at each pixel `mask` marks — read off a
+    // grid of it as fine as that wavelength asks, a sample every 2^k of the planet's pixels and at least NOISE_SAMPLES to
+    // the wavelength, a Catmull–Rom between them (where the wavelength spans fewer than twice that, the noise at each pixel
+    // itself). The grid is the planet's — its every 2^k-th pixel — so windows drawn apart read the same; into out)
+    const gridNoise = (k1, k2, s, mask, out) => {
+        let st = 1;
+        while (2 * st * NOISE_SAMPLES * k1 * k2 * pxKm <= 1) st *= 2;
+        if (st === 1) {
+            for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) { const p = j * ew + i; if (mask[p]) { place(j, i); out[p] = smoothNoise(P[0] * k1 * k2, P[1] * k1 * k2, P[2] * k1 * k2, s); } }
+            return;
+        }
+        const Yc = j => Math.min(HE - 1, Math.max(0, Y0 + j));
+        const a0 = Math.floor(X0 / st) - 1, gw = Math.floor((X0 + ew - 1) / st) + 3 - a0, b0 = Math.floor(Yc(0) / st) - 1, gh = Math.floor(Yc(eh - 1) / st) + 3 - b0;
+        // (the cells the masked pixels lie in, and the grid's points their Catmull–Roms read)
+        const cell = new Uint8Array(gw * gh), pt = new Uint8Array(gw * gh);
+        for (let j = 0; j < eh; j++) { const row = (Math.floor(Yc(j) / st) - b0) * gw; for (let i = 0; i < ew; i++) if (mask[j * ew + i]) cell[row + Math.floor((X0 + i) / st) - a0] = 1; }
+        for (let b = 0; b < gh; b++) for (let a = 0; a < gw; a++) if (cell[b * gw + a]) for (let qb = b - 1; qb <= b + 2; qb++) pt.fill(1, qb * gw + a - 1, qb * gw + a + 3);
+        const G = new Float64Array(gw * gh), cO = new Float64Array(gw), sO = new Float64Array(gw);
+        for (let a = 0; a < gw; a++) { const lo = (((a0 + a) * st + 0.5) * 360 / W - 180) * D2R; cO[a] = Math.cos(lo); sO[a] = Math.sin(lo); }
+        for (let b = 0; b < gh; b++) {
+            const Y = Math.min(HE - 1, Math.max(0, (b0 + b) * st)), la = (90 - (Y + 0.5) * 180 / HE) * D2R, cA = Math.cos(la), sA = Math.sin(la);
+            for (let a = 0; a < gw; a++) { const q = b * gw + a; if (pt[q]) G[q] = smoothNoise(R * cA * cO[a] * k1 * k2, R * cA * sO[a] * k1 * k2, R * sA * k1 * k2, s); }
+        }
+        // (each column's four points and weights; then row by row, the four rows' blend down each column, then across)
+        const ca = new Int32Array(ew), cw = new Float64Array(4 * ew), rowG = new Float64Array(gw), wy = [0, 0, 0, 0];
+        const crw = (t, o, w) => { const t2 = t * t, t3 = t2 * t; w[o] = 0.5 * (-t3 + 2 * t2 - t); w[o + 1] = 0.5 * (3 * t3 - 5 * t2 + 2); w[o + 2] = 0.5 * (-3 * t3 + 4 * t2 + t); w[o + 3] = 0.5 * (t3 - t2); };
+        for (let i = 0; i < ew; i++) { const X = X0 + i, a = Math.floor(X / st); ca[i] = a - a0 - 1; crw((X - a * st) / st, 4 * i, cw); }
+        for (let j = 0; j < eh; j++) {
+            let any = false;
+            for (let i = 0; i < ew && !any; i++) if (mask[j * ew + i]) any = true;
+            if (!any) continue;
+            const Y = Yc(j), b = Math.floor(Y / st), r0 = (b - b0 - 1) * gw;
+            crw((Y - b * st) / st, 0, wy);
+            for (let a = 0; a < gw; a++) rowG[a] = wy[0] * G[r0 + a] + wy[1] * G[r0 + gw + a] + wy[2] * G[r0 + 2 * gw + a] + wy[3] * G[r0 + 3 * gw + a];
+            for (let i = 0; i < ew; i++) {
+                const p = j * ew + i;
+                if (!mask[p]) continue;
+                const c = ca[i], o = 4 * i;
+                out[p] = cw[o] * rowG[c] + cw[o + 1] * rowG[c + 1] + cw[o + 2] * rowG[c + 2] + cw[o + 3] * rowG[c + 3];
+            }
+        }
+    };
 
     // ── the picture's slope (km per km, east and north) and how far from its coast (km; + on land, − at sea) ──
     const gE = new Float32Array(N), gN = new Float32Array(N);
@@ -343,16 +597,64 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     if (signal?.aborted) return null;
 
     lap('slope');
+    // ── the rivers: the detail calmed along each river's line as drawn at this zoom (bent: bendRiver, in the same pieces) —
+    // calm: 0 on its floor … 1 past its valley, the calmest of the rivers' there (each river looked for no farther than its
+    // valley reaches) — and, for the ridges, the nearest river's distance (km) and floor: their side valleys turned down
+    // toward it (pull: the distance's slope, as a slope) ──
+    let calm = null, pullE = null, pullN = null;
+    if (FINE.riverBends && src.rv?.q.length) {
+        const { xy, nb, q, amp: ra } = src.rv, kx = W / 2048, C2 = [0, 0], A = [0, 0], B = [0, 0], pull = FINE.ridgesOn;
+        const rd = pull ? new Float32Array(N).fill(1e9) : null, fl = pull ? new Float32Array(N) : null, st = pull ? new Float32Array(N) : null;
+        calm = new Float32Array(N).fill(1);
+        const stamp = (ax, ay, bx, by, floor, valley, reach, strength) => {
+            const j0 = Math.max(0, Math.floor(Math.min(ay, by) - reach / pxKm)), j1 = Math.min(eh - 1, Math.ceil(Math.max(ay, by) + reach / pxKm));
+            for (let j = j0; j <= j1; j++) {
+                const cxk = pxKm * Math.max(0.05, cosLa[j]), rxp = reach / cxk;
+                const i0 = Math.max(0, Math.floor(Math.min(ax, bx) - rxp)), i1 = Math.min(ew - 1, Math.ceil(Math.max(ax, bx) + rxp));
+                const Ax = ax * cxk, Ay = ay * pxKm, ux = bx * cxk - Ax, uy = by * pxKm - Ay, uu = ux * ux + uy * uy, py = (j + 0.5) * pxKm - Ay;
+                for (let i = i0; i <= i1; i++) {
+                    const px = (i + 0.5) * cxk - Ax, t = uu > 0 ? Math.max(0, Math.min(1, (px * ux + py * uy) / uu)) : 0, dd = Math.hypot(px - t * ux, py - t * uy), p = j * ew + i;
+                    if (dd < valley) { const c = 1 - strength * (1 - smooth(floor, valley, dd)); if (c < calm[p]) calm[p] = c; }
+                    if (pull && dd < rd[p]) { rd[p] = dd; fl[p] = floor; st[p] = strength; }
+                }
+            }
+        };
+        for (let sg = 0; sg < q.length; sg++) {
+            const strength = smooth(Math.log(FINE.riverMinQ), Math.log(FINE.riverFullQ), Math.log(q[sg]));
+            if (!(strength > 0)) continue;
+            const o = 4 * sg, floor = riverFloorKm(q[sg]), valley = floor * (1 + FINE.riverValley), reach = pull ? floor * (2 + 2 * FINE.riverValley) + 1 : valley;
+            const n = bendSteps(xy[o], xy[o + 1], xy[o + 2], xy[o + 3], pxKm), a0 = ra[2 * sg], a1 = ra[2 * sg + 1];
+            bendRiver(xy[o], xy[o + 1], pxKm, src.rseed, src.cellKm, A, a0);
+            for (let kk = 1; kk <= n; kk++) {
+                const t = kk / n;
+                riverCurve(xy[o], xy[o + 1], xy[o + 2], xy[o + 3], nb[o], nb[o + 1], nb[o + 2], nb[o + 3], t, C2);
+                bendRiver(C2[0], C2[1], pxKm, src.rseed, src.cellKm, B, a0 + t * (a1 - a0));
+                stamp(A[0] * kx - X0, A[1] * kx - Y0, B[0] * kx - X0, B[1] * kx - Y0, floor, valley, reach, strength);
+                A[0] = B[0]; A[1] = B[1];
+            }
+        }
+        if (pull) {
+            pullE = new Float32Array(N); pullN = new Float32Array(N);
+            const rc = new Float32Array(N);
+            for (let p = 0; p < N; p++) rc[p] = Math.min(rd[p], 40);
+            gradient(rc, pullE, pullN);
+            for (let p = 0; p < N; p++) {
+                const f = fl[p], wp = rd[p] < 1e8 ? FINE.riverPull * st[p] * (1 - smooth(f * (1 + FINE.riverValley), f * (2 + 2 * FINE.riverValley), rd[p])) : 0;
+                pullE[p] *= wp; pullN[p] *= wp;
+            }
+        }
+    }
+    lap('rivers');
     // ── ridges and valleys, octave by octave, each turned by the slope the coarser ones left ──
     const amp = new Float32Array(N), dE = new Float32Array(N), dN = new Float32Array(N), ps = 1 / FINE.gullyPatchKm;
     const lam0 = Math.min(FINE.gullyMaxKm, FINE.gullyCells * src.cellKm), octaveF = lam => fade(lam) * smooth(1.02 * lam0, 0.45 * lam0, lam);
     // (none of the octaves drawn at this zoom — all of them wider than the mesh holds or too fine for the pixels: the
     // weights are not needed)
     let drawn = false;
-    for (let lam = lam0, o = 0; fade(lam) > 0 && o < 7; lam /= 2, o++) if (octaveF(lam) > 0.02) { drawn = true; break; }
+    if (FINE.ridgesOn) for (let lam = lam0, o = 0; fade(lam) > 0 && o < 7; lam /= 2, o++) if (octaveF(lam) > 0.02) { drawn = true; break; }
     // (the rocks, where any of their features is drawn at this zoom: the ridges' octaves, steps on the gentlest slopes
     // they are drawn on, the rock's own landforms)
-    const bedOn = fade(0.75 * FINE.bedStepKm / FINE.bedSlope[0]) > 0;
+    const bedOn = FINE.benchesOn && fade(0.75 * FINE.bedStepKm / FINE.bedSlope[0]) > 0;
     const knF = fade(FINE.knobKm), hoF = fade(0.6 * FINE.hollowKm), formsOn = knF > 0.05 || hoF > 0, coastOn = fade(0.7 * FINE.coastWiggleKm) > 0;
     const lith = src.g?.rock && (drawn || bedOn || formsOn || coastOn) ? rockProps(src, W, X0, Y0, ew, eh, latR) : null;
     // (how much of each pixel's rock dissolves: karst — its valleys fewer)
@@ -378,6 +680,42 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
         amp[p] = m * Math.min(1, rug / FINE.gullyFullKm) * (FINE.gullyDry + (1 - FINE.gullyDry) * wet) * (0.85 + 0.3 * val(d.young)) * patchy * (dis / 0.5) ** FINE.dissectPower * (1 - FINE.karstCalm * karst[p]);
         spec[p] = FINE.dissectSpectrum * (0.5 - dis);
     }
+    if (calm) for (let p = 0; p < N; p++) amp[p] *= calm[p];
+    // (a lowering never deeper than a share of the ground's height: a soft minimum)
+    const shareCap = (v, p) => { if (!(v < 0)) return v; const b = FINE.gullyMaxShare * Math.max(1e-4, hb[p]); return -(-v * b / Math.hypot(v, b)); };
+    // ── relief noise: hills and knolls, octave by octave from the mesh's scale down — rounded ridges and swells — most on
+    // high, gentle ground, each octave less where the ground (with the coarser octaves) is steep, less along the rivers,
+    // none on low land, coming and going from place to place; what the ridges and valleys then run over ──
+    let ND = null;                    // (the noise alone: the benches step the ground without it)
+    if (FINE.reliefNoise) {
+        const nA = new Float32Array(N), ns = src.rseed | 0, land = new Uint8Array(N), nv = new Float64Array(N), nw = new Float64Array(N), pf = 1 / FINE.noisePatchKm;
+        let any = false;
+        for (let p = 0; p < N; p++) if (!seaB[p] && hb[p] > 0) land[p] = any = 1;
+        // (each noise read off a grid as fine as its wavelength asks: gridNoise — its coming and going, patchNoise's two)
+        if (any) { gridNoise(pf, 1, ns * 5 + 61, land, nv); gridNoise(pf, 2.3, ns * 5 + 62, land, nw); }
+        for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
+            const p = j * ew + i;
+            if (!land[p]) continue;
+            if (d.erg) at(j, i);
+            nA[p] = noiseLand(hb[p]) * (calm ? calm[p] : 1) * patchOf(nv[p] + 0.5 * nw[p]) * (lvl && watB[p] ? 0.4 : 1) * (d.erg ? sandNoise(val(d.erg)) : 1);
+        }
+        const S2 = FINE.noiseSlope ** 2, rg = FINE.noiseRidge, on = new Uint8Array(N);
+        for (let p = 0; p < N; p++) on[p] = nA[p] > 0 ? 1 : 0;
+        for (let lam = lam0, o = 0; any && fade(lam) > 0 && o < 7; lam /= 2, o++) {
+            const f = fade(lam), A = FINE.noiseGamma * lam * f * (lam / lam0) ** FINE.noiseSpectrum, kf = 1 / lam, s1 = ns * 37 + o * 101 + 1;
+            if (!(f > 0.02)) continue;
+            gridNoise(kf, 1, s1, on, nv);
+            for (let p = 0; p < N; p++) {
+                if (!on[p]) continue;
+                const gx = gE[p] + dE[p], gy = gN[p] + dN[p], damp = 1 / (1 + (gx * gx + gy * gy) / S2), n1 = nv[p];
+                D[p] += A * nA[p] * damp * ((1 - rg) * n1 / 0.42 + rg * (0.36 - Math.sqrt(n1 * n1 + 0.012)) / 0.25);
+            }
+            gradient(D, dE, dN);
+            if (signal?.aborted) return null;
+        }
+        if (any) { for (let p = 0; p < N; p++) D[p] = shareCap(D[p], p); gradient(D, dE, dN); ND = D.slice(); }
+    }
+    lap('noise');
     const side = new Float32Array(N).fill(1);
     let oct = 0;
     for (let lam = lam0; drawn && fade(lam) > 0 && oct < 7; lam /= 2, oct++) {
@@ -392,7 +730,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
             const gate = smooth(0.15, 0.6, side[p]);
             if (gate <= 0) { side[p] = 0; continue; }
             // (the way down: the picture's slope, weighted so side valleys slant downstream, and the coarser octaves')
-            const ge = FINE.gullyFollow * gE[p] + dE[p], gn = FINE.gullyFollow * gN[p] + dN[p], gl = Math.hypot(ge, gn);
+            const ge = FINE.gullyFollow * (gE[p] + (pullE ? pullE[p] : 0)) + dE[p], gn = FINE.gullyFollow * (gN[p] + (pullN ? pullN[p] : 0)) + dN[p], gl = Math.hypot(ge, gn);
             if (!(gl > 1e-6)) continue;
             place(j, i); toSpace(j, i, -gn / gl, ge / gl);
             const ph = phacelle(P[0], P[1], P[2], A3[0], A3[1], A3[2], lam, s);
@@ -412,8 +750,6 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     // ── the rock's structure: layered rock stepped where the ground slopes through it — each place's height measured
     // from the beds' gently tilted surface, through a stair of treads and risers rounded at foot and rim (benches, the
     // rims of mesas, stepped canyon walls; cuestas where the beds dip against the slope) — crisp where it is dry ──
-    // (a lowering never deeper than a share of the ground's height: a soft minimum)
-    const shareCap = (v, p) => { if (!(v < 0)) return v; const b = FINE.gullyMaxShare * Math.max(1e-4, hb[p]); return -(-v * b / Math.hypot(v, b)); };
     const [rLo, rHi] = FINE.bedRainMm;
     if (lith && bedOn) {
         const dipF = 1 / FINE.bedDipWaveKm, riser = FINE.bedRiser, centre = 0.5 * (1 - riser) * 0.6;
@@ -431,7 +767,7 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
                         // (the beds: each its own thickness, 0.6–1.4 of a step, and its own hardness — a cliff-former's riser
                         // full, a soft bed's faint — the tread's foot at each bed's top, then its riser up to the next;
                         // continuous across every bed's top, where the stair meets the slope)
-                        const phi = (hb[p] + D[p] - FINE.bedDipKm * (n1 + 0.5 * n2)) / t;
+                        const phi = (hb[p] + D[p] - (ND ? ND[p] : 0) - FINE.bedDipKm * (n1 + 0.5 * n2)) / t;
                         let k = Math.floor(phi), lo = bedLevel(k, seed);
                         if (phi < lo) lo = bedLevel(--k, seed);
                         let hi = bedLevel(k + 1, seed);
@@ -480,28 +816,34 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     lap('rock');
     // ── dunes ──
     {
-        const lam = FINE.duneKm, f = fade(lam);
+        const lam = FINE.duneKm, f = fade(lam), lee = FINE.duneLee, J = FINE.duneJitter, fP = 1 / FINE.dunePatchKm, fS = 1 / (1.5 * lam), fH = 1 / lam;
         if (f > 0) for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
             const p = j * ew + i;
             if (seaB[p]) continue;
             at(j, i);
-            const e = smooth(0.3, 0.8, val(d.erg));
+            const e0 = smooth(FINE.duneErg[0], FINE.duneErg[1], val(d.erg)), e = e0 * e0;
             if (e <= 0 || !(dirAt(d.wind, d.erg) > 1e-3)) continue;
             const m = val(d.duneMode), ue = DIR[0], un = DIR[1];
             place(j, i);
+            // (fields coming and going; the crests nudged closer and wider apart — the place moved across them — and each
+            // its own height)
+            const patch = FINE.duneCalm + (1 - FINE.duneCalm) * smooth(-0.3, 0.3, smoothNoise(P[0] * fP, P[1] * fP, P[2] * fP, seed * 5 + 81));
+            const sh = FINE.duneSpace * lam * smoothNoise(P[0] * fS, P[1] * fS, P[2] * fS, seed * 5 + 93);
+            const hv = 1 - FINE.duneHeights + FINE.duneHeights * smooth(-0.4, 0.4, smoothNoise(P[0] * fH, P[1] * fH, P[2] * fH, seed * 5 + 97));
             let v = 0;
-            // (across the wind: a gentle windward slope, a steep lee face; along it where the seasons' winds cross)
+            // (across the wind: a gentle windward slope, a steeper lee face; along it where the seasons' winds cross —
+            // each faded where its stripes fork)
             if (m < 0.7) {
                 toSpace(j, i, ue, un);
-                const t = (phacelle(P[0], P[1], P[2], A3[0], A3[1], A3[2], lam, seed * 13 + 51) / TAU + 1) % 1, q = t < 0.75 ? t / 0.75 : (1 - t) / 0.25;
-                v += (1 - smooth(0.3, 0.7, m)) * (2 * q * q * (3 - 2 * q) - 1);
+                const t = (phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], lam, seed * 13 + 51, J) / TAU + 1) % 1, q = t < 1 - lee ? t / (1 - lee) : (1 - t) / lee;
+                v += (1 - smooth(0.3, 0.7, m)) * smooth(0.1, 0.5, PH_COH) * (2 * q * q * (3 - 2 * q) - 1);
             }
             if (m > 0.3) {
                 toSpace(j, i, -un, ue);
-                const ph = phacelle(P[0], P[1], P[2], A3[0], A3[1], A3[2], 0.8 * lam, seed * 13 + 52);
-                v += smooth(0.3, 0.7, m) * (1 - 2 * Math.abs(ph) / Math.PI);
+                const ph = phacelle(P[0] + sh * A3[0], P[1] + sh * A3[1], P[2] + sh * A3[2], A3[0], A3[1], A3[2], 0.8 * lam, seed * 13 + 52, J);
+                v += smooth(0.3, 0.7, m) * smooth(0.1, 0.5, PH_COH) * Math.cos(ph);
             }
-            D[p] += f * FINE.duneAmpKm * e * v;
+            D[p] += f * FINE.duneAmpKm * e * patch * hv * v;
         }
     }
 
@@ -523,13 +865,32 @@ export function fineWindow(src, { W, x0, y0, w, h }, signal = null) {
     }
 
     lap('coasts');
-    // ── the heights; the sea where they are below it at or near the picture's sea (no new inland seas: land stays land) ──
-    const hf = new Float32Array(N), sea = new Uint8Array(N);
+    // ── the lakes' shores wandering as the coast's do, octave by octave from a share of the picture's pixel down — how far
+    // a pixel is from the shore read from its own height over the lake and its slope (a distance measured across the
+    // window would differ from one window to the next: tiles must meet) ──
+    if (lvl) {
+        const dist = new Float32Array(N), sl = new Float32Array(N);
+        for (let p = 0; p < N; p++) if (lvl[p] === lvl[p]) { sl[p] = Math.max(FINE.coastMinSlope, Math.hypot(gE[p] + dE[p], gN[p] + dN[p])); dist[p] = (hb[p] + D[p] - lvl[p]) / sl[p]; }
+        for (let L = FINE.lakeWiggle * TAU * R / RW, o = 0; o < 6 && fade(3 * L) > 0; L /= 2, o++) {
+            const f = fade(3 * L), sc = 1 / (3 * L);
+            for (let j = 0; j < eh; j++) for (let i = 0; i < ew; i++) {
+                const p = j * ew + i;
+                if (!(lvl[p] === lvl[p]) || seaB[p] || Math.abs(dist[p]) >= 3 * L) continue;
+                place(j, i);
+                D[p] += f * sl[p] * L * smoothNoise(P[0] * sc, P[1] * sc, P[2] * sc, seed * 5 + 71 + o) * (1 - smooth(0, 3 * L, Math.abs(dist[p])));
+            }
+        }
+    }
+    lap('lakes');
+    // ── the heights; the sea where they are below it at or near the picture's sea (no new inland seas: land stays land);
+    // a lake where they are below its level near the picture's lake ──
+    const hf = new Float32Array(N), sea = new Uint8Array(N), wat = lvl ? new Uint8Array(N) : watB;
     for (let p = 0; p < N; p++) {
         const v = hb[p] + D[p];
         if (v < 0 && coastKm[p] < reach) { hf[p] = v; sea[p] = 1; } else hf[p] = v < 0 ? 0.001 : v;
+        if (lvl) wat[p] = lvl[p] === lvl[p] && !sea[p] ? (v < lvl[p] ? lkind[p] : 0) : watB[p];
     }
-    crop(hf, out.h); crop(sea, out.sea); crop(watB, out.wat);
+    crop(hf, out.h); crop(sea, out.sea); crop(wat, out.wat);
     lap('sea');
     return out;
 }

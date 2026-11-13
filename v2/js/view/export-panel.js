@@ -4,9 +4,12 @@
 // a longitude, in a projection (projections.js). One map saves as a PNG; several save as one ZIP with a README.txt that
 // says what every file is. A row may give files that are not maps (kind 'file': Evolution's districts and resource atlas),
 // saved as they come — not projected or centred. The page supplies the catalogue of its maps and an adapter that draws
-// them (export-raster.js for the shared pieces); this module is the dialog and the run.
+// them (export-raster.js for the shared pieces); this module is the dialog and the run. Wider than 16,384 px (a page whose
+// adapter draws in bands), the maps are drawn a band of rows at a time and each file written to disk as its rows come,
+// whole or in 16,384-px tiles, into a file or folder the person picks (runBands).
 
 import { encodeGrayPng, encodeRgbPng, encodeRgbaPng, downloadBlob } from './png.js';
+import { PngPool } from './png-stream.js';
 import { zipFiles } from './zip.js';
 import { readmeText, fileName, SEASON_NAMES, gray16to8 } from './export-raster.js';
 import { PROJECTIONS, projectLayer, projectionSize, PROJECTION_OPTIONS } from './projections.js';
@@ -34,7 +37,17 @@ export function renderProjectionOptions(container, id, stored = null, onChange =
 }
 
 const DEFAULT_SELECTION = { color: { colour: true }, satellite: { colour: true }, koppen: { colour: true }, landheightmap: { data: true }, landmask: { data: true } };
-const tick = () => new Promise(r => setTimeout(r, 0));
+// (a turn of the page's event loop — the progress painted, a Stop heard — by a message, not a timer: a hidden tab's timers
+// wake once a second, and after five minutes once a minute, and a long export runs on while the person does other things)
+const tick = (() => {
+    const ch = new MessageChannel(), waiting = [];
+    ch.port1.onmessage = () => waiting.shift()?.();
+    return () => new Promise(r => { waiting.push(r); ch.port2.postMessage(0); });
+})();
+/** The widest export drawn whole, in memory; wider, in bands (adapter.bands), its tiles this wide. */
+const WHOLE_MAX = 16384, TILE = 16384;
+const duration = s => (s < 90 ? `${Math.round(s)} s` : s < 5400 ? `${Math.round(s / 60)} min` : `${(s / 3600).toFixed(1)} h`);
+const sizeWords = b => (b >= 2 ** 30 ? `${(b / 2 ** 30).toFixed(2)} GB` : `${(b / 2 ** 20).toFixed(1)} MB`);
 
 /**
  * Build the panel inside `host` (#exportCard — its close button and title stay) and wire it.
@@ -64,7 +77,8 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         <div class="xp-layers" id="exportLayers"></div>
         <div class="xp-options">
             <label class="xp-opt" id="exportShadeRow"><input type="checkbox" id="chkExportShade" checked> Hillshade on the colour maps <span class="tip" data-tip="Shade the colour map and the Satellite view by the relief, as on screen. Off, they are flat colour — to lay your own shading over">?</span></label>
-            <label class="xp-opt"><input type="checkbox" id="chkExportReadme" checked> README.txt in the ZIP <span class="tip" data-tip="A text file naming every map, its kind, units and scale, the projection and the centre — for whoever opens the files later">?</span></label>
+            <label class="xp-opt"><input type="checkbox" id="chkExportReadme" checked> <span id="exportReadmeLabel">README.txt in the ZIP</span> <span class="tip" data-tip="A text file naming every map, its kind, units and scale, the projection and the centre — for whoever opens the files later">?</span></label>
+            <label class="xp-opt" id="exportTilesRow" hidden><input type="checkbox" id="chkExportTiles"> Split into tiles of 16,384 px <span class="tip" data-tip="Each map saved as square tiles 16,384 px across (4 × 2 of them at 65,536 px), named -x0-y0 from the north-west corner: x west to east, y north to south — for tools that take tiled heightmaps">?</span></label>
         </div>
         <div class="xp-planet" id="exportPlanet" hidden>
             <div class="xp-planet-text"><span>Planet file <span class="tip" data-tip="The whole history and this detailed moment in one file (.orogen), to open again later without building them again — the same planet in any browser. Its maps are drawn again from it, so later versions of World Orogen can draw them better">?</span></span><small id="exportPlanetNote"></small></div>
@@ -83,7 +97,8 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     const els = { width: $('exportWidth'), dims: $('exportDims'), proj: $('exportProjection'), projOpts: $('exportProjOpts'), centre: $('exportCentreLon'), centreV: $('exportCentreV'),
         season: $('exportSeason'), layers: $('exportLayers'), shadeRow: $('exportShadeRow'), shade: $('chkExportShade'), readme: $('chkExportReadme'),
         progress: $('exportProgress'), go: $('exportGo'), cancel: $('exportCancel'), none: $('exportNone'), all: $('exportAllSel'),
-        planet: $('exportPlanet'), planetNote: $('exportPlanetNote'), planetGo: $('exportPlanetGo') };
+        planet: $('exportPlanet'), planetNote: $('exportPlanetNote'), planetGo: $('exportPlanetGo'),
+        tiles: $('chkExportTiles'), tilesRow: $('exportTilesRow'), readmeLabel: $('exportReadmeLabel') };
     if (!adapter.options?.hillshade) els.shadeRow.hidden = true;
     for (const p of PROJECTIONS) { const o = document.createElement('option'); o.value = p.id; o.textContent = p.label; els.proj.appendChild(o); }
 
@@ -119,7 +134,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         for (const r of rows) { const s = { colour: !!r.colour?.checked, data: !!r.data?.checked }; if (s.colour || s.data) sel[r.row.id] = s; }
         return sel;
     }
-    function remember() { store.set({ sel: selection(), width: els.width.value, season: els.season.value, readme: els.readme.checked, shade: els.shade.checked, projection: els.proj.value, projOpts: projOptValues() }); }
+    function remember() { store.set({ sel: selection(), width: els.width.value, season: els.season.value, readme: els.readme.checked, shade: els.shade.checked, tiles: els.tiles.checked, projection: els.proj.value, projOpts: projOptValues() }); }
 
     // ── the projection's own options ──
     let projGet = () => ({});
@@ -131,6 +146,21 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     function updateDims() {
         const W = Number(els.width.value) || 0, { w, h } = projectionSize(els.proj.value, W, projOptValues());
         els.dims.textContent = `${w} × ${h}`;
+    }
+    // ── wider than 16,384 px: drawn in bands, equirectangular, saved straight to the disk, whole or in tiles ──
+    const bigNow = () => !!adapter.bands && Number(els.width.value) > WHOLE_MAX;
+    function updateBig() {
+        const big = bigNow();
+        els.tilesRow.hidden = !big;
+        els.proj.disabled = big;
+        els.proj.title = big ? 'Wider than 16,384 px, the maps are equirectangular' : '';
+        if (big && els.proj.value !== 'equirect') { els.proj.value = 'equirect'; buildProjOpts(); }
+        els.readmeLabel.textContent = big ? 'README.txt with the files' : 'README.txt in the ZIP';
+    }
+    /** How many files the jobs make: each map once, or once a tile; the files that are not maps once. */
+    function fileCount(list) {
+        const W = Number(els.width.value), tiles = bigNow() && els.tiles.checked ? Math.max(1, W / TILE) * Math.max(1, (W >> 1) / TILE) : 1;
+        return list.reduce((a, j) => a + (j.file?.ext ? 1 : tiles), 0);
     }
 
     // ── the jobs: every file the selection asks for ──
@@ -147,16 +177,18 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         return out;
     }
     function updateGo() {
-        const n = jobs().length;
-        els.go.textContent = n === 0 ? 'Export' : n === 1 ? 'Export 1 file' : `Export ${n} files as ZIP`; els.go.disabled = n === 0 || busy;
+        const list = jobs(), n = list.length, files = fileCount(list);
+        els.go.textContent = n === 0 ? 'Export' : bigNow() ? (files === 1 ? 'Export 1 file' : `Export ${files} files to a folder`) : n === 1 ? 'Export 1 file' : `Export ${n} files as ZIP`;
+        els.go.disabled = n === 0 || busy;
         els.planetGo.disabled = busy || !planetOk;
     }
 
     // ── wiring ──
-    let ctx = null, busy = false, planetOk = false;
+    let ctx = null, busy = false, planetOk = false, bandRun = null;
     els.layers.addEventListener('change', () => { updateGo(); remember(); });
     els.season.addEventListener('change', () => { updateGo(); remember(); });
-    els.width.addEventListener('change', () => { updateDims(); remember(); });
+    els.width.addEventListener('change', () => { updateBig(); updateDims(); updateGo(); remember(); });
+    els.tiles.addEventListener('change', () => { updateGo(); remember(); });
     els.proj.addEventListener('change', () => { buildProjOpts(); remember(); });
     els.projOpts.addEventListener('change', remember);
     els.centre.addEventListener('input', () => { const c = Number(els.centre.value); els.centreV.textContent = c ? `${Math.abs(c)}°${c > 0 ? 'E' : 'W'}` : '0°'; });
@@ -184,10 +216,12 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
         els.season.value = saved?.season || 'year';
         els.readme.checked = saved?.readme !== false;
         els.shade.checked = saved?.shade !== false;
+        els.tiles.checked = !!saved?.tiles;
         // (the map view's projection when it shows one; else the one chosen last)
         const vp = getProjection ? getProjection() : null;
         if (vp && vp.id && vp.id !== 'equirect') { els.proj.value = vp.id; buildProjOpts(vp.opts || null); }
         else { els.proj.value = saved?.projection && PROJECTIONS.some(p => p.id === saved.projection) ? saved.projection : 'equirect'; buildProjOpts(saved?.projOpts || null); }
+        updateBig();
         const c = Math.round(getCenterLon() || 0);
         els.centre.value = String(c); els.centreV.textContent = c ? `${Math.abs(c)}°${c > 0 ? 'E' : 'W'}` : '0°';
         els.progress.hidden = true;
@@ -200,14 +234,19 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
     }
     function close() { if (busy) return; overlay.classList.add('hidden'); ctx = null; }
     host.querySelector('#exportClose').addEventListener('click', close);
-    els.cancel.addEventListener('click', close);
+    // (while a big export runs, the button stops it: the files begun are removed)
+    els.cancel.addEventListener('click', () => { if (bandRun) { bandRun.stop = true; els.cancel.disabled = true; progress(bandRun.done, 'Stopping…'); } else close(); });
     overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !overlay.classList.contains('hidden')) close(); });
+
+    /** A file's name: the page's, the map's, its season and file, the centre, and a tile's place. */
+    const nameOf = (job, prefix, extra = []) => fileName([...prefix.start, job.row.id === 'color' ? 'colormap' : job.row.id, job.season, job.file?.suffix, job.variant === 'data' && job.row.colour ? 'data' : null, ...prefix.end, ...extra], job.file?.ext ?? 'png');
 
     // ── the run ──
     els.go.addEventListener('click', async () => {
         if (busy) return;
         const list = jobs(); if (!list.length) return;
+        if (bigNow() && list.some(j => !j.file?.ext)) { runBands(list); return; }
         busy = true; els.go.disabled = true; els.cancel.disabled = true;
         const W = Number(els.width.value), centerLon = Number(els.centre.value), projection = els.proj.value, projOpts = projOptValues();
         const opts = { width: W, centerLon, season: els.season.value, hillshade: !adapter.options?.hillshade || els.shade.checked, projection, projOpts };
@@ -231,7 +270,7 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
                     if (isMap) { sub(0.8, 'encoding PNG'); await tick(); }
                     const blob = !isMap ? layer.blob : layer.kind === 'rgba' ? (layer.alpha ? await encodeRgbaPng(layer.W, layer.H, layer.data) : await encodeRgbPng(layer.W, layer.H, layer.data))
                         : await encodeGrayPng(layer.W, layer.H, layer.data, layer.kind === 'gray8' ? 8 : 16);
-                    const name = fileName([...prefix.start, job.row.id === 'color' ? 'colormap' : job.row.id, job.season, job.file?.suffix, job.variant === 'data' && job.row.colour ? 'data' : null, ...prefix.end], job.file?.ext ?? 'png');
+                    const name = nameOf(job, prefix);
                     files.push({ name, blob }); meta.push({ name, label: job.label, season: job.season, file: job.file, kind: layer.kind, about: layer.about, W: layer.W, H: layer.H });
                     layer = null; await tick();
                 }
@@ -254,6 +293,103 @@ export function initExportPanel({ host, overlay, catalogue, adapter, onOpen, get
             console.error(err);
         } finally { busy = false; els.cancel.disabled = false; updateGo(); }
     });
+
+    // ── wider than 16,384 px (adapter.bands {rows(W), draw(rctx, y0, n), produce(rctx, job, band)}): the maps drawn a
+    // band of rows at a time, every map's rows of a band written to its file (or its tiles') in workers as they come
+    // (png-stream.js) — so no picture of the planet is held — straight to a file or a folder the person picks (the
+    // browser's File System Access: Chrome and Edge on a computer). The files that are not maps as they come. Stopped,
+    // the files begun are removed. ──
+    async function runBands(list) {
+        const W = Number(els.width.value), H = W >> 1, centerLon = Number(els.centre.value), tiles = els.tiles.checked;
+        const nx = tiles ? Math.max(1, W / TILE) : 1, ny = tiles ? Math.max(1, H / TILE) : 1, tw = W / nx, th = H / ny;
+        const opts = { width: W, centerLon, season: els.season.value, hillshade: !adapter.options?.hillshade || els.shade.checked, projection: 'equirect', projOpts: {}, bands: true };
+        const prefix = adapter.names(ctx, opts), maps = list.filter(j => !j.file?.ext), others = list.filter(j => j.file?.ext);
+        const count = fileCount(list), readme = els.readme.checked && count > 1;
+        if (!window.showSaveFilePicker || !window.showDirectoryPicker) {
+            progress(0, 'Maps wider than 16,384 px are saved straight to your disk, which this browser can\'t do: use Chrome or Edge on a computer, or a width up to 16,384.');
+            return;
+        }
+        // (where they go, asked first, while the click still counts as the person's)
+        let file = null, dir = null;
+        try {
+            if (count === 1) file = await window.showSaveFilePicker({ id: 'orogen-export', suggestedName: nameOf(maps[0], prefix), types: [{ description: 'PNG image', accept: { 'image/png': ['.png'] } }] });
+            else dir = await window.showDirectoryPicker({ id: 'orogen-export', mode: 'readwrite' });
+        } catch (err) {
+            if (err?.name !== 'AbortError') progress(0, `Could not export: ${String(err?.message || err).split('\n')[0]}`);
+            return;
+        }
+        const handleOf = name => (file ? Promise.resolve(file) : dir.getFileHandle(name, { create: true }));
+        const writeBlob = async (name, blob) => { const w = await (await handleOf(name)).createWritable(); await w.write(blob); await w.close(); };
+        busy = true; bandRun = { stop: false, done: 0 }; els.go.disabled = true; els.cancel.textContent = 'Stop'; els.planetGo.disabled = true;
+        const pool = new PngPool(Math.max(2, Math.min(6, (navigator.hardwareConcurrency || 8) >> 1))), open = [], closing = [], made = [];
+        const t0 = performance.now();
+        let rctx = null;
+        const stopped = () => { if (bandRun.stop) throw new DOMException('Stopped', 'AbortError'); };
+        try {
+            progress(0, 'Starting…'); await tick();
+            const needing = [...new Set(list.map(j => j.row).filter(r => r.needs))];
+            if (needing.length && adapter.ensure) await adapter.ensure(needing, progress, ctx);
+            rctx = await adapter.begin(W, opts, ctx, progress);
+            const meta = [];
+            for (const job of others) {
+                const r = await adapter.produce(rctx, job, () => {}), name = nameOf(job, prefix);
+                made.push(name); await writeBlob(name, r.blob);
+                meta.push({ name, label: job.label, season: job.season, file: job.file, kind: 'file', about: r.about });
+            }
+            // (the time left from the strips' own pace: what came before them — the files that are not maps — is not more of it)
+            const rowsPer = adapter.bands.rows(W), kinds = maps.map(() => null), tBands = performance.now();
+            for (let y0 = 0; y0 < H; y0 += rowsPer) {
+                stopped();
+                const n = Math.min(rowsPer, H - y0), ty = Math.floor(y0 / th);
+                if (y0 % th === 0) {
+                    // (a new row of tiles: the last row's files finished as their workers catch up, this row's begun)
+                    for (const f of open.splice(0).flat()) closing.push(f.close());
+                    for (const job of maps) {
+                        const row = [];
+                        for (let tx = 0; tx < nx; tx++) { const name = nameOf(job, prefix, tiles ? [`x${tx}`, `y${ty}`] : []); made.push(name); row.push(pool.file(await handleOf(name), tw, th)); }
+                        open.push(row);
+                    }
+                }
+                const band = await adapter.bands.draw(rctx, y0, n);
+                for (let k = 0; k < maps.length; k++) {
+                    stopped();
+                    let layer = adapter.bands.produce(rctx, maps[k], band);
+                    if (maps[k].file?.bits === 8 && layer.kind === 'gray16') layer = { ...layer, kind: 'gray8', data: gray16to8(layer.data) };
+                    kinds[k] = layer.kind;
+                    const kind = layer.kind === 'rgba' ? (layer.alpha ? 'rgba' : 'rgb') : layer.kind;
+                    for (let tx = 0; tx < nx; tx++) await open[k][tx].rows(layer.data, kind, n, tx * tw, W);
+                    layer = null; await tick();
+                }
+                const done = bandRun.done = (y0 + n) / H, secs = (performance.now() - tBands) / 1000;
+                progress(done, `Drawing ${W} × ${H}: rows ${y0 + n} of ${H}${done > 0.03 ? ` · about ${duration(secs / done - secs)} left` : ''}`);
+            }
+            progress(1, 'Finishing the files…');
+            for (const f of open.splice(0).flat()) closing.push(f.close());
+            const bytes = (await Promise.all(closing)).reduce((a, b) => a + (b || 0), 0);
+            for (let k = 0; k < maps.length; k++) {
+                const job = maps[k], first = nameOf(job, prefix, tiles ? ['x0', 'y0'] : []), last = nameOf(job, prefix, [`x${nx - 1}`, `y${ny - 1}`]);
+                meta.push({ name: tiles ? `${first} … ${last}` : first, label: job.label, season: job.season, file: job.file, kind: kinds[k], W: tw, H: th });
+            }
+            if (readme) {
+                const P = PROJECTIONS.find(p => p.id === 'equirect');
+                const about = { ...adapter.about(ctx, opts), width: W, height: H, projection: P.label, projectionNote: P.note, centerLon, hillshade: adapter.options?.hillshade ? opts.hillshade : null, tiles: tiles ? { nx, ny, size: TILE } : null };
+                made.push('README.txt');
+                await writeBlob('README.txt', new Blob([readmeText(about, meta, adapter.koppenClasses, adapter.readmeLists?.(meta) ?? [])], { type: 'text/plain' }));
+            }
+            progress(1, `Saved ${file ? file.name : `${count} files${readme ? ' and a README' : ''} to ${dir.name}`} · ${sizeWords(bytes)} in ${duration((performance.now() - t0) / 1000)}`);
+        } catch (err) {
+            for (const f of open.flat()) f.abort();
+            await Promise.allSettled(closing);
+            if (dir) for (const name of made) await dir.removeEntry(name).catch(() => {});
+            else await file?.remove?.().catch(() => {});
+            if (err?.name === 'AbortError') progress(0, 'Stopped: the files begun were removed');
+            else { progress(0, `Could not export: ${String(err?.message || err).split('\n')[0]}`); console.error(err); }
+        } finally {
+            if (rctx && adapter.end) await adapter.end(rctx);
+            pool.terminate();
+            busy = false; bandRun = null; els.cancel.textContent = 'Cancel'; els.cancel.disabled = false; updateGo();
+        }
+    }
 
     // ── the planet file: the page's own save, beside the maps ──
     els.planetGo.addEventListener('click', async () => {

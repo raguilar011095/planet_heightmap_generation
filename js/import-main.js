@@ -194,7 +194,7 @@ const exportPanel = initEvolutionExport({
     moment: () => (world?.fin ? { frame: { time: 0 }, fin: world.fin, seed: 'import', cloudSeed: world.seed } : null),
     look: () => ({ lut: heightLutOf(view.palette), exaggeration: pv.SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH,
-    fine: (fin, _seed, W, onProgress) => pv.detail.window(fin, world.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress),
+    fine: (fin, _seed, W, onProgress, win = { W, x0: 0, y0: 0, w: W, h: W >> 1 }) => pv.detail.window(fin, world.seed, win, null, onProgress),
     page: 'import', titleNote: () => '',
     names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen', 'import'], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
     about: () => ({ page: 'Import', planet: 'an imported heightmap', link: null }) });

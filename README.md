@@ -50,7 +50,7 @@ Save the whole planet as one file. Works best on a desktop computer for now.
 
 One planet view and layer bar (a globe, or a map in any of ten projections), one seasonal climate, one finish (rivers,
 lakes, ice, rocks, food, the satellite view) and one export panel: every map as colour or 16-bit data, in ten
-projections, up to 16,384 px wide, as one PNG or a ZIP with a README. Links, planet codes and planet files keep opening, and each minor release from 2.1 on stays online at
+projections, up to 16,384 px wide (65,536 on a computer), as one PNG or a ZIP with a README. Links, planet codes and planet files keep opening, and each minor release from 2.1 on stays online at
 `orogen.studio/v/<major>.<minor>/`.
 
 For map making, the exports stack: the terrain in sixteen palettes, the satellite view with or without clouds, Köppen climate zones, hillshade and a land mask, and rivers and lakes, and clouds, on transparent grounds, ready to trace, paint over or bring into a map-making tool.

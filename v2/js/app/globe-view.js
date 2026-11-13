@@ -23,6 +23,10 @@ const GLINT = new THREE.Color(0x4488bb).multiplyScalar(0.5 * 0.55);    // (the s
 // "zooming in is also very slow"); V1's is 8 %. The camera covers this share of the way left each 60th of a second.
 const ZOOM_PER_PX = 0.0015, ZOOM_EASE = 0.15;
 const MAP_ZOOM_MIN = 0.5, MAP_ZOOM_MAX = 20;                      // (the map's zoom: 1, the whole map; out to half that, in to 20, as Generate's)
+// (zoomed in deeper where the detail finer than the mesh is drawn — setDeepZoom: the globe's camera no nearer the ground
+// than this, in planet radii — the air's shell is at 0.03 — and its near plane and the drag's turn shrinking with the
+// height below the usual nearest, 1.4)
+const DEEP_MIN_HEIGHT = 0.035, NEAR_PLANE = 0.1, ROTATE_SPEED = 0.6, USUAL_NEAREST = 1.4;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 const CLOUD_STEP_MS = 80;                                        // (the clouds' drift: a redraw about 12 times a second while they show)
 // the patch over the texture (putPatchTile, showPatchLayer): two layers of tiles of a sharper picture — layer 0 over
@@ -72,7 +76,7 @@ export class GlobeView {
             this._dirty = true;
         });
         this.space = space;
-        this.camera = new THREE.PerspectiveCamera(40, 1, 0.1, space ? 200 : 50);
+        this.camera = new THREE.PerspectiveCamera(40, 1, NEAR_PLANE, space ? 200 : 50);
         this.camera.position.set(0, 0.9, 3.2);
         this.home = this.camera.position.length();         // (the home zoom: the globe's size there sets where it sits)
 
@@ -130,9 +134,9 @@ export class GlobeView {
         this.controls.enablePan = false;
         this.controls.enableDamping = true;
         this.controls.dampingFactor = 0.08;
-        this.controls.minDistance = 1.4;
+        this.controls.minDistance = 1 + DEEP_MIN_HEIGHT;   // (the nearest it may ever be: how near now, nearest())
         this.controls.maxDistance = 8;
-        this.controls.rotateSpeed = 0.6;
+        this.controls.rotateSpeed = ROTATE_SPEED;
         this.controls.enableZoom = false;                  // (V1's zoom instead, below)
         this.zoomTo = this.camera.position.length();
         this._zoomAt = 0;
@@ -220,10 +224,31 @@ export class GlobeView {
     /** A canvas texture's canvas was painted again (a GPU-painted texture needs no upload: only drawing again). */
     textureChanged() { if (this.ownTexture) this.texture.needsUpdate = true; this._dirty = true; }
 
-    /** Nearer (k < 1) or farther (k > 1): where the camera eases to. */
+    /** Nearer (k < 1) or farther (k > 1): where the camera eases to — nearer than the nearest now only if already there
+     *  (zoomed in while the detail was drawn: kept there, free to go farther, never pulled back). */
     zoomBy(k) {
-        this.zoomTo = Math.max(this.controls.minDistance, Math.min(this.controls.maxDistance, this.zoomTo * k));
+        this.zoomTo = Math.max(Math.min(this.nearest(), this.zoomTo), Math.min(this.controls.maxDistance, this.zoomTo * k));
         this._dirty = true;
+    }
+
+    /**
+     * How far in the view may zoom: until the planet is `planetPx` device pixels wide (planet-view.js: its finest tiles of
+     * the detail finer than the mesh a little larger than the screen's pixels) where that detail is drawn — or, with 0, the
+     * usual: the globe 1.4 from its centre, the map × 20. `dpr`: the device pixels counted to a CSS pixel (planet-view's).
+     */
+    setDeepZoom(planetPx, dpr = 1) { this.deepPx = planetPx; this.deepDpr = dpr; }
+
+    /** The globe's nearest distance now: where the screen's height shows the planet `deepPx` wide (the tiles' measure:
+     *  detail-view.js tileRange — 360° × the screen's pixels / the latitudes seen, from straight above). */
+    nearest() {
+        if (!this.deepPx) return USUAL_NEAREST;
+        const px = (this.canvas.clientHeight || innerHeight) * this.deepDpr, t = Math.tan(this.camera.fov * Math.PI / 360);
+        return clamp(1 + Math.PI * px / (t * this.deepPx), 1 + DEEP_MIN_HEIGHT, USUAL_NEAREST);
+    }
+
+    /** The map's furthest zoom now: × 20, or where the planet is `deepPx` device pixels wide. */
+    mapZoomMax() {
+        return this.deepPx ? Math.max(MAP_ZOOM_MAX, this.deepPx / (this.mapBox().width * this.deepDpr)) : MAP_ZOOM_MAX;
     }
 
     /** The camera a step nearer the distance aimed at; whether it moved. */
@@ -233,7 +258,16 @@ export class GlobeView {
         const d = this.camera.position.length();
         if (Math.abs(this.zoomTo - d) < 1e-4) return false;
         this.camera.position.setLength(d + (this.zoomTo - d) * (1 - Math.pow(1 - ZOOM_EASE, dt * 60)));
+        this.fitNear();
         return true;
+    }
+
+    /** Nearer the ground than the usual nearest: the near plane, and how far a drag turns the globe, in step with the
+     *  camera's height (as they are at 1.4 and beyond, unchanged), so the ground stays in view and moves with the pointer. */
+    fitNear() {
+        const k = Math.min(1, (this.camera.position.length() - 1) / (USUAL_NEAREST - 1)), near = NEAR_PLANE * k;
+        this.controls.rotateSpeed = ROTATE_SPEED * k;
+        if (near !== this.camera.near) { this.camera.near = near; this.camera.updateProjectionMatrix(); }
     }
 
     /**
@@ -647,7 +681,7 @@ void main() {
             if (!this.map) return;
             e.preventDefault();
             const px = e.deltaY * (e.deltaMode === 1 ? 33 : e.deltaMode === 2 ? 800 : 1), v = this.mapView;
-            v.zoomTo = clamp(v.zoomTo * Math.exp(-clamp(px, -200, 200) * ZOOM_PER_PX), MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+            v.zoomTo = clamp(v.zoomTo * Math.exp(-clamp(px, -200, 200) * ZOOM_PER_PX), MAP_ZOOM_MIN, Math.max(this.mapZoomMax(), v.zoomTo));   // (past it only if already: as zoomBy)
             v.anchor = { cx: e.clientX, cy: e.clientY, m: this.mapFrac(e.clientX, e.clientY) };   // (the place under the pointer stays there)
             this._dirty = true;
         }, { passive: false });
@@ -674,7 +708,7 @@ void main() {
                 const [a, c] = [...down.values()], d = Math.hypot(a[0] - c[0], a[1] - c[1]), m2 = [(a[0] + c[0]) / 2, (a[1] + c[1]) / 2];
                 if (pinch) {
                     const m = this.mapFrac(mid[0], mid[1]);       // (the place under the fingers stays under them)
-                    v.zoom = v.zoomTo = clamp(v.zoom * d / pinch, MAP_ZOOM_MIN, MAP_ZOOM_MAX);
+                    v.zoom = v.zoomTo = clamp(v.zoom * d / pinch, MAP_ZOOM_MIN, Math.max(this.mapZoomMax(), v.zoom));
                     this.panTo(m, m2[0], m2[1]);
                 }
                 pinch = d; mid = m2;

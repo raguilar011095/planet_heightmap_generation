@@ -164,3 +164,26 @@ colours, the rivers, the grid), not whenever the planet is. The rivers on a tile
 segments, ~1.3 ms a tile), each dashed line begun where its dashes last began, so they fall where the whole line's do.
 three.js r160's copyTextureToTexture sends to whichever texture the active unit holds when the target is already bound
 on unit 0 (tiles landed on the planet's own texture): tiles are sent with WebGL directly.
+
+**Then (2026-11-12): "still not showing detail soon enough".** The tiles came in at a map zoom of ×5.2, but no feature
+was drawn until it spanned `minPx` 6 of a tile's pixels: at 2.5M the first ridges at level 7 (×20), at 10M at level 8
+(×42). Now `minPx` 3 (faded in over 3–6 pixels), the rest of §5 kept: every feature one level sooner — the ridges at
+2.5M at level 6 (×11), at 10M at level 7 (×20); knobs and hollows at level 7, dunes at 8, the coast's coves at 9 (never
+drawn in the zoom before). Exports gain the detail one width sooner too, and draw an octave more at a given width.
+Sooner still is not possible with these octaves: at level 5 the coarsest drawn (12 km at 2.5M) spans under 2.5 pixels.
+
+**Then (2026-11-13): "pretty straining on my computer … when moving the screen around".** With the lakes, the rivers and
+the relief noise on, a tile cost 2–3 times what it had, and 12 workers kept a 16-thread computer's fans going. The cost
+pass: each relief noise read off a grid as fine as its wavelength asks (at least 8 samples to it, the planet's own grid,
+so tiles still meet to the bit; the finest octaves at every pixel), the rivers looked for no farther than their calm
+reaches (the ridges' pull, which reached twice as far, only when the ridges are on; the calm now the calmest of the
+rivers near — a stream near a big river no longer cancels the big river's), the tiles 6 % past the view's edges (not
+12 %), a zoom's next level only once the view has been still for 200 ms, and at most 8 workers.
+
+**Then (2026-11-13): "wavy fingerprints" at 20.6° S, 101.8° E.** Not the cost pass: a sand sea's dunes (± 50 m, every
+3.2 km, crests forking every wavelength), shown a level sooner since `minPx` 3. Tried and shown: crests 3–5 times longer
+(straight hatching), 1.6–2 times longer and winding (the owner preferred the short crests). Now an accent, the crests as
+long as before: ± 12 m, the spacing irregular (each phacelle kernel its own wavelength ± 40 %, and nudged by a noise of
+1.5 wavelengths), each crest its own height (a noise of one wavelength: 30–100 %), faded where the stripes fork (the
+phasors' coherence), in fields that come and go (60 km), fading in from the sand sea's edge; and, the owner's idea, the
+relief noise in a full sand sea 30 % of itself (the rivers' bends there too).
