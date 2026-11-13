@@ -8,6 +8,8 @@ import { detailSource, cropSource } from '../finish/fine-detail.js';
 
 /** A tile's side (px). Level L draws the planet TILE · 2^L pixels wide: 2^L tiles across, 2^(L−1) down. */
 export const TILE = 256;
+/** The tiles a view wants reach past its edges by this share of it (ready for a pan; 0.12 until 2026-11-13). */
+export const TILE_MARGIN = 0.06;
 /** A tile as laid on the GPU (px): with a pixel of its neighbours' all round, so the blend across its edge reads theirs.
  *  It is painted from a window two pixels wider all round (the hillshade's neighbours at its edges). */
 export const SLOT = TILE + 2;
@@ -28,8 +30,8 @@ export class DetailService {
 
     /**
      * One window drawn by a worker: a promise of fineWindow's result. A job aborted before it starts is never sent; the
-     * waiting job sent first is the one whose `ticket.order` is lowest (the caller may change it while it waits), else the
-     * first asked for.
+     * waiting job sent first is one without a ticket (an export's), else the one whose `ticket.order` is lowest (the caller
+     * may change it while it waits), else the first asked for.
      */
     run(src, win, signal, ticket = null) {
         return new Promise((resolve, reject) => {
@@ -42,13 +44,16 @@ export class DetailService {
     pump() {
         while (this.queue.length) {
             let at = 0;
-            for (let i = 1; i < this.queue.length; i++) if ((this.queue[i].ticket?.order ?? Infinity) < (this.queue[at].ticket?.order ?? Infinity)) at = i;
+            // (a job with no ticket — an export's window — before any tile: a view moving, zoomed in, asks for tiles all the
+            // time, and the export waited behind them)
+            for (let i = 1; i < this.queue.length; i++) if ((this.queue[i].ticket?.order ?? -Infinity) < (this.queue[at].ticket?.order ?? -Infinity)) at = i;
             const job = this.queue[at];
             if (job.signal?.aborted) { this.queue.splice(at, 1); job.reject(new DOMException('The detail was cancelled', 'AbortError')); continue; }
             let w = this.idle.pop();
             if (!w && this.workers.length < this.n) w = this.spawn();
             if (!w) return;
             this.queue.splice(at, 1);
+            if (job.ticket) job.ticket.sent = true;
             this.jobs.set(job.id, { job, w });
             w.postMessage({ type: 'window', id: job.id, src: cropSource(job.src, job.win), win: job.win });
         }
@@ -77,16 +82,20 @@ export class DetailService {
      * workers, put together: { h, sea, wat }.
      */
     async window(fin, seed, win, signal = null, onBand = null) {
-        // (bands of at most ~1.5 million pixels — a worker's band holds ~60 bytes a pixel — and at least one per worker)
-        const src = this.source(fin, seed), parts = Math.max(Math.min(this.n, Math.floor(win.h / 64)), Math.ceil(win.w * win.h / 1.5e6), 1), rows = Math.max(16, Math.ceil(win.h / parts)), bands = [];
+        // (bands of at most ~1.5 million pixels — a worker's band holds ~60 bytes a pixel — and at least one per worker it
+        // uses: at most 4 at a time, whatever the tiles' workers, so an export holds no more than it did)
+        const n = Math.min(4, this.n), src = this.source(fin, seed), parts = Math.max(Math.min(n, Math.floor(win.h / 64)), Math.ceil(win.w * win.h / 1.5e6), 1), rows = Math.max(16, Math.ceil(win.h / parts)), bands = [];
         for (let y = 0; y < win.h; y += rows) bands.push({ y, win: { W: win.W, x0: win.x0, y0: win.y0 + y, w: win.w, h: Math.min(rows, win.h - y) } });
         const out = { h: new Float32Array(win.w * win.h), sea: new Uint8Array(win.w * win.h), wat: new Uint8Array(win.w * win.h) };
-        let done = 0;
-        await Promise.all(bands.map(b => this.run(src, b.win, signal).then(o => {
-            const at = b.y * win.w;
-            out.h.set(o.h, at); out.sea.set(o.sea, at); out.wat.set(o.wat, at);
-            onBand?.(++done / bands.length);
-        })));
+        let done = 0, next = 0;
+        const one = async () => {
+            while (next < bands.length) {
+                const b = bands[next++], o = await this.run(src, b.win, signal), at = b.y * win.w;
+                out.h.set(o.h, at); out.sea.set(o.sea, at); out.wat.set(o.wat, at);
+                onBand?.(++done / bands.length);
+            }
+        };
+        await Promise.all(Array.from({ length: Math.min(n, bands.length) }, one));
         return out;
     }
 
@@ -103,7 +112,7 @@ export class DetailTiles {
      *  view; the finest level; most across or down (TileLayers' layers on this GPU) */
     constructor(service, { keep = 200, most = 150, maxLevel = 9, maxSpan = 31 } = {}) {
         this.service = service; this.keep = keep; this.most = most; this.maxLevel = maxLevel; this.maxSpan = maxSpan;
-        this.tiles = new Map(); this.fin = null; this.seed = 0; this.range = null; this.clock = 0;
+        this.tiles = new Map(); this.fin = null; this.seed = 0; this.range = null; this.clock = 0; this.held = false;
         this.onTile = null;                                   // (called as each tile is drawn)
     }
 
@@ -115,13 +124,21 @@ export class DetailTiles {
 
     /**
      * The tiles a view wants, asked for where not drawn: `places` its sampled points as [lon, lat] (degrees; null off the
-     * planet), `screenPx` its height in device pixels, `textureW` the picture shown's width. Returns the range
-     * { L, tx0, tx1, ty0, ty1 } (tx may run past the planet's edge: wrapped), or null where the picture's own pixels are
-     * fine enough.
+     * planet), `screenPx` its height in device pixels, `textureW` the picture shown's width, `round` the globe's view (not
+     * the map's), `settled` whether the view has stopped: while it moves, a view wanting another level keeps the level it
+     * has (`held`) — its tiles not yet begun dropped, the rest drawn — so a zoom draws none of the levels it passes through.
+     * Returns the range { L, tx0, tx1, ty0, ty1 } (tx may run past the planet's edge: wrapped), or null where the picture's
+     * own pixels are fine enough.
      */
-    want(fin, seed, places, screenPx, textureW) {
+    want(fin, seed, places, screenPx, textureW, round = false, settled = true) {
         if (fin !== this.fin) this.reset(fin, seed);
-        const g = this.range = tileRange(places, screenPx, textureW, this.most, this.maxLevel, this.maxSpan), wanted = new Set();
+        const g = tileRange(places, screenPx, textureW, this.most, this.maxLevel, this.maxSpan, round), wanted = new Set();
+        this.held = !settled && !!g && g.L !== this.range?.L;
+        if (this.held) {
+            for (const [key, t] of this.tiles) if (!t.data && !t.ticket?.sent) { t.ctl.abort(); this.tiles.delete(key); }
+            return this.range;
+        }
+        this.range = g;
         const list = [];
         if (g) for (let ty = g.ty0; ty <= g.ty1; ty++) for (let tx = g.tx0; tx <= g.tx1; tx++) {
             const key = keyOf(g.L, tx, ty), t = this.tiles.get(key), d = (tx + 0.5 - g.cx) ** 2 + (ty + 0.5 - g.cy) ** 2;
@@ -278,29 +295,59 @@ export class TileLayers {
 /**
  * The tiles a view wants: the level whose pixels are about the screen's (a little finer), its tiles over the view and a
  * margin — at a coarser level if that would be more than `most`, or more than `maxSpan` across or down — or null where the
- * view is not zoomed in past the picture's own pixels (or the planet's edge, or a pole, is in view).
+ * view is not zoomed in past the picture's own pixels (or, on the map, much of the planet's edge is in view).
+ * `places`: viewPlaces' 9 × 9 grid over the screen. On the map (its scale the same everywhere) the screen is measured by the
+ * latitudes it shows, and the range is all of it. On the globe (`round`) the screen is measured at its middle — the angle
+ * an eighth of the screen spans there — and the range is the places within 60° of the middle (fewer where it would reach
+ * past 85° of latitude, or across more than 120° of longitude): nearer the planet's edge the picture is foreshortened and
+ * its own pixels do. (It used to wait until half the screen was planet and the view spanned under 120° of longitude: on a
+ * wide screen, zoomed in until the picture's pixels showed.)
  */
-export function tileRange(places, screenPx, textureW, most, maxLevel, maxSpan = Infinity) {
-    const pts = places.filter(Boolean);
-    if (pts.length < places.length * 0.9) return null;               // (the planet's edge in view: zoomed out)
-    const c = pts[Math.floor(pts.length / 2)][0];
-    let lo0 = Infinity, lo1 = -Infinity, la0 = Infinity, la1 = -Infinity;
-    for (const [lon, lat] of pts) {
-        const l = lon - Math.round((lon - c) / 360) * 360;
-        lo0 = Math.min(lo0, l); lo1 = Math.max(lo1, l); la0 = Math.min(la0, lat); la1 = Math.max(la1, lat);
+export function tileRange(places, screenPx, textureW, most, maxLevel, maxSpan = Infinity, round = false) {
+    const minL = Math.round(Math.log2(textureW / TILE)) + 1, pts = places.filter(Boolean);
+    // (from where the screen's pixels pick the first level — as soon as it is finer than the screen by no more than any
+    // level is, below: the screen showing the planet ~1.19 × the picture's pixels)
+    const first = TILE * 2 ** (minL - 0.75);
+    let box, need;
+    if (round) {
+        const G = Math.round(Math.sqrt(places.length)), m = G >> 1, c = places[m * G + m], up = places[(m - 1) * G + m], dn = places[(m + 1) * G + m];
+        if (!c || !up || !dn) return null;                              // (the planet not under the screen's middle)
+        need = 360 * screenPx / (G - 1) / (0.5 * (arc(c, up) + arc(c, dn)));
+        if (!(need > first)) return null;
+        for (let th = 60; !box; th *= 0.8) {
+            if (th < 0.5) return null;
+            const b = spanOf(pts.filter(p => arc(c, p) <= th), c[0]);
+            if (b.lonSpan <= 120 && b.la1 <= 85 && b.la0 >= -85) box = b;
+        }
+    } else {
+        if (pts.length < places.length * 0.5) return null;               // (the planet's edge mostly in view: zoomed out; a little of it in the corners is fine)
+        box = spanOf(pts, pts[Math.floor(pts.length / 2)][0]);
+        if (!(box.latSpan > 0) || box.la1 > 85 || box.la0 < -85) return null;
+        need = 360 * screenPx / box.latSpan;                           // (the planet's width the screen shows)
+        if (need <= first) return null;
     }
-    const latSpan = la1 - la0, lonSpan = lo1 - lo0;
-    if (!(latSpan > 0) || lonSpan > 120 || la1 > 85 || la0 < -85) return null;
-    const need = 360 * screenPx / latSpan, minL = Math.round(Math.log2(textureW / TILE)) + 1;     // (the planet's width the screen shows)
-    if (need < 1.6 * textureW) return null;
-    const mLat = 0.12 * latSpan, mLon = 0.12 * lonSpan;
+    const { lo0, lo1, la0, la1, latSpan, lonSpan } = box, mLat = TILE_MARGIN * latSpan, mLon = TILE_MARGIN * lonSpan;
     for (let L = Math.max(minL, Math.min(maxLevel, Math.ceil(Math.log2(need / TILE) - 0.25))); L >= minL; L--) {
         const n = 1 << L, rows = n >> 1;
-        const tx0 = Math.floor((lo0 - mLon + 180) / 360 * n), tx1 = Math.floor((lo1 + mLon + 180) / 360 * n);
+        const tx0 = Math.floor((lo0 - mLon + 180) / 360 * n), tx1 = Math.min(tx0 + n - 1, Math.floor((lo1 + mLon + 180) / 360 * n));
         const ty0 = Math.max(0, Math.floor((90 - la1 - mLat) / 180 * rows)), ty1 = Math.min(rows - 1, Math.floor((90 - la0 + mLat) / 180 * rows));
         const count = (tx1 - tx0 + 1) * (ty1 - ty0 + 1);
         if (count <= most && tx1 - tx0 < maxSpan && ty1 - ty0 < maxSpan) return { L, tx0, tx1, ty0, ty1, cx: ((lo0 + lo1) / 2 + 180) / 360 * n, cy: (90 - (la0 + la1) / 2) / 180 * rows };
         if (L === minL) return null;
     }
     return null;
+}
+/** The angle between two places [lon, lat] (degrees). */
+function arc(a, b) {
+    const D = Math.PI / 180, s1 = Math.sin((b[1] - a[1]) * D / 2), s2 = Math.sin((b[0] - a[0]) * D / 2);
+    return 2 * Math.asin(Math.min(1, Math.sqrt(s1 * s1 + Math.cos(a[1] * D) * Math.cos(b[1] * D) * s2 * s2))) / D;
+}
+/** The longitudes and latitudes places span, each longitude taken nearest `lon` (so a view across the date line is whole). */
+function spanOf(pts, lon) {
+    let lo0 = Infinity, lo1 = -Infinity, la0 = Infinity, la1 = -Infinity;
+    for (const [x, y] of pts) {
+        const l = x - Math.round((x - lon) / 360) * 360;
+        lo0 = Math.min(lo0, l); lo1 = Math.max(lo1, l); la0 = Math.min(la0, y); la1 = Math.max(la1, y);
+    }
+    return { lo0, lo1, la0, la1, latSpan: la1 - la0, lonSpan: lo1 - lo0 };
 }

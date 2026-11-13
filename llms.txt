@@ -23,7 +23,7 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 - One set of views across the tools: terrain with rivers and lakes, satellite with clouds, Köppen climate and every climate layer, food and heightmap, plus geology and plates in Generate and Evolution — on a 3D globe or a flat map in any of ten projections
 - Two themes on every page, Paper (light) and Night (dark), following the device or a switch in the top bar
 - Climate layers in real units for the year, January or July: pressure and wind, ocean currents and upwelling, sea ice, temperature, precipitation, temperature range, rain shadow, aridity, growing season, rain seasonality
-- Export maps up to 16,384px wide, every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes, rocks, deposits, food), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
+- Export maps up to 65,536px wide (above 16,384px on a computer: equirectangular, saved straight to a folder, whole or in 16,384px tiles), every map as colour or as 16-bit data on documented scales (heightmaps, hillshade, temperature, rain, pressure, winds, currents, ice, Köppen classes, rocks, deposits, food), in ten map projections (equirectangular, Mercator, Robinson, Equal Earth, Mollweide, Hammer, Winkel Tripel, orthographic, azimuthal equidistant, Van der Grinten), one PNG or a ZIP with a README
 - Shareable planet codes — copy a compact code to reproduce any planet exactly
 - Works on desktop and mobile browsers
 - No build step, no dependencies to install — pure ES modules
@@ -33,7 +33,7 @@ World Orogen builds planets the way the scientific worldbuilding guides (Worldbu
 - The Colour map in sixteen palettes: Relief, Topographic, Natural, Swiss, School atlas, ETOPO, DEM, Scientific, Blue Marble (by height), Grey and Antique, and the other-world looks Arid, Frozen, Lush, Alien and Volcanic
 - Layers that stack: rivers and lakes, and clouds, each on a transparent ground; a land mask; hillshade; the satellite view with or without clouds
 - Climate maps: Köppen climate zones in their standard colours, and every climate layer for the year, January or July
-- Any of ten projections, centred on any longitude, up to 16,384 px wide, with a transparent outside for the projected maps
+- Any of ten projections, centred on any longitude, up to 16,384 px wide, with a transparent outside for the projected maps; equirectangular up to 65,536 px, whole or as tiles
 - 16-bit heightmaps, with the sea floor or land only, for terrain tools and game engines; an equirectangular land heightmap opens again in Import
 - Geology's deposit districts as GeoJSON and CSV (Generate and Evolution)
 

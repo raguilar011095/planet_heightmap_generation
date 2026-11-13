@@ -19,7 +19,7 @@ import { CLIMATE_LAYERS, FINISHED_ONLY_LAYERS, ARROW_LAYERS, paintClimate, paint
 import { prepareSatellite, satelliteReady } from '../evolution/sat-style.js';
 import { cloudFields, cloudStorms } from './clouds.js';
 import { paintFinished, paintWindow, riverPaths, drawRivers, drawRiversWindow, riverAt, finishedAt, REGIME_STYLE, riverYearWords } from '../evolution/finish-view.js';
-import { DetailService, DetailTiles, TileLayers, SLOT } from '../evolution/detail-view.js';
+import { DetailService, DetailTiles, TileLayers, SLOT, TILE, TILE_MARGIN } from '../evolution/detail-view.js';
 import { GEOLOGY_LAYERS, finishedGeologyColor, geologyLegendHTML, geologyLines, rockAt, rockLine, recAt, depositLines, ageLines, districtLines } from '../evolution/geology-view.js';
 import { FARMING_LAYERS, finishedFarmingColor, farmingLegendHTML, farmingLines, farmChipClicked, farmOptionsKey } from '../evolution/farming-view.js';
 import { initViewStrip, initProjectionPicker } from '../../../js/view-strip.js';
@@ -35,6 +35,9 @@ const SEASONS = ['year', 'jan', 'jul'];
 // seldom idle — a steady slice, short enough that its frames keep coming)
 const PREP_MS = 7, PREP_EVERY_MS = 16;
 const PATCH_EVERY_MS = 50;      // (a moving view asks for its tiles this often)
+const PATCH_SETTLE_MS = 200;   // (a zoom on its way to another level of tiles waits until the view has been still this long:
+                               // no wheel, drag or pinch, and its zoom within a hundredth of where it is going)
+const DEEP_ZOOM_OVER = 1.25;   // (zoomed in all the way, each pixel of the finest tiles spread over this many of the screen's)
 
 /** A canvas texture `width` wide (×width/2), its 2D context and an image to paint into it. */
 export function texture(width) {
@@ -96,13 +99,21 @@ export class PlanetView {
         this.sharp = null;                              // the sharper pixel table
         // (the detail finer than the mesh: drawn in tiles where the view is zoomed in past a detailed moment's own pixels —
         // detail-view.js; plans/V2_FINE_DETAIL_PLAN.md — and for exports enlarged past them; a phone keeps fewer, coarser)
-        this.detail = new DetailService(isTouch ? 2 : Math.min(4, Math.max(1, (navigator.hardwareConcurrency || 4) >> 1)));
+        // (the tiles' workers: all but two of a computer's threads, at most 8 — 12 kept a 16-thread computer's fans going
+        // whenever the view moved; an export's bands still go 4 at a time)
+        this.detail = new DetailService(isTouch ? 2 : Math.min(8, Math.max(1, (navigator.hardwareConcurrency || 4) - 2)));
         // (a layer of tiles on the GPU at most this many across or down: its texture within the GPU's largest, and 8192 px)
         this.PATCH_SPAN = Math.floor(Math.min(8192, this.globe.renderer.capabilities.maxTextureSize) / SLOT);
         this.PATCH_BUDGET_MS = isTouch ? 4 : 6;         // (a frame paints and lays tiles for about this long: the rest come in the frames after)
         this.tiles = new DetailTiles(this.detail, { ...(isTouch ? { keep: 64, most: 48, maxLevel: 8 } : { keep: 200, most: 150, maxLevel: 9 }), maxSpan: this.PATCH_SPAN });   // (~0.9 MB a tile)
         this.layers = new TileLayers(this.globe, this.PATCH_SPAN);
-        this.patchLook = 0; this.patchLookKey = ''; this.patchClimate = null; this.viewSig = ''; this.wantedAt = 0;
+        this.patchLook = 0; this.patchLookKey = ''; this.patchClimate = null; this.viewSig = ''; this.wantedAt = 0; this.inputAt = 0;
+        // (when the view was last moved by hand: the globe's canvas and the map's frame take the pointer)
+        for (const el of [this.ui.canvas, this.ui.map]) {
+            if (!el) continue;
+            for (const ev of ['wheel', 'pointerdown', 'touchstart', 'touchmove']) el.addEventListener(ev, () => { this.inputAt = performance.now(); }, { passive: true });
+            el.addEventListener('pointermove', e => { if (e.buttons) this.inputAt = performance.now(); }, { passive: true });
+        }
         this.tileImage = null; this.tileColors = { look: -1, byWidth: new Map() };
         this.cloudsShown = { on: null, C: undefined, season: null };
         this.satPrep = null; this.satPrepFailed = new WeakSet();
@@ -423,21 +434,33 @@ export class PlanetView {
         return this.patchLook;
     }
     /**
-     * Each frame: the tiles the view wants — asked for as it moves, every PATCH_EVERY_MS — and those drawn laid over the
+     * Each frame: the tiles the view wants — asked for as it moves, every PATCH_EVERY_MS (another level's once the view has
+     * been still for PATCH_SETTLE_MS: a zoom draws none of the levels it passes through) — and those drawn laid over the
      * planet. `fin`: the finished moment shown, paused (else null); `kept`: the finished moment the page keeps (its tiles
      * go once it is gone); `seed`: the world's.
      */
     updatePatch(now, fin, kept, seed) {
         const { tiles, layers, globe, ui, view } = this;
         if (tiles.fin && kept !== tiles.fin) { tiles.reset(); layers.clear(); }   // (that moment is gone: its tiles too)
-        if (!fin || !DetailService.can(fin) || !this.patchLayer(view.layer)) { layers.hide(); return; }
+        const drawn = !!fin && DetailService.can(fin) && this.patchLayer(view.layer);
+        // (zoomed in as far as its finest tiles a little larger than the screen's pixels, where the detail is drawn)
+        globe.setDeepZoom(drawn ? DEEP_ZOOM_OVER * TILE * 2 ** tiles.maxLevel : 0, Math.min(devicePixelRatio || 1, 1.5));
+        if (!drawn) { layers.hide(); return; }
         const mv = globe.mapView, sig = view.mode === 'map' ? `m|${mv?.zoom}|${mv?.panX}|${mv?.panY}|${view.centerLon}|${view.projection}|${ui.map.clientWidth}|${ui.map.clientHeight}`
             : `${globe.camera.position.toArray().map(v => v.toFixed(4)).join()}|${ui.canvas.clientWidth}|${ui.canvas.clientHeight}`;
-        if ((sig !== this.viewSig || fin !== tiles.fin) && now - this.wantedAt >= PATCH_EVERY_MS) {
+        const settled = now - this.inputAt >= PATCH_SETTLE_MS && !globe.zoomEasing();
+        if ((sig !== this.viewSig || fin !== tiles.fin || (tiles.held && settled)) && now - this.wantedAt >= PATCH_EVERY_MS) {
             this.viewSig = sig; this.wantedAt = now;
             if (fin !== tiles.fin) layers.clear();
-            const { places, px } = this.viewPlaces();
-            tiles.want(fin, seed, places, px, this.SHARP_WIDTH || this.MAP_WIDTH);
+            const { places, px } = this.viewPlaces(), round = view.mode !== 'map';
+            if (!this.isTouch) {
+                // (as many tiles as the screen's first level needs — its pixels up to 2^0.75 the screen's, and the margin
+                // all round: ~240 on a 2560 × 1290 view — so a wide screen gets the level it wants, not one coarser)
+                const el = round ? ui.canvas : ui.map, k = Math.min(devicePixelRatio || 1, 1.5) * 2 ** 0.75 * (1 + 2 * TILE_MARGIN) / TILE;
+                tiles.most = Math.max(150, Math.ceil((el.clientWidth * k + 2) * (el.clientHeight * k + 2)));
+                tiles.keep = Math.max(200, Math.ceil(1.35 * tiles.most));
+            }
+            tiles.want(fin, seed, places, px, this.SHARP_WIDTH || this.MAP_WIDTH, round, settled || fin !== tiles.fin);
         }
         const look = this.patchLookOf(fin);
         layers.lay(tiles, look, t => this.paintTile(fin, t, look), this.PATCH_BUDGET_MS);

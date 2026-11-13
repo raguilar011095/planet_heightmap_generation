@@ -99,28 +99,58 @@ where the rivers cut into bedded cover its walls stepped (carve.js terraceBasalt
 read the relief without what the rock added, so a hard ridge it raised keeps its hard rock. **Detail finer than the mesh**: the mesh's cells are 7–15 km apart and the page shows a detailed moment
 at ~10 km a pixel — so where the view, paused on a detailed moment, is zoomed in past its picture's own pixels, it is
 drawn again at about the screen's resolution in 256-pixel tiles (`evolution/detail-view.js` DetailTiles: level L draws
-the planet 256 · 2^L pixels wide; the tiles in view asked for as it moves, nearest its middle first, by a few workers —
-`detail-worker.js`, each sent only the picture's and the drivers' pixels its tile needs — and kept, so panning back
-costs nothing). They are painted as the planet is, in every layer but those with arrows (the Geology and Food views
+the planet 256 · 2^L pixels wide; the tiles in view and 6 % past its edges asked for as it moves, nearest its middle
+first — another level's only once the view has been still for 200 ms (no wheel, drag or pinch, and its eased zoom within
+a hundredth of where it is going), so a zoom draws none of the levels it passes through (`held`: its tiles not yet begun
+dropped) — by up to 8 workers (all but two of the computer's threads; 12 kept a
+16-thread computer's fans going; an export's bands still 4 at a time) — `detail-worker.js`, each sent only the
+picture's and the drivers' pixels its tile needs — and kept, so panning back costs nothing). They come as soon as the screen would show the picture's pixels enlarged (~1.2 ×): on the map over the
+whole view, on the globe over the part within 60° of its middle, the screen measured there (the planet's edge in view,
+foreshortened, keeps the picture); a view may have as many as its screen needs at a level's start (~240 on a
+2560-wide desktop; phones 48), so a wide screen gets the level it wants, not one coarser. They are painted as the planet is, in every layer but those with arrows (the Geology and Food views
 too: their colours the picture's, the relief and coasts the detail's), the planet's own rivers drawn
 over them as crisp lines (only the rivers near each tile: a grid of the rivers' segments), and laid over the globe and
 the map on the GPU (TileLayers; `app/globe-view.js` putPatchTile): two layers of slots, the view's level's over the level
 before's, which stands in until the view's own tiles come; a slot holds the tiles whose column and row are its own modulo
 the layer's, so each tile is painted and sent once and a pan sends only the tiles it brings, a few a frame. Its heights (`finish/fine-detail.js`) are the picture enlarged
 smoothly (a B-spline inland — the mesh's one-cell pits drew square blobs — a Catmull–Rom at the coast, which keeps it)
-plus a little detail only below the mesh's scale, octave by octave once a feature spans 6 pixels, drawn from a small
+plus a little detail only below the mesh's scale, octave by octave once a feature spans 3 pixels, drawn from a small
 picture of drivers saved with the moment (`finish/finish-drivers.js`: the relief, the wet, the belt's youth, the sand
-seas and the wind, the margin, …): faint ridges and valleys on steep ground (stripes along the slope summed as phasors
+seas and the wind, the margin, …): faint ridges and valleys on steep ground (off since 2026-11-12, `FINE.ridgesOn`: a
+texture of stripes that led nowhere; stripes along the slope summed as phasors
 over a jittered lattice, each octave turned by the slope the coarser left, so they branch — Rune Skovbo Johansen's
 erosion filter's idea — bent a little by noise, strongest on wet, rugged, young ranges and coming and going from place to
 place) — and by the rock (the moment's rock picture and climate, already in it and its file: shale, slate and tuff cut
-densely and finely, badlands where dry; sandstone, limestone and granite sparsely); layered rock stepped where the ground
+densely and finely, badlands where dry; sandstone, limestone and granite sparsely); layered rock stepped (off too,
+`FINE.benchesOn`: fine contour-like lines) where the ground
 slopes through it (benches, the rims of mesas, stepped walls: each bed its own thickness and hardness, crisp where dry —
 from L9, a hint at L8); crystalline rock under the last ice age's ice knobbly, streamlined along its flow (the drivers'
 `iceDir`); karst where limestone dissolves — few valleys and closed hollows, packed close in the wet tropics; dunes in the
-sand seas, across the wind (along it where the seasons' winds cross); the coast's headlands and coves, hard rock out as
-headlands and soft back into bays. Plains and plateau tops get none, and the rivers are not cut into it. A tile depends only on its own pixels and a
-few km around them, so tiles meet exactly. An export wider than the picture is drawn the same way, band by band — its
+sand seas, across the year's wind (along it where January's and July's cross by 40–100°), an accent (± 12 m: ± 50 m read
+as fingerprints, 2026-11-13) — irregularly spaced (each kernel of the stripes its own wavelength, ± 40 %, and nudged), each
+crest its own height, faded where the stripes fork, in fields that come and go, fading in from the sand sea's edge; the coast's headlands and coves, hard rock out as
+headlands and soft back into bays. Beneath the ridges, **relief noise**: hills and knolls from the mesh's scale down
+(rounded ridges and swells), most on high, gentle ground — each octave less where the ground, with the coarser octaves,
+is steep (it reads as eroded), less along rivers, a third of it on low land (none at the shore) and in a full sand sea
+(its floor smooth between the dunes; the rivers there bent as much less), coming and going from
+place to place — drawn first: the rivers then run into its valleys (and the ridges, when on, over it; the benches step
+the ground without it — with it, every knoll ringed like a fingerprint). Each of its noises (an octave, and its coming
+and going) is read off a grid as fine as its wavelength asks — every 2^k-th pixel of the planet, at least 8 samples to
+the wavelength, a Catmull–Rom between (`gridNoise`; the finest octaves, under 16 pixels, at every pixel) — the grid the
+planet's, so tiles still meet to the bit: at the closest zoom about half the cost, the slope within ~2–3 % of the noise
+read at every pixel. **Lakes**: the picture keeps each lake pixel's water level (`raster.lakes`, sparse;
+`finish.js` finishRaster), and a tile draws the lake wherever its detailed ground lies under that level near the
+picture's lake, so a shore follows the detail (bays, points, islands) and wanders as the coast's does. **Rivers**: each
+line drawn through its points on a curve (no corners) and led, octave by octave as the pixels allow, down the relief
+noise's own slope into its valleys (`bendRiver`: a field — where rivers meet they still meet — weighted as the noise is
+there), the same for the line drawn (`finish-view.js` drawRiversWindow, each segment's points kept per width) and the
+ground beside it — calmed along it in proportion to its flow (a floor, no trench; where rivers are near, the calmest
+of theirs: each looked for no farther than its valley reaches) and its side valleys turned toward it (when the ridges are
+on). Both are made from the same runs of points (`riverParts`: the threshold, the split at the map's edge, Chaikin twice),
+so the line drawn and the ground calmed cannot drift apart; an export wider than the picture draws its rivers the same
+bent way (whole or in bands). Plains get none of the ridges, and the rivers are not cut into it. A tile depends only on its own pixels and a
+few km around them (and the rivers within reach), so tiles meet exactly (`v2/out/deep-zoom/seam.mjs`-style check: a
+512² window and its four quarters agree to the bit). An export wider than the picture is drawn the same way, band by band — its
 heightmaps included. A moment saved before has no drivers and is shown as before. A finished moment brings **its own
 climate, at its detail**: the grid's climate from the finish's climate stage, each cell's own (its height, its relief)
 again on the finished surface — the climate tabs (Köppen, temperature, rain, wind, currents, and More…'s layers) and the
@@ -251,7 +281,13 @@ their numbers as data (export.js FARM_SCALES: farmland with the techniques and b
 the lifestyle's indices, the README listing them; people a km², 0…1000; soil fertility, 0…1; the growing season by rain and
 watered, months; finishedFarmingValue). A moment detailed before the rocks or the farming were added lacks their rows
 (rowAvailable). One map saves as a PNG, several as one ZIP with a README.txt. Widths from
-1024 to 16384 px (4096 on phones): up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
+1024 to 16384 px (4096 on phones) — and on a computer 32768 and 65536 (owner, 2026-11-10), drawn in bands: export.js
+drawBand draws the detail finer than the mesh for a band of rows and a row either side (the hillshade's neighbours),
+produceBand each map's rows of it exactly as produceMap draws the whole planet's (each band's rows the whole's, byte for
+byte: scratch harness, every map but the rivers' lines), and export-panel.js runBands writes every map's band to its file
+or its 16,384-px tiles as it comes, in workers (png-stream.js, png-stream-worker.js: png.js PngStream, the same bytes as
+the whole encoders), straight to a file or folder picked through the File System Access API — so no map is held whole.
+Up to 16384: up to the finished picture's own (4096, 8192 at 10M, 2048 on phones) drawn from its
 detail, narrower ones averaged down; wider ones enlarged for use downstream (developer, 2026-10-17) — heights by a clamped
 bicubic, coasts, lakes and climate zones by the weighted majority of the nearest pixels, satellite colours blended — then
 painted at the full width. Every map is centred on the map view's Center Longitude and can be drawn in any of ten

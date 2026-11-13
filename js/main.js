@@ -383,12 +383,18 @@ function producePlates(rctx, job) {
     const W = rctx.W, H = W >> 1, shift = rollShift(W, rctx.look.centerLon), colour = job.variant === 'colour';
     return { kind: colour ? 'rgba' : 'gray8', W, H, data: rollRows(platesMap(world, W, colour ? 'rgba' : 'id'), W, H, colour ? 4 : 1, shift) };
 }
+/** A band's rows of the Plates map (an export wider than 16,384 px, drawn in bands). */
+function producePlatesBand(rctx, job, band) {
+    if (job.row.id !== 'plates' || !world) return null;
+    const W = rctx.W, n = band.n, colour = job.variant === 'colour';
+    return { kind: colour ? 'rgba' : 'gray8', W, H: n, data: rollRows(platesMap(world, W, colour ? 'rgba' : 'id', band.y0, n), W, n, colour ? 4 : 1, rollShift(W, rctx.look.centerLon)) };
+}
 const exportPanel = initEvolutionExport({
     moment: () => (world?.fin ? { frame: world.story, fin: world.fin, seed: code(), cloudSeed: world.seed } : null),
     look: () => ({ lut: heightLutOf(view.palette), exaggeration: pv.SHADING.exaggeration, water: view.water, riverQ: view.riverQ, byRegime: view.byRegime, deposit: view.deposit }),
     centerLon: () => view.centerLon, projection: () => (view.mode === 'map' ? { id: view.projection, opts: view.projOpts } : null), isTouch: IS_TOUCH,
-    fine: (fin, _seed, W, onProgress) => pv.detail.window(fin, world.seed, { W, x0: 0, y0: 0, w: W, h: W >> 1 }, null, onProgress),
-    page: 'generate', titleNote: () => '', catalogue: CATALOGUE_WITH_PLATES, produceOwn: producePlates,
+    fine: (fin, _seed, W, onProgress, win = { W, x0: 0, y0: 0, w: W, h: W >> 1 }) => pv.detail.window(fin, world.seed, win, null, onProgress),
+    page: 'generate', titleNote: () => '', catalogue: CATALOGUE_WITH_PLATES, produceOwn: producePlates, produceOwnBand: producePlatesBand,
     names: (ctx, opts) => { const c = Math.round(opts.centerLon || 0); return { start: ['orogen', ctx.seed], end: [c ? `c${Math.abs(c)}${c > 0 ? 'E' : 'W'}` : null] }; },
     about: (ctx) => ({ page: 'Generate', planet: `planet code ${ctx.seed}`, link: `https://orogen.studio/generate#${ctx.seed}` }) });
 $('exportBtn').addEventListener('click', () => {

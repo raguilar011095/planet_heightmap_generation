@@ -60,9 +60,12 @@ One moment is kept in detail at a time. Adding detail to another replaces it onc
 tells you when it will.
 
 Zoomed in, a detailed moment shows detail finer than its mesh, drawn in tiles at the screen's resolution as you pan and
-zoom (and in exports wider than the moment's picture): faint ridges and valleys on its mountains, cut by their rock,
-benches stepped through layered rock, ice-scoured knobs and karst hollows, dunes in its sand seas, coves along its
-coasts. The rivers' options (Rivers & lakes, By regime, density) are in the view strip.
+zoom (and in exports wider than the moment's picture); a zoom's sharper tiles start once you pause, so the levels it
+passes through cost nothing. Paused on one, the globe and the map zoom on past their usual
+nearest until the finest tiles are about the screen's pixels (the planet ~131,000 px wide, 0.3 km a pixel; ~65,000 on
+phones); elsewhere they stop at the usual (zoomed in that far, you stay, but go no nearer): hills and knolls,
+ice-scoured knobs and karst hollows, dunes in its sand seas, coves along its coasts, lake shores that follow the ground,
+and rivers that wind through the hills, the ground calm along them. The rivers' options (Rivers & lakes, By regime, density) are in the view strip.
 
 ## Look around
 
@@ -129,8 +132,9 @@ without its clouds), the clouds alone, its climate zones, heightmaps with and wi
 rivers and lakes on their own. Every climate and food view can go too, each as colour or as data (16-bit greyscales on
 fixed scales). From Geology: its rocks, its deposits and each age's map, a richness mask for every resource, the
 districts as GeoJSON or CSV, and a resource atlas in words. Several maps save as one ZIP with a README, at any width up to
-16,384 px, in any of ten map projections, centred as you like, with or without the hillshade. The panel itself is
-described in [shared.md](shared.md#export).
+16,384 px, in any of ten map projections, centred as you like, with or without the hillshade; on a computer, up to
+65,536 px too (equirectangular, saved straight to a folder, whole or in 16,384-px tiles), with the detail finer than the
+mesh drawn in. The panel itself is described in [shared.md](shared.md#export).
 
 ## Keep a planet
 

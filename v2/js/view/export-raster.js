@@ -50,14 +50,15 @@ export function gray16to8(g16) {
  * shades its terrain (finish-view.js paintFinished): the light on each pixel's slope, 0…255 — flat ground 180, a
  * north-west slope brighter, a south-east slope darker. `exaggeration`: the slope's vertical exaggeration.
  */
-export function hillshade8(h, W, H, exaggeration = 20) {
-    const out = new Uint8Array(W * H), pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
-    for (let y = 0; y < H; y++) {
-        const cl = Math.max(0.05, Math.cos(((y + 0.5) / H - 0.5) * Math.PI)), up = Math.max(0, y - 1) * W, dn = Math.min(H - 1, y + 1) * W, row = y * W;
+export function hillshade8(h, W, H, exaggeration = 20, { y0 = 0, n = H, from = 0 } = {}) {
+    // (or rows y0 … y0 + n − 1 of it — an export drawn in bands — from heights holding the planet's rows from `from`)
+    const out = new Uint8Array(W * n), pxKm = 2 * Math.PI * 6371 / W, Le = -0.5, Ln = 0.5, Lu = Math.SQRT1_2;
+    for (let j = 0; j < n; j++) {
+        const y = y0 + j, cl = Math.max(0.05, Math.cos(((y + 0.5) / H - 0.5) * Math.PI)), up = (Math.max(0, y - 1) - from) * W, dn = (Math.min(H - 1, y + 1) - from) * W, row = (y - from) * W, o = j * W;
         for (let x = 0; x < W; x++) {
             const ge = (h[row + (x + 1) % W] - h[row + (x - 1 + W) % W]) / (2 * pxKm * cl), gn = (h[up + x] - h[dn + x]) / (2 * pxKm);
             const px = -exaggeration * ge, py = -exaggeration * gn, len = Math.sqrt(px * px + py * py + 1);
-            out[row + x] = Math.round(255 * Math.max(0, (px * Le + py * Ln + Lu) / len));
+            out[o + x] = Math.round(255 * Math.max(0, (px * Le + py * Ln + Lu) / len));
         }
     }
     return out;
@@ -68,14 +69,14 @@ export function hillshade8(h, W, H, exaggeration = 20) {
  * W/2, 0) its class: averaged down, the class most of its block has; enlarged, the class the nearest four by four pixels
  * weigh most by a cubic B-spline (smooth, positive weights: the classes' stair-stepped borders rounded into curves). Land
  * the picture marks as none (a coast a pixel apart) takes the nearest class. `n`: how many classes. (The Köppen zones'
- * export; Evolution's rocks.)
+ * export; Evolution's rocks.) Or rows y0 … y0 + rows − 1 of it, `sea` theirs (an export drawn in bands).
  */
-export function classIndexMap(R, data, n, W, sea) {
-    const H = W >> 1, out = new Uint8Array(W * H);
+export function classIndexMap(R, data, n, W, sea, y0 = 0, rows = W >> 1) {
+    const out = new Uint8Array(W * rows);
     const s = R.w / W, K = Math.max(1, Math.round(s)), votes = new Float32Array(n), bx = [0, 0, 0, 0], by = [0, 0, 0, 0];
     const bspline = (t, w) => { const t2 = t * t, t3 = t2 * t, u = 1 - t; w[0] = u * u * u / 6; w[1] = (3 * t3 - 6 * t2 + 4) / 6; w[2] = (-3 * t3 + 3 * t2 + 3 * t + 1) / 6; w[3] = t3 / 6; };
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const p = y * W + x;
+    for (let j = 0; j < rows; j++) for (let x = 0; x < W; x++) {
+        const y = y0 + j, p = j * W + x;
         let z = 0;
         if (!sea[p]) {
             votes.fill(0);
@@ -114,7 +115,7 @@ export const SEASON_NAMES = { year: 'the year', jan: 'January', jul: 'July' };
 /**
  * The README.txt that goes in a ZIP: what every file is, its kind and scale, and how the export was made.
  * `files`: [{ name, row, variant, season, file, kind, about, W, H }] (kind 'file': not a map — `about` says what it is);
- * `about`: { page, planet, link, width, height, projection, centerLon, hillshade, notes }; `lists`: more numbered lists
+ * `about`: { page, planet, link, width, height, projection, centerLon, hillshade, notes, tiles? {nx, ny, size} }; `lists`: more numbered lists
  * after the Köppen classes' ([{ title, items }]: a class index file's classes).
  */
 export function readmeText(about, files, koppenClasses = null, lists = []) {
@@ -126,6 +127,10 @@ export function readmeText(about, files, koppenClasses = null, lists = []) {
     L.push(`Projection: ${about.projection || 'equirectangular'}${about.projectionNote ? ` (${about.projectionNote})` : ''}`);
     L.push(`Centre longitude: ${about.centerLon ? `${Math.abs(about.centerLon)}°${about.centerLon > 0 ? 'E' : 'W'}` : '0°'}`);
     L.push(`Size: ${about.width} × ${about.height} px${about.sizeNote ? ` (${about.sizeNote})` : ''}`);
+    if (about.tiles) {
+        const { nx, ny, size } = about.tiles;
+        L.push(`Tiles: each map in ${nx} × ${ny} tiles of ${size} × ${size} px, named -x0-y0 to -x${nx - 1}-y${ny - 1}: x counts from the west edge, y from the north (x0-y0 the top-left)`);
+    }
     if (about.hillshade != null) L.push(`Hillshade on the colour maps: ${about.hillshade ? 'on' : 'off'}`);
     for (const n of about.notes || []) L.push(n);
     L.push('', 'Files', '-----');
@@ -137,7 +142,9 @@ export function readmeText(about, files, koppenClasses = null, lists = []) {
             const sc = f.file.scale, top = f.kind === 'gray8' ? 255 : 65535;
             scale = sc.lo === 0 && sc.hi === 255 && f.kind === 'gray8' ? ` — ${sc.unit}` : ` — ${sc.unit}: 0 = ${sc.lo}, ${top} = ${sc.hi}, linear`;
         }
-        L.push(`${f.name}`, `    ${f.label}${season} — ${kind}${scale}`);
+        // (a row's label is written for the panel's HTML — "Rivers &amp; lakes" — and the README is plain text)
+        const label = String(f.label).replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&');
+        L.push(`${f.name}`, `    ${label}${season} — ${kind}${scale}`);
     }
     if (koppenClasses) {
         L.push('', 'Köppen classes (the index in the class-index file)', '----------------------------------------------');

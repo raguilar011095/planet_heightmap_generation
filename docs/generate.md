@@ -83,7 +83,7 @@ A **What's New** modal is shown once per release to returning users (those who h
 | Action | Desktop | Mobile |
 |--------|---------|--------|
 | Rotate globe / pan map | Drag | Drag (one finger) |
-| Zoom | Scroll wheel (past the picture's own pixels, the detail finer than the mesh is drawn in tiles) | Pinch with two fingers |
+| Zoom | Scroll wheel (past the picture's own pixels, the detail finer than the mesh is drawn in tiles, on in to its finest: the planet ~131,000 px wide) | Pinch with two fingers (on in to ~65,000 px) |
 | What is here | Hover | Tap |
 | Mark a piece for reshaping | Ctrl-click it (Cmd-click on a Mac; the piece under the pointer lights while Ctrl is held) | Tap the edit button (pencil), then tap pieces |
 | Undo a pending piece | Ctrl-click it again | Tap it again |

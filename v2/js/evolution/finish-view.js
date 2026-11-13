@@ -3,6 +3,8 @@
 // painting of a finished moment, its picture of heights, onto the page's textures: coloured by the palette and shaded as
 // the live terrain is.
 
+import { FINE, bendRiver, bendScale, bendSteps, riverCurve, riverParts, riverSeed } from '../finish/fine-detail.js';
+
 export class FinishService {
     constructor() { this.worker = null; this.jobs = new Map(); this.next = 1; this.prepared = 0; }
 
@@ -290,7 +292,7 @@ export function riverPaths(fin, q0) {
 function riverSegments(fin, q0) {
     fin.segments ??= new Map();
     if (fin.segments.has(q0)) return fin.segments.get(q0);
-    const R = fin.rivers, W = 2048, H = 1024, keys = new Map(), buckets = [], xy = [], bucket = [], prev = [], joined = [], along = [], starts = [...R.start, R.lat.length];
+    const R = fin.rivers, keys = new Map(), buckets = [], xy = [], nb = [], bucket = [], prev = [], joined = [], along = [];
     let maxLen = 0;
     const add = (str, reg, x0, y0, x1, y1) => {
         const key = `${str}|${reg}`;
@@ -301,34 +303,16 @@ function riverSegments(fin, q0) {
         xy.push(x0, y0, x1, y1); bucket.push(b); prev.push(B.at); joined.push(on ? 1 : 0); along.push(B.run);
         B.run += len; B.last = [x1, y1]; B.at = bucket.length - 1; maxLen = Math.max(maxLen, len);
     };
-    for (let r = 0; r < starts.length - 1; r++) {
-        // (a reach below the threshold ends its line — a river that dries out is not bridged to where it flows again —
-        // and a reach is split where it crosses the map's edge)
-        const parts = [[]];
-        for (let i = starts[r]; i < starts[r + 1]; i++) {
-            if (!(R.q[i] >= q0)) { if (parts[parts.length - 1].length) parts.push([]); continue; }
-            const p = [(R.lon[i] + 180) / 360 * W, (90 - R.lat[i]) / 180 * H, R.q[i], regimeAt(R, i)], cur = parts[parts.length - 1];
-            if (cur.length && Math.abs(p[0] - cur[cur.length - 1][0]) > W / 2) parts.push([]);
-            parts[parts.length - 1].push(p);
-        }
-        for (let pts of parts) {
-            if (pts.length < 2) continue;
-            for (let it = 0; it < 2; it++) {
-                const nx = [pts[0]];
-                // (the regime is not blended: each new point keeps its nearer point's)
-                for (let i = 0; i < pts.length - 1; i++) {
-                    const a = pts[i], b = pts[i + 1];
-                    nx.push([0.75 * a[0] + 0.25 * b[0], 0.75 * a[1] + 0.25 * b[1], 0.75 * a[2] + 0.25 * b[2], a[3]], [0.25 * a[0] + 0.75 * b[0], 0.25 * a[1] + 0.75 * b[1], 0.25 * a[2] + 0.75 * b[2], b[3]]);
-                }
-                nx.push(pts[pts.length - 1]); pts = nx;
-            }
-            for (let i = 0; i < pts.length - 1; i++) {
-                const a = pts[i], b = pts[i + 1];
-                add(riverStrength(a[2], q0), a[3], a[0], a[1], b[0], b[1]);
-            }
+    // (the runs of points: fine-detail.js riverParts — the detail calms the ground along the same ones; each point's
+    // regime its own, not blended)
+    for (const pts of riverParts(R, q0, i => regimeAt(R, i))) {
+        for (let i = 0; i < pts.length - 1; i++) {
+            const a = pts[i], b = pts[i + 1], pa = pts[Math.max(0, i - 1)], pb = pts[Math.min(pts.length - 1, i + 2)];
+            nb.push(pa[0], pa[1], pb[0], pb[1]);
+            add(riverStrength(a[2], q0), a[3], a[0], a[1], b[0], b[1]);
         }
     }
-    const S = { count: bucket.length, xy: Float32Array.from(xy), bucket: Uint16Array.from(bucket), prev: Int32Array.from(prev), joined: Uint8Array.from(joined), along: Float32Array.from(along), maxLen,
+    const S = { count: bucket.length, xy: Float32Array.from(xy), nb: Float32Array.from(nb), bucket: Uint16Array.from(bucket), prev: Int32Array.from(prev), joined: Uint8Array.from(joined), along: Float32Array.from(along), maxLen,
         buckets: buckets.map(({ strength, regime }) => ({ strength, regime })), order: buckets.map((b, i) => i).sort((a, b) => buckets[a].strength - buckets[b].strength), grid: null };
     fin.segments.set(q0, S);
     return S;
@@ -357,13 +341,51 @@ export function drawRivers(ctx, paths, byRegime = false, widthScale = 1) {
  * (0, 0) its pixel (x0, y0), w × h of them. Only the segments near the window are drawn (a grid of them, built once per
  * moment and q0) — so a tile of the zoomed-in view costs its own rivers, not the planet's — each line begun where its
  * dashes begin, a little before the window (so they stand where the whole line's do): windows side by side meet as one
- * picture would.
+ * picture would. Each line bent as the detail finer than the mesh bends it at this width (fine-detail.js bendRiver: the
+ * ground beside it calmed along the same bends). `keep`: the bent points kept per width for the windows after (the
+ * zoom's tiles); an export's windows, each drawn once, pass false.
  */
-export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthScale = 1) {
+export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthScale = 1, keep = true) {
     const S = riverSegments(fin, q0), k = W / 2048, G = S.grid ??= segmentGrid(S);
+    const bend = FINE.riverBends && fin.rivers?.lat?.length ? { pxKm: 2 * Math.PI * 6371 / W, seed: riverSeed(fin.rivers), cellKm: 24200 / Math.sqrt(fin.cells ?? 2.5e6) } : null;
+    const B = [0, 0], C = [0, 0];
+    // (a segment's point t along it — on the curve through its neighbours, led down the noise — or the plain segment's)
+    const at = (g, t) => {
+        const o = 4 * g, X = S.xy;
+        if (!bend) { C[0] = X[o] + t * (X[o + 2] - X[o]); C[1] = X[o + 1] + t * (X[o + 3] - X[o + 1]); return C; }
+        riverCurve(X[o], X[o + 1], X[o + 2], X[o + 3], S.nb[o], S.nb[o + 1], S.nb[o + 2], S.nb[o + 3], t, C);
+        const a0 = bendScale(fin.raster, X[o], X[o + 1], bend.seed), a1 = bendScale(fin.raster, X[o + 2], X[o + 3], bend.seed);
+        return bendRiver(C[0], C[1], bend.pxKm, bend.seed, bend.cellKm, B, a0 + t * (a1 - a0));
+    };
+    // (each segment's points at this width, once: a tile and the next share them, and panning back costs nothing — the
+    // last three widths' kept)
+    let cache = null;
+    if (bend && !keep) cache = new Map();
+    else if (bend) {
+        const all = S.bent ??= new Map();
+        cache = all.get(W);
+        if (!cache) { if (all.size >= 3) all.delete(all.keys().next().value); all.set(W, cache = new Map()); }
+    }
+    const pts = g => {
+        let a = cache.get(g);
+        if (!a) {
+            const o = 4 * g, n = bendSteps(S.xy[o], S.xy[o + 1], S.xy[o + 2], S.xy[o + 3], bend.pxKm);
+            a = new Float64Array(2 * (n + 1));
+            for (let s = 0; s <= n; s++) { const P = at(g, s / n); a[2 * s] = P[0]; a[2 * s + 1] = P[1]; }
+            cache.set(g, a);
+        }
+        return a;
+    };
+    const mv = (g, t) => { if (bend && t === 0) { const a = pts(g); ctx.moveTo(a[0], a[1]); return; } const P = at(g, t); ctx.moveTo(P[0], P[1]); };
+    // (segment g from t0 to its end: in as many pieces as the detail bends it in)
+    const ln = (g, t0 = 0) => {
+        if (!bend) { const P = at(g, 1); ctx.lineTo(P[0], P[1]); return; }
+        const a = pts(g), n = a.length / 2 - 1;
+        for (let s = Math.floor(t0 * n) + 1; s <= n; s++) ctx.lineTo(a[2 * s], a[2 * s + 1]);
+    };
     // (how far past the window a segment's middle may lie and still touch it: half the longest segment, half the widest
     // line, a pixel's anti-aliasing — in the 2048-wide texture's px)
-    const m = S.maxLen / 2 + 0.5 * STRENGTH_WIDTH[STRENGTH_WIDTH.length - 1] * widthScale + 2 / k;
+    const m = S.maxLen / 2 + 0.5 * STRENGTH_WIDTH[STRENGTH_WIDTH.length - 1] * widthScale + 2 / k + (bend ? 8 / 19.5 : 0);   // (and a line led aside: ≤ ~8 km)
     const ya = Math.max(0, Math.floor((y0 / k - m) / G.C)), yb = Math.min(G.GH - 1, Math.floor(((y0 + h) / k + m) / G.C));
     ctx.save();
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
@@ -388,22 +410,22 @@ export function drawRiversWindow(ctx, fin, q0, byRegime, W, x0, y0, w, h, widthS
                 if (!(S.joined[i] && S.prev[i] === last)) {
                     // (a line begun here, where the whole line carries on from the segment before: dashed, from where its
                     // dashes last began — back along the line — so they fall where the whole line's do)
-                    let back = period ? S.along[i] % period : 0, j = i, from = null;
+                    let back = period ? S.along[i] % period : 0, j = i, from = -1;
                     while (back > 0 && S.joined[j]) {
                         const p = S.prev[j], q = 4 * p, len = Math.hypot(S.xy[q + 2] - S.xy[q], S.xy[q + 3] - S.xy[q + 1]);
                         j = p;
-                        if (len >= back) { const f = back / len; from = [S.xy[q + 2] + f * (S.xy[q] - S.xy[q + 2]), S.xy[q + 3] + f * (S.xy[q + 1] - S.xy[q + 3])]; break; }
+                        if (len >= back) { from = 1 - back / len; break; }      // (that far along segment j)
                         back -= len;
                     }
-                    if (j !== i && !from) from = [S.xy[4 * j], S.xy[4 * j + 1]];   // (the line's own start)
-                    if (from) {
-                        ctx.moveTo(from[0], from[1]);
+                    if (j !== i && from < 0) from = 0;                          // (the line's own start)
+                    if (from >= 0) {
+                        mv(j, from);
                         const chain = [];
                         for (let q = S.prev[i]; ; q = S.prev[q]) { chain.push(q); if (q === j) break; }
-                        for (let c = chain.length - 1; c >= 0; c--) ctx.lineTo(S.xy[4 * chain[c] + 2], S.xy[4 * chain[c] + 3]);
-                    } else ctx.moveTo(S.xy[o], S.xy[o + 1]);
+                        for (let c = chain.length - 1; c >= 0; c--) ln(chain[c], chain[c] === j ? from : 0);
+                    } else mv(i, 0);
                 }
-                ctx.lineTo(S.xy[o + 2], S.xy[o + 3]);
+                ln(i);
                 last = i; any = true;
             }
             if (any) ctx.stroke();

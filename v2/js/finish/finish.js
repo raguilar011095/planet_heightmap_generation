@@ -526,6 +526,9 @@ export function oceanMask(mesh, z, seaSeedKm2 = FINISH.seaSeedKm2, deepKm = FINI
  */
 export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeLevel = null, climate = null, geology = null, farming = null) {
     const h = w >> 1, heightM = new Int16Array(w * h), sea = new Uint8Array(w * h), water = new Uint8Array(w * h), c3 = [0, 0, 0], w3 = [0, 0, 0];
+    // (each lake pixel's water level, m — in the pixels' order: the detail finer than the mesh draws a lake's shore where
+    // its finer ground lies under it, fine-detail.js)
+    const lakeAt = [], lakeLv = [];
     // (the climate's picture: at most as wide as the page's sharpest texture — every f-th pixel of the heights' — the
     // land's Köppen class (its weightiest land cell's), °C × 100 and mm a year (its land cells' weighted mean); the sea
     // −32768 °C, 0 mm. With the land's cover: its colours from space (the year, January, July: its land cells' weighted
@@ -558,7 +561,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
             const near = w3[0] >= w3[1] && w3[0] >= w3[2] ? c3[0] : w3[1] >= w3[2] ? c3[1] : c3[2];
             sea[i] = ocean[near];
             // (a lake: under its level, where one of the pixel's cells is lake — its shore as crisp as the heights)
-            if (lake) for (let j = 0; j < 3; j++) { const c = c3[j]; if (lake[c] && w3[j] > 0.2 && v < lakeLevel[c]) { water[i] = lake[c]; break; } }
+            if (lake) for (let j = 0; j < 3; j++) { const c = c3[j]; if (lake[c] && w3[j] > 0.2 && v < lakeLevel[c]) { water[i] = lake[c]; lakeAt.push(i); lakeLv.push(Math.round(lakeLevel[c] * 1000)); break; } }
             if (cw && !sea[i] && px % f === 0 && py % f === 0) {
                 let ws = 0, t = 0, p = 0, best = -1, bw = 0;
                 for (let j = 0; j < 3; j++) {
@@ -640,7 +643,7 @@ export function finishRaster(mesh, z, ocean, w, onRow = null, lake = null, lakeL
     }
     // (the terrain on the satellite picture: rock where steep, slopes and valleys in dry country — from the heights)
     if (sat) terrainLook({ w: cw, h: ch, sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov, tAnnual: tA, pAnnual: pA, koppen: kop, flow: flowPx, young: youngPx, noise: mottle, rivers: climate.rivers, water: lake ? water : null, ripSat: ripPx ? { year: ripPx[0], jan: ripPx[1], jul: ripPx[2] } : null }, heightM, w);
-    return { w, h, heightM, ocean: sea, water, geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null,
+    return { w, h, heightM, ocean: sea, water, ...(lake ? { lakes: { at: Int32Array.from(lakeAt), levelM: Int16Array.from(lakeLv) } } : {}), geology: rockPx ? { w: cw, h: ch, rock: rockPx, rec: recPx, deposits: geology.deposits ?? null } : null,
         farming: farmPx ? { w: cw, h: ch, ...farmPx, kind: farmKind, ...(cropPx ? { crops: cropPx } : {}) } : null, climate: cw ? { w: cw, h: ch, koppen: kop, tAnnual: tA, pAnnual: pA, ...(statPx ? { stats: statPx } : {}), ...(climate.families ? { families: climate.families } : {}), ...(sat ? { sat: { year: sat[0], jan: sat[1], jul: sat[2] }, cover: cov } : {}) } : null };
 }
 

@@ -644,23 +644,24 @@ function gridAt(G, W, x, y, K, o) {
     o[0] = at(1) * ac; o[1] = ac + as;
     return o;
 }
-/** The clouds alone on a transparent picture W × W/2: RGBA bytes (the shadow faint and dark). */
-export function cloudPicture(G, W, K = CLOUDS) {
-    const H = W >> 1, out = new Uint8Array(4 * W * H), o = [0, 0];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        gridAt(G, W, x, y, K, o);
-        const A = o[1], gg = A > 0 ? Math.round(255 * o[0] / A) : 0, oo = 4 * (y * W + x);
+/** The clouds alone on a transparent picture W × W/2: RGBA bytes (the shadow faint and dark) — or its rows y0 … y0 + rows − 1. */
+export function cloudPicture(G, W, K = CLOUDS, y0 = 0, rows = W >> 1) {
+    const out = new Uint8Array(4 * W * rows), o = [0, 0];
+    for (let j = 0; j < rows; j++) for (let x = 0; x < W; x++) {
+        gridAt(G, W, x, y0 + j, K, o);
+        const A = o[1], gg = A > 0 ? Math.round(255 * o[0] / A) : 0, oo = 4 * (j * W + x);
         out[oo] = gg; out[oo + 1] = gg; out[oo + 2] = Math.min(255, Math.round(gg * 1.02)); out[oo + 3] = Math.round(255 * A);
     }
     return out;
 }
-/** The clouds laid over an RGBA picture W × W/2 in place — no picture of the clouds' own the picture's size. */
-export function cloudOver(G, data, W, K = CLOUDS) {
-    const H = W >> 1, o = [0, 0];
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        gridAt(G, W, x, y, K, o);
+/** The clouds laid over an RGBA picture W × W/2 in place — no picture of the clouds' own the picture's size — or over
+ *  its rows y0 … y0 + rows − 1 (`data` theirs). */
+export function cloudOver(G, data, W, K = CLOUDS, y0 = 0, rows = W >> 1) {
+    const o = [0, 0];
+    for (let j = 0; j < rows; j++) for (let x = 0; x < W; x++) {
+        gridAt(G, W, x, y0 + j, K, o);
         if (!(o[1] > 0)) continue;
-        const A = o[1], gg = 255 * o[0] / A, d = 4 * (y * W + x);
+        const A = o[1], gg = 255 * o[0] / A, d = 4 * (j * W + x);
         // (as the picture's own over: its byte colours, rounded as cloudPicture's bytes would be)
         const g8 = Math.round(gg), b8 = Math.min(255, Math.round(g8 * 1.02)), a8 = Math.round(255 * A) / 255;
         data[d] = Math.round(data[d] * (1 - a8) + g8 * a8); data[d + 1] = Math.round(data[d + 1] * (1 - a8) + g8 * a8); data[d + 2] = Math.round(data[d + 2] * (1 - a8) + b8 * a8);

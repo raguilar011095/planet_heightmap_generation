@@ -74,15 +74,15 @@ export function plateColors(w) {
 
 /**
  * The Plates map for the export, W px wide (× W/2, unrolled): each pixel its nearest region's plate colour ('rgba') or
- * its plate's number ('id', 8-bit).
+ * its plate's number ('id', 8-bit) — or its rows y0 … y0 + rows − 1 (an export drawn in bands).
  */
-export function platesMap(w, W, kind) {
+export function platesMap(w, W, kind, y0 = 0, rows = W >> 1) {
     const H = W >> 1, index = w.tMesh.index, rgb = plateColors(w), plateOf = w.present.regionPlate;
-    const out = kind === 'rgba' ? new Uint8ClampedArray(4 * W * H) : new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) {
-        const lat = Math.PI / 2 - (y + 0.5) / H * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
+    const out = kind === 'rgba' ? new Uint8ClampedArray(4 * W * rows) : new Uint8Array(W * rows);
+    for (let j = 0; j < rows; j++) {
+        const y = y0 + j, lat = Math.PI / 2 - (y + 0.5) / H * Math.PI, cl = Math.cos(lat), sl = Math.sin(lat);
         for (let x = 0; x < W; x++) {
-            const lon = (x + 0.5) / W * 2 * Math.PI - Math.PI, r = index.nearest(cl * Math.cos(lon), cl * Math.sin(lon), sl), p = y * W + x;
+            const lon = (x + 0.5) / W * 2 * Math.PI - Math.PI, r = index.nearest(cl * Math.cos(lon), cl * Math.sin(lon), sl), p = j * W + x;
             if (kind === 'rgba') { out[4 * p] = rgb[3 * r]; out[4 * p + 1] = rgb[3 * r + 1]; out[4 * p + 2] = rgb[3 * r + 2]; out[4 * p + 3] = 255; }
             else out[p] = plateOf[r] & 255;
         }

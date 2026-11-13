@@ -50,10 +50,11 @@ const PLAIN = { pictureAt: (fin, W) => rasterAt(fin.raster, W), paintAt: (fin, W
  * One file of a geology row, W wide, as the panel asks for it (`job`: {row, variant, file}), unturned (export.js centres it):
  * a map ({kind, W, H, data}) or a file that is not one ({kind: 'file', blob, about}). `lk`: the look ({lut, exaggeration,
  * shaded, deposit (the Deposits view's pick), frame (the moment's: the districts' stories), seed}); `pic`: the picture at W, and painted
- * ({pictureAt, paintAt}: export.js's, the detail finer than the mesh where drawn).
+ * ({pictureAt, paintAt}: export.js's, the detail finer than the mesh where drawn) — and with `rows` {y0, n}, only those
+ * rows of the planet (an export drawn in bands: its pictureAt and paintAt theirs).
  */
 export function produceGeology(fin, W, lk, job, pic = PLAIN) {
-    const r = job.row, H = W >> 1;
+    const r = job.row, H = pic.rows?.n ?? W >> 1;
     if (job.variant === 'colour') return geologyMap(fin, W, r.geology, lk, { pick: lk.deposit ?? 'all', age: r.age ?? 'bronze' }, pic);
     const key = job.file.key;
     if (key === 'rockIndex') return { kind: 'gray8', W, H, data: rockIndexMap(fin, W, pic) };
@@ -71,12 +72,12 @@ export function produceGeology(fin, W, lk, job, pic = PLAIN) {
  * (geology-view.js rockPixel: contacts running smoothly between its pixels, the finer coast's land its nearest rock).
  */
 export function geologyMap(fin, W, layer, lk, { pick = 'all', age = 'bronze', agePick = 'all' } = {}, pic = PLAIN) {
-    const H = W >> 1, image = { data: new Uint8ClampedArray(4 * W * H) }, G = fin.raster.geology;      // (no canvas: DOM-free)
+    const { y0 = 0, n: H = W >> 1 } = pic.rows ?? {}, image = { data: new Uint8ClampedArray(4 * W * H) }, G = fin.raster.geology;      // (no canvas: DOM-free)
     let colorAt;
     if (layer === 'geoRocks' && W < G.w) {
         const { sea } = pic.pictureAt(fin, W), K = fin.climate?.raster, ef = KOPPEN_ID.EF;
-        const kop = K?.koppen ? classIndexMap(K, K.koppen, KOPPEN_CLASSES.length, W, sea) : null;
-        colorAt = rocksColor(fin, W, { rock: classIndexMap(G, G.rock, ROCK_COUNT, W, sea), ice: kop && kop.map(z => (z === ef ? 1 : 0)) });
+        const kop = K?.koppen ? classIndexMap(K, K.koppen, KOPPEN_CLASSES.length, W, sea, y0, H) : null;
+        colorAt = rocksColor(fin, W, { rock: classIndexMap(G, G.rock, ROCK_COUNT, W, sea, y0, H), ice: kop && kop.map(z => (z === ef ? 1 : 0)) });
     } else colorAt = finishedGeologyColor(layer, W, fin, pick, age, agePick);
     pic.paintAt(fin, W, image, lk.lut, { exaggeration: lk.exaggeration, lakes: true, shaded: lk.shaded !== false, colorAt });
     return { kind: 'rgba', W, H, data: image.data };
@@ -85,13 +86,13 @@ export function geologyMap(fin, W, layer, lk, { pick = 'all', age = 'bronze', ag
 /** Each pixel's rock type (ROCK_INFO's index; 0 the sea), at width W: as the Rocks map draws it — narrower than the rocks'
  *  picture its commonest there, wider the view's (rockPixel; land the picture has as sea its nearest land's rock). */
 export function rockIndexMap(fin, W, pic = PLAIN) {
-    const G = fin.raster.geology, { sea } = pic.pictureAt(fin, W);
-    if (W <= G.w) return classIndexMap(G, G.rock, ROCK_COUNT, W, sea);
-    const H = W >> 1, px = rockPixel(G, W), out = new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
-        const p = y * W + x;
+    const G = fin.raster.geology, { sea } = pic.pictureAt(fin, W), { y0 = 0, n: H = W >> 1 } = pic.rows ?? {};
+    if (W <= G.w) return classIndexMap(G, G.rock, ROCK_COUNT, W, sea, y0, H);
+    const px = rockPixel(G, W), out = new Uint8Array(W * H);
+    for (let j = 0; j < H; j++) for (let x = 0; x < W; x++) {
+        const p = j * W + x;
         if (sea[p]) continue;
-        const i = px(x, y);
+        const i = px(x, y0 + j);
         out[p] = (i >= 0 && G.rock[i]) || Rock.ALLUVIUM;
     }
     return out;
@@ -113,16 +114,16 @@ export function maskField(fin, key) {
 /** A richness mask at width W: 0 none … 255 the richest, smooth between the grid's cells (as the map's washes); the sea
  *  black (but oil and gas on the shelf). */
 function maskMap(fin, W, { field, offshore }, pic = PLAIN) {
-    const Dp = fin.raster.geology.deposits, H = W >> 1, { sea } = offshore ? { sea: null } : pic.pictureAt(fin, W), full = new Float32Array(Dp.w * Dp.h);
+    const Dp = fin.raster.geology.deposits, H = W >> 1, { y0: Y0 = 0, n = H } = pic.rows ?? {}, { sea } = offshore ? { sea: null } : pic.pictureAt(fin, W), full = new Float32Array(Dp.w * Dp.h);
     for (let j = 0; j < Dp.cells.length; j++) full[Dp.cells[j]] = field[j];
     // (each picture column's place on the grid, once)
     const gx0 = new Int32Array(W), gx1 = new Int32Array(W), fx = new Float32Array(W);
     for (let x = 0; x < W; x++) { const g = ((x + 0.5) / W * 360) / Dp.step - 0.5, x0 = Math.floor(g); fx[x] = g - x0; gx0[x] = (x0 + Dp.w) % Dp.w; gx1[x] = (x0 + 1 + Dp.w) % Dp.w; }
-    const data = new Uint8Array(W * H);
-    for (let y = 0; y < H; y++) {
-        const g = Math.max(0, Math.min(Dp.h - 1, ((y + 0.5) / H * 180) / Dp.step - 0.5)), y0 = Math.floor(g), fy = g - y0, r0 = y0 * Dp.w, r1 = Math.min(Dp.h - 1, y0 + 1) * Dp.w;
+    const data = new Uint8Array(W * n);
+    for (let j = 0; j < n; j++) {
+        const y = Y0 + j, g = Math.max(0, Math.min(Dp.h - 1, ((y + 0.5) / H * 180) / Dp.step - 0.5)), y0 = Math.floor(g), fy = g - y0, r0 = y0 * Dp.w, r1 = Math.min(Dp.h - 1, y0 + 1) * Dp.w;
         for (let x = 0; x < W; x++) {
-            const p = y * W + x;
+            const p = j * W + x;
             if (sea?.[p]) continue;
             const a = full[r0 + gx0[x]] + (full[r0 + gx1[x]] - full[r0 + gx0[x]]) * fx[x], b = full[r1 + gx0[x]] + (full[r1 + gx1[x]] - full[r1 + gx0[x]]) * fx[x];
             data[p] = Math.round(255 * Math.min(1, Math.max(0, a + (b - a) * fy)));
